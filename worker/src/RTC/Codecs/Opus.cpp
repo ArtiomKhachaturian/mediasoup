@@ -4,6 +4,56 @@
 #include "RTC/Codecs/Opus.hpp"
 #include "Logger.hpp"
 
+namespace {
+
+using namespace RTC::Codecs;
+
+struct OpusPreset
+{
+    Opus::Mode _mode;
+    Opus::Bandwitdh _bandwidth;
+    Opus::FrameSize _frameSize;
+};
+
+// https://www.rfc-editor.org/rfc/rfc6716#section-3.1
+static std::vector<OpusPreset> presets =
+{
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::Narrowband    , Opus::FrameSize::ms10},
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::Narrowband    , Opus::FrameSize::ms20},
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::Narrowband    , Opus::FrameSize::ms40},
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::Narrowband    , Opus::FrameSize::ms60},
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::MediumBand    , Opus::FrameSize::ms10},
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::MediumBand    , Opus::FrameSize::ms20},
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::MediumBand    , Opus::FrameSize::ms40},
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::MediumBand    , Opus::FrameSize::ms60},
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::WideBand      , Opus::FrameSize::ms10},
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::WideBand      , Opus::FrameSize::ms20},
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::WideBand      , Opus::FrameSize::ms40},
+    {Opus::Mode::SILKOnly    , Opus::Bandwitdh::WideBand      , Opus::FrameSize::ms60},
+    {Opus::Mode::Hybrid      , Opus::Bandwitdh::SuperWideBand , Opus::FrameSize::ms10},
+    {Opus::Mode::Hybrid      , Opus::Bandwitdh::SuperWideBand , Opus::FrameSize::ms20},
+    {Opus::Mode::Hybrid      , Opus::Bandwitdh::FullBand      , Opus::FrameSize::ms10},
+    {Opus::Mode::Hybrid      , Opus::Bandwitdh::FullBand      , Opus::FrameSize::ms20},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::Narrowband    , Opus::FrameSize::ms2_5},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::Narrowband    , Opus::FrameSize::ms5},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::Narrowband    , Opus::FrameSize::ms10},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::Narrowband    , Opus::FrameSize::ms20},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::WideBand      , Opus::FrameSize::ms2_5},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::WideBand      , Opus::FrameSize::ms5},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::WideBand      , Opus::FrameSize::ms10},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::WideBand      , Opus::FrameSize::ms20},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::SuperWideBand , Opus::FrameSize::ms2_5},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::SuperWideBand , Opus::FrameSize::ms5},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::SuperWideBand , Opus::FrameSize::ms10},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::SuperWideBand , Opus::FrameSize::ms20},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::FullBand      , Opus::FrameSize::ms2_5},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::FullBand      , Opus::FrameSize::ms5},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::FullBand      , Opus::FrameSize::ms10},
+    {Opus::Mode::CELTOnly    , Opus::Bandwitdh::FullBand      , Opus::FrameSize::ms20},
+};
+
+}
+
 namespace RTC
 {
 	namespace Codecs
@@ -38,6 +88,39 @@ namespace RTC
 
 			packet->SetPayloadDescriptorHandler(payloadDescriptorHandler);
 		}
+    
+        void Opus::ParseTOC(uint8_t toc, Mode* mode,
+                            Bandwitdh* bandWidth, FrameSize* frameSize,
+                            bool* stereo, CodeNumber* codeNumber)
+        {
+            if (stereo) {
+                *stereo = toc & 0x04;
+            }
+            if (codeNumber) {
+                const uint8_t number = toc | 0x03;
+                MS_ASSERT(number <= static_cast<uint8_t>(CodeNumber::Arbitrary), "OPUS TOC code number is invalid");
+                *codeNumber = static_cast<CodeNumber>(number);
+            }
+            if (mode || bandWidth || frameSize) {
+                // Get config
+                const uint8_t config = toc >> 3;
+                if (config < presets.size()) {
+                    const auto& preset = presets[config];
+                    if (mode) {
+                        *mode = preset._mode;
+                    }
+                    if (bandWidth) {
+                        *bandWidth = preset._bandwidth;
+                    }
+                    if (frameSize) {
+                        *frameSize = preset._frameSize;
+                    }
+                }
+                else {
+                    MS_ASSERT(false, "OPUS TOC config is invalid");
+                }
+            }
+        }
 
 		/* Instance methods. */
 

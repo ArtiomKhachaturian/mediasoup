@@ -2,6 +2,7 @@
 // #define MS_LOG_DEV_LEVEL 3
 
 #include "RTC/RtpStreamRecv.hpp"
+#include "RTC/RtpDepacketizer.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include "RTC/Codecs/Tools.hpp"
@@ -193,10 +194,11 @@ namespace RTC
 	  RTC::RtpStream::Params& params,
 	  unsigned int sendNackDelayMs,
 	  bool useRtpInactivityCheck)
-	  : RTC::RtpStream::RtpStream(listener, params, 10), sendNackDelayMs(sendNackDelayMs),
-	    useRtpInactivityCheck(useRtpInactivityCheck),
-	    transmissionCounter(
-	      params.spatialLayers, params.temporalLayers, this->params.useDtx ? 6000 : 2500)
+	  : RTC::RtpStream::RtpStream(listener, params, 10)
+        , _depacketizer(RtpDepacketizer::create(params.mimeType))
+        , sendNackDelayMs(sendNackDelayMs)
+        , useRtpInactivityCheck(useRtpInactivityCheck)
+        , transmissionCounter(params.spatialLayers, params.temporalLayers, this->params.useDtx ? 6000 : 2500)
 	{
 		MS_TRACE();
 
@@ -273,6 +275,11 @@ namespace RTC
 		if (packet->GetPayloadType() == GetPayloadType())
 		{
 			RTC::Codecs::Tools::ProcessRtpPacket(packet, GetMimeType());
+            if (_depacketizer) {
+                if (auto frame = _depacketizer->AddPacket(packet)) {
+                    // pass further
+                }
+            }
 		}
 
 		// Pass the packet to the NackGenerator.

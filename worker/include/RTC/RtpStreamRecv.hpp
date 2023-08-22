@@ -10,6 +10,8 @@
 
 namespace RTC
 {
+    class RtpDepacketizer;
+
 	class RtpStreamRecv : public RTC::RtpStream,
 	                      public RTC::NackGenerator::Listener,
 	                      public Timer::Listener
@@ -99,6 +101,8 @@ namespace RTC
 		void OnNackGeneratorKeyFrameRequired() override;
 
 	private:
+        // Frames rentransmission
+        const std::unique_ptr<RtpDepacketizer> _depacketizer;
 		// Passed by argument.
 		unsigned int sendNackDelayMs{ 0u };
 		bool useRtpInactivityCheck{ false };

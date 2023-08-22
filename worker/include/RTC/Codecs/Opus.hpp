@@ -82,6 +82,44 @@ namespace RTC
 			private:
 				std::unique_ptr<PayloadDescriptor> payloadDescriptor;
 			};
+        public:
+            enum class Mode
+            {
+                SILKOnly,
+                Hybrid,
+                CELTOnly
+            };
+            
+            enum class CodeNumber
+            {
+                One = 0,
+                Two = 1,
+                Three = 2,
+                Arbitrary = 3,
+            };
+            
+            enum class Bandwitdh
+            {
+                Narrowband,
+                MediumBand,
+                WideBand,
+                SuperWideBand,
+                FullBand,
+            };
+            
+            enum class FrameSize
+            {
+                ms2_5   = 120,
+                ms5     = 240,
+                ms10    = 480,
+                ms20    = 960,
+                ms40    = 1920,
+                ms60    = 2880
+            };
+            
+            static void ParseTOC(uint8_t toc, Mode* mode = nullptr,
+                                 Bandwitdh* bandWidth = nullptr, FrameSize* frameSize = nullptr,
+                                 bool* stereo = nullptr, CodeNumber* codeNumber = nullptr);
 		};
 	} // namespace Codecs
 } // namespace RTC

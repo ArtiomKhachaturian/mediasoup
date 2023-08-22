@@ -18,6 +18,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
+#include <memory>
 
 using json = nlohmann::json;
 
