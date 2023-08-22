@@ -170,6 +170,51 @@ common_sources = [
   'src/RTC/RTCP/XrReceiverReferenceTime.cpp',
 ]
 
+libwebm_sources = [
+  'external/libwebm/common/file_util.cc',
+  'external/libwebm/common/hdr_util.cc',
+  'external/libwebm/common/indent.cc',
+  'external/libwebm/common/vp9_header_parser.cc',
+  'external/libwebm/common/vp9_level_stats.cc',
+  'external/libwebm/common/webm_constants.h',
+  'external/libwebm/common/webm_endian.cc',
+  'external/libwebm/common/libwebm_util.cc',
+  'external/libwebm/common/video_frame.cc',
+  'external/libwebm/webm_info.cc',
+  'external/libwebm/m2ts/vpxpes2ts.cc',
+  'external/libwebm/m2ts/vpxpes_parser.cc',
+  'external/libwebm/m2ts/webm2pes.cc',
+  'external/libwebm/mkvmuxer/mkvmuxer.cc',
+  'external/libwebm/mkvmuxer/mkvmuxerutil.cc',
+  'external/libwebm/mkvmuxer/mkvwriter.cc',
+  'external/libwebm/mkvparser/mkvparser.cc',
+  'external/libwebm/mkvparser/mkvreader.cc',
+  'external/libwebm/webm_parser/src/ancestory.cc',
+  'external/libwebm/webm_parser/src/bit_utils.cc',
+  'external/libwebm/webm_parser/src/block_header_parser.cc',
+  'external/libwebm/webm_parser/src/block_parser.cc',
+  'external/libwebm/webm_parser/src/buffer_reader.cc',
+  'external/libwebm/webm_parser/src/callback.cc',
+  'external/libwebm/webm_parser/src/date_parser.cc',
+  'external/libwebm/webm_parser/src/file_reader.cc',
+  'external/libwebm/webm_parser/src/float_parser.cc',
+  'external/libwebm/webm_parser/src/id_element_parser.cc',
+  'external/libwebm/webm_parser/src/id_parser.cc',
+  'external/libwebm/webm_parser/src/istream_reader.cc',
+  'external/libwebm/webm_parser/src/master_parser.cc',
+  'external/libwebm/webm_parser/src/parser_utils.cc',
+  'external/libwebm/webm_parser/src/segment_parser.cc',
+  'external/libwebm/webm_parser/src/size_parser.cc',
+  'external/libwebm/webm_parser/src/skip_parser.cc',
+  'external/libwebm/webm_parser/src/unknown_parser.cc',
+  'external/libwebm/webm_parser/src/var_int_parser.cc',
+  'external/libwebm/webm_parser/src/virtual_block_parser.cc',
+  'external/libwebm/webm_parser/src/void_parser.cc',
+  'external/libwebm/webm_parser/src/webm_parser.cc',
+]
+
+libwebm_include_dir = declare_dependency(include_directories: include_directories('external/libwebm'))
+
 cpp = meson.get_compiler('cpp')
 
 openssl_proj = subproject(
@@ -259,6 +304,20 @@ if host_machine.system() == 'windows'
   ]
 endif
 
+libwebm = library(
+  'libwebm',
+  libwebm_sources,
+  dependencies: [libwebm_include_dir],
+  cpp_args: cpp_args,
+)
+
+libwebm_dep = declare_dependency()
+
+libwebm_dep = declare_dependency(
+  dependencies: [libwebm_include_dir],
+  link_with: libwebm,
+)
+
 libmediasoup_worker = library(
   'libmediasoup-worker',
   name_prefix: '',
@@ -277,7 +336,7 @@ executable(
   build_by_default: true,
   install: true,
   install_tag: 'mediasoup-worker',
-  dependencies: dependencies,
+  dependencies: dependencies + [libwebm_dep],
   sources: common_sources + ['src/main.cpp'],
   include_directories: include_directories('include'),
   cpp_args: cpp_args + ['-DMS_EXECUTABLE'],
