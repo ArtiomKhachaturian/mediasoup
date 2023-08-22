@@ -213,8 +213,6 @@ libwebm_sources = [
   'external/libwebm/webm_parser/src/webm_parser.cc',
 ]
 
-libwebm_include_dir = declare_dependency(include_directories: include_directories('external/libwebm'))
-
 cpp = meson.get_compiler('cpp')
 
 openssl_proj = subproject(
@@ -307,11 +305,16 @@ endif
 libwebm = library(
   'libwebm',
   libwebm_sources,
-  dependencies: [libwebm_include_dir],
+  include_directories: [
+    'external/libwebm',
+    'external/libwebm/webm_parser/',
+    'external/libwebm/webm_parser/include',
+  ],
+  build_by_default: true,
   cpp_args: cpp_args,
 )
 
-libwebm_dep = declare_dependency()
+libwebm_include_dir = declare_dependency(include_directories: include_directories('external/libwebm'))
 
 libwebm_dep = declare_dependency(
   dependencies: [libwebm_include_dir],
@@ -324,7 +327,7 @@ libmediasoup_worker = library(
   build_by_default: false,
   install: true,
   install_tag: 'libmediasoup-worker',
-  dependencies: dependencies,
+  dependencies: dependencies + [libwebm_dep],
   sources: common_sources,
   include_directories: include_directories('include'),
   cpp_args: cpp_args,
@@ -395,7 +398,8 @@ mediasoup_worker_test = executable(
   install: true,
   install_tag: 'mediasoup-worker-test',
   dependencies: dependencies + [
-    catch2_proj.get_variable('catch2_dep'),
+    catch2_proj.get_variable('catch2_dep'), 
+    libwebm_dep,
   ],
   sources: common_sources + test_sources,
   include_directories: include_directories(
@@ -420,7 +424,8 @@ mediasoup_worker_test_asan = executable(
   install: true,
   install_tag: 'mediasoup-worker-test-asan',
   dependencies: dependencies + [
-    catch2_proj.get_variable('catch2_dep'),
+    catch2_proj.get_variable('catch2_dep'), 
+    libwebm_dep,
   ],
   sources: common_sources + test_sources,
   include_directories: include_directories(
