@@ -36,7 +36,7 @@ RtpAudioWebMSerializer::RtpAudioWebMSerializer(OutputDevice* outputDevice, bool 
     , _opusCodec(opusCodec)
 {
     _segment.Init(this);
-    _segment.set_mode(mkvmuxer::Segment::kLive);
+    _segment.set_mode(outputDevice->IsFileDevice() ? mkvmuxer::Segment::kFile : mkvmuxer::Segment::kLive);
 }
 
 RtpAudioWebMSerializer::~RtpAudioWebMSerializer()
@@ -103,7 +103,7 @@ RtpAudioWebMSerializer::TrackInfo* RtpAudioWebMSerializer::GetTrack(const RtpAud
 
 mkvmuxer::int32 RtpAudioWebMSerializer::Write(const void* buf, mkvmuxer::uint32 len)
 {
-    return GetOutputDevice()->Write(buf, len) ? 0 : -1;
+    return GetOutputDevice()->Write(buf, len) ? 0 : 1;
 }
 
 mkvmuxer::int64 RtpAudioWebMSerializer::Position() const
@@ -113,7 +113,7 @@ mkvmuxer::int64 RtpAudioWebMSerializer::Position() const
 
 mkvmuxer::int32 RtpAudioWebMSerializer::Position(mkvmuxer::int64 position)
 {
-    return GetOutputDevice()->SetPosition(position) ? 0 : -1;
+    return GetOutputDevice()->SetPosition(position) ? 0 : 1;
 }
 
 bool RtpAudioWebMSerializer::Seekable() const

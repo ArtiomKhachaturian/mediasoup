@@ -24,6 +24,7 @@ public:
     virtual bool SetPosition(int64_t /*position*/) { return false; }
     // Returns true if the device is seekable.
     virtual bool Seekable() const { return false; }
+    virtual bool IsFileDevice() const { return false; }
 };
 
 } // namespace RTC

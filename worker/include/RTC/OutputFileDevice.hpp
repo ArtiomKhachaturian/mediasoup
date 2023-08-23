@@ -36,6 +36,7 @@ public:
     int64_t GetPosition() const final;
     bool SetPosition(int64_t position) final;
     bool Seekable() const final { return true; }
+    bool IsFileDevice() const final { return true; }
 private:
     static FILE* FileOpen(std::string_view fileNameUtf8, int* error = nullptr);
 private:
