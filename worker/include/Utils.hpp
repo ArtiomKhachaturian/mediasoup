@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
+#include <functional>
 #ifdef _WIN32
 #include <ws2ipdef.h>
 // https://stackoverflow.com/a/24550632/2085408
@@ -375,6 +376,32 @@ namespace Utils
 			}
 		}
 	};
+
+    // hash support
+    template <typename T>
+    inline size_t HashCombine(const T& v)
+    {
+        return std::hash<T>()(v);
+    }
+
+    template <typename T, typename... Rest>
+    inline size_t HashCombine(const T& v, Rest... rest)
+    {
+        size_t seed = HashCombine(rest...);
+        seed ^= HashCombine<T>(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        return seed;
+    }
+
+    template <class InputIt>
+    inline size_t HashCombineRange(InputIt first, InputIt last)
+    {
+        size_t seed = 0UL;
+        for (; first != last; ++first) {
+            seed = HashCombine(*first) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        }
+        return seed;
+    }
+
 } // namespace Utils
 
 #endif

@@ -6,13 +6,12 @@
 namespace RTC
 {
 
-RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& codecMimeType,
-                             std::vector<uint8_t> payload,
-                             uint32_t timestamp, uint32_t ssrc,
-                             uint16_t sequenceNumber,
-                             uint32_t duration,
+RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& codecMimeType, bool isKeyFrame,
+                             std::vector<uint8_t> payload, uint32_t timestamp, uint32_t ssrc,
+                             uint16_t sequenceNumber, uint32_t duration,
                              std::unique_ptr<RtpMediaConfig> mediaConfig)
     : _codecMimeType(codecMimeType)
+    , _isKeyFrame(isKeyFrame)
     , _payload(std::move(payload))
     , _timestamp(timestamp)
     , _ssrc(ssrc)
@@ -31,7 +30,8 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::create(const RtpPacket* packet,
     if (packet) {
         auto payload = CreatePayloadCopy(packet, payloadAllocator);
         if (!payload.empty()) {
-            return std::make_shared<RtpMediaFrame>(codecMimeType, std::move(payload),
+            return std::make_shared<RtpMediaFrame>(codecMimeType, packet->IsKeyFrame(),
+                                                   std::move(payload),
                                                    packet->GetTimestamp(), packet->GetSsrc(),
                                                    packet->GetSequenceNumber(), duration,
                                                    std::move(mediaConfig));
@@ -54,7 +54,7 @@ std::vector<uint8_t> RtpMediaFrame::CreatePayloadCopy(const RtpPacket* packet,
     return {};
 }
 
-const RtpAudioConfig* RtpMediaFrame::audioConfig() const
+const RtpAudioConfig* RtpMediaFrame::GetAudioConfig() const
 {
     switch (GetCodecMimeType().type) {
         case RtpCodecMimeType::Type::AUDIO:
@@ -66,7 +66,7 @@ const RtpAudioConfig* RtpMediaFrame::audioConfig() const
     return nullptr;
 }
 
-const RtpVideoConfig* RtpMediaFrame::videoConfig() const
+const RtpVideoConfig* RtpMediaFrame::GetVideoConfig() const
 {
     switch (GetCodecMimeType().type) {
         case RtpCodecMimeType::Type::VIDEO:
@@ -78,9 +78,10 @@ const RtpVideoConfig* RtpMediaFrame::videoConfig() const
     return nullptr;
 }
 
-RtpAudioConfig::RtpAudioConfig(uint8_t channelCount, uint32_t sampleRate)
+RtpAudioConfig::RtpAudioConfig(uint8_t channelCount, uint32_t sampleRate, uint8_t bitsPerSample)
     : _channelCount(channelCount)
     , _sampleRate(sampleRate)
+    , _bitsPerSample(bitsPerSample)
 {
 }
 
