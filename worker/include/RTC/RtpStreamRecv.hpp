@@ -11,6 +11,8 @@
 namespace RTC
 {
     class RtpDepacketizer;
+    class RtpMediaFrameSerializer;
+    class OutputDevice;
 
 	class RtpStreamRecv : public RTC::RtpStream,
 	                      public RTC::NackGenerator::Listener,
@@ -101,8 +103,11 @@ namespace RTC
 		void OnNackGeneratorKeyFrameRequired() override;
 
 	private:
+        const char* const _depacketizerPath;
         // Frames rentransmission
-        const std::unique_ptr<RtpDepacketizer> _depacketizer;
+        std::unique_ptr<OutputDevice> _outputDevice;
+        std::unique_ptr<RtpMediaFrameSerializer> _serializer;
+        std::unique_ptr<RtpDepacketizer> _depacketizer;
 		// Passed by argument.
 		unsigned int sendNackDelayMs{ 0u };
 		bool useRtpInactivityCheck{ false };

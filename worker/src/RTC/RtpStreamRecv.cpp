@@ -3,9 +3,21 @@
 
 #include "RTC/RtpStreamRecv.hpp"
 #include "RTC/RtpDepacketizer.hpp"
+#include "RTC/OutputFileDevice.hpp"
+#include "RTC/RtpMediaFrameSerializer.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include "RTC/Codecs/Tools.hpp"
+
+namespace {
+
+inline std::string FormatMediaFileName(const RTC::RtpCodecMimeType& mime, uint32_t ssrc)
+{
+    const auto& type = RTC::RtpCodecMimeType::type2String[mime.type];
+    return type + std::to_string(ssrc) + "." + RTC::RtpCodecMimeType::subtype2String[mime.subtype];
+}
+
+}
 
 namespace RTC
 {
@@ -195,13 +207,27 @@ namespace RTC
 	  unsigned int sendNackDelayMs,
 	  bool useRtpInactivityCheck)
 	  : RTC::RtpStream::RtpStream(listener, params, 10)
-        , _depacketizer(RtpDepacketizer::create(params.mimeType))
+        , _depacketizerPath(std::getenv("MEDIASOUP_DEPACKETIZER_PATH"))
         , sendNackDelayMs(sendNackDelayMs)
         , useRtpInactivityCheck(useRtpInactivityCheck)
         , transmissionCounter(params.spatialLayers, params.temporalLayers, this->params.useDtx ? 6000 : 2500)
 	{
 		MS_TRACE();
-
+        // for tests
+        if (_depacketizerPath && std::strlen(_depacketizerPath)) {
+            _depacketizer = RtpDepacketizer::create(params.mimeType);
+            if (_depacketizer) {
+                const std::string path(_depacketizerPath);
+                auto outputFile = std::make_unique<OutputFileDevice>(path + "/" +  FormatMediaFileName(params.mimeType, params.ssrc));
+                if (outputFile->IsOpen()) {
+                    _serializer = RtpMediaFrameSerializer::create(params.mimeType, outputFile.get());
+                    if (_serializer) {
+                        _outputDevice = std::move(outputFile);
+                    }
+                }
+            }
+        }
+        
 		if (this->params.useNack)
 		{
 			this->nackGenerator.reset(new RTC::NackGenerator(this, this->sendNackDelayMs));
@@ -275,9 +301,10 @@ namespace RTC
 		if (packet->GetPayloadType() == GetPayloadType())
 		{
 			RTC::Codecs::Tools::ProcessRtpPacket(packet, GetMimeType());
-            if (_depacketizer) {
-                if (auto frame = _depacketizer->AddPacket(packet)) {
+            if (_depacketizer && _serializer) {
+                if (const auto frame = _depacketizer->AddPacket(packet)) {
                     // pass further
+                    _serializer->Push(frame);
                 }
             }
 		}

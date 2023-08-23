@@ -9,6 +9,7 @@ namespace RTC
 {
 
 class RtpMediaFrame;
+class RtpMediaFrameSerializer;
 class RtpPacket;
 
 class RtpDepacketizer

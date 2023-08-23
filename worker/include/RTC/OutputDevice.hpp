@@ -10,6 +10,7 @@ class RtpCodecMimeType;
 class OutputDevice
 {
 public:
+    virtual ~OutputDevice() = default;
     virtual void BeginWriteMediaPayload(uint32_t /*ssrc*/, bool /*isKeyFrame*/,
                                         const RtpCodecMimeType& /*codecMimeType*/,
                                         uint16_t /*rtpSequenceNumber*/,
@@ -23,8 +24,6 @@ public:
     virtual bool SetPosition(int64_t /*position*/) { return false; }
     // Returns true if the device is seekable.
     virtual bool Seekable() const { return false; }
-protected:
-    virtual ~OutputDevice() = default;
 };
 
 } // namespace RTC
