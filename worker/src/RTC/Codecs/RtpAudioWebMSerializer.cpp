@@ -61,6 +61,9 @@ void RtpAudioWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFra
                                               track->GetTimestampNs(), mediaFrame->IsKeyFrame());
             if (ok) {
                 track->_granule += payload.size();
+                if (!GetOutputDevice()->IsFileDevice()) {
+                    _segment.CuesTrack(track->_number); // for live mode
+                }
             }
             GetOutputDevice()->EndWriteMediaPayload(mediaFrame->GetSsrc(), ok);
         }
@@ -93,6 +96,9 @@ RtpAudioWebMSerializer::TrackInfo* RtpAudioWebMSerializer::GetTrack(const RtpAud
             return nullptr;
         }
         const auto track = static_cast<mkvmuxer::AudioTrack*>(_segment.GetTrackByNumber(trackNumber));
+        if (privateData._sampleRate == 48000U) { // https://wiki.xiph.org/MatroskaOpus
+            track->set_seek_pre_roll(80000000ULL);
+        }
         track->set_codec_id(_opusCodec ? mkvmuxer::Tracks::kOpusCodecId : mkvmuxer::Tracks::kVorbisCodecId);
         track->set_bit_depth(bitDepth);
         track->SetCodecPrivate(reinterpret_cast<const uint8_t*>(&privateData), sizeof(privateData));
