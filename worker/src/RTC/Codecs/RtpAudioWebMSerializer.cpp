@@ -60,7 +60,7 @@ void RtpAudioWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFra
             const auto ok = _segment.AddFrame(payload.data(), payload.size(), track->_number,
                                               track->GetTimestampNs(), mediaFrame->IsKeyFrame());
             if (ok) {
-                track->_granule += payload.size();
+                track->_granule += /*payload.size()*/mediaFrame->GetDuration();
                 if (!GetOutputDevice()->IsFileDevice()) {
                     _segment.CuesTrack(track->_number); // for live mode
                 }
