@@ -14,7 +14,7 @@ RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& codecMimeType)
 std::shared_ptr<RtpMediaFrame> RtpDepacketizer::AddPacket(const RtpPacket* packet)
 {
     std::shared_ptr<RtpMediaFrame> frame;
-    if (packet) {
+    if (packet && packet->GetPayload()) {
         _packetsChain.push_back(packet);
         frame = Assemble(_packetsChain);
         _packetsChain.pop_back();

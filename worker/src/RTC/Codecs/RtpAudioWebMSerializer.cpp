@@ -88,14 +88,15 @@ RtpAudioWebMSerializer::TrackInfo* RtpAudioWebMSerializer::GetTrack(const RtpAud
         const auto trackNumber = _segment.AddAudioTrack(privateData._sampleRate,
                                                         privateData._channelCount,
                                                         static_cast<mkvmuxer::int32>(_tracks.size()) + 1);
-        if (0ULL != trackNumber) {
-            const auto track = static_cast<mkvmuxer::AudioTrack*>(_segment.GetTrackByNumber(trackNumber));
-            track->set_codec_id(_opusCodec ? mkvmuxer::Tracks::kOpusCodecId : mkvmuxer::Tracks::kVorbisCodecId);
-            track->set_bit_depth(bitDepth);
-            track->SetCodecPrivate(reinterpret_cast<const uint8_t*>(&privateData), sizeof(privateData));
-            _tracks.emplace(trackKey, TrackInfo(trackNumber, privateData._sampleRate));
+        if (0ULL == trackNumber) {
+            // log err
+            return nullptr;
         }
-        return nullptr;
+        const auto track = static_cast<mkvmuxer::AudioTrack*>(_segment.GetTrackByNumber(trackNumber));
+        track->set_codec_id(_opusCodec ? mkvmuxer::Tracks::kOpusCodecId : mkvmuxer::Tracks::kVorbisCodecId);
+        track->set_bit_depth(bitDepth);
+        track->SetCodecPrivate(reinterpret_cast<const uint8_t*>(&privateData), sizeof(privateData));
+        it = _tracks.emplace(trackKey, TrackInfo(trackNumber, privateData._sampleRate)).first;
     }
     return &it->second;
 }

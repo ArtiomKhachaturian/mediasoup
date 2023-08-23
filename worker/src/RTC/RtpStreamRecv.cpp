@@ -8,6 +8,7 @@
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include "RTC/Codecs/Tools.hpp"
+#include <cstdio>
 
 namespace {
 
@@ -217,12 +218,16 @@ namespace RTC
         if (_depacketizerPath && std::strlen(_depacketizerPath)) {
             _depacketizer = RtpDepacketizer::create(params.mimeType);
             if (_depacketizer) {
-                const std::string path(_depacketizerPath);
-                auto outputFile = std::make_unique<OutputFileDevice>(path + "/" +  FormatMediaFileName(params.mimeType, params.ssrc));
+                const std::string filename = std::string(_depacketizerPath) + "/" +  FormatMediaFileName(params.mimeType, params.ssrc);
+                auto outputFile = std::make_unique<OutputFileDevice>(filename);
                 if (outputFile->IsOpen()) {
                     _serializer = RtpMediaFrameSerializer::create(params.mimeType, outputFile.get());
                     if (_serializer) {
                         _outputDevice = std::move(outputFile);
+                    }
+                    else {
+                        outputFile.reset();
+                        std::remove(filename.c_str());
                     }
                 }
             }
@@ -301,12 +306,7 @@ namespace RTC
 		if (packet->GetPayloadType() == GetPayloadType())
 		{
 			RTC::Codecs::Tools::ProcessRtpPacket(packet, GetMimeType());
-            if (_depacketizer && _serializer) {
-                if (const auto frame = _depacketizer->AddPacket(packet)) {
-                    // pass further
-                    _serializer->Push(frame);
-                }
-            }
+            Depacketize(packet);
 		}
 
 		// Pass the packet to the NackGenerator.
@@ -349,7 +349,8 @@ namespace RTC
 		{
 			this->inactivityCheckPeriodicTimer->Restart();
 		}
-
+        
+        
 		return true;
 	}
 
@@ -431,6 +432,7 @@ namespace RTC
 		if (packet->GetPayloadType() == GetPayloadType())
 		{
 			RTC::Codecs::Tools::ProcessRtpPacket(packet, GetMimeType());
+            Depacketize(packet);
 		}
 
 		// Mark the packet as retransmitted.
@@ -872,6 +874,13 @@ namespace RTC
 
 		RtpStream::UpdateScore(score);
 	}
+
+    void RtpStreamRecv::Depacketize(const RTC::RtpPacket* packet)
+    {
+        if (packet && _depacketizer && _serializer) {
+            _serializer->Push(_depacketizer->AddPacket(packet));
+        }
+    }
 
 	void RtpStreamRecv::UserOnSequenceNumberReset()
 	{

@@ -88,6 +88,7 @@ namespace RTC
 	private:
 		void CalculateJitter(uint32_t rtpTimestamp);
 		void UpdateScore();
+        void Depacketize(const RTC::RtpPacket* packet);
 
 		/* Pure virtual methods inherited from RTC::RtpStream. */
 	public:
