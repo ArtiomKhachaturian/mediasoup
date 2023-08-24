@@ -17,20 +17,20 @@ class RtpMediaFrame
 public:
     RtpMediaFrame(const RtpCodecMimeType& codecMimeType, bool isKeyFrame,
                   std::vector<uint8_t> payload, uint32_t timestamp, uint32_t ssrc,
-                  uint16_t sequenceNumber, uint32_t duration = 0U,
-                  std::unique_ptr<RtpMediaConfig> mediaConfig = nullptr);
+                  uint16_t sequenceNumber, uint32_t durationMs,
+                  std::unique_ptr<RtpMediaConfig> mediaConfig);
     static std::shared_ptr<RtpMediaFrame> create(const RtpPacket* packet,
                                                  const RtpCodecMimeType& codecMimeType,
-                                                 const std::allocator<uint8_t>& payloadAllocator = {},
-                                                 uint32_t duration = 0U,
-                                                 std::unique_ptr<RtpMediaConfig> mediaConfig = nullptr);
+                                                 uint32_t durationMs,
+                                                 std::unique_ptr<RtpMediaConfig> mediaConfig,
+                                                 const std::allocator<uint8_t>& payloadAllocator = {});
     const RtpCodecMimeType& GetCodecMimeType() const { return _codecMimeType; }
     bool IsKeyFrame() const { return _isKeyFrame; }
     const std::vector<uint8_t>& GetPayload() const { return _payload; }
     uint32_t GetTimestamp() const { return _timestamp; }
     uint32_t GetSsrc() const { return _ssrc; }
     uint16_t GetSequenceNumber() const { return _sequenceNumber; }
-    uint32_t GetDuration() const { return _duration; }
+    uint32_t GetDuration() const { return _durationMs; }
     uint32_t GetAbsSendtime() const { return _absSendtime; }
     void SetAbsSendtime(uint32_t absSendtime) { _absSendtime = absSendtime; }
     const RtpAudioConfig* GetAudioConfig() const;
@@ -45,7 +45,7 @@ private:
     const uint32_t _timestamp;
     const uint32_t _ssrc;
     const uint16_t _sequenceNumber;
-    const uint32_t _duration;
+    const uint32_t _durationMs;
     const std::unique_ptr<RtpMediaConfig> _mediaConfig;
     uint32_t _absSendtime = 0U;
 };
@@ -75,7 +75,18 @@ private:
 
 class RtpVideoConfig : public RtpMediaConfig
 {
-    // TBD
+public:
+    RtpVideoConfig(int32_t width, int32_t height, double frameRate);
+    int32_t GetWidth() const { return _width; }
+    int32_t GetHeight() const { return _height; }
+    double GetFrameRate() const { return _frameRate; }
+    void SetWidth(int32_t width) { _width = width; }
+    void SetHeight(int32_t height) { _height = height; }
+    void SetFrameRate(double frameRate) { _frameRate = frameRate; }
+private:
+    int32_t _width;
+    int32_t _height;
+    double _frameRate;
 };
 
 } // namespace RTC

@@ -1,7 +1,7 @@
 #define MS_CLASS "RTC::RtpMediaFrameSerializer"
 #include "RTC/RtpMediaFrameSerializer.hpp"
 #include "RTC/RtpDictionaries.hpp"
-#include "RTC/Codecs/RtpAudioWebMSerializer.hpp"
+#include "RTC/RtpWebMSerializer.hpp"
 #include "Logger.hpp"
 
 namespace RTC
@@ -21,7 +21,7 @@ std::unique_ptr<RtpMediaFrameSerializer> RtpMediaFrameSerializer::create(const R
             case RtpCodecMimeType::Type::AUDIO:
                 switch (mimeType.subtype) {
                     case RtpCodecMimeType::Subtype::OPUS:
-                        return std::make_unique<RtpAudioWebMSerializer>(outputDevice);
+                        return std::make_unique<RtpWebMSerializer>(outputDevice);
                     default:
                         break;
                 }

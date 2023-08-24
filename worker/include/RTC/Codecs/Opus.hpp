@@ -82,6 +82,28 @@ namespace RTC
 			private:
 				std::unique_ptr<PayloadDescriptor> payloadDescriptor;
 			};
+            
+        public:
+#pragma pack(push)
+#pragma pack(1)
+            struct OpusHead
+            {
+                // constants
+                static inline constexpr uint8_t _defaultChannelCount = 1U;
+                static inline constexpr uint32_t _defaultSampleRate = 48000U;
+                // members
+                const uint8_t _head[8] = {0x4f, 0x70, 0x75, 0x73, 0x48, 0x65, 0x61, 0x64};
+                const uint8_t _version = 1U;
+                uint8_t _channelCount = _defaultChannelCount;
+                const uint16_t _preSkip = 0U;
+                uint32_t _sampleRate = _defaultSampleRate;
+                const uint16_t _gain = 0U;
+                const uint8_t _mappingFamily = 0U;
+                OpusHead() = default;
+                OpusHead(uint8_t channelCount, uint32_t sampleRate);
+            };
+#pragma pack(pop)
+            
         public:
             enum class Mode
             {

@@ -8,7 +8,7 @@ namespace RTC
 
 RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& codecMimeType, bool isKeyFrame,
                              std::vector<uint8_t> payload, uint32_t timestamp, uint32_t ssrc,
-                             uint16_t sequenceNumber, uint32_t duration,
+                             uint16_t sequenceNumber, uint32_t durationMs,
                              std::unique_ptr<RtpMediaConfig> mediaConfig)
     : _codecMimeType(codecMimeType)
     , _isKeyFrame(isKeyFrame)
@@ -16,24 +16,25 @@ RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& codecMimeType, bool isKeyFr
     , _timestamp(timestamp)
     , _ssrc(ssrc)
     , _sequenceNumber(sequenceNumber)
-    , _duration(duration)
+    , _durationMs(durationMs)
     , _mediaConfig(std::move(mediaConfig))
 {
+    MS_ASSERT(_durationMs > 0U, "invalid media frame duration");
 }
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::create(const RtpPacket* packet,
                                                      const RtpCodecMimeType& codecMimeType,
-                                                     const std::allocator<uint8_t>& payloadAllocator,
-                                                     uint32_t duration,
-                                                     std::unique_ptr<RtpMediaConfig> mediaConfig)
+                                                     uint32_t durationMs,
+                                                     std::unique_ptr<RtpMediaConfig> mediaConfig,
+                                                     const std::allocator<uint8_t>& payloadAllocator)
 {
-    if (packet) {
+    if (packet && mediaConfig) {
         auto payload = CreatePayloadCopy(packet, payloadAllocator);
         if (!payload.empty()) {
             return std::make_shared<RtpMediaFrame>(codecMimeType, packet->IsKeyFrame(),
                                                    std::move(payload),
                                                    packet->GetTimestamp(), packet->GetSsrc(),
-                                                   packet->GetSequenceNumber(), duration,
+                                                   packet->GetSequenceNumber(), durationMs,
                                                    std::move(mediaConfig));
         }
     }
@@ -82,6 +83,13 @@ RtpAudioConfig::RtpAudioConfig(uint8_t channelCount, uint32_t sampleRate, uint8_
     : _channelCount(channelCount)
     , _sampleRate(sampleRate)
     , _bitsPerSample(bitsPerSample)
+{
+}
+
+RtpVideoConfig::RtpVideoConfig(int32_t width, int32_t height, double frameRate)
+    : _width(width)
+    , _height(height)
+    , _frameRate(frameRate)
 {
 }
 

@@ -89,6 +89,12 @@ namespace RTC
 			packet->SetPayloadDescriptorHandler(payloadDescriptorHandler);
 		}
     
+        Opus::OpusHead::OpusHead(uint8_t channelCount, uint32_t sampleRate)
+            : _channelCount(channelCount)
+            , _sampleRate(sampleRate)
+        {
+        }
+    
         void Opus::ParseTOC(uint8_t toc, Mode* mode,
                             Bandwitdh* bandWidth, FrameSize* frameSize,
                             bool* stereo, CodeNumber* codeNumber)
