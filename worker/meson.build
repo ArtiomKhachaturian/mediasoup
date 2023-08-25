@@ -111,6 +111,7 @@ common_sources = [
   'src/RTC/SeqManager.cpp',
   'src/RTC/Shared.cpp',
   'src/RTC/OutputFileDevice.cpp',
+  'src/RTC/OutputWebSocketDevice.cpp',
   'src/RTC/SimpleConsumer.cpp',
   'src/RTC/SimulcastConsumer.cpp',
   'src/RTC/SrtpSession.cpp',
@@ -224,12 +225,14 @@ openssl_proj = subproject(
     'warning_level=0',
   ],
 )
+
 nlohmann_json_proj = subproject(
   'nlohmann_json',
   default_options: [
     'warning_level=0',
   ],
 )
+
 libuv_proj = subproject(
   'libuv',
   default_options: [
@@ -238,6 +241,7 @@ libuv_proj = subproject(
     'build_benchmarks=false',
   ],
 )
+
 libsrtp2_proj = subproject(
   'libsrtp2',
   default_options: [
@@ -247,6 +251,7 @@ libsrtp2_proj = subproject(
     'tests=disabled',
   ],
 )
+
 usrsctp_proj = subproject(
   'usrsctp',
   default_options: [
@@ -254,20 +259,42 @@ usrsctp_proj = subproject(
     'sctp_build_programs=false',
   ],
 )
+
 abseil_cpp_proj = subproject(
   'abseil-cpp',
   default_options: [
     'warning_level=0',
   ],
 )
+
 catch2_proj = subproject(
   'catch2',
   default_options: [
     'warning_level=0',
   ],
 )
+
 libwebrtc_include_directories = include_directories('include')
 subdir('deps/libwebrtc')
+
+libwebm_include_dir = declare_dependency(include_directories: include_directories('external/libwebm'))
+
+libwebm = library(
+  'libwebm',
+  libwebm_sources,
+  include_directories: [
+    'external/libwebm',
+    'external/libwebm/webm_parser/',
+    'external/libwebm/webm_parser/include',
+  ],
+  build_by_default: true,
+  cpp_args: cpp_args,
+)
+
+libwebm_dep = declare_dependency(
+  dependencies: [libwebm_include_dir],
+  link_with: libwebm,
+)
 
 dependencies = [
   abseil_cpp_proj.get_variable('absl_container_dep'),
@@ -276,7 +303,9 @@ dependencies = [
   libuv_proj.get_variable('libuv_dep'),
   libsrtp2_proj.get_variable('libsrtp2_dep'),
   usrsctp_proj.get_variable('usrsctp_dep'),
+  dependency('libwebsockets', fallback: ['libwebsockets', 'libwebsockets_dep'], required: true),
   libwebrtc_dep,
+  libwebm_dep,
 ]
 
 link_whole = [
@@ -305,32 +334,13 @@ if host_machine.system() == 'windows'
   ]
 endif
 
-libwebm = library(
-  'libwebm',
-  libwebm_sources,
-  include_directories: [
-    'external/libwebm',
-    'external/libwebm/webm_parser/',
-    'external/libwebm/webm_parser/include',
-  ],
-  build_by_default: true,
-  cpp_args: cpp_args,
-)
-
-libwebm_include_dir = declare_dependency(include_directories: include_directories('external/libwebm'))
-
-libwebm_dep = declare_dependency(
-  dependencies: [libwebm_include_dir],
-  link_with: libwebm,
-)
-
 libmediasoup_worker = library(
   'libmediasoup-worker',
   name_prefix: '',
   build_by_default: false,
   install: true,
   install_tag: 'libmediasoup-worker',
-  dependencies: dependencies + [libwebm_dep],
+  dependencies: dependencies,
   sources: common_sources,
   include_directories: include_directories('include'),
   cpp_args: cpp_args,
@@ -342,7 +352,7 @@ executable(
   build_by_default: true,
   install: true,
   install_tag: 'mediasoup-worker',
-  dependencies: dependencies + [libwebm_dep],
+  dependencies: dependencies,
   sources: common_sources + ['src/main.cpp'],
   include_directories: include_directories('include'),
   cpp_args: cpp_args + ['-DMS_EXECUTABLE'],
@@ -402,7 +412,6 @@ mediasoup_worker_test = executable(
   install_tag: 'mediasoup-worker-test',
   dependencies: dependencies + [
     catch2_proj.get_variable('catch2_dep'), 
-    libwebm_dep,
   ],
   sources: common_sources + test_sources,
   include_directories: include_directories(
@@ -428,7 +437,6 @@ mediasoup_worker_test_asan = executable(
   install_tag: 'mediasoup-worker-test-asan',
   dependencies: dependencies + [
     catch2_proj.get_variable('catch2_dep'), 
-    libwebm_dep,
   ],
   sources: common_sources + test_sources,
   include_directories: include_directories(
