@@ -181,6 +181,7 @@ extern "C" int mediasoup_worker_run(
 		RTC::DtlsTransport::ClassDestroy();
 		DepUsrSCTP::ClassDestroy();
 		DepLibUV::ClassDestroy();
+        DepOpenSSL::ClassDestroy();
 
 #ifdef MS_EXECUTABLE
 		// Wait a bit so pending messages to stdout/Channel arrive to the Node

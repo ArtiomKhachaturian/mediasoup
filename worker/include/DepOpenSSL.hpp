@@ -5,6 +5,7 @@ class DepOpenSSL
 {
 public:
 	static void ClassInit();
+    static void ClassDestroy();
 };
 
 #endif
