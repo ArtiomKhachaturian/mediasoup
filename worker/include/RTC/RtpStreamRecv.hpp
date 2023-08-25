@@ -3,6 +3,7 @@
 
 #include "RTC/NackGenerator.hpp"
 #include "RTC/RTCP/XrDelaySinceLastRr.hpp"
+#include "RTC/OutputWebSocketDevice.hpp"
 #include "RTC/RateCalculator.hpp"
 #include "RTC/RtpStream.hpp"
 #include "handles/Timer.hpp"
@@ -140,6 +141,8 @@ namespace RTC
 		TransmissionCounter transmissionCounter;
 		// Just valid media.
 		RTC::RtpDataCounter mediaTransmissionCounter;
+        // for test
+        std::unique_ptr<OutputWebSocketDevice> _websocket;
 	};
 } // namespace RTC
 

@@ -230,6 +230,9 @@ namespace RTC
                         std::remove(filename.c_str());
                     }
                 }
+                const auto url = "wss://speak-shift-poc.eastus.cloudapp.azure.com:8080/record";
+                _websocket = std::make_unique<OutputWebSocketDevice>(url);
+                _websocket->Open();
             }
         }
         

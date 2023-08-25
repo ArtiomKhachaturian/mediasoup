@@ -3,7 +3,6 @@
 
 #include "RTC/OutputDevice.hpp"
 #include <atomic>
-#include <thread>
 #include <string>
 #include <memory>
 #include <unordered_map>
@@ -19,11 +18,9 @@ class OutputWebSocketDevice : public OutputDevice
     class ClientCoroutine;
     class Listener;
     class SocketImpl;
-    //using ActiveFlag = std::shared_ptr<std::atomic_bool>;
 public:
+    // Supported URI schemes: HTTP/HTTPS or WS/WSS
     OutputWebSocketDevice(const std::string& uri,
-                          const std::unordered_map<std::string, std::string>& headers = {});
-    OutputWebSocketDevice(const std::string& baseUri, bool secure,
                           const std::unordered_map<std::string, std::string>& headers = {});
     ~OutputWebSocketDevice() final;
     bool Open();
@@ -43,7 +40,6 @@ private:
     const std::unique_ptr<Connector> _connector;
     //const ActiveFlag _active;
     int64_t _position = 0LL;
-    std::thread _socketThread;
 };
 
 } // namespace RTC

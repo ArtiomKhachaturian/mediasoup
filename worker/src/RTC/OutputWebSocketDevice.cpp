@@ -1,5 +1,6 @@
 #define MS_CLASS "OutputWebSocketDevice"
 #include "RTC/OutputWebSocketDevice.hpp"
+#include <oatpp/network/Url.hpp>
 #include <oatpp/core/async/Executor.hpp>
 #include <oatpp/network/tcp/client/ConnectionProvider.hpp>
 #include <oatpp-websocket/AsyncWebSocket.hpp>
@@ -9,25 +10,6 @@
 #include <iterator>
 #include <stdexcept>
 #include "Logger.hpp"
-
-namespace {
-
-// split by port & domain
-inline void SplitPathToDomainAndPort(std::string_view path, std::string& domain, std::string& port)
-{
-    if (path.size() > 1UL) {
-        // split by port & domain
-        const auto pathSplitter = path.find(':');
-        if (std::string::npos != pathSplitter) {
-            domain.insert(domain.begin(), path.begin(), path.begin() + pathSplitter);
-            port.insert(port.begin(), path.begin() + pathSplitter + 1UL, path.end());
-        } else {
-            domain = std::move(path);
-        }
-    }
-}
-
-} // namespace
 
 namespace RTC
 {
@@ -42,30 +24,24 @@ enum class OutputWebSocketDevice::State
 class OutputWebSocketDevice::UriParts
 {
 public:
-    UriParts(const std::string& uri);
-    oatpp::network::Address GetAddress() const { return {_uri, _port}; }
-    const std::string& GetDomain() const { return _domain; }
-    static std::string CreateUriWithScheme(const std::string& baseUri, bool secure);
+    UriParts(oatpp::network::Url url);
+    oatpp::network::Address GetAddress() const;
+    const oatpp::String& GetPath() const { return _url.path; }
+    const oatpp::String& GetUserInfo() const { return _url.authority.userInfo; }
     static std::unique_ptr<UriParts> ParseAndCreate(const std::string& uri);
 private:
-    static const std::string _wssScheme;
-    static const std::string _wsScheme;
-    bool _isConnectionSecure = false;
-    std::string _domain;
-    v_uint16 _port = 0U;
-    std::string _uri;
+    const oatpp::network::Url _url;
 };
 
 class OutputWebSocketDevice::Connector
 {
 public:
     Connector(std::shared_ptr<oatpp::network::tcp::client::ConnectionProvider> connectionProvider,
-              std::shared_ptr<oatpp::websocket::Connector> connector,
               oatpp::websocket::Connector::Headers headers);
     ~Connector();
     static std::unique_ptr<Connector> Create(const UriParts* uriParts,
                                              const std::unordered_map<std::string, std::string>& headers);
-    bool Open(const std::string& domain = std::string());
+    bool Open(const oatpp::String& path = oatpp::String());
     void Close(bool wait);
 private:
     const std::unique_ptr<oatpp::async::Executor> _executor;
@@ -81,6 +57,7 @@ public:
     Listener() = default;
     bool setState(State state);
     State GetState() const { return _state.load(std::memory_order_relaxed); }
+    void setSocketRef(const std::weak_ptr<oatpp::websocket::AsyncWebSocket>& socketRef);
     // impl. of oatpp::websocket::AsyncWebSocket::Listener
     oatpp::async::CoroutineStarter onPing(const std::shared_ptr<AsyncWebSocket>& socket,
                                           const oatpp::String& message) final;
@@ -92,6 +69,8 @@ public:
                                                v_uint8 opcode, p_char8 data, oatpp::v_io_size size) final;
 private:
     std::atomic<State> _state = State::Disconnected;
+    std::mutex _socketRefMtx;
+    std::weak_ptr<oatpp::websocket::AsyncWebSocket> _socketRef;
 };
 
 class OutputWebSocketDevice::ClientCoroutine : public oatpp::async::Coroutine<ClientCoroutine>
@@ -123,12 +102,6 @@ OutputWebSocketDevice::OutputWebSocketDevice(const std::string& uri,
 {
 }
 
-OutputWebSocketDevice::OutputWebSocketDevice(const std::string& baseUri, bool secure,
-                                             const std::unordered_map<std::string, std::string>& headers)
-    : OutputWebSocketDevice(UriParts::CreateUriWithScheme(baseUri, secure), headers)
-{
-}
-
 OutputWebSocketDevice::~OutputWebSocketDevice()
 {
     _connector->Close(true);
@@ -141,7 +114,7 @@ bool OutputWebSocketDevice::IsValid() const
 
 bool OutputWebSocketDevice::Open()
 {
-    return IsValid() && _connector->Open();
+    return IsValid() && _connector->Open(_uriParts->GetPath());
 }
 
 void OutputWebSocketDevice::Close()
@@ -170,70 +143,35 @@ bool OutputWebSocketDevice::Write(const void* buf, uint32_t len)
     return false;
 }
 
-const std::string OutputWebSocketDevice::UriParts::_wssScheme("wss");
-const std::string OutputWebSocketDevice::UriParts::_wsScheme("ws");
-
-OutputWebSocketDevice::UriParts::UriParts(const std::string& uri)
+OutputWebSocketDevice::UriParts::UriParts(oatpp::network::Url url)
+    : _url(std::move(url))
 {
-    if (!uri.empty()) {
-        auto protocolEnd = uri.find("://");
-        // extract protocol (URI scheme)
-        if (std::string::npos != protocolEnd) {
-            std::string protocol;
-            protocol.reserve(protocolEnd);
-            std::transform(uri.begin(), uri.begin() + protocolEnd, std::back_inserter(protocol),
-                           [](unsigned char c) { return std::tolower(c); });
-            // is websocket proto?
-            if (_wssScheme == protocol || _wsScheme == protocol) {
-                protocolEnd += 3;
-                _isConnectionSecure = _wssScheme == protocol; // secure or not
-                // extract URI part
-                const auto pathEnd = uri.find_first_of('/', protocolEnd);
-                std::string port;
-                if (std::string::npos != pathEnd) {
-                    SplitPathToDomainAndPort(std::string(uri.begin() + protocolEnd, uri.begin() + pathEnd), _domain, port);
-                } else {
-                    SplitPathToDomainAndPort(std::string(uri.begin() + protocolEnd, uri.end()), _domain, port);
-                }
-                _uri = uri;
-                if (!port.empty()) {
-                    try {
-                        _port = std::stoi(port.c_str());
-                    }
-                    catch(const std::exception& e) {
-                        MS_WARN_TAG(rtp, "Failed to extract port number: %s", e.what());
-                    }
-                }
-            }
-        }
-    }
 }
 
-std::string OutputWebSocketDevice::UriParts::CreateUriWithScheme(const std::string& baseUri, bool secure)
+oatpp::network::Address OutputWebSocketDevice::UriParts::GetAddress() const
 {
-    if (!baseUri.empty()) {
-        return (secure ? UriParts::_wssScheme : UriParts::_wsScheme) + "://" + baseUri;
-    }
-    return baseUri;
+    return oatpp::network::Address(_url.authority.host, _url.authority.port);
 }
 
 std::unique_ptr<OutputWebSocketDevice::UriParts> OutputWebSocketDevice::UriParts::ParseAndCreate(const std::string& uri)
 {
     if (!uri.empty()) {
-        auto uriParts = std::make_unique<UriParts>(uri);
-        if (!uriParts->_uri.empty()) {
-            return uriParts;
+        auto url = oatpp::network::Url::Parser::parseUrl(uri);
+        if (url.authority.host) {
+            if (-1 == url.authority.port) {
+                url.authority.port = 0;
+            }
+            return std::make_unique<UriParts>(std::move(url));
         }
     }
     return nullptr;
 }
 
 OutputWebSocketDevice::Connector::Connector(std::shared_ptr<oatpp::network::tcp::client::ConnectionProvider> connectionProvider,
-                                            std::shared_ptr<oatpp::websocket::Connector> connector,
                                             oatpp::websocket::Connector::Headers headers)
-    : _executor(std::make_unique<oatpp::async::Executor>())
+    : _executor(std::make_unique<oatpp::async::Executor>(1, 1))
     , _connectionProvider(std::move(connectionProvider))
-    , _connector(std::move(connector))
+    , _connector(oatpp::websocket::Connector::createShared(_connectionProvider))
     , _headers(std::move(headers))
     , _listener(std::make_shared<Listener>())
 {
@@ -242,12 +180,14 @@ OutputWebSocketDevice::Connector::Connector(std::shared_ptr<oatpp::network::tcp:
 OutputWebSocketDevice::Connector::~Connector()
 {
     _executor->waitTasksFinished();
+    _executor->stop();
+    _executor->join();
 }
 
-bool OutputWebSocketDevice::Connector::Open(const std::string& domain)
+bool OutputWebSocketDevice::Connector::Open(const oatpp::String& path)
 {
     if (_listener->setState(State::Connecting)) {
-        _executor->execute<ClientCoroutine>(_connector, _listener, domain, _headers);
+        _executor->execute<ClientCoroutine>(_connector, _listener, path, _headers);
         return true;
     }
     return false;
@@ -255,8 +195,11 @@ bool OutputWebSocketDevice::Connector::Open(const std::string& domain)
 
 void OutputWebSocketDevice::Connector::Close(bool wait)
 {
-    if (_listener->setState(State::Disconnected) && wait) {
-        _executor->waitTasksFinished();
+    if (_listener->setState(State::Disconnected)) {
+        _connectionProvider->stop();
+        if (wait) {
+            _executor->waitTasksFinished();
+        }
     }
 }
 
@@ -267,17 +210,15 @@ std::unique_ptr<OutputWebSocketDevice::Connector> OutputWebSocketDevice::
         using namespace oatpp::network;
         auto connectionProvider = tcp::client::ConnectionProvider::createShared(uriParts->GetAddress());
         if (connectionProvider) {
-            auto connector = oatpp::websocket::Connector::createShared(connectionProvider);
-            if (connector) {
+            oatpp::websocket::Connector::Headers oatppHeaders;
+            {
                 using namespace oatpp::data::share;
-                oatpp::websocket::Connector::Headers oatppHeaders;
                 for (auto it = headers.begin(); it != headers.end(); ++it) {
                     oatppHeaders.put(StringKeyLabelCI(it->first), StringKeyLabel(it->second));
                 }
-                return std::make_unique<Connector>(std::move(connectionProvider),
-                                                   std::move(connector),
-                                                   std::move(oatppHeaders));
             }
+            return std::make_unique<Connector>(std::move(connectionProvider),
+                                               std::move(oatppHeaders));
         }
     }
     return nullptr;
@@ -286,21 +227,34 @@ std::unique_ptr<OutputWebSocketDevice::Connector> OutputWebSocketDevice::
 
 bool OutputWebSocketDevice::Listener::setState(State state)
 {
-    State expected[2] = {};
-    switch (state) {
-        case State::Disconnected:
-            expected[0] = State::Connecting;
-            expected[0] = State::Connected;
-            break;
-        case State::Connecting:
-            expected[0] = expected[1] = State::Disconnected;
-            break;
-        case State::Connected:
-            expected[0] = expected[1] = State::Connecting;
-            break;
+    bool changed = false;
+    if (State::Disconnected == state) {
+        changed = State::Disconnected != _state.exchange(state);
     }
-    return std::atomic_compare_exchange_strong(&_state, &expected[0], state) ||
-           std::atomic_compare_exchange_strong(&_state, &expected[1], state);
+    else {
+        State expected;
+        switch (state) {
+            case State::Connecting:
+                expected = State::Disconnected;
+                break;
+            case State::Connected:
+                expected = State::Connecting;
+                break;
+            default:
+                MS_ASSERT(false, "invalid websocket state");
+                break;
+        }
+        changed = std::atomic_compare_exchange_strong(&_state, &expected, state);
+    }
+    return changed;
+}
+
+void OutputWebSocketDevice::Listener::setSocketRef(const std::weak_ptr<oatpp::websocket::AsyncWebSocket>& socketRef)
+{
+    if (!socketRef.expired()) {
+        const std::lock_guard<std::mutex> guard(_socketRefMtx);
+        _socketRef = socketRef;
+    }
 }
 
 oatpp::async::CoroutineStarter OutputWebSocketDevice::Listener::onPing(const std::shared_ptr<AsyncWebSocket>& socket,
@@ -345,7 +299,7 @@ OutputWebSocketDevice::ClientCoroutine::ClientCoroutine(const std::shared_ptr<oa
 oatpp::async::Action OutputWebSocketDevice::ClientCoroutine::act()
 {
     // Establish WebSocket connection
-    if (_listener->setState(State::Connecting)) {
+    if (State::Connecting == _listener->GetState()) {
         return _connector->connectAsync(_domain, _headers).callbackTo(&ClientCoroutine::OnConnected);
     }
     return {};
@@ -353,7 +307,10 @@ oatpp::async::Action OutputWebSocketDevice::ClientCoroutine::act()
 
 oatpp::async::Action OutputWebSocketDevice::ClientCoroutine::handleError(Error* error)
 {
-    MS_ERROR("Failed to connect by websocket: %s", error ? error->what() : "unknown error");
+    if (_listener->setState(State::Disconnected)) {
+        const auto err = error ? error->what() : "unknown error";
+        MS_WARN_TAG(rtx, "Failed to connect by websocket: %s", error ? error->what() : "unknown error");
+    }
     return error;
 }
 
@@ -364,12 +321,11 @@ oatpp::async::Action OutputWebSocketDevice::ClientCoroutine::OnConnected(const o
         _socket = oatpp::websocket::AsyncWebSocket::createShared(connection, true);
         _socket->setListener(_listener);
         if (State::Connected == _listener->GetState()) {
+            _listener->setSocketRef(_socket);
             // Listen on WebSocket, when WebSocket is closed - call onFinishListen()
             return _socket->listenAsync().next(yieldTo(&ClientCoroutine::OnFinishListen));
         }
-        else {
-            _socket.reset();
-        }
+        _socket.reset();
     }
     return {};
 }
