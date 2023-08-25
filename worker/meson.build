@@ -303,7 +303,8 @@ dependencies = [
   libuv_proj.get_variable('libuv_dep'),
   libsrtp2_proj.get_variable('libsrtp2_dep'),
   usrsctp_proj.get_variable('usrsctp_dep'),
-  dependency('libwebsockets', fallback: ['libwebsockets', 'libwebsockets_dep'], required: true),
+  dependency('oatpp'),
+  dependency('oatpp-websocket'),
   libwebrtc_dep,
   libwebm_dep,
 ]
