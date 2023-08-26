@@ -2,9 +2,9 @@
 #define MS_RTC_OUTPUT_WEBSOCKET_DEVICE_HPP
 
 #include "RTC/OutputDevice.hpp"
-#include <atomic>
 #include <string>
 #include <memory>
+#include <thread>
 #include <unordered_map>
 
 namespace RTC
@@ -14,20 +14,26 @@ class OutputWebSocketDevice : public OutputDevice
 {
     enum class State;
     class UriParts;
-    class Connector;
-    class ClientCoroutine;
-    class Listener;
-    class SocketImpl;
+    class Socket;
+    template<class TConfig> class SocketImpl;
+    class SocketTls;
+    class SocketNoTls;
 public:
-    // Supported URI schemes: HTTP/HTTPS or WS/WSS
-    OutputWebSocketDevice(const std::string& uri,
-                          const std::unordered_map<std::string, std::string>& headers = {});
+    enum class SocketState
+    {
+        Invalid, // wrong URI
+        Connecting,
+        Connected,
+        Disconnected,
+    };
+public:
+    // Supported URI schemes: WS or WSS
+    OutputWebSocketDevice(std::string uri, std::unordered_map<std::string, std::string> headers = {});
     ~OutputWebSocketDevice() final;
     bool Open();
     void Close();
-    bool IsValid() const;
-    static void ClassInit();
-    static void ClassDestroy();
+    SocketState GetState() const;
+    bool WriteText(const std::string& text);
     // impl. of OutputDevice
     bool Write(const void* buf, uint32_t len) final;
     int64_t GetPosition() const final { return _position; }
@@ -35,11 +41,10 @@ public:
     bool Seekable() const final { return false; }
     bool IsFileDevice() const final { return false; }
 private:
-    static inline std::atomic_bool _oatInitialized = false;
-    const std::unique_ptr<UriParts> _uriParts;
-    const std::unique_ptr<Connector> _connector;
-    //const ActiveFlag _active;
+    const std::shared_ptr<UriParts> _uri;
+    const std::shared_ptr<Socket> _socket;
     int64_t _position = 0LL;
+    std::thread _asioThread;
 };
 
 } // namespace RTC

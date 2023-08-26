@@ -11,6 +11,7 @@ project(
 
 cpp_args = [
   host_machine.endian() == 'little' ? '-DMS_LITTLE_ENDIAN' : '-DMS_BIG_ENDIAN',
+  '-DASIO_STANDALONE'
 ]
 
 if host_machine.system() == 'windows'
@@ -296,6 +297,7 @@ libwebm_dep = declare_dependency(
   link_with: libwebm,
 )
 
+
 dependencies = [
   abseil_cpp_proj.get_variable('absl_container_dep'),
   openssl_proj.get_variable('openssl_dep'),
@@ -303,8 +305,8 @@ dependencies = [
   libuv_proj.get_variable('libuv_dep'),
   libsrtp2_proj.get_variable('libsrtp2_dep'),
   usrsctp_proj.get_variable('usrsctp_dep'),
-  dependency('oatpp'),
-  dependency('oatpp-websocket'),
+  dependency('asio'),
+  dependency('websocketpp'),
   libwebrtc_dep,
   libwebm_dep,
 ]

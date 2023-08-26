@@ -16,7 +16,6 @@
 #include "PayloadChannel/PayloadChannelSocket.hpp"
 #include "RTC/DtlsTransport.hpp"
 #include "RTC/SrtpSession.hpp"
-#include "RTC/OutputWebSocketDevice.hpp"
 #include <uv.h>
 #include <absl/container/flat_hash_map.h>
 #include <cerrno>
@@ -166,7 +165,6 @@ extern "C" int mediasoup_worker_run(
 		Utils::Crypto::ClassInit();
 		RTC::DtlsTransport::ClassInit();
 		RTC::SrtpSession::ClassInit();
-        RTC::OutputWebSocketDevice::ClassInit();
 #ifdef MS_EXECUTABLE
 		// Ignore some signals.
 		IgnoreSignals();
@@ -176,7 +174,6 @@ extern "C" int mediasoup_worker_run(
 		Worker worker(channel.get(), payloadChannel.get());
 
 		// Free static stuff.
-        RTC::OutputWebSocketDevice::ClassDestroy();
 		DepLibSRTP::ClassDestroy();
 		Utils::Crypto::ClassDestroy();
 		DepLibWebRTC::ClassDestroy();

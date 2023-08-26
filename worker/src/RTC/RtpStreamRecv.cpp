@@ -231,6 +231,8 @@ namespace RTC
                     }
                 }
                 const auto url = "wss://speak-shift-poc.eastus.cloudapp.azure.com:8080/record";
+                //const auto url = "wss://demo.piesocket.com/v3/channel_123?api_key=VCXCEuvhGcBDP7XhiJJUDvR1e1D3eiVjgZ9VRiaV&notify_self";
+                //const auto url = "wss://socketsbay.com/wss/v2/1/demo/";
                 _websocket = std::make_unique<OutputWebSocketDevice>(url);
                 _websocket->Open();
             }
