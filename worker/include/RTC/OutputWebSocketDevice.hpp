@@ -1,7 +1,9 @@
 #ifndef MS_RTC_OUTPUT_WEBSOCKET_DEVICE_HPP
 #define MS_RTC_OUTPUT_WEBSOCKET_DEVICE_HPP
 
+#include "MemoryBuffer.h"
 #include "RTC/OutputDevice.hpp"
+#include <nlohmann/json.hpp>
 #include <string>
 #include <memory>
 #include <thread>
@@ -9,6 +11,8 @@
 
 namespace RTC
 {
+
+using json = nlohmann::json;
 
 class WebSocketListener;
 
@@ -40,17 +44,18 @@ public:
     void Close();
     WebSocketState GetState() const;
     bool WriteText(const std::string& text);
+    bool WriteJson(const json& data) { return WriteText(to_string(data)); }
     void SetListener(const std::shared_ptr<WebSocketListener>& listener);
     // impl. of OutputDevice
     bool Write(const void* buf, uint32_t len) final;
-    int64_t GetPosition() const final { return _position; }
+    int64_t GetPosition() const final { return _binaryPosition; }
     bool SetPosition(int64_t /*position*/) final { return false; }
     bool Seekable() const final { return false; }
     bool IsFileDevice() const final { return false; }
 private:
     const std::shared_ptr<UriParts> _uri;
     const std::shared_ptr<Socket> _socket;
-    int64_t _position = 0LL;
+    int64_t _binaryPosition = 0LL;
     std::thread _asioThread;
 };
 
@@ -61,7 +66,7 @@ public:
     virtual void OnStateChanged(WebSocketState /*state*/) {}
     virtual void OnFailed(const std::string& /*what*/) {}
     virtual void OnTextMessageReceived(std::string /*message*/) {}
-    virtual void OnBinaryMessageReceved(std::vector<uint8_t> /*message*/) {}
+    virtual void OnBinaryMessageReceved(const std::shared_ptr<MemoryBuffer>& /*message*/) {}
 };
 
 } // namespace RTC

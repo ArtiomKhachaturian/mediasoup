@@ -7,6 +7,21 @@
 #include <mutex>
 #include <atomic>
 
+namespace {
+
+class StringMemoryBuffer : public MemoryBuffer
+{
+public:
+    StringMemoryBuffer(std::string payload);
+    size_t GetSize() const final { return _payload.size(); }
+    uint8_t* GetData() final;
+    const uint8_t* GetData() const final;
+private:
+    std::string _payload;
+};
+
+}
+
 namespace RTC
 {
 
@@ -80,8 +95,9 @@ private:
     // return true if state changed
     template<class Lock = WriteLock>
     bool SetOpened(bool opened, std::unique_ptr<Lock> droppedLock = nullptr);
-    bool IsOpened() const { return _opened.load(std::memory_order_relaxed); }
-    static std::vector<uint8_t> ToBinary(std::string rawPayload);
+    bool IsOpened() const { return _opened.load(std::memory_order_relaxed); }\
+    static std::string ToText(const MessagePtr& message);
+    static std::shared_ptr<MemoryBuffer> ToBinary(const MessagePtr& message);
 private:
     const std::unordered_map<std::string, std::string> _headers;
     std::shared_ptr<WebSocketListener> _listener;
@@ -164,6 +180,7 @@ void OutputWebSocketDevice::Close()
         if (_asioThread.joinable()) {
             _asioThread.join();
         }
+        _binaryPosition = 0LL;
     }
 }
 
@@ -184,7 +201,11 @@ void OutputWebSocketDevice::SetListener(const std::shared_ptr<WebSocketListener>
 
 bool OutputWebSocketDevice::Write(const void* buf, uint32_t len)
 {
-    return _socket->WriteBinary(buf, len);
+    if (_socket->WriteBinary(buf, len)) {
+        _binaryPosition += len;
+        return true;
+    }
+    return false;
 }
 
 OutputWebSocketDevice::UriParts::UriParts(bool secure, std::string uri)
@@ -398,10 +419,10 @@ void OutputWebSocketDevice::SocketImpl<TConfig>::OnMessage(websocketpp::connecti
             if (const auto listener = std::atomic_load(&_listener)) {
                 switch (message->get_opcode()) {
                     case websocketpp::frame::opcode::text:
-                        listener->OnTextMessageReceived(std::move(message->get_raw_payload()));
+                        listener->OnTextMessageReceived(ToText(message));
                         break;
                     case websocketpp::frame::opcode::binary:
-                        listener->OnBinaryMessageReceved(ToBinary(std::move(message->get_raw_payload())));
+                        listener->OnBinaryMessageReceved(ToBinary(message));
                         break;
                     default:
                         break;
@@ -443,12 +464,21 @@ bool OutputWebSocketDevice::SocketImpl<TConfig>::SetOpened(bool opened,
 }
 
 template<class TConfig>
-std::vector<uint8_t> OutputWebSocketDevice::SocketImpl<TConfig>::ToBinary(std::string rawPayload)
+std::string OutputWebSocketDevice::SocketImpl<TConfig>::ToText(const MessagePtr& message)
 {
-    if (!rawPayload.empty()) {
-        
+    if (message) {
+        return std::move(message->get_raw_payload());
     }
-    return {};
+    return std::string();
+}
+
+template<class TConfig>
+std::shared_ptr<MemoryBuffer> OutputWebSocketDevice::SocketImpl<TConfig>::ToBinary(const MessagePtr& message)
+{
+    if (message) {
+        return std::make_shared<StringMemoryBuffer>(std::move(message->get_raw_payload()));
+    }
+    return nullptr;
 }
 
 OutputWebSocketDevice::SocketTls::SocketTls(std::unordered_map<std::string, std::string> headers,
@@ -506,3 +536,22 @@ OutputWebSocketDevice::SocketNoTls::SocketNoTls(std::unordered_map<std::string, 
 }
 
 } // namespace RTC
+
+namespace {
+
+StringMemoryBuffer::StringMemoryBuffer(std::string payload)
+    : _payload(std::move(payload))
+{
+}
+
+uint8_t* StringMemoryBuffer::GetData()
+{
+    return reinterpret_cast<uint8_t*>(_payload.data());
+}
+
+const uint8_t* StringMemoryBuffer::GetData() const
+{
+    return reinterpret_cast<const uint8_t*>(_payload.data());
+}
+
+}
