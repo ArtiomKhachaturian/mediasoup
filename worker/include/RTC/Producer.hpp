@@ -23,6 +23,9 @@ using json = nlohmann::json;
 
 namespace RTC
 {
+
+    class MediaTranslator;
+
 	class Producer : public RTC::RtpStreamRecv::Listener,
 	                 public RTC::KeyFrameRequestManager::Listener,
 	                 public Channel::ChannelSocket::RequestHandler,
@@ -180,6 +183,7 @@ namespace RTC
 		RTC::Producer::Listener* listener{ nullptr };
 		// Allocated by this.
 		absl::flat_hash_map<uint32_t, RTC::RtpStreamRecv*> mapSsrcRtpStream;
+        absl::flat_hash_map<RTC::RtpStreamRecv*, std::unique_ptr<MediaTranslator>> mapRtpStreamTranslator;
 		RTC::KeyFrameRequestManager* keyFrameRequestManager{ nullptr };
 		// Others.
 		RTC::Media::Kind kind;

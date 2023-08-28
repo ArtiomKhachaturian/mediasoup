@@ -1,7 +1,7 @@
 #ifndef MS_RTC_RTP_DEPACKETIZER_OPUS_HPP
 #define MS_RTC_RTP_DEPACKETIZER_OPUS_HPP
 
-#include "RTC/RtpDepacketizer.hpp"
+#include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 
 namespace RTC
 {

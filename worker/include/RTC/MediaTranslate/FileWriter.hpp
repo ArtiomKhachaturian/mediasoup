@@ -1,7 +1,7 @@
-#ifndef MS_RTC_OUTPUT_FILE_DEVICE_HPP
-#define MS_RTC_OUTPUT_FILE_DEVICE_HPP
+#ifndef MS_RTC_FIlE_WRITER_HPP
+#define MS_RTC_FIlE_WRITER_HPP
 
-#include "RTC/OutputDevice.hpp"
+#include "RTC/MediaTranslate/OutputDevice.hpp"
 #include <string_view>
 #include <stddef.h>
 #include <stdio.h>
@@ -9,15 +9,15 @@
 namespace RTC
 {
 
-class OutputFileDevice : public OutputDevice
+class FileWriter : public OutputDevice
 {
 public:
-    OutputFileDevice() = default;
-    explicit OutputFileDevice(FILE* file);
-    OutputFileDevice(std::string_view fileNameUtf8, int* error = nullptr);
-    OutputFileDevice(OutputFileDevice&& tmp);
-    ~OutputFileDevice() final { Close(); }
-    OutputFileDevice& operator=(OutputFileDevice&& tmp);
+    FileWriter() = default;
+    explicit FileWriter(FILE* file);
+    FileWriter(std::string_view fileNameUtf8, int* error = nullptr);
+    FileWriter(FileWriter&& tmp);
+    ~FileWriter() final { Close(); }
+    FileWriter& operator=(FileWriter&& tmp);
     // Closes the file, and implies Flush. Returns true on success, false if
     // writing buffered data fails. On failure, the file is nevertheless closed.
     // Calling Close on an already closed file does nothing and returns success.

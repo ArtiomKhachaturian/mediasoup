@@ -1,4 +1,4 @@
-#include "RTC/OutputFileDevice.hpp"
+#include "RTC/MediaTranslate/FileWriter.hpp"
 #include <utility>
 #ifdef _WIN32
 #include <Windows.h>
@@ -8,22 +8,22 @@
 namespace RTC
 {
 
-OutputFileDevice::OutputFileDevice(FILE* file)
+FileWriter::FileWriter(FILE* file)
     : _file(file)
 {
 }
 
-OutputFileDevice::OutputFileDevice(std::string_view fileNameUtf8, int* error)
-    : OutputFileDevice(FileOpen(std::move(fileNameUtf8), error))
+FileWriter::FileWriter(std::string_view fileNameUtf8, int* error)
+    : FileWriter(FileOpen(std::move(fileNameUtf8), error))
 {
 }
 
-OutputFileDevice::OutputFileDevice(OutputFileDevice&& tmp)
+FileWriter::FileWriter(FileWriter&& tmp)
 {
     operator=(std::move(tmp));
 }
 
-OutputFileDevice& OutputFileDevice::operator=(OutputFileDevice&& tmp)
+FileWriter& FileWriter::operator=(FileWriter&& tmp)
 {
     if (this != &tmp) {
         Close();
@@ -32,7 +32,7 @@ OutputFileDevice& OutputFileDevice::operator=(OutputFileDevice&& tmp)
     return *this;
 }
 
-bool OutputFileDevice::Close()
+bool FileWriter::Close()
 {
     if (_file) {
         const auto success = 0 == ::fclose(_file);
@@ -42,12 +42,12 @@ bool OutputFileDevice::Close()
     return true; // already closed
 }
 
-bool OutputFileDevice::Flush()
+bool FileWriter::Flush()
 {
     return _file && 0 == ::fflush(_file);
 }
 
-bool OutputFileDevice::Write(const void* buf, uint32_t len)
+bool FileWriter::Write(const void* buf, uint32_t len)
 {
     if (_file && buf) {
         return len == ::fwrite(buf, 1U, len, _file);
@@ -55,7 +55,7 @@ bool OutputFileDevice::Write(const void* buf, uint32_t len)
     return false;
 }
 
-int64_t OutputFileDevice::GetPosition() const
+int64_t FileWriter::GetPosition() const
 {
     if (_file) {
         return ::ftell(_file);
@@ -63,12 +63,12 @@ int64_t OutputFileDevice::GetPosition() const
     return -1LL;
 }
 
-bool OutputFileDevice::SetPosition(int64_t position)
+bool FileWriter::SetPosition(int64_t position)
 {
     return _file && 0 == ::fseek(_file, static_cast<long>(position), SEEK_SET);
 }
 
-FILE* OutputFileDevice::FileOpen(std::string_view fileNameUtf8, int* error)
+FILE* FileWriter::FileOpen(std::string_view fileNameUtf8, int* error)
 {
 #if defined(_WIN32)
     std::string fileName(fileNameUtf8);

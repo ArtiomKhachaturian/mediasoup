@@ -3,7 +3,6 @@
 
 #include "RTC/NackGenerator.hpp"
 #include "RTC/RTCP/XrDelaySinceLastRr.hpp"
-#include "RTC/OutputWebSocketDevice.hpp"
 #include "RTC/RateCalculator.hpp"
 #include "RTC/RtpStream.hpp"
 #include "handles/Timer.hpp"
@@ -11,9 +10,7 @@
 
 namespace RTC
 {
-    class RtpDepacketizer;
-    class RtpMediaFrameSerializer;
-    class OutputDevice;
+    class RtpPacketsCollector;
 
 	class RtpStreamRecv : public RTC::RtpStream,
 	                      public RTC::NackGenerator::Listener,
@@ -51,7 +48,8 @@ namespace RTC
 		  RTC::RtpStreamRecv::Listener* listener,
 		  RTC::RtpStream::Params& params,
 		  unsigned int sendNackDelayMs,
-		  bool useRtpInactivityCheck);
+		  bool useRtpInactivityCheck,
+          RtpPacketsCollector* packetsCollector = nullptr);
 		~RtpStreamRecv();
 
 		void FillJsonStats(json& jsonObject) override;
@@ -105,11 +103,7 @@ namespace RTC
 		void OnNackGeneratorKeyFrameRequired() override;
 
 	private:
-        const char* const _depacketizerPath;
-        // Frames rentransmission
-        std::unique_ptr<OutputDevice> _outputDevice;
-        std::unique_ptr<RtpMediaFrameSerializer> _serializer;
-        std::unique_ptr<RtpDepacketizer> _depacketizer;
+        RtpPacketsCollector* const packetsCollector;
 		// Passed by argument.
 		unsigned int sendNackDelayMs{ 0u };
 		bool useRtpInactivityCheck{ false };
@@ -141,8 +135,6 @@ namespace RTC
 		TransmissionCounter transmissionCounter;
 		// Just valid media.
 		RTC::RtpDataCounter mediaTransmissionCounter;
-        // for test
-        std::unique_ptr<OutputWebSocketDevice> _websocket;
 	};
 } // namespace RTC
 

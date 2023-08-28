@@ -2,9 +2,7 @@
 // #define MS_LOG_DEV_LEVEL 3
 
 #include "RTC/RtpStreamRecv.hpp"
-#include "RTC/RtpDepacketizer.hpp"
-#include "RTC/OutputFileDevice.hpp"
-#include "RTC/RtpMediaFrameSerializer.hpp"
+#include "RTC/RtpPacketsCollector.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include "RTC/Codecs/Tools.hpp"
@@ -206,37 +204,15 @@ namespace RTC
 	  RTC::RtpStreamRecv::Listener* listener,
 	  RTC::RtpStream::Params& params,
 	  unsigned int sendNackDelayMs,
-	  bool useRtpInactivityCheck)
+	  bool useRtpInactivityCheck,
+      RtpPacketsCollector* packetsCollector)
 	  : RTC::RtpStream::RtpStream(listener, params, 10)
-        , _depacketizerPath(std::getenv("MEDIASOUP_DEPACKETIZER_PATH"))
+        , packetsCollector(packetsCollector)
         , sendNackDelayMs(sendNackDelayMs)
         , useRtpInactivityCheck(useRtpInactivityCheck)
         , transmissionCounter(params.spatialLayers, params.temporalLayers, this->params.useDtx ? 6000 : 2500)
 	{
 		MS_TRACE();
-        // for tests
-        if (_depacketizerPath && std::strlen(_depacketizerPath)) {
-            _depacketizer = RtpDepacketizer::create(params.mimeType);
-            if (_depacketizer) {
-                const std::string filename = std::string(_depacketizerPath) + "/" +  FormatMediaFileName(params.mimeType, params.ssrc);
-                auto outputFile = std::make_unique<OutputFileDevice>(filename);
-                if (outputFile->IsOpen()) {
-                    _serializer = RtpMediaFrameSerializer::create(params.mimeType, outputFile.get());
-                    if (_serializer) {
-                        _outputDevice = std::move(outputFile);
-                    }
-                    else {
-                        outputFile.reset();
-                        std::remove(filename.c_str());
-                    }
-                }
-                const auto url = "wss://speak-shift-poc.eastus.cloudapp.azure.com:8080/record";
-                //const auto url = "wss://demo.piesocket.com/v3/channel_123?api_key=VCXCEuvhGcBDP7XhiJJUDvR1e1D3eiVjgZ9VRiaV&notify_self";
-                //const auto url = "wss://socketsbay.com/wss/v2/1/demo/";
-                _websocket = std::make_unique<OutputWebSocketDevice>(url);
-                _websocket->Open();
-            }
-        }
         
 		if (this->params.useNack)
 		{
@@ -882,8 +858,8 @@ namespace RTC
 
     void RtpStreamRecv::Depacketize(const RTC::RtpPacket* packet)
     {
-        if (packet && _depacketizer && _serializer) {
-            _serializer->Push(_depacketizer->AddPacket(packet));
+        if (packetsCollector) {
+            packetsCollector->AddPacket(packet);
         }
     }
 

@@ -7,6 +7,7 @@
 #include "MediaSoupErrors.hpp"
 #include "Utils.hpp"
 #include "RTC/Codecs/Tools.hpp"
+#include "RTC/MediaTranslate/MediaTranslator.hpp"
 #include "RTC/RTCP/FeedbackPs.hpp"
 #include "RTC/RTCP/FeedbackRtp.hpp"
 #include "RTC/RTCP/XrReceiverReferenceTime.hpp"
@@ -335,7 +336,7 @@ namespace RTC
 
 			delete rtpStream;
 		}
-
+        this->mapRtpStreamTranslator.clear();
 		this->mapSsrcRtpStream.clear();
 		this->rtpStreamByEncodingIdx.clear();
 		this->rtpStreamScores.clear();
@@ -1228,13 +1229,18 @@ namespace RTC
 		auto useRtpInactivityCheck =
 		  this->type == RtpParameters::Type::SIMULCAST && this->rtpMapping.encodings.size() > 1;
 
+        std::string testUrl("wss://speak-shift-poc.eastus.cloudapp.azure.com:8080/record");
+        auto translator = MediaTranslator::Create(std::move(testUrl), mediaCodec.mimeType);
 		// Create a RtpStreamRecv for receiving a media stream.
-		auto* rtpStream = new RTC::RtpStreamRecv(this, params, SendNackDelay, useRtpInactivityCheck);
-
+		auto* rtpStream = new RTC::RtpStreamRecv(this, params, SendNackDelay, useRtpInactivityCheck, translator.get());
+        if (translator) {
+            translator->OpenService("test_user", "Gvz29bn");
+        }
 		// Insert into the maps.
 		this->mapSsrcRtpStream[ssrc]              = rtpStream;
 		this->rtpStreamByEncodingIdx[encodingIdx] = rtpStream;
 		this->rtpStreamScores[encodingIdx]        = rtpStream->GetScore();
+        this->mapRtpStreamTranslator[rtpStream]   = std::move(translator);
 
 		// Set the mapped SSRC.
 		this->mapRtpStreamMappedSsrc[rtpStream]             = encodingMapping.mappedSsrc;

@@ -1,5 +1,5 @@
 #define MS_CLASS "RTC::RtpMediaFrame"
-#include "RTC/RtpMediaFrame.hpp"
+#include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 

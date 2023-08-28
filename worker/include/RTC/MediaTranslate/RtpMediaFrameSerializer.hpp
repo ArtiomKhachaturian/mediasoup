@@ -15,13 +15,13 @@ class RtpMediaFrameSerializer
 public:
     virtual ~RtpMediaFrameSerializer() = default;
     virtual void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame) = 0;
-    static std::unique_ptr<RtpMediaFrameSerializer> create(const RtpCodecMimeType& mimeType,
-                                                           OutputDevice* outputDevice);
-protected:
-    RtpMediaFrameSerializer(OutputDevice* outputDevice);
+    void SetOutputDevice(OutputDevice* outputDevice) { _outputDevice = outputDevice; }
     OutputDevice* GetOutputDevice() const { return _outputDevice; }
+    static std::unique_ptr<RtpMediaFrameSerializer> create(const RtpCodecMimeType& mimeType);
+protected:
+    RtpMediaFrameSerializer() = default;
 private:
-    OutputDevice* const _outputDevice;
+    OutputDevice* _outputDevice = nullptr;
 };
 
 } // namespace RTC

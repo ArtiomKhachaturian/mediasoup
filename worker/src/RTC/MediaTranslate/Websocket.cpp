@@ -1,6 +1,7 @@
-#define MS_CLASS "OutputWebSocketDevice"
-#include "RTC/OutputWebSocketDevice.hpp"
+#define MS_CLASS "Websocket"
+#include "RTC/MediaTranslate/Websocket.hpp"
 #include "Logger.hpp"
+#include "Utils.hpp"
 #include <websocketpp/config/asio_client.hpp>
 #include <websocketpp/client.hpp>
 #include <websocketpp/close.hpp>
@@ -29,31 +30,26 @@ using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 using websocketpp::lib::bind;
 
-class OutputWebSocketDevice::UriParts
+struct Websocket::UriParts
 {
-public:
-    UriParts(bool secure, std::string uri);
-    bool IsSecure() const { return _secure; }
-    const std::string& GetUri() const { return _uri; }
-    static std::shared_ptr<UriParts> VerifyAndParse(std::string uri);
-private:
-    static inline const std::string _wssScheme = "wss";
-    static inline const std::string _wsScheme = "ws";
-    const bool _secure = false;
-    const std::string _uri;
+    static std::shared_ptr<UriParts> VerifyAndParse(const std::string& uri);
+    UriParts(const std::shared_ptr<websocketpp::uri>& validUri);
+    bool IsSecure() const { return _validUri->get_secure(); }
+    const std::shared_ptr<websocketpp::uri> _validUri;
 };
 
-class OutputWebSocketDevice::Socket
+class Websocket::Socket
 {
 public:
     virtual ~Socket() = default;
-    virtual WebSocketState GetState() = 0;
+    virtual WebsocketState GetState() = 0;
     virtual void Run() = 0;
-    virtual bool Open(const std::string& uri) = 0;
+    virtual bool Open(const std::shared_ptr<websocketpp::uri>& uri,
+                      const std::string& user, const std::string& password) = 0;
     virtual void Close() = 0;
-    virtual bool WriteBinary(const void* buf, uint32_t len) = 0;
+    virtual bool WriteBinary(const void* buf, size_t len) = 0;
     virtual bool WriteText(const std::string& text) = 0;
-    virtual void SetListener(const std::shared_ptr<WebSocketListener>& listener) = 0;
+    virtual void SetListener(const std::shared_ptr<WebsocketListener>& listener) = 0;
     static std::shared_ptr<Socket> Create(const std::shared_ptr<UriParts>& uri,
                                           std::unordered_map<std::string, std::string> headers,
                                           std::string tlsTrustStore,
@@ -63,7 +59,7 @@ public:
 };
 
 template<class TConfig>
-class OutputWebSocketDevice::SocketImpl : public Socket
+class Websocket::SocketImpl : public Socket
 {
     using Client = websocketpp::client<TConfig>;
     using MessagePtr = typename TConfig::message_type::ptr;
@@ -73,13 +69,14 @@ class OutputWebSocketDevice::SocketImpl : public Socket
 public:
     ~SocketImpl() override { Close(); }
     // impl. of Socket
-    WebSocketState GetState() final;
+    WebsocketState GetState() final;
     void Run() final;
-    bool Open(const std::string& uri) final;
+    bool Open(const std::shared_ptr<websocketpp::uri>& uri,
+              const std::string& user, const std::string& password) final;
     void Close() final;
-    bool WriteBinary(const void* buf, uint32_t len) final;
+    bool WriteBinary(const void* buf, size_t len) final;
     bool WriteText(const std::string& text) final;
-    void SetListener(const std::shared_ptr<WebSocketListener>& listener) final;
+    void SetListener(const std::shared_ptr<WebsocketListener>& listener) final;
 protected:
     SocketImpl(std::unordered_map<std::string, std::string> headers = {});
     const Client& GetClient() const { return _client; }
@@ -100,14 +97,14 @@ private:
     static std::shared_ptr<MemoryBuffer> ToBinary(const MessagePtr& message);
 private:
     const std::unordered_map<std::string, std::string> _headers;
-    std::shared_ptr<WebSocketListener> _listener;
+    std::shared_ptr<WebsocketListener> _listener;
     Client _client;
     websocketpp::connection_hdl _hdl;
     Mutex _hdlMutex;
     std::atomic_bool _opened = false;
 };
 
-class OutputWebSocketDevice::SocketTls : public SocketImpl<websocketpp::config::asio_tls_client>
+class Websocket::SocketTls : public SocketImpl<websocketpp::config::asio_tls_client>
 {
     using SslContextPtr = websocketpp::lib::shared_ptr<asio::ssl::context>;
 public:
@@ -125,19 +122,19 @@ private:
     const std::string _tlsPrivateKeyPassword;
 };
 
-class OutputWebSocketDevice::SocketNoTls : public SocketImpl<websocketpp::config::asio_client>
+class Websocket::SocketNoTls : public SocketImpl<websocketpp::config::asio_client>
 {
 public:
     SocketNoTls(std::unordered_map<std::string, std::string> headers);
 };
 
 
-OutputWebSocketDevice::OutputWebSocketDevice(std::string uri,
-                                             std::unordered_map<std::string, std::string> headers,
-                                             std::string tlsTrustStore,
-                                             std::string tlsKeyStore,
-                                             std::string tlsPrivateKey,
-                                             std::string tlsPrivateKeyPassword)
+Websocket::Websocket(const std::string& uri,
+                     std::unordered_map<std::string, std::string> headers,
+                     std::string tlsTrustStore,
+                     std::string tlsKeyStore,
+                     std::string tlsPrivateKey,
+                     std::string tlsPrivateKeyPassword)
     : _uri(UriParts::VerifyAndParse(std::move(uri)))
     , _socket(Socket::Create(_uri, std::move(headers),
                              std::move(tlsTrustStore),
@@ -147,17 +144,17 @@ OutputWebSocketDevice::OutputWebSocketDevice(std::string uri,
 {
 }
 
-OutputWebSocketDevice::~OutputWebSocketDevice()
+Websocket::~Websocket()
 {
     Close();
 }
 
-bool OutputWebSocketDevice::Open()
+bool Websocket::Open(const std::string& user, const std::string& password)
 {
     bool result = false;
     if (_socket && _uri) {
-        if (WebSocketState::Disconnected == _socket->GetState()) {
-            result = _socket->Open(_uri->GetUri());
+        if (WebsocketState::Disconnected == _socket->GetState()) {
+            result = _socket->Open(_uri->_validUri, user, password);
             if (result) {
                 _asioThread = std::thread([socketRef = std::weak_ptr<Socket>(_socket)]() {
                     if (const auto socket = socketRef.lock()) {
@@ -173,73 +170,59 @@ bool OutputWebSocketDevice::Open()
     return result;
 }
 
-void OutputWebSocketDevice::Close()
+void Websocket::Close()
 {
     if (_socket) {
         _socket->Close();
         if (_asioThread.joinable()) {
             _asioThread.join();
         }
-        _binaryPosition = 0LL;
     }
 }
 
-WebSocketState OutputWebSocketDevice::GetState() const
+WebsocketState Websocket::GetState() const
 {
-    return _socket ? _socket->GetState() : WebSocketState::Invalid;
+    return _socket ? _socket->GetState() : WebsocketState::Invalid;
 }
 
-bool OutputWebSocketDevice::WriteText(const std::string& text)
+bool Websocket::WriteText(const std::string& text)
 {
     return _socket->WriteText(text);
 }
 
-void OutputWebSocketDevice::SetListener(const std::shared_ptr<WebSocketListener>& listener)
+void Websocket::SetListener(const std::shared_ptr<WebsocketListener>& listener)
 {
     _socket->SetListener(listener);
 }
 
-bool OutputWebSocketDevice::Write(const void* buf, uint32_t len)
+bool Websocket::Write(const void* buf, size_t len)
 {
-    if (_socket->WriteBinary(buf, len)) {
-        _binaryPosition += len;
-        return true;
-    }
-    return false;
+    return _socket->WriteBinary(buf, len);
 }
 
-OutputWebSocketDevice::UriParts::UriParts(bool secure, std::string uri)
-    : _secure(secure)
-    , _uri(std::move(uri))
+Websocket::UriParts::UriParts(const std::shared_ptr<websocketpp::uri>& validUri)
+    : _validUri(validUri)
 {
+    MS_ASSERT(_validUri->get_valid(), "invalid URI");
 }
 
-std::shared_ptr<OutputWebSocketDevice::UriParts> OutputWebSocketDevice::UriParts::VerifyAndParse(std::string uri)
+std::shared_ptr<Websocket::UriParts> Websocket::UriParts::VerifyAndParse(const std::string& uri)
 {
     if (!uri.empty()) {
-        auto protocolEnd = uri.find("://");
-        // extract protocol (URI scheme)
-        if (std::string::npos != protocolEnd) {
-            std::string protocol;
-            protocol.reserve(protocolEnd);
-            std::transform(uri.begin(), uri.begin() + protocolEnd, std::back_inserter(protocol),
-                           [](unsigned char c) { return std::tolower(c); });
-            // is websocket proto?
-            if (_wssScheme == protocol || _wsScheme == protocol) {
-                return std::make_shared<UriParts>(_wssScheme == protocol, std::move(uri));
-            }
+        auto validUri = std::make_shared<websocketpp::uri>(uri);
+        if (validUri->get_valid()) {
+            return std::make_shared<UriParts>(validUri);
         }
     }
     return nullptr;
 }
 
-std::shared_ptr<OutputWebSocketDevice::Socket> OutputWebSocketDevice::Socket::
-    Create(const std::shared_ptr<UriParts>& uri,
-           std::unordered_map<std::string, std::string> headers,
-           std::string tlsTrustStore,
-           std::string tlsKeyStore,
-           std::string tlsPrivateKey,
-           std::string tlsPrivateKeyPassword)
+std::shared_ptr<Websocket::Socket> Websocket::Socket::Create(const std::shared_ptr<UriParts>& uri,
+                                                             std::unordered_map<std::string, std::string> headers,
+                                                             std::string tlsTrustStore,
+                                                             std::string tlsKeyStore,
+                                                             std::string tlsPrivateKey,
+                                                             std::string tlsPrivateKeyPassword)
 {
     if (uri) {
         if (uri->IsSecure()) {
@@ -255,7 +238,7 @@ std::shared_ptr<OutputWebSocketDevice::Socket> OutputWebSocketDevice::Socket::
 }
 
 template<class TConfig>
-OutputWebSocketDevice::SocketImpl<TConfig>::SocketImpl(std::unordered_map<std::string, std::string> headers)
+Websocket::SocketImpl<TConfig>::SocketImpl(std::unordered_map<std::string, std::string> headers)
     : _headers(std::move(headers))
 {
     // Initialize ASIO
@@ -269,45 +252,47 @@ OutputWebSocketDevice::SocketImpl<TConfig>::SocketImpl(std::unordered_map<std::s
 }
 
 template<class TConfig>
-WebSocketState OutputWebSocketDevice::SocketImpl<TConfig>::GetState()
+WebsocketState Websocket::SocketImpl<TConfig>::GetState()
 {
     if (IsOpened()) {
-        return WebSocketState::Connected;
+        return WebsocketState::Connected;
     }
     const ReadLock lock(_hdlMutex);
-    return _hdl.expired() ? WebSocketState::Disconnected : WebSocketState::Connecting;
+    return _hdl.expired() ? WebsocketState::Disconnected : WebsocketState::Connecting;
 }
 
 template<class TConfig>
-void OutputWebSocketDevice::SocketImpl<TConfig>::Run()
+void Websocket::SocketImpl<TConfig>::Run()
 {
     _client.run();
     SetOpened(false);
 }
 
 template<class TConfig>
-bool OutputWebSocketDevice::SocketImpl<TConfig>::Open(const std::string& uri)
+bool Websocket::SocketImpl<TConfig>::Open(const std::shared_ptr<websocketpp::uri>& uri,
+                                          const std::string& user, const std::string& password)
 {
-    if (!uri.empty()) {
-        websocketpp::lib::error_code ec;
-        const auto connection = _client.get_connection(uri, ec);
-        if (ec) {
-            // write error to log
-            MS_WARN_TAG(rtp, "Websocket get connection failure: %s", ec.message().c_str());
-        }
-        else {
-            for (auto it = _headers.begin(); it != _headers.end(); ++it) {
-                connection->append_header(it->first, it->second);
-            }
-            _client.connect(connection);
-            return true;
-        }
+    websocketpp::lib::error_code ec;
+    const auto connection = _client.get_connection(uri, ec);
+    if (ec) {
+        // write error to log
+        MS_WARN_TAG(rtp, "Websocket get connection failure: %s", ec.message().c_str());
     }
-    return false;
+    else {
+        if (!user.empty() || !password.empty()) {
+            auto auth = Utils::String::Base64Encode(user + ":" + password);
+            connection->append_header("Authorization", "Basic " + auth);
+        }
+        for (auto it = _headers.begin(); it != _headers.end(); ++it) {
+            connection->append_header(it->first, it->second);
+        }
+        _client.connect(connection);
+    }
+    return 0 == ec.value();
 }
 
 template<class TConfig>
-void OutputWebSocketDevice::SocketImpl<TConfig>::Close()
+void Websocket::SocketImpl<TConfig>::Close()
 {
     auto lock = std::make_unique<WriteLock>(_hdlMutex);
     if (!_hdl.expired()) {
@@ -317,7 +302,7 @@ void OutputWebSocketDevice::SocketImpl<TConfig>::Close()
 }
 
 template<class TConfig>
-bool OutputWebSocketDevice::SocketImpl<TConfig>::WriteBinary(const void* buf, uint32_t len)
+bool Websocket::SocketImpl<TConfig>::WriteBinary(const void* buf, size_t len)
 {
     bool ok = false;
     if (buf && len && IsOpened()) {
@@ -337,7 +322,7 @@ bool OutputWebSocketDevice::SocketImpl<TConfig>::WriteBinary(const void* buf, ui
 }
 
 template<class TConfig>
-bool OutputWebSocketDevice::SocketImpl<TConfig>::WriteText(const std::string& text)
+bool Websocket::SocketImpl<TConfig>::WriteText(const std::string& text)
 {
     bool ok = false;
     if (IsOpened()) {
@@ -357,13 +342,13 @@ bool OutputWebSocketDevice::SocketImpl<TConfig>::WriteText(const std::string& te
 }
 
 template<class TConfig>
-void OutputWebSocketDevice::SocketImpl<TConfig>::SetListener(const std::shared_ptr<WebSocketListener>& listener)
+void Websocket::SocketImpl<TConfig>::SetListener(const std::shared_ptr<WebsocketListener>& listener)
 {
     std::atomic_store(&_listener, listener);
 }
 
 template<class TConfig>
-void OutputWebSocketDevice::SocketImpl<TConfig>::OnSocketInit(websocketpp::connection_hdl hdl)
+void Websocket::SocketImpl<TConfig>::OnSocketInit(websocketpp::connection_hdl hdl)
 {
     {
         const WriteLock lock(_hdlMutex);
@@ -375,7 +360,7 @@ void OutputWebSocketDevice::SocketImpl<TConfig>::OnSocketInit(websocketpp::conne
 }
 
 template<class TConfig>
-void OutputWebSocketDevice::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
+void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
 {
     auto lock = std::make_unique<WriteLock>(_hdlMutex);
     if (hdl.lock() == _hdl.lock()) {
@@ -396,7 +381,7 @@ void OutputWebSocketDevice::SocketImpl<TConfig>::OnFail(websocketpp::connection_
 }
 
 template<class TConfig>
-void OutputWebSocketDevice::SocketImpl<TConfig>::OnOpen(websocketpp::connection_hdl hdl)
+void Websocket::SocketImpl<TConfig>::OnOpen(websocketpp::connection_hdl hdl)
 {
     auto lock = std::make_unique<ReadLock>(_hdlMutex);
     if (hdl.lock() == _hdl.lock()) {
@@ -406,8 +391,8 @@ void OutputWebSocketDevice::SocketImpl<TConfig>::OnOpen(websocketpp::connection_
 }
 
 template<class TConfig>
-void OutputWebSocketDevice::SocketImpl<TConfig>::OnMessage(websocketpp::connection_hdl hdl,
-                                                           MessagePtr message)
+void Websocket::SocketImpl<TConfig>::OnMessage(websocketpp::connection_hdl hdl,
+                                               MessagePtr message)
 {
     if (message) {
         bool accepted = false;
@@ -433,7 +418,7 @@ void OutputWebSocketDevice::SocketImpl<TConfig>::OnMessage(websocketpp::connecti
 }
 
 template<class TConfig>
-void OutputWebSocketDevice::SocketImpl<TConfig>::OnClose(websocketpp::connection_hdl hdl)
+void Websocket::SocketImpl<TConfig>::OnClose(websocketpp::connection_hdl hdl)
 {
     auto lock = std::make_unique<WriteLock>(_hdlMutex);
     if (hdl.lock() == _hdl.lock()) {
@@ -443,15 +428,14 @@ void OutputWebSocketDevice::SocketImpl<TConfig>::OnClose(websocketpp::connection
 }
 
 template<class TConfig> template<class Lock>
-void OutputWebSocketDevice::SocketImpl<TConfig>::DropHdl(std::unique_ptr<Lock> droppedLock)
+void Websocket::SocketImpl<TConfig>::DropHdl(std::unique_ptr<Lock> droppedLock)
 {
     _hdl = websocketpp::connection_hdl();
     SetOpened(false, std::move(droppedLock));
 }
 
 template<class TConfig> template<class Lock>
-bool OutputWebSocketDevice::SocketImpl<TConfig>::SetOpened(bool opened,
-                                                           std::unique_ptr<Lock> droppedLock)
+bool Websocket::SocketImpl<TConfig>::SetOpened(bool opened, std::unique_ptr<Lock> droppedLock)
 {
     if (opened != _opened.exchange(opened)) {
         if (const auto listener = std::atomic_load(&_listener)) {
@@ -464,7 +448,7 @@ bool OutputWebSocketDevice::SocketImpl<TConfig>::SetOpened(bool opened,
 }
 
 template<class TConfig>
-std::string OutputWebSocketDevice::SocketImpl<TConfig>::ToText(const MessagePtr& message)
+std::string Websocket::SocketImpl<TConfig>::ToText(const MessagePtr& message)
 {
     if (message) {
         return std::move(message->get_raw_payload());
@@ -473,7 +457,7 @@ std::string OutputWebSocketDevice::SocketImpl<TConfig>::ToText(const MessagePtr&
 }
 
 template<class TConfig>
-std::shared_ptr<MemoryBuffer> OutputWebSocketDevice::SocketImpl<TConfig>::ToBinary(const MessagePtr& message)
+std::shared_ptr<MemoryBuffer> Websocket::SocketImpl<TConfig>::ToBinary(const MessagePtr& message)
 {
     if (message) {
         return std::make_shared<StringMemoryBuffer>(std::move(message->get_raw_payload()));
@@ -481,11 +465,11 @@ std::shared_ptr<MemoryBuffer> OutputWebSocketDevice::SocketImpl<TConfig>::ToBina
     return nullptr;
 }
 
-OutputWebSocketDevice::SocketTls::SocketTls(std::unordered_map<std::string, std::string> headers,
-                                            std::string tlsTrustStore,
-                                            std::string tlsKeyStore,
-                                            std::string tlsPrivateKey,
-                                            std::string tlsPrivateKeyPassword)
+Websocket::SocketTls::SocketTls(std::unordered_map<std::string, std::string> headers,
+                                std::string tlsTrustStore,
+                                std::string tlsKeyStore,
+                                std::string tlsPrivateKey,
+                                std::string tlsPrivateKeyPassword)
     : SocketImpl<websocketpp::config::asio_tls_client>(std::move(headers))
     , _tlsTrustStore(std::move(tlsTrustStore))
     , _tlsKeyStore(std::move(tlsKeyStore))
@@ -495,7 +479,7 @@ OutputWebSocketDevice::SocketTls::SocketTls(std::unordered_map<std::string, std:
     GetClient().set_tls_init_handler(bind(&SocketTls::OnTlsInit, this, _1));
 }
 
-OutputWebSocketDevice::SocketTls::SslContextPtr OutputWebSocketDevice::SocketTls::OnTlsInit(websocketpp::connection_hdl)
+Websocket::SocketTls::SslContextPtr Websocket::SocketTls::OnTlsInit(websocketpp::connection_hdl)
 {
     SslContextPtr ctx = websocketpp::lib::make_shared<asio::ssl::context>(asio::ssl::context::tlsv12_client);
     bool checkPeersVerification = false;
@@ -530,7 +514,7 @@ OutputWebSocketDevice::SocketTls::SslContextPtr OutputWebSocketDevice::SocketTls
     return ctx;
 }
 
-OutputWebSocketDevice::SocketNoTls::SocketNoTls(std::unordered_map<std::string, std::string> headers)
+Websocket::SocketNoTls::SocketNoTls(std::unordered_map<std::string, std::string> headers)
     : SocketImpl<websocketpp::config::asio_client>(std::move(headers))
 {
 }

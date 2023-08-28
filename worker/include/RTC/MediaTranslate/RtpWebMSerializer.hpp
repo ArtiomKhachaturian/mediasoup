@@ -1,7 +1,7 @@
 #ifndef MS_RTC_WEBM_SERIALIZER_HPP
 #define MS_RTC_WEBM_SERIALIZER_HPP
 
-#include "RTC/RtpMediaFrameSerializer.hpp"
+#include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include <mkvmuxer/mkvmuxer.h>
 #include <unordered_map>
 
@@ -18,7 +18,7 @@ class RtpWebMSerializer : public RtpMediaFrameSerializer, private mkvmuxer::IMkv
     struct TrackInfo;
 public:
     // OPUS or VORBIS serializer
-    RtpWebMSerializer(OutputDevice* outputDevice);
+    RtpWebMSerializer();
     ~RtpWebMSerializer() final;
     // impl. of RtpMediaFrameSerializer
     void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame) final;
