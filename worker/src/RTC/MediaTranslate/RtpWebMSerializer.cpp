@@ -28,6 +28,11 @@ RtpWebMSerializer::~RtpWebMSerializer()
     _segment.Finalize();
 }
 
+bool RtpWebMSerializer::IsSupported(const RtpCodecMimeType& mimeType)
+{
+    return nullptr != GetCodec(mimeType);
+}
+
 void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 {
     if (mediaFrame) {
@@ -54,6 +59,11 @@ void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
             }
         }
     }
+}
+
+bool RtpWebMSerializer::IsCompatible(const RtpCodecMimeType& mimeType) const
+{
+    return IsSupported(mimeType);
 }
 
 bool RtpWebMSerializer::IsOpusAudio(const RtpCodecMimeType& mimeType)

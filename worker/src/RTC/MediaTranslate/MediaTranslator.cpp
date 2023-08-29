@@ -3,7 +3,8 @@
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/Websocket.hpp"
 #include "RTC/MediaTranslate/OutputDevice.hpp"
-#include <nlohmann/json.hpp>
+#include "RTC/MediaTranslate/MediaVoice.hpp"
+#include "RTC/MediaTranslate/MediaLanguage.hpp"
 #include <mutex>
 #include <optional>
 
@@ -17,10 +18,10 @@ class MediaTranslator::Impl : public WebsocketListener, public OutputDevice
 public:
     Impl(Websocket* socket);
     void Close(bool andReset);
-    void SetFromLanguage(Language language) { ApplyFromLanguage(language); }
+    void SetFromLanguage(MediaLanguage language) { ApplyFromLanguage(language); }
     void SetFromLanguageAuto() { ApplyFromLanguage(std::nullopt); }
-    void SetToLanguage(Language language);
-    void SetVoice(Voice voice);
+    void SetToLanguage(MediaLanguage language);
+    void SetVoice(MediaVoice voice);
     int64_t GetMediaPosition() const { return _mediaPosition.load(std::memory_order_relaxed); }
     // impl. of WebsocketListener
     void OnStateChanged(WebsocketState state);
@@ -28,34 +29,31 @@ public:
     bool Write(const void* buf, uint32_t len) final;
     int64_t GetPosition() const final { return _mediaPosition.load(std::memory_order_relaxed); }
 private:
-    static std::string_view OptionalLanguageString(const std::optional<Language>& language);
-    static std::string_view LanguagetoString(Language language);
-    static std::string_view VoicetoString(Voice voice);
     static bool WriteJson(Websocket* socket, const json& data);
-    void ApplyFromLanguage(const std::optional<Language>& language);
+    void ApplyFromLanguage(const std::optional<MediaLanguage>& language);
     bool WriteLanguageChanges();
-    json GetLanguageData() const;
-    std::optional<Language> GetLanguageFrom() const;
-    Language GetLanguageTo() const { return _languageTo.load(std::memory_order_relaxed); }
-    Voice GetVoice() const { return _voice.load(std::memory_order_relaxed); }
+    nlohmann::json GetLanguageData() const;
+    std::optional<MediaLanguage> GetLanguageFrom() const;
+    MediaLanguage GetLanguageTo() const { return _languageTo.load(std::memory_order_relaxed); }
+    MediaVoice GetVoice() const { return _voice.load(std::memory_order_relaxed); }
     void ResetMedia() { _mediaPosition = 0LL; }
 private:
     // websocket ref
     Websocket* _socket;
     std::mutex _socketMutex;
     // input language
-    std::optional<Language> _languageFrom;
+    std::optional<MediaLanguage> _languageFrom = MediaLanguage::Russian; // RU for tests only
     mutable std::mutex _languageFromMutex;
     // output language
-    std::atomic<Language> _languageTo = Language::Spain;
+    std::atomic<MediaLanguage> _languageTo = MediaLanguage::English;
     // voice
-    std::atomic<Voice> _voice = Voice::Abdul;
+    std::atomic<MediaVoice> _voice = MediaVoice::Abdul;
     // media
     std::atomic<int64_t> _mediaPosition = 0LL;
 };
 
 MediaTranslator::MediaTranslator(const std::string& serviceUri,
-                                 std::unique_ptr<RtpMediaFrameSerializer> serializer,
+                                 std::shared_ptr<RtpMediaFrameSerializer> serializer,
                                  std::unique_ptr<RtpDepacketizer> depacketizer)
     : _serializer(std::move(serializer))
     , _depacketizer(std::move(depacketizer))
@@ -111,7 +109,7 @@ void MediaTranslator::CloseService()
     }
 }
 
-void MediaTranslator::SetFromLanguage(Language language)
+void MediaTranslator::SetFromLanguage(MediaLanguage language)
 {
     if (_impl) {
         _impl->SetFromLanguage(language);
@@ -125,26 +123,26 @@ void MediaTranslator::SetFromLanguageAuto()
     }
 }
 
-void MediaTranslator::SetToLanguage(Language language)
+void MediaTranslator::SetToLanguage(MediaLanguage language)
 {
     if (_impl) {
         _impl->SetToLanguage(language);
     }
 }
 
-void MediaTranslator::SetVoice(Voice voice)
+void MediaTranslator::SetVoice(MediaVoice voice)
 {
     if (_impl) {
         _impl->SetVoice(voice);
     }
 }
 
-void MediaTranslator::AddPacket(const RtpPacket* packet)
+void MediaTranslator::AddPacket(const RTC::RtpCodecMimeType& mimeType, const RtpPacket* packet)
 {
-    if (packet && _depacketizer && _serializer && _websocket) {
-        if (WebsocketState::Connected == _websocket->GetState()) {
-            _serializer->Push(_depacketizer->AddPacket(packet));
-        }
+    if (packet && _depacketizer && _serializer && _websocket &&
+        mimeType == _depacketizer->GetCodecMimeType() &&
+        WebsocketState::Connected == _websocket->GetState()) {
+        _serializer->Push(_depacketizer->AddPacket(packet));
     }
 }
 
@@ -184,14 +182,14 @@ void MediaTranslator::Impl::Close(bool andReset)
     ResetMedia();
 }
 
-void MediaTranslator::Impl::SetToLanguage(Language language)
+void MediaTranslator::Impl::SetToLanguage(MediaLanguage language)
 {
     if (language != _languageTo.exchange(language)) {
         WriteLanguageChanges();
     }
 }
 
-void MediaTranslator::Impl::SetVoice(Voice voice)
+void MediaTranslator::Impl::SetVoice(MediaVoice voice)
 {
     if (voice != _voice.exchange(voice)) {
         WriteLanguageChanges();
@@ -227,69 +225,12 @@ void MediaTranslator::Impl::OnStateChanged(WebsocketState state)
     }
 }
 
-std::string_view MediaTranslator::Impl::OptionalLanguageString(const std::optional<Language>& language)
-{
-    if (language.has_value()) {
-        return LanguagetoString(language.value());
-    }
-    return "auto";
-}
-
-std::string_view MediaTranslator::Impl::LanguagetoString(Language language)
-{
-    switch (language) {
-        case Language::English:
-            return "en";
-        case Language::Italian:
-            return "it";
-        case Language::Spain:
-            return "es";
-        case Language::Thai:
-            return "th";
-        case Language::French:
-            return "fr";
-        case Language::German:
-            return "de";
-        case Language::Russian:
-            return "ru";
-        case Language::Arabic:
-            return "ar";
-        case Language::Farsi:
-            return "fa";
-        default:
-            // assert
-            break;
-    }
-    return "";
-}
-
-std::string_view MediaTranslator::Impl::VoicetoString(Voice voice)
-{
-    switch (voice) {
-        case Voice::Abdul:
-            return "YkxA6GRXs4A6i5cwfm1E";
-        case Voice::Jesus_Rodriguez:
-            return "ovxyZ1ldY23QpYBvkKx5";
-        case Voice::Test_Irina:
-            return "ovxyZ1ldY23QpYBvkKx5";
-        case Voice::Serena:
-            return "pMsXgVXv3BLzUgSXRplE";
-            break;
-        case Voice::Ryan:
-            return "wViXBPUzp2ZZixB1xQuM";
-        default:
-            // assert
-            break;
-    }
-    return "";
-}
-
 bool MediaTranslator::Impl::WriteJson(Websocket* socket, const json& data)
 {
     return socket && socket->WriteText(to_string(data));
 }
 
-void MediaTranslator::Impl::ApplyFromLanguage(const std::optional<Language>& language)
+void MediaTranslator::Impl::ApplyFromLanguage(const std::optional<MediaLanguage>& language)
 {
     bool changed = false;
     {
@@ -316,21 +257,12 @@ bool MediaTranslator::Impl::WriteLanguageChanges()
     return true;
 }
 
-json MediaTranslator::Impl::GetLanguageData() const
+nlohmann::json MediaTranslator::Impl::GetLanguageData() const
 {
-    json cmd = {{
-        "from", OptionalLanguageString(GetLanguageFrom()),
-        "to", LanguagetoString(GetLanguageTo()),
-        "voiceID", VoicetoString(GetVoice())
-    }};
-    json data = {
-        "type", "set_target_language",
-        "cmd", cmd
-    };
-    return data;
+    return GetTargetLanguageCmd(GetLanguageTo(), GetVoice(), GetLanguageFrom());
 }
 
-std::optional<MediaTranslator::Language> MediaTranslator::Impl::GetLanguageFrom() const
+std::optional<MediaLanguage> MediaTranslator::Impl::GetLanguageFrom() const
 {
     const std::lock_guard<std::mutex> lock(_languageFromMutex);
     return _languageFrom;

@@ -15,9 +15,10 @@ class RtpMediaFrameSerializer
 public:
     virtual ~RtpMediaFrameSerializer() = default;
     virtual void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame) = 0;
+    virtual bool IsCompatible(const RtpCodecMimeType& mimeType) const = 0;
     void SetOutputDevice(OutputDevice* outputDevice) { _outputDevice = outputDevice; }
     OutputDevice* GetOutputDevice() const { return _outputDevice; }
-    static std::unique_ptr<RtpMediaFrameSerializer> create(const RtpCodecMimeType& mimeType);
+    static std::shared_ptr<RtpMediaFrameSerializer> create(const RtpCodecMimeType& mimeType);
 protected:
     RtpMediaFrameSerializer() = default;
 private:

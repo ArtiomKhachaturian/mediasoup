@@ -13,51 +13,33 @@ namespace RTC
 class RtpMediaFrameSerializer;
 class RtpDepacketizer;
 class Websocket;
+enum class MediaVoice;
+enum class MediaLanguage;
 
+// primitve (draft implementation)
 class MediaTranslator : public RtpPacketsCollector
 {
     class Impl;
 public:
-    enum class Language
-    {
-        English,
-        Italian,
-        Spain,
-        Thai,
-        French,
-        German,
-        Russian,
-        Arabic,
-        Farsi
-    };
-    enum class Voice
-    {
-        Abdul,
-        Jesus_Rodriguez,
-        Test_Irina,
-        Serena,
-        Ryan
-    };
-public:
     MediaTranslator(const std::string& serviceUri,
-                    std::unique_ptr<RtpMediaFrameSerializer> serializer,
+                    std::shared_ptr<RtpMediaFrameSerializer> serializer,
                     std::unique_ptr<RtpDepacketizer> depacketizer);
     ~MediaTranslator() final;
     static std::unique_ptr<MediaTranslator> Create(std::string serviceUri,
                                                    const RtpCodecMimeType& mimeType);
     bool OpenService(const std::string& user = std::string(), const std::string& password = std::string());
     void CloseService();
-    void SetFromLanguage(Language language);
+    void SetFromLanguage(MediaLanguage language);
     void SetFromLanguageAuto();
-    void SetToLanguage(Language language);
-    void SetVoice(Voice voice);
+    void SetToLanguage(MediaLanguage language);
+    void SetVoice(MediaVoice voice);
     // impl. of RtpPacketsCollector
-    void AddPacket(const RtpPacket* packet) final;
+    void AddPacket(const RTC::RtpCodecMimeType& mimeType, const RtpPacket* packet) final;
 private:
     static std::unique_ptr<Websocket> CreateWebsocket(const std::string& serviceUri);
     static std::shared_ptr<Impl> CreateImpl(Websocket* websocket);
 private:
-    const std::unique_ptr<RtpMediaFrameSerializer> _serializer;
+    const std::shared_ptr<RtpMediaFrameSerializer> _serializer;
     const std::unique_ptr<RtpDepacketizer> _depacketizer;
     const std::unique_ptr<Websocket> _websocket;
     const std::shared_ptr<Impl> _impl;

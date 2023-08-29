@@ -5,11 +5,12 @@ namespace RTC
 {
 
 class RtpPacket;
+class RtpCodecMimeType;
 
 class RtpPacketsCollector
 {
 public:
-	virtual void AddPacket(const RtpPacket* packet) = 0;
+	virtual void AddPacket(const RTC::RtpCodecMimeType& mimeType, const RtpPacket* packet) = 0;
 protected:
 	virtual ~RtpPacketsCollector() = default;
 };

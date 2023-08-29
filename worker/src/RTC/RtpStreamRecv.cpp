@@ -8,16 +8,6 @@
 #include "RTC/Codecs/Tools.hpp"
 #include <cstdio>
 
-namespace {
-
-inline std::string FormatMediaFileName(const RTC::RtpCodecMimeType& mime, uint32_t ssrc)
-{
-    const auto& type = RTC::RtpCodecMimeType::type2String[mime.type];
-    return type + std::to_string(ssrc) + "." + RTC::RtpCodecMimeType::subtype2String[mime.subtype];
-}
-
-}
-
 namespace RTC
 {
 	/* Static. */
@@ -858,8 +848,8 @@ namespace RTC
 
     void RtpStreamRecv::Depacketize(const RTC::RtpPacket* packet)
     {
-        if (packetsCollector) {
-            packetsCollector->AddPacket(packet);
+        if (packetsCollector && packet) {
+            packetsCollector->AddPacket(GetMimeType(), packet);
         }
     }
 
