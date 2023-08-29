@@ -169,13 +169,16 @@ bool Websocket::Open()
         const WriteLock lock(_socketMutex);
         if (!_socket) {
             _socket = Socket::Create(GetId(), _config);
-            result = _socket && _socket->Open();
-            if (result) {
-                _socketAsioThread = std::thread([socketRef = std::weak_ptr<Socket>(_socket)]() {
-                    if (const auto socket = socketRef.lock()) {
-                        socket->Run();
-                    }
-                });
+            if (_socket) {
+                _socket->SetListener(std::atomic_load(&_listener));
+                result = _socket->Open();
+                if (result) {
+                    _socketAsioThread = std::thread([socketRef = std::weak_ptr<Socket>(_socket)]() {
+                        if (const auto socket = socketRef.lock()) {
+                            socket->Run();
+                        }
+                    });
+                }
             }
         }
         else { // connected or connecting now
@@ -189,8 +192,15 @@ void Websocket::Close()
 {
     const WriteLock lock(_socketMutex);
     if (auto socket = std::move(_socket)) {
+        const auto wasActive = WebsocketState::Disconnected != socket->GetState();
+        socket->SetListener(std::weak_ptr<WebsocketListener>());
         socket->Close();
         _socketAsioThread.detach();
+        if (wasActive) {
+            if (const auto listener = std::atomic_load(&_listener)) {
+                listener->OnStateChanged(GetId(), WebsocketState::Disconnected);
+            }
+        }
     }
 }
 
