@@ -5,7 +5,6 @@
 #include <websocketpp/config/asio_client.hpp>
 #include <websocketpp/client.hpp>
 #include <websocketpp/close.hpp>
-#include <mutex>
 #include <atomic>
 
 namespace {
@@ -67,15 +66,14 @@ class Websocket::Socket
 {
 public:
     virtual ~Socket() = default;
-    uint64_t GetId() const { return reinterpret_cast<uint64_t>(this); }
     virtual WebsocketState GetState() = 0;
     virtual void Run() = 0;
     virtual bool Open() = 0;
     virtual void Close() = 0;
     virtual bool WriteBinary(const void* buf, size_t len) = 0;
     virtual bool WriteText(const std::string& text) = 0;
-    virtual void SetListener(const std::shared_ptr<WebsocketListener>& listener) = 0;
-    static std::shared_ptr<Socket> Create(const std::shared_ptr<const Config>& config);
+    virtual void SetListener(const std::weak_ptr<WebsocketListener>& listener) = 0;
+    static std::shared_ptr<Socket> Create(uint64_t id, const std::shared_ptr<const Config>& config);
 };
 
 template<class TConfig>
@@ -83,9 +81,6 @@ class Websocket::SocketImpl : public Socket
 {
     using Client = websocketpp::client<TConfig>;
     using MessagePtr = typename TConfig::message_type::ptr;
-    using Mutex = std::recursive_mutex;
-    using ReadLock = std::lock_guard<Mutex>;
-    using WriteLock = ReadLock;
 public:
     ~SocketImpl() override { Close(); }
     // impl. of Socket
@@ -95,9 +90,10 @@ public:
     void Close() final;
     bool WriteBinary(const void* buf, size_t len) final;
     bool WriteText(const std::string& text) final;
-    void SetListener(const std::shared_ptr<WebsocketListener>& listener) final;
+    void SetListener(const std::weak_ptr<WebsocketListener>& listener) final;
 protected:
-    SocketImpl(const std::shared_ptr<const Config>& config);
+    SocketImpl(uint64_t id, const std::shared_ptr<const Config>& config);
+    uint64_t GetId() const { return _id; }
     const std::shared_ptr<const Config>& GetConfig() const { return _config; }
     const Client& GetClient() const { return _client; }
     Client& GetClient() { return _client; }
@@ -112,16 +108,19 @@ private:
     // return true if state changed
     template<class Lock = WriteLock>
     bool SetOpened(bool opened, std::unique_ptr<Lock> droppedLock = nullptr);
-    bool IsOpened() const { return _opened.load(std::memory_order_relaxed); }\
+    bool IsOpened() const { return _opened.load(std::memory_order_relaxed); }
+    std::shared_ptr<WebsocketListener> GetListener();
     static std::string ToText(const MessagePtr& message);
     static std::shared_ptr<MemoryBuffer> ToBinary(const MessagePtr& message);
 private:
     static inline constexpr uint16_t _closeCode = websocketpp::close::status::normal;
+    const uint64_t _id;
     const std::shared_ptr<const Config> _config;
-    std::shared_ptr<WebsocketListener> _listener;
     Client _client;
     websocketpp::connection_hdl _hdl;
     Mutex _hdlMutex;
+    std::weak_ptr<WebsocketListener> _listener;
+    Mutex _listenerMutex;
     std::atomic_bool _opened = false;
 };
 
@@ -129,7 +128,7 @@ class Websocket::SocketTls : public SocketImpl<websocketpp::config::asio_tls_cli
 {
     using SslContextPtr = websocketpp::lib::shared_ptr<asio::ssl::context>;
 public:
-    SocketTls(const std::shared_ptr<const Config>& config);
+    SocketTls(uint64_t id, const std::shared_ptr<const Config>& config);
 private:
     SslContextPtr OnTlsInit(websocketpp::connection_hdl);
 };
@@ -137,7 +136,7 @@ private:
 class Websocket::SocketNoTls : public SocketImpl<websocketpp::config::asio_client>
 {
 public:
-    SocketNoTls(const std::shared_ptr<const Config>& config);
+    SocketNoTls(uint64_t id, const std::shared_ptr<const Config>& config);
 };
 
 
@@ -155,7 +154,6 @@ Websocket::Websocket(const std::string& uri,
                                      std::move(tlsKeyStore),
                                      std::move(tlsPrivateKey),
                                      std::move(tlsPrivateKeyPassword)))
-    , _socket(Socket::Create(_config))
 {
 }
 
@@ -167,11 +165,13 @@ Websocket::~Websocket()
 bool Websocket::Open()
 {
     bool result = false;
-    if (_socket) {
-        if (WebsocketState::Disconnected == _socket->GetState()) {
-            result = _socket->Open();
+    if (_config) {
+        const WriteLock lock(_socketMutex);
+        if (!_socket) {
+            _socket = Socket::Create(GetId(), _config);
+            result = _socket && _socket->Open();
             if (result) {
-                _asioThread = std::thread([socketRef = std::weak_ptr<Socket>(_socket)]() {
+                _socketAsioThread = std::thread([socketRef = std::weak_ptr<Socket>(_socket)]() {
                     if (const auto socket = socketRef.lock()) {
                         socket->Run();
                     }
@@ -187,37 +187,55 @@ bool Websocket::Open()
 
 void Websocket::Close()
 {
-    if (_socket) {
-        _socket->Close();
-        if (_asioThread.joinable()) {
-            _asioThread.join();
-        }
+    const WriteLock lock(_socketMutex);
+    if (auto socket = std::move(_socket)) {
+        socket->Close();
+        _socketAsioThread.detach();
     }
 }
 
 WebsocketState Websocket::GetState() const
 {
-    return _socket ? _socket->GetState() : WebsocketState::Invalid;
+    if (_config) {
+        const ReadLock lock(_socketMutex);
+        if (_socket) {
+            return _socket->GetState();
+        }
+        return WebsocketState::Disconnected;
+    }
+    return WebsocketState::Invalid;
 }
 
 uint64_t Websocket::GetId() const
 {
-    return _socket ? _socket->GetId() : 0ULL;
+    return reinterpret_cast<uint64_t>(this);
 }
 
 bool Websocket::WriteText(const std::string& text)
 {
-    return _socket->WriteText(text);
+    const ReadLock lock(_socketMutex);
+    return _socket && _socket->WriteText(text);
 }
 
 void Websocket::SetListener(const std::shared_ptr<WebsocketListener>& listener)
 {
-    _socket->SetListener(listener);
+    if (_config) {
+        if (listener != std::atomic_exchange(&_listener, listener)) {
+            const ReadLock lock(_socketMutex);
+            if (_socket) {
+                _socket->SetListener(listener);
+            }
+        }
+    }
 }
 
 bool Websocket::Write(const void* buf, size_t len)
 {
-    return _socket->WriteBinary(buf, len);
+    if (buf && len) {
+        const ReadLock lock(_socketMutex);
+        return _socket && _socket->WriteBinary(buf, len);
+    }
+    return false;
 }
 
 Websocket::Config::Config(const std::shared_ptr<websocketpp::uri>& uri,
@@ -262,20 +280,22 @@ std::shared_ptr<const Websocket::Config> Websocket::Config::VerifyAndParse(const
     return nullptr;
 }
 
-std::shared_ptr<Websocket::Socket> Websocket::Socket::Create(const std::shared_ptr<const Config>& config)
+std::shared_ptr<Websocket::Socket> Websocket::Socket::Create(uint64_t id,
+                                                             const std::shared_ptr<const Config>& config)
 {
     if (config) {
         if (config->IsSecure()) {
-            return std::make_shared<SocketTls>(config);
+            return std::make_shared<SocketTls>(id, config);
         }
-        return std::make_shared<SocketNoTls>(config);
+        return std::make_shared<SocketNoTls>(id, config);
     }
     return nullptr;
 }
 
 template<class TConfig>
-Websocket::SocketImpl<TConfig>::SocketImpl(const std::shared_ptr<const Config>& config)
-    : _config(config)
+Websocket::SocketImpl<TConfig>::SocketImpl(uint64_t id, const std::shared_ptr<const Config>& config)
+    : _id(id)
+    , _config(config)
 {
     // Initialize ASIO
     _client.init_asio();
@@ -374,9 +394,10 @@ bool Websocket::SocketImpl<TConfig>::WriteText(const std::string& text)
 }
 
 template<class TConfig>
-void Websocket::SocketImpl<TConfig>::SetListener(const std::shared_ptr<WebsocketListener>& listener)
+void Websocket::SocketImpl<TConfig>::SetListener(const std::weak_ptr<WebsocketListener>& listener)
 {
-    std::atomic_store(&_listener, listener);
+    const WriteLock lock(_listenerMutex);
+    _listener = listener;
 }
 
 template<class TConfig>
@@ -386,7 +407,7 @@ void Websocket::SocketImpl<TConfig>::OnSocketInit(websocketpp::connection_hdl hd
         const WriteLock lock(_hdlMutex);
         _hdl = std::move(hdl);
     }
-    if (const auto listener = std::atomic_load(&_listener)) {
+    if (const auto listener = GetListener()) {
         listener->OnStateChanged(GetId(), GetState());
     }
 }
@@ -406,7 +427,7 @@ void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
         MS_WARN_TAG(rtp, "Websocket general failure: %s", error.c_str());
         // report error & reset state
         DropHdl(std::move(lock));
-        if (const auto listener = std::atomic_load(&_listener)) {
+        if (const auto listener = GetListener()) {
             listener->OnFailed(GetId(), error);
         }
     }
@@ -433,7 +454,7 @@ void Websocket::SocketImpl<TConfig>::OnMessage(websocketpp::connection_hdl hdl,
             accepted = hdl.lock() == _hdl.lock();
         }
         if (accepted) {
-            if (const auto listener = std::atomic_load(&_listener)) {
+            if (const auto listener = GetListener()) {
                 switch (message->get_opcode()) {
                     case websocketpp::frame::opcode::text:
                         listener->OnTextMessageReceived(GetId(), ToText(message));
@@ -470,13 +491,20 @@ template<class TConfig> template<class Lock>
 bool Websocket::SocketImpl<TConfig>::SetOpened(bool opened, std::unique_ptr<Lock> droppedLock)
 {
     if (opened != _opened.exchange(opened)) {
-        if (const auto listener = std::atomic_load(&_listener)) {
+        if (const auto listener = GetListener()) {
             droppedLock.reset();
             listener->OnStateChanged(GetId(), GetState());
         }
         return true;
     }
     return false;
+}
+
+template<class TConfig>
+std::shared_ptr<WebsocketListener> Websocket::SocketImpl<TConfig>::GetListener()
+{
+    const ReadLock lock(_listenerMutex);
+    return _listener.lock();
 }
 
 template<class TConfig>
@@ -497,8 +525,8 @@ std::shared_ptr<MemoryBuffer> Websocket::SocketImpl<TConfig>::ToBinary(const Mes
     return nullptr;
 }
 
-Websocket::SocketTls::SocketTls(const std::shared_ptr<const Config>& config)
-    : SocketImpl<websocketpp::config::asio_tls_client>(config)
+Websocket::SocketTls::SocketTls(uint64_t id, const std::shared_ptr<const Config>& config)
+    : SocketImpl<websocketpp::config::asio_tls_client>(id, config)
 {
     GetClient().set_tls_init_handler(bind(&SocketTls::OnTlsInit, this, _1));
 }
@@ -540,8 +568,8 @@ Websocket::SocketTls::SslContextPtr Websocket::SocketTls::OnTlsInit(websocketpp:
     return ctx;
 }
 
-Websocket::SocketNoTls::SocketNoTls(const std::shared_ptr<const Config>& config)
-    : SocketImpl<websocketpp::config::asio_client>(config)
+Websocket::SocketNoTls::SocketNoTls(uint64_t id, const std::shared_ptr<const Config>& config)
+    : SocketImpl<websocketpp::config::asio_client>(id, config)
 {
 }
 
