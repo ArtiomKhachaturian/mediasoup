@@ -97,7 +97,7 @@ namespace RTC
 
 			// NOTE: This may throw.
 			this->shared->channelMessageRegistrator->RegisterHandler(
-			  this->id,
+			  this->GetId(),
 			  /*channelRequestHandler*/ this,
 			  /*payloadChannelRequestHandler*/ this,
 			  /*payloadChannelNotificationHandler*/ this);
@@ -121,7 +121,7 @@ namespace RTC
 		// the class instance.
 		Destroying();
 
-		this->shared->channelMessageRegistrator->UnregisterHandler(this->id);
+		this->shared->channelMessageRegistrator->UnregisterHandler(this->GetId());
 
 		delete this->udpSocket;
 		this->udpSocket = nullptr;

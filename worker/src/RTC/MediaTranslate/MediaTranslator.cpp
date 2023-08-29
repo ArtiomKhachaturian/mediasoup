@@ -42,18 +42,18 @@ private:
     Websocket* _socket;
     std::mutex _socketMutex;
     // input language
-    std::optional<MediaLanguage> _languageFrom = MediaLanguage::Russian; // RU for tests only
+    std::optional<MediaLanguage> _languageFrom = DefaultInputMediaLanguage();
     mutable std::mutex _languageFromMutex;
     // output language
-    std::atomic<MediaLanguage> _languageTo = MediaLanguage::English;
+    std::atomic<MediaLanguage> _languageTo = DefaultOutputMediaLanguage();
     // voice
-    std::atomic<MediaVoice> _voice = MediaVoice::Abdul;
+    std::atomic<MediaVoice> _voice = DefaultMediaVoice();
     // media
     std::atomic<int64_t> _mediaPosition = 0LL;
 };
 
 MediaTranslator::MediaTranslator(const std::string& serviceUri,
-                                 std::shared_ptr<RtpMediaFrameSerializer> serializer,
+                                 std::unique_ptr<RtpMediaFrameSerializer> serializer,
                                  std::unique_ptr<RtpDepacketizer> depacketizer)
     : _serializer(std::move(serializer))
     , _depacketizer(std::move(depacketizer))

@@ -6,7 +6,7 @@
 namespace RTC
 {
 
-std::shared_ptr<RtpMediaFrameSerializer> RtpMediaFrameSerializer::create(const RtpCodecMimeType& mimeType)
+std::unique_ptr<RtpMediaFrameSerializer> RtpMediaFrameSerializer::create(const RtpCodecMimeType& mimeType)
 {
     if (RtpWebMSerializer::IsSupported(mimeType)) {
         return std::make_unique<RtpWebMSerializer>();

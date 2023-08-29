@@ -421,7 +421,7 @@ namespace RTC
 				transport->CloseProducersAndConsumers();
 
 				// Remove it from the map.
-				this->mapTransports.erase(transport->id);
+				this->mapTransports.erase(transport->GetId());
 
 				MS_DEBUG_DEV("Transport closed [transportId:%s]", transport->id.c_str());
 
@@ -1025,7 +1025,7 @@ namespace RTC
 		MS_TRACE();
 
 		MS_ASSERT(
-		  this->mapTransports.find(transport->id) != this->mapTransports.end(),
+		  this->mapTransports.find(transport->GetId()) != this->mapTransports.end(),
 		  "Transport not present in mapTransports");
 
 		// Tell the Transport to close all its Producers and Consumers so it will
@@ -1033,7 +1033,7 @@ namespace RTC
 		transport->CloseProducersAndConsumers();
 
 		// Remove it from the map.
-		this->mapTransports.erase(transport->id);
+		this->mapTransports.erase(transport->GetId());
 
 		// Delete it.
 		delete transport;

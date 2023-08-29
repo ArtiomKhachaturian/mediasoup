@@ -36,6 +36,9 @@ using json = nlohmann::json;
 
 namespace RTC
 {
+
+    class MediaTranslatorsManager;
+
 	class Transport : public RTC::Producer::Listener,
 	                  public RTC::Consumer::Listener,
 	                  public RTC::DataProducer::Listener,
@@ -125,6 +128,7 @@ namespace RTC
 	public:
 		Transport(RTC::Shared* shared, const std::string& id, Listener* listener, json& data);
 		virtual ~Transport();
+        const std::string& GetId() const { return id; }
 
 	public:
 		void CloseProducersAndConsumers();
@@ -293,10 +297,6 @@ namespace RTC
 	public:
 		void OnTimer(Timer* timer) override;
 
-	public:
-		// Passed by argument.
-		const std::string id;
-
 	protected:
 		RTC::Shared* shared{ nullptr };
 		size_t maxMessageSize{ 262144u };
@@ -304,6 +304,9 @@ namespace RTC
 		RTC::SctpAssociation* sctpAssociation{ nullptr };
 
 	private:
+        // Passed by argument.
+        const std::string id;
+        const std::shared_ptr<MediaTranslatorsManager> _translatorsManager;
 		// Passed by argument.
 		Listener* listener{ nullptr };
 		// Allocated by this.

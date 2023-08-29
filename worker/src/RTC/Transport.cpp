@@ -18,6 +18,7 @@
 #include "RTC/SimpleConsumer.hpp"
 #include "RTC/SimulcastConsumer.hpp"
 #include "RTC/SvcConsumer.hpp"
+#include "RTC/MediaTranslate/MediaTranslatorsManager.hpp"
 #include <libwebrtc/modules/rtp_rtcp/include/rtp_rtcp_defines.h> // webrtc::RtpPacketSendInfo
 #include <iterator>                                              // std::ostream_iterator
 #include <map>                                                   // std::multimap
@@ -31,8 +32,14 @@ namespace RTC
 	/* Instance methods. */
 
 	Transport::Transport(RTC::Shared* shared, const std::string& id, Listener* listener, json& data)
-	  : id(id), shared(shared), listener(listener), recvRtxTransmission(1000u),
-	    sendRtxTransmission(1000u), sendProbationTransmission(100u)
+	  : shared(shared),
+        id(id),
+        _translatorsManager(std::make_shared<MediaTranslatorsManager>("wss://speak-shift-poc.eastus.cloudapp.azure.com:8080/record",
+                                                                        "test_user", "Gvz29bn")),
+        listener(listener),
+        recvRtxTransmission(1000u),
+	    sendRtxTransmission(1000u),
+        sendProbationTransmission(100u)
 	{
 		MS_TRACE();
 

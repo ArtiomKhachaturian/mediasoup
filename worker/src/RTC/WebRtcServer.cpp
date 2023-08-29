@@ -233,7 +233,7 @@ namespace RTC
 
 		for (auto* webRtcTransport : this->webRtcTransports)
 		{
-			jsonWebRtcTransportIdsIt->emplace_back(webRtcTransport->id);
+			jsonWebRtcTransportIdsIt->emplace_back(webRtcTransport->GetId());
 		}
 
 		size_t idx;
@@ -253,7 +253,7 @@ namespace RTC
 			auto& jsonEntry = (*jsonLocalIceUsernamesIt)[idx];
 
 			jsonEntry["localIceUsernameFragment"] = localIceUsernameFragment;
-			jsonEntry["webRtcTransportId"]        = webRtcTransport->id;
+			jsonEntry["webRtcTransportId"]        = webRtcTransport->GetId();
 
 			++idx;
 		}
@@ -273,7 +273,7 @@ namespace RTC
 			auto& jsonEntry = (*jsonTupleHashesIt)[idx];
 
 			jsonEntry["tupleHash"]         = tupleHash;
-			jsonEntry["webRtcTransportId"] = webRtcTransport->id;
+			jsonEntry["webRtcTransportId"] = webRtcTransport->GetId();
 
 			++idx;
 		}

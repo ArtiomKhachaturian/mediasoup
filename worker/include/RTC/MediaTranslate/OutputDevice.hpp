@@ -23,7 +23,7 @@ public:
     // Set the current File position. Returns 0 on success.
     virtual bool SetPosition(int64_t /*position*/) { return false; }
     // Returns true if the device is seekable.
-    virtual bool Seekable() const { return false; }
+    virtual bool IsSeekable() const { return false; }
     virtual bool IsFileDevice() const { return false; }
 };
 

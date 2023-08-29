@@ -33,13 +33,20 @@ bool RtpWebMSerializer::IsSupported(const RtpCodecMimeType& mimeType)
     return nullptr != GetCodec(mimeType);
 }
 
+void RtpWebMSerializer::SetOutputDevice(OutputDevice* outputDevice)
+{
+    RtpMediaFrameSerializer::SetOutputDevice(outputDevice);
+    if (outputDevice) {
+        _segment.set_mode(outputDevice->IsFileDevice() ? mkvmuxer::Segment::kFile : mkvmuxer::Segment::kLive);
+    }
+}
+
 void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 {
     if (mediaFrame) {
         if (const auto device = GetOutputDevice()) {
             if (const auto track = GetTrack(mediaFrame)) {
                 const auto& payload = mediaFrame->GetPayload();
-                _segment.set_mode(device->IsFileDevice() ? mkvmuxer::Segment::kFile : mkvmuxer::Segment::kLive);
                 device->BeginWriteMediaPayload(mediaFrame->GetSsrc(),
                                                mediaFrame->IsKeyFrame(),
                                                mediaFrame->GetCodecMimeType(),
@@ -59,11 +66,6 @@ void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
             }
         }
     }
-}
-
-bool RtpWebMSerializer::IsCompatible(const RtpCodecMimeType& mimeType) const
-{
-    return IsSupported(mimeType);
 }
 
 bool RtpWebMSerializer::IsOpusAudio(const RtpCodecMimeType& mimeType)
@@ -220,7 +222,7 @@ mkvmuxer::int32 RtpWebMSerializer::Position(mkvmuxer::int64 position)
 
 bool RtpWebMSerializer::Seekable() const
 {
-    return GetOutputDevice() && GetOutputDevice()->Seekable();
+    return GetOutputDevice() && GetOutputDevice()->IsSeekable();
 }
 
 RtpWebMSerializer::TrackInfo::TrackInfo(uint64_t number, uint32_t rate)

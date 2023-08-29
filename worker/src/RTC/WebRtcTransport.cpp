@@ -206,7 +206,7 @@ namespace RTC
 
 			// NOTE: This may throw.
 			this->shared->channelMessageRegistrator->RegisterHandler(
-			  this->id,
+			  this->GetId(),
 			  /*channelRequestHandler*/ this,
 			  /*payloadChannelRequestHandler*/ this,
 			  /*payloadChannelNotificationHandler*/ this);
@@ -275,7 +275,7 @@ namespace RTC
 
 			// NOTE: This may throw.
 			this->shared->channelMessageRegistrator->RegisterHandler(
-			  this->id,
+			  this->GetId(),
 			  /*channelRequestHandler*/ this,
 			  /*payloadChannelRequestHandler*/ this,
 			  /*payloadChannelNotificationHandler*/ this);
@@ -305,7 +305,7 @@ namespace RTC
 		// parent's destructor. See comment in Transport::OnSctpAssociationSendData().
 		Destroying();
 
-		this->shared->channelMessageRegistrator->UnregisterHandler(this->id);
+		this->shared->channelMessageRegistrator->UnregisterHandler(this->GetId());
 
 		// Must delete the DTLS transport first since it will generate a DTLS alert
 		// to be sent.
@@ -1309,7 +1309,7 @@ namespace RTC
 
 		this->iceServer->GetSelectedTuple()->FillJson(data["iceSelectedTuple"]);
 
-		this->shared->channelNotifier->Emit(this->id, "iceselectedtuplechange", data);
+		this->shared->channelNotifier->Emit(this->GetId(), "iceselectedtuplechange", data);
 	}
 
 	inline void WebRtcTransport::OnIceServerConnected(const RTC::IceServer* /*iceServer*/)
@@ -1323,7 +1323,7 @@ namespace RTC
 
 		data["iceState"] = "connected";
 
-		this->shared->channelNotifier->Emit(this->id, "icestatechange", data);
+		this->shared->channelNotifier->Emit(this->GetId(), "icestatechange", data);
 
 		// If ready, run the DTLS handler.
 		MayRunDtlsTransport();
@@ -1346,7 +1346,7 @@ namespace RTC
 
 		data["iceState"] = "completed";
 
-		this->shared->channelNotifier->Emit(this->id, "icestatechange", data);
+		this->shared->channelNotifier->Emit(this->GetId(), "icestatechange", data);
 
 		// If ready, run the DTLS handler.
 		MayRunDtlsTransport();
@@ -1369,7 +1369,7 @@ namespace RTC
 
 		data["iceState"] = "disconnected";
 
-		this->shared->channelNotifier->Emit(this->id, "icestatechange", data);
+		this->shared->channelNotifier->Emit(this->GetId(), "icestatechange", data);
 
 		// If DTLS was already connected, notify the parent class.
 		if (this->dtlsTransport->GetState() == RTC::DtlsTransport::DtlsState::CONNECTED)
@@ -1389,7 +1389,7 @@ namespace RTC
 
 		data["dtlsState"] = "connecting";
 
-		this->shared->channelNotifier->Emit(this->id, "dtlsstatechange", data);
+		this->shared->channelNotifier->Emit(this->GetId(), "dtlsstatechange", data);
 	}
 
 	inline void WebRtcTransport::OnDtlsTransportConnected(
@@ -1433,7 +1433,7 @@ namespace RTC
 			data["dtlsState"]      = "connected";
 			data["dtlsRemoteCert"] = remoteCert;
 
-			this->shared->channelNotifier->Emit(this->id, "dtlsstatechange", data);
+			this->shared->channelNotifier->Emit(this->GetId(), "dtlsstatechange", data);
 
 			// Tell the parent class.
 			RTC::Transport::Connected();
@@ -1458,7 +1458,7 @@ namespace RTC
 
 		data["dtlsState"] = "failed";
 
-		this->shared->channelNotifier->Emit(this->id, "dtlsstatechange", data);
+		this->shared->channelNotifier->Emit(this->GetId(), "dtlsstatechange", data);
 	}
 
 	inline void WebRtcTransport::OnDtlsTransportClosed(const RTC::DtlsTransport* /*dtlsTransport*/)
@@ -1472,7 +1472,7 @@ namespace RTC
 
 		data["dtlsState"] = "closed";
 
-		this->shared->channelNotifier->Emit(this->id, "dtlsstatechange", data);
+		this->shared->channelNotifier->Emit(this->GetId(), "dtlsstatechange", data);
 
 		// Tell the parent class.
 		RTC::Transport::Disconnected();

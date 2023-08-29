@@ -7,7 +7,7 @@
 namespace RTC
 {
 
-class ProducerTranslator;
+class RtpPacketsCollector;
 
 class ConsumerTranslator
 {
@@ -18,7 +18,10 @@ public:
 	virtual void SetVoice(MediaVoice voice) = 0;
 	virtual MediaVoice GetVoice() const = 0;
     virtual const std::string& GetId() const = 0;
-	virtual void AddProducerTranslator(const std::shared_ptr<ProducerTranslator>& producer) = 0;
+    // return 0 if failed
+    virtual uint64_t Bind(uint32_t producerAudioSsrc, const std::string& producerId,
+                          const std::shared_ptr<RtpPacketsCollector>& output) = 0;
+    virtual void UnBind(uint64_t bindId) = 0;
 };
 
 }

@@ -22,8 +22,8 @@ public:
     ~RtpWebMSerializer() final;
     static bool IsSupported(const RtpCodecMimeType& mimeType);
     // impl. of RtpMediaFrameSerializer
+    void SetOutputDevice(OutputDevice* outputDevice) final;
     void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame) final;
-    bool IsCompatible(const RtpCodecMimeType& mimeType) const final;
 private:
     static const char* GetCodec(const RtpCodecMimeType& mimeType);
     static bool IsOpusAudio(const RtpCodecMimeType& mimeType);

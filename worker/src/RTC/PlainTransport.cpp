@@ -185,7 +185,7 @@ namespace RTC
 
 			// NOTE: This may throw.
 			this->shared->channelMessageRegistrator->RegisterHandler(
-			  this->id,
+			  this->GetId(),
 			  /*channelRequestHandler*/ this,
 			  /*payloadChannelRequestHandler*/ this,
 			  /*payloadChannelNotificationHandler*/ this);
@@ -210,7 +210,7 @@ namespace RTC
 		// the class instance.
 		Destroying();
 
-		this->shared->channelMessageRegistrator->UnregisterHandler(this->id);
+		this->shared->channelMessageRegistrator->UnregisterHandler(this->GetId());
 
 		delete this->udpSocket;
 		this->udpSocket = nullptr;
@@ -945,7 +945,7 @@ namespace RTC
 
 				this->tuple->FillJson(data["tuple"]);
 
-				this->shared->channelNotifier->Emit(this->id, "tuple", data);
+				this->shared->channelNotifier->Emit(this->GetId(), "tuple", data);
 
 				RTC::Transport::Connected();
 			}
@@ -1012,7 +1012,7 @@ namespace RTC
 
 				this->tuple->FillJson(data["tuple"]);
 
-				this->shared->channelNotifier->Emit(this->id, "tuple", data);
+				this->shared->channelNotifier->Emit(this->GetId(), "tuple", data);
 
 				RTC::Transport::Connected();
 			}
@@ -1040,7 +1040,7 @@ namespace RTC
 
 			this->rtcpTuple->FillJson(data["rtcpTuple"]);
 
-			this->shared->channelNotifier->Emit(this->id, "rtcptuple", data);
+			this->shared->channelNotifier->Emit(this->GetId(), "rtcptuple", data);
 		}
 		// If RTCP-mux verify that the packet's tuple matches our RTP tuple.
 		else if (this->rtcpMux && !this->tuple->Compare(tuple))
@@ -1102,7 +1102,7 @@ namespace RTC
 
 				this->tuple->FillJson(data["tuple"]);
 
-				this->shared->channelNotifier->Emit(this->id, "tuple", data);
+				this->shared->channelNotifier->Emit(this->GetId(), "tuple", data);
 
 				RTC::Transport::Connected();
 			}

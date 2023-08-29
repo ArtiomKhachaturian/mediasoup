@@ -35,7 +35,7 @@ public:
     bool Write(const void* buf, uint32_t len) final;
     int64_t GetPosition() const final;
     bool SetPosition(int64_t position) final;
-    bool Seekable() const final { return true; }
+    bool IsSeekable() const final { return true; }
     bool IsFileDevice() const final { return true; }
 private:
     static FILE* FileOpen(std::string_view fileNameUtf8, int* error = nullptr);

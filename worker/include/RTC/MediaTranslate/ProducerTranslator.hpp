@@ -7,7 +7,7 @@ namespace RTC
 {
 
 class RtpPacketsCollector;
-class OutputDevice;
+class RtpMediaFrameSerializer;
 
 class ProducerTranslator
 {
@@ -20,7 +20,7 @@ public:
     virtual void SetLanguage(const std::optional<MediaLanguage>& language = std::nullopt) = 0;
     virtual std::optional<MediaLanguage> GetLanguage() const = 0;
     virtual const std::string& GetId() const = 0;
-    virtual void SetOutputDevice(uint32_t audioSsrc, OutputDevice* outputDevice) = 0;
+    virtual void SetSerializer(uint32_t audioSsrc, std::unique_ptr<RtpMediaFrameSerializer> serializer) = 0;
 };
 
 }

@@ -18,7 +18,7 @@ namespace RTC
 
 		// NOTE: This may throw.
 		this->shared->channelMessageRegistrator->RegisterHandler(
-		  this->id,
+		  this->GetId(),
 		  /*channelRequestHandler*/ this,
 		  /*payloadChannelRequestHandler*/ this,
 		  /*payloadChannelNotificationHandler*/ this);
@@ -32,7 +32,7 @@ namespace RTC
 		// the class instance.
 		Destroying();
 
-		this->shared->channelMessageRegistrator->UnregisterHandler(this->id);
+		this->shared->channelMessageRegistrator->UnregisterHandler(this->GetId());
 	}
 
 	void DirectTransport::FillJson(json& jsonObject) const
@@ -149,7 +149,7 @@ namespace RTC
 		const size_t len    = packet->GetSize();
 
 		// Notify the Node DirectTransport.
-		this->shared->payloadChannelNotifier->Emit(this->id, "rtcp", data, len);
+		this->shared->payloadChannelNotifier->Emit(this->GetId(), "rtcp", data, len);
 
 		// Increase send transmission.
 		RTC::Transport::DataSent(len);
@@ -165,7 +165,7 @@ namespace RTC
 		const size_t len    = packet->GetSize();
 
 		// Notify the Node DirectTransport.
-		this->shared->payloadChannelNotifier->Emit(this->id, "rtcp", data, len);
+		this->shared->payloadChannelNotifier->Emit(this->GetId(), "rtcp", data, len);
 
 		// Increase send transmission.
 		RTC::Transport::DataSent(len);
