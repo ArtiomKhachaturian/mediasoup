@@ -28,6 +28,19 @@ const RTC::MediaVoice g_allVoices[] = {
 namespace RTC
 {
 
+TranslationPack::TranslationPack()
+    : TranslationPack(DefaultOutputMediaLanguage(), DefaultMediaVoice(), DefaultInputMediaLanguage())
+{
+}
+
+TranslationPack::TranslationPack(MediaLanguage languageTo, MediaVoice voice,
+                                 const std::optional<MediaLanguage>& languageFrom)
+    : _languageTo(languageTo)
+    , _voice(voice)
+    , _languageFrom(languageFrom)
+{
+}
+
 std::string_view MediaLanguageToString(const std::optional<MediaLanguage>& language)
 {
     if (language.has_value()) {
@@ -104,12 +117,12 @@ std::optional<MediaVoice> MediaVoiceFromString(const std::string_view& str)
     return std::nullopt;
 }
 
-nlohmann::json GetTargetLanguageCmd(MediaLanguage to, MediaVoice voice,
-                                    const std::optional<MediaLanguage>& from)
+nlohmann::json GetTargetLanguageCmd(MediaLanguage languageTo, MediaVoice voice,
+                                    const std::optional<MediaLanguage>& languageFrom)
 {
     nlohmann::json cmd = {{
-        "from",    MediaLanguageToString(from),
-        "to",      MediaLanguageToString(to),
+        "from",    MediaLanguageToString(languageFrom),
+        "to",      MediaLanguageToString(languageTo),
         "voiceID", MediaVoiceToString(voice)
     }};
     nlohmann::json data = {
@@ -117,6 +130,11 @@ nlohmann::json GetTargetLanguageCmd(MediaLanguage to, MediaVoice voice,
         "cmd",  cmd
     };
     return data;
+}
+
+nlohmann::json GetTargetLanguageCmd(const TranslationPack& pack)
+{
+    return GetTargetLanguageCmd(pack._languageTo, pack._voice, pack._languageFrom);
 }
 
 } // namespace RTC

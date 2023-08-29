@@ -24,7 +24,7 @@ public:
     void SetVoice(MediaVoice voice);
     int64_t GetMediaPosition() const { return _mediaPosition.load(std::memory_order_relaxed); }
     // impl. of WebsocketListener
-    void OnStateChanged(WebsocketState state);
+    void OnStateChanged(uint64_t, WebsocketState state) final;
     // impl. of OutputDevice
     bool Write(const void* buf, uint32_t len) final;
     int64_t GetPosition() const final { return _mediaPosition.load(std::memory_order_relaxed); }
@@ -54,10 +54,12 @@ private:
 
 MediaTranslator::MediaTranslator(const std::string& serviceUri,
                                  std::unique_ptr<RtpMediaFrameSerializer> serializer,
-                                 std::unique_ptr<RtpDepacketizer> depacketizer)
+                                 std::unique_ptr<RtpDepacketizer> depacketizer,
+                                 const std::string& user,
+                                 const std::string& password)
     : _serializer(std::move(serializer))
     , _depacketizer(std::move(depacketizer))
-    , _websocket(CreateWebsocket(serviceUri))
+    , _websocket(CreateWebsocket(serviceUri, user, password))
     , _impl(CreateImpl(_websocket.get()))
 {
     if (_websocket && _impl) {
@@ -80,14 +82,18 @@ MediaTranslator::~MediaTranslator()
 }
 
 std::unique_ptr<MediaTranslator> MediaTranslator::Create(std::string serviceUri,
-                                                         const RtpCodecMimeType& mimeType)
+                                                         const RtpCodecMimeType& mimeType,
+                                                         const std::string& user,
+                                                         const std::string& password)
 {
     if (!serviceUri.empty()) {
         if (auto serializer = RtpMediaFrameSerializer::create(mimeType)) {
             if (auto depacketizer = RtpDepacketizer::create(mimeType)) {
                 auto translator = std::make_unique<MediaTranslator>(std::move(serviceUri),
                                                                     std::move(serializer),
-                                                                    std::move(depacketizer));
+                                                                    std::move(depacketizer),
+                                                                    user,
+                                                                    password);
                 if (translator->_websocket) {
                     return translator;
                 }
@@ -97,9 +103,9 @@ std::unique_ptr<MediaTranslator> MediaTranslator::Create(std::string serviceUri,
     return nullptr;
 }
 
-bool MediaTranslator::OpenService(const std::string& user, const std::string& password)
+bool MediaTranslator::OpenService()
 {
-    return _depacketizer && _serializer && _websocket && _websocket->Open(user, password);
+    return _depacketizer && _serializer && _websocket && _websocket->Open();
 }
 
 void MediaTranslator::CloseService()
@@ -146,10 +152,12 @@ void MediaTranslator::AddPacket(const RTC::RtpCodecMimeType& mimeType, const Rtp
     }
 }
 
-std::unique_ptr<Websocket> MediaTranslator::CreateWebsocket(const std::string& serviceUri)
+std::unique_ptr<Websocket> MediaTranslator::CreateWebsocket(const std::string& serviceUri,
+                                                            const std::string& user,
+                                                            const std::string& password)
 {
     if (!serviceUri.empty()) {
-        auto websocket = std::make_unique<Websocket>(serviceUri);
+        auto websocket = std::make_unique<Websocket>(serviceUri, user, password);
         if (WebsocketState::Invalid != websocket->GetState()) {
             return websocket;
         }
@@ -211,7 +219,7 @@ bool MediaTranslator::Impl::Write(const void* buf, uint32_t len)
     return ok;
 }
 
-void MediaTranslator::Impl::OnStateChanged(WebsocketState state)
+void MediaTranslator::Impl::OnStateChanged(uint64_t, WebsocketState state)
 {
     switch (state) {
         case WebsocketState::Connected:

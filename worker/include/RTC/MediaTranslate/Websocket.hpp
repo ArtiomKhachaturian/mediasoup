@@ -22,28 +22,31 @@ enum class WebsocketState
 
 class Websocket
 {
-    struct UriParts;
+    class Config;
     class Socket;
     template<class TConfig> class SocketImpl;
     class SocketTls;
     class SocketNoTls;
 public:
-    // Supported URI schemes: WS or WSS
     Websocket(const std::string& uri,
+              const std::string& user = std::string(),
+              const std::string& password = std::string(),
               std::unordered_map<std::string, std::string> headers = {},
               std::string tlsTrustStore = std::string(),
               std::string tlsKeyStore = std::string(),
               std::string tlsPrivateKey = std::string(),
               std::string tlsPrivateKeyPassword = std::string());
     ~Websocket();
-    bool Open(const std::string& user = std::string(), const std::string& password = std::string());
+    bool Open();
     void Close();
     WebsocketState GetState() const;
+    // return 0 for invalid socket
+    uint64_t GetId() const;
     bool Write(const void* buf, size_t len);
     bool WriteText(const std::string& text);
     void SetListener(const std::shared_ptr<WebsocketListener>& listener);
 private:
-    const std::shared_ptr<UriParts> _uri;
+    const std::shared_ptr<const Config> _config;
     const std::shared_ptr<Socket> _socket;
     std::thread _asioThread;
 };
@@ -52,10 +55,10 @@ class WebsocketListener
 {
 public:
     virtual ~WebsocketListener() = default;
-    virtual void OnStateChanged(WebsocketState /*state*/) {}
-    virtual void OnFailed(const std::string& /*what*/) {}
-    virtual void OnTextMessageReceived(std::string /*message*/) {}
-    virtual void OnBinaryMessageReceved(const std::shared_ptr<MemoryBuffer>& /*message*/) {}
+    virtual void OnStateChanged(uint64_t /*socketId*/, WebsocketState /*state*/) {}
+    virtual void OnFailed(uint64_t /*socketId*/, const std::string& /*what*/) {}
+    virtual void OnTextMessageReceived(uint64_t /*socketId*/, std::string /*message*/) {}
+    virtual void OnBinaryMessageReceved(uint64_t /*socketId*/, const std::shared_ptr<MemoryBuffer>& /*message*/) {}
 };
 
 } // namespace RTC

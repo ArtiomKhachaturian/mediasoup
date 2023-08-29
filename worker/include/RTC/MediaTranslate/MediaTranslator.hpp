@@ -22,11 +22,15 @@ class MediaTranslator : public RtpPacketsCollector
 public:
     MediaTranslator(const std::string& serviceUri,
                     std::unique_ptr<RtpMediaFrameSerializer> serializer,
-                    std::unique_ptr<RtpDepacketizer> depacketizer);
+                    std::unique_ptr<RtpDepacketizer> depacketizer,
+                    const std::string& user = std::string(),
+                    const std::string& password = std::string());
     ~MediaTranslator() final;
     static std::unique_ptr<MediaTranslator> Create(std::string serviceUri,
-                                                   const RtpCodecMimeType& mimeType);
-    bool OpenService(const std::string& user = std::string(), const std::string& password = std::string());
+                                                   const RtpCodecMimeType& mimeType,
+                                                   const std::string& user = std::string(),
+                                                   const std::string& password = std::string());
+    bool OpenService();
     void CloseService();
     void SetFromLanguage(MediaLanguage language);
     void SetFromLanguageAuto();
@@ -35,7 +39,9 @@ public:
     // impl. of RtpPacketsCollector
     void AddPacket(const RTC::RtpCodecMimeType& mimeType, const RtpPacket* packet) final;
 private:
-    static std::unique_ptr<Websocket> CreateWebsocket(const std::string& serviceUri);
+    static std::unique_ptr<Websocket> CreateWebsocket(const std::string& serviceUri,
+                                                      const std::string& user,
+                                                      const std::string& password);
     static std::shared_ptr<Impl> CreateImpl(Websocket* websocket);
 private:
     const std::unique_ptr<RtpMediaFrameSerializer> _serializer;

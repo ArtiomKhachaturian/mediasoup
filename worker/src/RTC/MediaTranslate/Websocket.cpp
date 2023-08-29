@@ -30,32 +30,52 @@ using websocketpp::lib::placeholders::_1;
 using websocketpp::lib::placeholders::_2;
 using websocketpp::lib::bind;
 
-struct Websocket::UriParts
+class Websocket::Config
 {
-    static std::shared_ptr<UriParts> VerifyAndParse(const std::string& uri);
-    UriParts(const std::shared_ptr<websocketpp::uri>& validUri);
-    bool IsSecure() const { return _validUri->get_secure(); }
-    const std::shared_ptr<websocketpp::uri> _validUri;
+public:
+    static std::shared_ptr<const Config> VerifyAndParse(const std::string& uri,
+                                                        const std::string& user,
+                                                        const std::string& password,
+                                                        std::unordered_map<std::string, std::string> headers,
+                                                        std::string tlsTrustStore,
+                                                        std::string tlsKeyStore,
+                                                        std::string tlsPrivateKey,
+                                                        std::string tlsPrivateKeyPassword);
+    Config(const std::shared_ptr<websocketpp::uri>& uri,
+           std::unordered_map<std::string, std::string> headers,
+           std::string tlsTrustStore,
+           std::string tlsKeyStore,
+           std::string tlsPrivateKey,
+           std::string tlsPrivateKeyPassword);
+    bool IsSecure() const { return _uri->get_secure(); }
+    const std::shared_ptr<websocketpp::uri>& GetUri() const { return _uri; }
+    const std::unordered_map<std::string, std::string>& GetHeaders() const { return _headers; }
+    const std::string& GetTlsTrustStore() const { return _tlsTrustStore; }
+    const std::string& GetTlsKeyStore() const { return _tlsKeyStore; }
+    const std::string& GetTlsPrivateKey() const { return _tlsPrivateKey; }
+    const std::string& GetTlsPrivateKeyPassword() const { return _tlsPrivateKeyPassword; }
+private:
+    const std::shared_ptr<websocketpp::uri> _uri;
+    const std::unordered_map<std::string, std::string> _headers;
+    const std::string _tlsTrustStore;
+    const std::string _tlsKeyStore;
+    const std::string _tlsPrivateKey;
+    const std::string _tlsPrivateKeyPassword;
 };
 
 class Websocket::Socket
 {
 public:
     virtual ~Socket() = default;
+    uint64_t GetId() const { return reinterpret_cast<uint64_t>(this); }
     virtual WebsocketState GetState() = 0;
     virtual void Run() = 0;
-    virtual bool Open(const std::shared_ptr<websocketpp::uri>& uri,
-                      const std::string& user, const std::string& password) = 0;
+    virtual bool Open() = 0;
     virtual void Close() = 0;
     virtual bool WriteBinary(const void* buf, size_t len) = 0;
     virtual bool WriteText(const std::string& text) = 0;
     virtual void SetListener(const std::shared_ptr<WebsocketListener>& listener) = 0;
-    static std::shared_ptr<Socket> Create(const std::shared_ptr<UriParts>& uri,
-                                          std::unordered_map<std::string, std::string> headers,
-                                          std::string tlsTrustStore,
-                                          std::string tlsKeyStore,
-                                          std::string tlsPrivateKey,
-                                          std::string tlsPrivateKeyPassword);
+    static std::shared_ptr<Socket> Create(const std::shared_ptr<const Config>& config);
 };
 
 template<class TConfig>
@@ -71,14 +91,14 @@ public:
     // impl. of Socket
     WebsocketState GetState() final;
     void Run() final;
-    bool Open(const std::shared_ptr<websocketpp::uri>& uri,
-              const std::string& user, const std::string& password) final;
+    bool Open() final;
     void Close() final;
     bool WriteBinary(const void* buf, size_t len) final;
     bool WriteText(const std::string& text) final;
     void SetListener(const std::shared_ptr<WebsocketListener>& listener) final;
 protected:
-    SocketImpl(std::unordered_map<std::string, std::string> headers = {});
+    SocketImpl(const std::shared_ptr<const Config>& config);
+    const std::shared_ptr<const Config>& GetConfig() const { return _config; }
     const Client& GetClient() const { return _client; }
     Client& GetClient() { return _client; }
 private:
@@ -96,7 +116,8 @@ private:
     static std::string ToText(const MessagePtr& message);
     static std::shared_ptr<MemoryBuffer> ToBinary(const MessagePtr& message);
 private:
-    const std::unordered_map<std::string, std::string> _headers;
+    static inline constexpr uint16_t _closeCode = websocketpp::close::status::normal;
+    const std::shared_ptr<const Config> _config;
     std::shared_ptr<WebsocketListener> _listener;
     Client _client;
     websocketpp::connection_hdl _hdl;
@@ -108,39 +129,33 @@ class Websocket::SocketTls : public SocketImpl<websocketpp::config::asio_tls_cli
 {
     using SslContextPtr = websocketpp::lib::shared_ptr<asio::ssl::context>;
 public:
-    SocketTls(std::unordered_map<std::string, std::string> headers,
-              std::string tlsTrustStore,
-              std::string tlsKeyStore,
-              std::string tlsPrivateKey,
-              std::string tlsPrivateKeyPassword);
+    SocketTls(const std::shared_ptr<const Config>& config);
 private:
     SslContextPtr OnTlsInit(websocketpp::connection_hdl);
-private:
-    const std::string _tlsTrustStore;
-    const std::string _tlsKeyStore;
-    const std::string _tlsPrivateKey;
-    const std::string _tlsPrivateKeyPassword;
 };
 
 class Websocket::SocketNoTls : public SocketImpl<websocketpp::config::asio_client>
 {
 public:
-    SocketNoTls(std::unordered_map<std::string, std::string> headers);
+    SocketNoTls(const std::shared_ptr<const Config>& config);
 };
 
 
 Websocket::Websocket(const std::string& uri,
+                     const std::string& user,
+                     const std::string& password,
                      std::unordered_map<std::string, std::string> headers,
                      std::string tlsTrustStore,
                      std::string tlsKeyStore,
                      std::string tlsPrivateKey,
                      std::string tlsPrivateKeyPassword)
-    : _uri(UriParts::VerifyAndParse(std::move(uri)))
-    , _socket(Socket::Create(_uri, std::move(headers),
-                             std::move(tlsTrustStore),
-                             std::move(tlsKeyStore),
-                             std::move(tlsPrivateKey),
-                             std::move(tlsPrivateKeyPassword)))
+    : _config(Config::VerifyAndParse(uri, user, password,
+                                     std::move(headers),
+                                     std::move(tlsTrustStore),
+                                     std::move(tlsKeyStore),
+                                     std::move(tlsPrivateKey),
+                                     std::move(tlsPrivateKeyPassword)))
+    , _socket(Socket::Create(_config))
 {
 }
 
@@ -149,12 +164,12 @@ Websocket::~Websocket()
     Close();
 }
 
-bool Websocket::Open(const std::string& user, const std::string& password)
+bool Websocket::Open()
 {
     bool result = false;
-    if (_socket && _uri) {
+    if (_socket) {
         if (WebsocketState::Disconnected == _socket->GetState()) {
-            result = _socket->Open(_uri->_validUri, user, password);
+            result = _socket->Open();
             if (result) {
                 _asioThread = std::thread([socketRef = std::weak_ptr<Socket>(_socket)]() {
                     if (const auto socket = socketRef.lock()) {
@@ -185,6 +200,11 @@ WebsocketState Websocket::GetState() const
     return _socket ? _socket->GetState() : WebsocketState::Invalid;
 }
 
+uint64_t Websocket::GetId() const
+{
+    return _socket ? _socket->GetId() : 0ULL;
+}
+
 bool Websocket::WriteText(const std::string& text)
 {
     return _socket->WriteText(text);
@@ -200,46 +220,62 @@ bool Websocket::Write(const void* buf, size_t len)
     return _socket->WriteBinary(buf, len);
 }
 
-Websocket::UriParts::UriParts(const std::shared_ptr<websocketpp::uri>& validUri)
-    : _validUri(validUri)
+Websocket::Config::Config(const std::shared_ptr<websocketpp::uri>& uri,
+                          std::unordered_map<std::string, std::string> headers,
+                          std::string tlsTrustStore,
+                          std::string tlsKeyStore,
+                          std::string tlsPrivateKey,
+                          std::string tlsPrivateKeyPassword)
+    : _uri(uri)
+    , _headers(std::move(headers))
+    , _tlsTrustStore(std::move(tlsTrustStore))
+    , _tlsKeyStore(std::move(tlsKeyStore))
+    , _tlsPrivateKey(std::move(tlsPrivateKey))
+    , _tlsPrivateKeyPassword(std::move(tlsPrivateKeyPassword))
 {
-    MS_ASSERT(_validUri->get_valid(), "invalid URI");
 }
 
-std::shared_ptr<Websocket::UriParts> Websocket::UriParts::VerifyAndParse(const std::string& uri)
+std::shared_ptr<const Websocket::Config> Websocket::Config::VerifyAndParse(const std::string& uri,
+                                                                           const std::string& user,
+                                                                           const std::string& password,
+                                                                           std::unordered_map<std::string, std::string> headers,
+                                                                           std::string tlsTrustStore,
+                                                                           std::string tlsKeyStore,
+                                                                           std::string tlsPrivateKey,
+                                                                           std::string tlsPrivateKeyPassword)
 {
     if (!uri.empty()) {
         auto validUri = std::make_shared<websocketpp::uri>(uri);
         if (validUri->get_valid()) {
-            return std::make_shared<UriParts>(validUri);
+            if (!user.empty() || !password.empty()) {
+                auto auth = Utils::String::Base64Encode(user + ":" + password);
+                headers["Authorization"] = "Basic " + auth;
+            }
+            return std::make_shared<Config>(validUri, std::move(headers),
+                                            std::move(tlsTrustStore),
+                                            std::move(tlsKeyStore),
+                                            std::move(tlsPrivateKey),
+                                            std::move(tlsPrivateKeyPassword));
         }
+        MS_WARN_TAG(rtp, "invalid web socket URI");
     }
     return nullptr;
 }
 
-std::shared_ptr<Websocket::Socket> Websocket::Socket::Create(const std::shared_ptr<UriParts>& uri,
-                                                             std::unordered_map<std::string, std::string> headers,
-                                                             std::string tlsTrustStore,
-                                                             std::string tlsKeyStore,
-                                                             std::string tlsPrivateKey,
-                                                             std::string tlsPrivateKeyPassword)
+std::shared_ptr<Websocket::Socket> Websocket::Socket::Create(const std::shared_ptr<const Config>& config)
 {
-    if (uri) {
-        if (uri->IsSecure()) {
-            return std::make_shared<SocketTls>(std::move(headers),
-                                               std::move(tlsTrustStore),
-                                               std::move(tlsKeyStore),
-                                               std::move(tlsPrivateKey),
-                                               std::move(tlsPrivateKeyPassword));
+    if (config) {
+        if (config->IsSecure()) {
+            return std::make_shared<SocketTls>(config);
         }
-        return std::make_shared<SocketNoTls>(std::move(headers));
+        return std::make_shared<SocketNoTls>(config);
     }
     return nullptr;
 }
 
 template<class TConfig>
-Websocket::SocketImpl<TConfig>::SocketImpl(std::unordered_map<std::string, std::string> headers)
-    : _headers(std::move(headers))
+Websocket::SocketImpl<TConfig>::SocketImpl(const std::shared_ptr<const Config>& config)
+    : _config(config)
 {
     // Initialize ASIO
     _client.init_asio();
@@ -269,21 +305,17 @@ void Websocket::SocketImpl<TConfig>::Run()
 }
 
 template<class TConfig>
-bool Websocket::SocketImpl<TConfig>::Open(const std::shared_ptr<websocketpp::uri>& uri,
-                                          const std::string& user, const std::string& password)
+bool Websocket::SocketImpl<TConfig>::Open()
 {
     websocketpp::lib::error_code ec;
-    const auto connection = _client.get_connection(uri, ec);
+    const auto connection = _client.get_connection(GetConfig()->GetUri(), ec);
     if (ec) {
         // write error to log
         MS_WARN_TAG(rtp, "Websocket get connection failure: %s", ec.message().c_str());
     }
     else {
-        if (!user.empty() || !password.empty()) {
-            auto auth = Utils::String::Base64Encode(user + ":" + password);
-            connection->append_header("Authorization", "Basic " + auth);
-        }
-        for (auto it = _headers.begin(); it != _headers.end(); ++it) {
+        const auto& headers = GetConfig()->GetHeaders();
+        for (auto it = headers.begin(); it != headers.end(); ++it) {
             connection->append_header(it->first, it->second);
         }
         _client.connect(connection);
@@ -296,7 +328,7 @@ void Websocket::SocketImpl<TConfig>::Close()
 {
     auto lock = std::make_unique<WriteLock>(_hdlMutex);
     if (!_hdl.expired()) {
-        _client.close(_hdl, websocketpp::close::status::going_away, std::string());
+        _client.close(_hdl, _closeCode, websocketpp::close::status::get_string(_closeCode));
         DropHdl(std::move(lock));
     }
 }
@@ -355,7 +387,7 @@ void Websocket::SocketImpl<TConfig>::OnSocketInit(websocketpp::connection_hdl hd
         _hdl = std::move(hdl);
     }
     if (const auto listener = std::atomic_load(&_listener)) {
-        listener->OnStateChanged(GetState());
+        listener->OnStateChanged(GetId(), GetState());
     }
 }
 
@@ -375,7 +407,7 @@ void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
         // report error & reset state
         DropHdl(std::move(lock));
         if (const auto listener = std::atomic_load(&_listener)) {
-            listener->OnFailed(error);
+            listener->OnFailed(GetId(), error);
         }
     }
 }
@@ -404,10 +436,10 @@ void Websocket::SocketImpl<TConfig>::OnMessage(websocketpp::connection_hdl hdl,
             if (const auto listener = std::atomic_load(&_listener)) {
                 switch (message->get_opcode()) {
                     case websocketpp::frame::opcode::text:
-                        listener->OnTextMessageReceived(ToText(message));
+                        listener->OnTextMessageReceived(GetId(), ToText(message));
                         break;
                     case websocketpp::frame::opcode::binary:
-                        listener->OnBinaryMessageReceved(ToBinary(message));
+                        listener->OnBinaryMessageReceved(GetId(), ToBinary(message));
                         break;
                     default:
                         break;
@@ -440,7 +472,7 @@ bool Websocket::SocketImpl<TConfig>::SetOpened(bool opened, std::unique_ptr<Lock
     if (opened != _opened.exchange(opened)) {
         if (const auto listener = std::atomic_load(&_listener)) {
             droppedLock.reset();
-            listener->OnStateChanged(GetState());
+            listener->OnStateChanged(GetId(), GetState());
         }
         return true;
     }
@@ -465,16 +497,8 @@ std::shared_ptr<MemoryBuffer> Websocket::SocketImpl<TConfig>::ToBinary(const Mes
     return nullptr;
 }
 
-Websocket::SocketTls::SocketTls(std::unordered_map<std::string, std::string> headers,
-                                std::string tlsTrustStore,
-                                std::string tlsKeyStore,
-                                std::string tlsPrivateKey,
-                                std::string tlsPrivateKeyPassword)
-    : SocketImpl<websocketpp::config::asio_tls_client>(std::move(headers))
-    , _tlsTrustStore(std::move(tlsTrustStore))
-    , _tlsKeyStore(std::move(tlsKeyStore))
-    , _tlsPrivateKey(std::move(tlsPrivateKey))
-    , _tlsPrivateKeyPassword(std::move(tlsPrivateKeyPassword))
+Websocket::SocketTls::SocketTls(const std::shared_ptr<const Config>& config)
+    : SocketImpl<websocketpp::config::asio_tls_client>(config)
 {
     GetClient().set_tls_init_handler(bind(&SocketTls::OnTlsInit, this, _1));
 }
@@ -482,22 +506,24 @@ Websocket::SocketTls::SocketTls(std::unordered_map<std::string, std::string> hea
 Websocket::SocketTls::SslContextPtr Websocket::SocketTls::OnTlsInit(websocketpp::connection_hdl)
 {
     SslContextPtr ctx = websocketpp::lib::make_shared<asio::ssl::context>(asio::ssl::context::tlsv12_client);
-    bool checkPeersVerification = false;
-    if (!_tlsTrustStore.empty()) {
-        ctx->add_certificate_authority(asio::buffer(_tlsTrustStore.data(), _tlsTrustStore.size()));
-        checkPeersVerification = true;
+    const auto& tlsTrustStore = GetConfig()->GetTlsTrustStore();
+    if (!tlsTrustStore.empty()) {
+        ctx->add_certificate_authority(asio::buffer(tlsTrustStore.data(), tlsTrustStore.size()));
     }
-    if (!_tlsKeyStore.empty()) {
-        ctx->use_certificate_chain(asio::buffer(_tlsKeyStore.data(), _tlsKeyStore.size()));
-        checkPeersVerification = true;
+    const auto& tlsKeyStore = GetConfig()->GetTlsTrustStore();
+    if (!tlsKeyStore.empty()) {
+        ctx->use_certificate_chain(asio::buffer(tlsKeyStore.data(), tlsKeyStore.size()));
     }
-    if (!_tlsPrivateKey.empty()) {
-        ctx->set_password_callback([this](std::size_t /*size*/, asio::ssl::context_base::password_purpose /*purpose*/) {
-            return _tlsPrivateKeyPassword;
+    const auto& tlsPrivateKey = GetConfig()->GetTlsPrivateKey();
+    if (!tlsPrivateKey.empty()) {
+        ctx->set_password_callback([config = GetConfig()](std::size_t /*size*/,
+                                                          asio::ssl::context_base::password_purpose /*purpose*/) {
+            return config->GetTlsPrivateKeyPassword();
         });
-        ctx->use_private_key(asio::buffer(_tlsPrivateKey.data(),_tlsPrivateKey.size()), asio::ssl::context::file_format::pem);
+        ctx->use_private_key(asio::buffer(tlsPrivateKey.data(), tlsPrivateKey.size()),
+                             asio::ssl::context::file_format::pem);
     }
-    if (checkPeersVerification) {
+    if (!tlsTrustStore.empty() || !tlsKeyStore.empty()) { // maybe 'and' (&&) ?
         // Activates verification mode and rejects unverified peers
         ctx->set_verify_mode(asio::ssl::context::verify_peer | asio::ssl::context::verify_fail_if_no_peer_cert);
     }
@@ -514,8 +540,8 @@ Websocket::SocketTls::SslContextPtr Websocket::SocketTls::OnTlsInit(websocketpp:
     return ctx;
 }
 
-Websocket::SocketNoTls::SocketNoTls(std::unordered_map<std::string, std::string> headers)
-    : SocketImpl<websocketpp::config::asio_client>(std::move(headers))
+Websocket::SocketNoTls::SocketNoTls(const std::shared_ptr<const Config>& config)
+    : SocketImpl<websocketpp::config::asio_client>(config)
 {
 }
 
