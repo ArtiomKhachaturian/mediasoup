@@ -24,6 +24,8 @@ using json = nlohmann::json;
 
 namespace RTC
 {
+    class MediaTranslatorsManager;
+
 	class Router : public RTC::Transport::Listener,
 	               public RTC::RtpObserver::Listener,
 	               public Channel::ChannelSocket::RequestHandler
@@ -117,9 +119,13 @@ namespace RTC
 		const std::string id;
 
 	private:
+        static inline const std::string _tsUri = "wss://speak-shift-poc.eastus.cloudapp.azure.com:8080/record";
+        static inline const std::string _tsUser = "test_user";
+        static inline const std::string _tsUserPassword = "Gvz29bn";
 		// Passed by argument.
-		RTC::Shared* shared{ nullptr };
-		Listener* listener{ nullptr };
+        RTC::Shared* const shared;
+        Listener* const listener;
+        const std::shared_ptr<MediaTranslatorsManager> _translatorsManager;
 		// Allocated by this.
 		absl::flat_hash_map<std::string, RTC::Transport*> mapTransports;
 		absl::flat_hash_map<std::string, RTC::RtpObserver*> mapRtpObservers;

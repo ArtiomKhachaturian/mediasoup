@@ -36,9 +36,6 @@ using json = nlohmann::json;
 
 namespace RTC
 {
-
-    class MediaTranslatorsManager;
-
 	class Transport : public RTC::Producer::Listener,
 	                  public RTC::Consumer::Listener,
 	                  public RTC::DataProducer::Listener,
@@ -306,7 +303,6 @@ namespace RTC
 	private:
         // Passed by argument.
         const std::string id;
-        const std::shared_ptr<MediaTranslatorsManager> _translatorsManager;
 		// Passed by argument.
 		Listener* listener{ nullptr };
 		// Allocated by this.

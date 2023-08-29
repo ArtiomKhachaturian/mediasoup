@@ -11,13 +11,18 @@
 #include "RTC/PipeTransport.hpp"
 #include "RTC/PlainTransport.hpp"
 #include "RTC/WebRtcTransport.hpp"
+#include "RTC/MediaTranslate/MediaTranslatorsManager.hpp"
+#include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 
 namespace RTC
 {
 	/* Instance methods. */
 
 	Router::Router(RTC::Shared* shared, const std::string& id, Listener* listener)
-	  : id(id), shared(shared), listener(listener)
+	  : id(id),
+        shared(shared),
+        listener(listener),
+        _translatorsManager(std::make_shared<MediaTranslatorsManager>(_tsUri, _tsUser, _tsUserPassword))
 	{
 		MS_TRACE();
 
@@ -549,65 +554,73 @@ namespace RTC
 	inline void Router::OnTransportNewProducer(RTC::Transport* /*transport*/, RTC::Producer* producer)
 	{
 		MS_TRACE();
-
-		MS_ASSERT(
-		  this->mapProducerConsumers.find(producer) == this->mapProducerConsumers.end(),
-		  "Producer already present in mapProducerConsumers");
-
-		if (this->mapProducers.find(producer->id) != this->mapProducers.end())
-		{
-			MS_THROW_ERROR("Producer already present in mapProducers [producerId:%s]", producer->id.c_str());
-		}
-
-		// Insert the Producer in the maps.
-		this->mapProducers[producer->id] = producer;
-		this->mapProducerConsumers[producer];
-		this->mapProducerRtpObservers[producer];
+        if (producer) {
+            
+            producer->SetMediaTranslator(_translatorsManager->RegisterProducer(producer));
+            
+            MS_ASSERT(
+                      this->mapProducerConsumers.find(producer) == this->mapProducerConsumers.end(),
+                      "Producer already present in mapProducerConsumers");
+            
+            if (this->mapProducers.find(producer->id) != this->mapProducers.end())
+            {
+                MS_THROW_ERROR("Producer already present in mapProducers [producerId:%s]", producer->id.c_str());
+            }
+            
+            // Insert the Producer in the maps.
+            this->mapProducers[producer->id] = producer;
+            this->mapProducerConsumers[producer];
+            this->mapProducerRtpObservers[producer];
+        }
 	}
 
 	inline void Router::OnTransportProducerClosed(RTC::Transport* /*transport*/, RTC::Producer* producer)
 	{
 		MS_TRACE();
-
-		auto mapProducerConsumersIt    = this->mapProducerConsumers.find(producer);
-		auto mapProducersIt            = this->mapProducers.find(producer->id);
-		auto mapProducerRtpObserversIt = this->mapProducerRtpObservers.find(producer);
-
-		MS_ASSERT(
-		  mapProducerConsumersIt != this->mapProducerConsumers.end(),
-		  "Producer not present in mapProducerConsumers");
-		MS_ASSERT(mapProducersIt != this->mapProducers.end(), "Producer not present in mapProducers");
-		MS_ASSERT(
-		  mapProducerRtpObserversIt != this->mapProducerRtpObservers.end(),
-		  "Producer not present in mapProducerRtpObservers");
-
-		// Close all Consumers associated to the closed Producer.
-		auto& consumers = mapProducerConsumersIt->second;
-
-		// NOTE: While iterating the set of Consumers, we call ProducerClosed() on each
-		// one, which will end calling Router::OnTransportConsumerProducerClosed(),
-		// which will remove the Consumer from mapConsumerProducer but won't remove the
-		// closed Consumer from the set of Consumers in mapProducerConsumers (here will
-		// erase the complete entry in that map).
-		for (auto* consumer : consumers)
-		{
-			// Call consumer->ProducerClosed() so the Consumer will notify the Node process,
-			// will notify its Transport, and its Transport will delete the Consumer.
-			consumer->ProducerClosed();
-		}
-
-		// Tell all RtpObservers that the Producer has been closed.
-		auto& rtpObservers = mapProducerRtpObserversIt->second;
-
-		for (auto* rtpObserver : rtpObservers)
-		{
-			rtpObserver->RemoveProducer(producer);
-		}
-
-		// Remove the Producer from the maps.
-		this->mapProducers.erase(mapProducersIt);
-		this->mapProducerConsumers.erase(mapProducerConsumersIt);
-		this->mapProducerRtpObservers.erase(mapProducerRtpObserversIt);
+        if (producer) {
+            auto mapProducerConsumersIt    = this->mapProducerConsumers.find(producer);
+            auto mapProducersIt            = this->mapProducers.find(producer->id);
+            auto mapProducerRtpObserversIt = this->mapProducerRtpObservers.find(producer);
+            
+            MS_ASSERT(
+                      mapProducerConsumersIt != this->mapProducerConsumers.end(),
+                      "Producer not present in mapProducerConsumers");
+            MS_ASSERT(mapProducersIt != this->mapProducers.end(), "Producer not present in mapProducers");
+            MS_ASSERT(
+                      mapProducerRtpObserversIt != this->mapProducerRtpObservers.end(),
+                      "Producer not present in mapProducerRtpObservers");
+            
+            _translatorsManager->UnRegisterProducer(producer);
+            producer->SetMediaTranslator(std::weak_ptr<ProducerTranslator>());
+            
+            // Close all Consumers associated to the closed Producer.
+            auto& consumers = mapProducerConsumersIt->second;
+            
+            // NOTE: While iterating the set of Consumers, we call ProducerClosed() on each
+            // one, which will end calling Router::OnTransportConsumerProducerClosed(),
+            // which will remove the Consumer from mapConsumerProducer but won't remove the
+            // closed Consumer from the set of Consumers in mapProducerConsumers (here will
+            // erase the complete entry in that map).
+            for (auto* consumer : consumers)
+            {
+                // Call consumer->ProducerClosed() so the Consumer will notify the Node process,
+                // will notify its Transport, and its Transport will delete the Consumer.
+                consumer->ProducerClosed();
+            }
+            
+            // Tell all RtpObservers that the Producer has been closed.
+            auto& rtpObservers = mapProducerRtpObserversIt->second;
+            
+            for (auto* rtpObserver : rtpObservers)
+            {
+                rtpObserver->RemoveProducer(producer);
+            }
+            
+            // Remove the Producer from the maps.
+            this->mapProducers.erase(mapProducersIt);
+            this->mapProducerConsumers.erase(mapProducerConsumersIt);
+            this->mapProducerRtpObservers.erase(mapProducerRtpObserversIt);
+        }
 	}
 
 	inline void Router::OnTransportProducerPaused(RTC::Transport* /*transport*/, RTC::Producer* producer)
@@ -670,7 +683,12 @@ namespace RTC
 
 		for (auto* consumer : consumers)
 		{
-			consumer->ProducerNewRtpStream(rtpStream, mappedSsrc);
+            if (RtpCodecMimeType::Type::AUDIO == rtpStream->GetMimeType().type) {
+                if (const auto consumerTranslator = consumer->GetMediaTranslator()) {
+                    consumerTranslator->Bind(rtpStream, producer, consumer);
+                    consumer->ProducerNewRtpStream(rtpStream, mappedSsrc);
+                }
+            }
 		}
 	}
 
@@ -765,74 +783,91 @@ namespace RTC
 	  RTC::Transport* /*transport*/, RTC::Consumer* consumer, std::string& producerId)
 	{
 		MS_TRACE();
-
-		auto mapProducersIt = this->mapProducers.find(producerId);
-
-		if (mapProducersIt == this->mapProducers.end())
-			MS_THROW_ERROR("Producer not found [producerId:%s]", producerId.c_str());
-
-		auto* producer              = mapProducersIt->second;
-		auto mapProducerConsumersIt = this->mapProducerConsumers.find(producer);
-
-		MS_ASSERT(
-		  mapProducerConsumersIt != this->mapProducerConsumers.end(),
-		  "Producer not present in mapProducerConsumers");
-		MS_ASSERT(
-		  this->mapConsumerProducer.find(consumer) == this->mapConsumerProducer.end(),
-		  "Consumer already present in mapConsumerProducer");
-
-		// Update the Consumer status based on the Producer status.
-		if (producer->IsPaused())
-			consumer->ProducerPaused();
-
-		// Insert the Consumer in the maps.
-		auto& consumers = mapProducerConsumersIt->second;
-
-		consumers.insert(consumer);
-		this->mapConsumerProducer[consumer] = producer;
-
-		// Get all streams in the Producer and provide the Consumer with them.
-		for (const auto& kv : producer->GetRtpStreams())
-		{
-			auto* rtpStream           = kv.first;
-			const uint32_t mappedSsrc = kv.second;
-
-			consumer->ProducerRtpStream(rtpStream, mappedSsrc);
-		}
-
-		// Provide the Consumer with the scores of all streams in the Producer.
-		consumer->ProducerRtpStreamScores(producer->GetRtpStreamScores());
+        if (consumer) {
+            
+            auto mapProducersIt = this->mapProducers.find(producerId);
+            
+            if (mapProducersIt == this->mapProducers.end())
+                MS_THROW_ERROR("Producer not found [producerId:%s]", producerId.c_str());
+            
+            auto* producer              = mapProducersIt->second;
+            auto mapProducerConsumersIt = this->mapProducerConsumers.find(producer);
+            
+            MS_ASSERT(
+                      mapProducerConsumersIt != this->mapProducerConsumers.end(),
+                      "Producer not present in mapProducerConsumers");
+            MS_ASSERT(
+                      this->mapConsumerProducer.find(consumer) == this->mapConsumerProducer.end(),
+                      "Consumer already present in mapConsumerProducer");
+            
+            // Update the Consumer status based on the Producer status.
+            if (producer->IsPaused())
+                consumer->ProducerPaused();
+            
+            // Insert the Consumer in the maps.
+            auto& consumers = mapProducerConsumersIt->second;
+            
+            std::weak_ptr<ConsumerTranslator> consumerTranslatorRef;
+            if (consumer->IsTranslationRequired()) {
+                consumerTranslatorRef = _translatorsManager->RegisterConsumer(consumer);
+                consumer->SetMediaTranslator(consumerTranslatorRef);
+            }
+            
+            consumers.insert(consumer);
+            this->mapConsumerProducer[consumer] = producer;
+            
+            // Get all streams in the Producer and provide the Consumer with them.
+            for (const auto& kv : producer->GetRtpStreams())
+            {
+                auto* rtpStream           = kv.first;
+                const uint32_t mappedSsrc = kv.second;
+                if (RtpCodecMimeType::Type::AUDIO == rtpStream->GetMimeType().type) {
+                    if (const auto consumerTranslator = consumerTranslatorRef.lock()) {
+                        consumerTranslator->Bind(rtpStream, producer, consumer);
+                    }
+                }
+                consumer->ProducerRtpStream(rtpStream, mappedSsrc);
+            }
+            
+            // Provide the Consumer with the scores of all streams in the Producer.
+            consumer->ProducerRtpStreamScores(producer->GetRtpStreamScores());
+        }
 	}
 
 	inline void Router::OnTransportConsumerClosed(RTC::Transport* /*transport*/, RTC::Consumer* consumer)
 	{
 		MS_TRACE();
-
-		// NOTE:
-		// This callback is called when the Consumer has been closed but its Producer
-		// remains alive, so the entry in mapProducerConsumers still exists and must
-		// be removed.
-
-		auto mapConsumerProducerIt = this->mapConsumerProducer.find(consumer);
-
-		MS_ASSERT(
-		  mapConsumerProducerIt != this->mapConsumerProducer.end(),
-		  "Consumer not present in mapConsumerProducer");
-
-		// Get the associated Producer.
-		auto* producer = mapConsumerProducerIt->second;
-
-		MS_ASSERT(
-		  this->mapProducerConsumers.find(producer) != this->mapProducerConsumers.end(),
-		  "Producer not present in mapProducerConsumers");
-
-		// Remove the Consumer from the set of Consumers of the Producer.
-		auto& consumers = this->mapProducerConsumers.at(producer);
-
-		consumers.erase(consumer);
-
-		// Remove the Consumer from the map.
-		this->mapConsumerProducer.erase(mapConsumerProducerIt);
+        if (consumer) {
+            // NOTE:
+            // This callback is called when the Consumer has been closed but its Producer
+            // remains alive, so the entry in mapProducerConsumers still exists and must
+            // be removed.
+            
+            auto mapConsumerProducerIt = this->mapConsumerProducer.find(consumer);
+            
+            MS_ASSERT(
+                      mapConsumerProducerIt != this->mapConsumerProducer.end(),
+                      "Consumer not present in mapConsumerProducer");
+            
+            // Get the associated Producer.
+            auto* producer = mapConsumerProducerIt->second;
+            
+            MS_ASSERT(
+                      this->mapProducerConsumers.find(producer) != this->mapProducerConsumers.end(),
+                      "Producer not present in mapProducerConsumers");
+            
+            if (_translatorsManager->UnRegisterConsumer(consumer)) {
+                consumer->SetMediaTranslator(std::weak_ptr<ConsumerTranslator>());
+            }
+            
+            // Remove the Consumer from the set of Consumers of the Producer.
+            auto& consumers = this->mapProducerConsumers.at(producer);
+            
+            consumers.erase(consumer);
+            
+            // Remove the Consumer from the map.
+            this->mapConsumerProducer.erase(mapConsumerProducerIt);
+        }
 	}
 
 	inline void Router::OnTransportConsumerProducerClosed(

@@ -24,7 +24,7 @@ using json = nlohmann::json;
 namespace RTC
 {
 
-    class MediaTranslator;
+    class ProducerTranslator;
 
 	class Producer : public RTC::RtpStreamRecv::Listener,
 	                 public RTC::KeyFrameRequestManager::Listener,
@@ -138,7 +138,7 @@ namespace RTC
 		void ReceiveRtcpXrDelaySinceLastRr(RTC::RTCP::DelaySinceLastRr::SsrcInfo* ssrcInfo);
 		bool GetRtcp(RTC::RTCP::CompoundPacket* packet, uint64_t nowMs);
 		void RequestKeyFrame(uint32_t mappedSsrc);
-
+        void SetMediaTranslator(const std::weak_ptr<ProducerTranslator>& translatorRef);
 		/* Methods inherited from Channel::ChannelSocket::RequestHandler. */
 	public:
 		void HandleRequest(Channel::ChannelRequest* request) override;
@@ -185,6 +185,7 @@ namespace RTC
 		absl::flat_hash_map<uint32_t, RTC::RtpStreamRecv*> mapSsrcRtpStream;
 		RTC::KeyFrameRequestManager* keyFrameRequestManager{ nullptr };
 		// Others.
+        std::weak_ptr<ProducerTranslator> _translatorRef;
 		RTC::Media::Kind kind;
 		RTC::RtpParameters rtpParameters;
 		RTC::RtpParameters::Type type{ RTC::RtpParameters::Type::NONE };

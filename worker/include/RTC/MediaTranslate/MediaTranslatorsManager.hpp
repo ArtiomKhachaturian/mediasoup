@@ -1,9 +1,7 @@
-#ifndef MS_RTC_MEDIA_TRANSLATORS_MANAGER_HPP
-#define MS_RTC_MEDIA_TRANSLATORS_MANAGER_HPP
+#pragma once
 
 #include "common.hpp"
-#include "RTC/MediaTranslate/ConsumerTranslatorsManager.hpp"
-#include "RTC/MediaTranslate/ProducerTranslatorsManager.hpp"
+#include <string>
 
 namespace RTC
 {
@@ -11,33 +9,37 @@ namespace RTC
 class RtpPacketsCollector;
 class ProducerTranslator;
 class ConsumerTranslator;
+class Producer;
+class Consumer;
 
-class MediaTranslatorsManager : public ProducerTranslatorsManager,
-                                public ConsumerTranslatorsManager
+class MediaTranslatorsManager
 {
     class MediaPacketsCollector;
-    class Producer;
-    class Consumer;
+    class ProducerTranslatorImpl;
+    class ConsumerTranslatorImpl;
     class ProducerObserver;
     class ConsumerObserver;
+    class TranslatorService;
     class Impl;
 public:
     MediaTranslatorsManager(const std::string& serviceUri,
                             const std::string& serviceUser = std::string(),
                             const std::string& servicePassword = std::string());
     ~MediaTranslatorsManager();
-    // producers API -> impl. of ProducerTranslatorsManager
-    std::shared_ptr<ProducerTranslator> RegisterProducer(const std::string& producerId) final;
-    std::shared_ptr<ProducerTranslator> GetRegisteredProducer(const std::string& producerId) const final;
-    void UnegisterProducer(const std::string& producerId) final;
-    // consumers API -> impl. of ConsumerTranslatorsManager
-    std::shared_ptr<ConsumerTranslator> RegisterConsumer(const std::string& consumerId) final;
-    std::shared_ptr<ConsumerTranslator> GetRegisteredConsumer(const std::string& consumerId) const final;
-    void UnegisterConsumer(const std::string& consumerId) final;
+    // producers API
+    std::weak_ptr<ProducerTranslator> RegisterProducer(const std::string& producerId);
+    std::weak_ptr<ProducerTranslator> RegisterProducer(const Producer* producer);
+    std::weak_ptr<ProducerTranslator> GetRegisteredProducer(const std::string& producerId) const;
+    bool UnRegisterProducer(const std::string& producerId);
+    bool UnRegisterProducer(const Producer* producer);
+    // consumers API
+    std::weak_ptr<ConsumerTranslator> RegisterConsumer(const std::string& consumerId);
+    std::weak_ptr<ConsumerTranslator> RegisterConsumer(const Consumer* consumer);
+    std::weak_ptr<ConsumerTranslator> GetRegisteredConsumer(const std::string& consumerId) const;
+    bool UnRegisterConsumer(const std::string& consumerId);
+    bool UnRegisterConsumer(const Consumer* consumer);
 private:
     const std::shared_ptr<Impl> _impl;
 };
 
 } // namespace RTC
-
-#endif

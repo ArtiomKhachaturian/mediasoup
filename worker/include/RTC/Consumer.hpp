@@ -17,6 +17,7 @@
 #include "RTC/RtpStreamRecv.hpp"
 #include "RTC/RtpStreamSend.hpp"
 #include "RTC/Shared.hpp"
+#include "RTC/RtpPacketsCollector.hpp"
 #include <absl/container/flat_hash_set.h>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -26,7 +27,9 @@ using json = nlohmann::json;
 
 namespace RTC
 {
-	class Consumer : public Channel::ChannelSocket::RequestHandler
+    class ConsumerTranslator;
+
+	class Consumer : public Channel::ChannelSocket::RequestHandler, public RtpPacketsCollector
 	{
 	public:
 		class Listener
@@ -128,8 +131,11 @@ namespace RTC
 		{
 			return this->producerPaused;
 		}
+        void SetMediaTranslator(const std::weak_ptr<ConsumerTranslator>& translatorRef);
+        std::shared_ptr<ConsumerTranslator> GetMediaTranslator() const;
 		void ProducerPaused();
 		void ProducerResumed();
+        virtual bool IsTranslationRequired() const { return false; }
 		virtual void ProducerRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc)    = 0;
 		virtual void ProducerNewRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc) = 0;
 		void ProducerRtpStreamScores(const std::vector<uint8_t>* scores);
@@ -160,7 +166,11 @@ namespace RTC
 		/* Methods inherited from Channel::ChannelSocket::RequestHandler. */
 	public:
 		void HandleRequest(Channel::ChannelRequest* request) override;
-
+        
+        /* Methods inherited from Channel::ChannelSocket::RtpPacketsCollector. */
+    public:
+        void AddPacket(const RTC::RtpCodecMimeType& mimeType, const RtpPacket* packet) override;
+        
 	protected:
 		void EmitTraceEventRtpAndKeyFrameTypes(RTC::RtpPacket* packet, bool isRtx = false) const;
 		void EmitTraceEventKeyFrameType(RTC::RtpPacket* packet, bool isRtx = false) const;
@@ -190,6 +200,7 @@ namespace RTC
 		struct RTC::RtpHeaderExtensionIds rtpHeaderExtensionIds;
 		const std::vector<uint8_t>* producerRtpStreamScores{ nullptr };
 		// Others.
+        std::weak_ptr<ConsumerTranslator> _translatorRef;
 		// Whether a payload type is supported or not is represented in the
 		// corresponding position of the bitset.
 		std::bitset<128u> supportedCodecPayloadTypes;
