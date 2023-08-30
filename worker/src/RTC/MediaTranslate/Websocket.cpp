@@ -41,6 +41,24 @@ inline std::string ToString(RTC::WebsocketListener::FailureType failure) {
     return "unknown";
 }
 
+inline std::string ToString(RTC::WebsocketState state) {
+    switch (state) {
+        case RTC::WebsocketState::Invalid:
+            return "invalid";
+        case RTC::WebsocketState::Connecting:
+            return "connecting";
+        case RTC::WebsocketState::Connected:
+            return "connected";
+        case RTC::WebsocketState::Disconnected:
+            return "disconnected";
+        default:
+            break;
+    }
+    return "unknown";
+}
+
+void WriteLogMessage(LogLevel level, const std::string& message);
+
 }
 
 namespace RTC
@@ -615,14 +633,22 @@ Websocket::SocketNoTls::SocketNoTls(uint64_t id, const std::shared_ptr<const Con
 {
 }
 
+void WebsocketListener::OnStateChanged(uint64_t socketId, WebsocketState state)
+{
+    if (Settings::configuration.logLevel >= LogLevel::LOG_DEBUG && Settings::configuration.logTags.rtp) {
+        WriteLogMessage(LogLevel::LOG_DEBUG, "Websocket (ID is " + std::to_string(socketId)
+                        + ") state changed to " + ToString(state));
+    }
+}
+
 void WebsocketListener::OnFailed(uint64_t socketId, FailureType type, std::string what)
 {
-    if (Settings::configuration.logLevel >= LogLevel::LOG_WARN && Settings::configuration.logTags.rtp) {
+    if (Settings::configuration.logLevel >= LogLevel::LOG_ERROR && Settings::configuration.logTags.rtp) {
         std::string error = "Websocket (ID is " + std::to_string(socketId) + ") " + ToString(type) + " failure";
         if (!what.empty()) {
             error += ": " + what;
         }
-        Logger::channel->SendLog(error.c_str(), static_cast<uint32_t>(error.size()));
+        WriteLogMessage(LogLevel::LOG_ERROR, error);
     }
 }
 
@@ -643,6 +669,30 @@ uint8_t* StringMemoryBuffer::GetData()
 const uint8_t* StringMemoryBuffer::GetData() const
 {
     return reinterpret_cast<const uint8_t*>(_payload.data());
+}
+
+void WriteLogMessage(LogLevel level, const std::string& message)
+{
+    if (!message.empty()) {
+        std::string full;
+        switch (level) {
+            case LogLevel::LOG_DEBUG:
+                full = "D";
+                break;
+            case LogLevel::LOG_WARN:
+                full = "W";
+                break;
+            case LogLevel::LOG_ERROR:
+                full = "E";
+                break;
+            default:
+                break;
+        }
+        if (!full.empty()) {
+            full += message;
+            Logger::channel->SendLog(full.c_str(), static_cast<uint32_t>(full.size()));
+        }
+    }
 }
 
 }

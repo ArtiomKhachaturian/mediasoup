@@ -21,7 +21,7 @@ public:
     };
 public:
     virtual ~WebsocketListener() = default;
-    virtual void OnStateChanged(uint64_t /*socketId*/, WebsocketState /*state*/) {}
+    virtual void OnStateChanged(uint64_t socketId, WebsocketState state);
     virtual void OnFailed(uint64_t socketId, FailureType type, std::string what);
     virtual void OnTextMessageReceived(uint64_t /*socketId*/, std::string /*message*/) {}
     virtual void OnBinaryMessageReceved(uint64_t /*socketId*/, const std::shared_ptr<MemoryBuffer>& /*message*/) {}

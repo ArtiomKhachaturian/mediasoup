@@ -651,8 +651,9 @@ void MediaTranslatorsManager::TranslatorService::SendTranslationChanges()
     }
 }
 
-void MediaTranslatorsManager::TranslatorService::OnStateChanged(uint64_t, WebsocketState state)
+void MediaTranslatorsManager::TranslatorService::OnStateChanged(uint64_t socketId, WebsocketState state)
 {
+    WebsocketListener::OnStateChanged(socketId, state);
     switch (state) {
         case WebsocketState::Connected:
             if (const auto producer = _producerRef.lock()) {

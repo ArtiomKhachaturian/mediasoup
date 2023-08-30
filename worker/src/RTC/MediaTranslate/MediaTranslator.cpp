@@ -220,8 +220,9 @@ bool MediaTranslator::Impl::Write(const void* buf, uint32_t len)
     return ok;
 }
 
-void MediaTranslator::Impl::OnStateChanged(uint64_t, WebsocketState state)
+void MediaTranslator::Impl::OnStateChanged(uint64_t socketId, WebsocketState state)
 {
+    WebsocketListener::OnStateChanged(socketId, state);
     switch (state) {
         case WebsocketState::Connected:
             WriteLanguageChanges();
