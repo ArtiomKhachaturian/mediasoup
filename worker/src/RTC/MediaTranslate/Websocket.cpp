@@ -6,6 +6,7 @@
 #include <websocketpp/config/asio_client.hpp>
 #include <websocketpp/client.hpp>
 #include <websocketpp/close.hpp>
+#include <thread>
 #include <atomic>
 
 namespace {
@@ -19,6 +20,21 @@ public:
     const uint8_t* GetData() const final;
 private:
     std::string _payload;
+};
+
+class LogStreamBuf : public std::streambuf
+{
+public:
+    LogStreamBuf(uint64_t socketId, LogLevel level);
+    static void Write(LogLevel level, const std::string& message);
+    static void Write(LogLevel level, uint64_t socketId, const std::string& message);
+    // overrides of std::streambuf
+    std::streamsize xsputn(const char* s, std::streamsize count) final;
+private:
+    void Write(const std::string& message) const;
+private:
+    const uint64_t _socketId;
+    const LogLevel _level;
 };
 
 inline std::string ToString(RTC::WebsocketListener::FailureType failure) {
@@ -56,8 +72,6 @@ inline std::string ToString(RTC::WebsocketState state) {
     }
     return "unknown";
 }
-
-void WriteLogMessage(LogLevel level, const std::string& message);
 
 }
 
@@ -136,18 +150,18 @@ protected:
     const std::shared_ptr<const Config>& GetConfig() const { return _config; }
     const Client& GetClient() const { return _client; }
     Client& GetClient() { return _client; }
-    std::shared_ptr<WebsocketListener> GetListener();
+    std::shared_ptr<WebsocketListener> GetListener() const;
 private:
     void OnSocketInit(websocketpp::connection_hdl hdl);
     void OnFail(websocketpp::connection_hdl hdl);
     void OnOpen(websocketpp::connection_hdl hdl);
     void OnMessage(websocketpp::connection_hdl hdl, MessagePtr message);
     void OnClose(websocketpp::connection_hdl hdl);
-    template<class Lock>
-    void DropHdl(std::unique_ptr<Lock> droppedLock);
+    template<class Guard>
+    void DropHdl(std::unique_ptr<Guard> droppedGuard);
     // return true if state changed
-    template<class Lock = WriteLock>
-    bool SetOpened(bool opened, std::unique_ptr<Lock> droppedLock = nullptr);
+    template<class Guard = MutexWriteGuard>
+    bool SetOpened(bool opened, std::unique_ptr<Guard> droppedGuard = nullptr);
     bool IsOpened() const { return _opened.load(std::memory_order_relaxed); }
     static std::string ToText(const MessagePtr& message);
     static std::shared_ptr<MemoryBuffer> ToBinary(const MessagePtr& message);
@@ -155,11 +169,13 @@ private:
     static inline constexpr uint16_t _closeCode = websocketpp::close::status::going_away;
     const uint64_t _id;
     const std::shared_ptr<const Config> _config;
+    LogStreamBuf _debugStreamBuf;
+    LogStreamBuf _errorStreamBuf;
+    std::ostream _debugStream;
+    std::ostream _errorStream;
     Client _client;
-    websocketpp::connection_hdl _hdl;
-    Mutex _hdlMutex;
-    std::weak_ptr<WebsocketListener> _listener;
-    Mutex _listenerMutex;
+    ProtectedObj<websocketpp::connection_hdl> _hdl;
+    ProtectedWeakPtr<WebsocketListener> _listener;
     std::atomic_bool _opened = false;
 };
 
@@ -178,6 +194,24 @@ public:
     SocketNoTls(uint64_t id, const std::shared_ptr<const Config>& config);
 };
 
+class Websocket::SocketWrapper : public Socket
+{
+public:
+    SocketWrapper(std::shared_ptr<Socket> impl);
+    ~SocketWrapper() final;
+    static std::unique_ptr<Socket> Create(uint64_t id, const std::shared_ptr<const Config>& config);
+    // impl. of Socket
+    WebsocketState GetState() final;
+    void Run() final;
+    bool Open(const std::string& userAgent) final;
+    void Close() final;
+    bool WriteBinary(const void* buf, size_t len) final;
+    bool WriteText(const std::string& text) final;
+    void SetListener(const std::weak_ptr<WebsocketListener>& listener) final;
+private:
+    std::shared_ptr<Socket> _impl;
+    std::thread _asioThread;
+};
 
 Websocket::Websocket(const std::string& uri,
                      const std::string& user,
@@ -205,18 +239,15 @@ bool Websocket::Open(const std::string& userAgent)
 {
     bool result = false;
     if (_config) {
-        const WriteLock lock(_socketMutex);
-        if (!_socket) {
-            _socket = Socket::Create(GetId(), _config);
-            if (_socket) {
-                _socket->SetListener(std::atomic_load(&_listener));
-                result = _socket->Open(userAgent);
+        LOCK_WRITE_PROTECTED_OBJ(_socket);
+        if (!_socket.constRef()) {
+            auto socket = SocketWrapper::Create(GetId(), _config);
+            if (socket) {
+                socket->SetListener(std::atomic_load(&_listener));
+                result = socket->Open(userAgent);
                 if (result) {
-                    _socketAsioThread = std::thread([socketRef = std::weak_ptr<Socket>(_socket)]() {
-                        if (const auto socket = socketRef.lock()) {
-                            socket->Run();
-                        }
-                    });
+                    socket->Run();
+                    _socket = std::move(socket);
                 }
             }
         }
@@ -229,12 +260,11 @@ bool Websocket::Open(const std::string& userAgent)
 
 void Websocket::Close()
 {
-    const WriteLock lock(_socketMutex);
-    if (auto socket = std::move(_socket)) {
+    LOCK_WRITE_PROTECTED_OBJ(_socket);
+    if (auto socket = _socket.take()) {
         const auto wasActive = WebsocketState::Disconnected != socket->GetState();
         socket->SetListener(std::weak_ptr<WebsocketListener>());
-        socket->Close();
-        _socketAsioThread.detach();
+        socket.reset();
         if (wasActive) {
             if (const auto listener = std::atomic_load(&_listener)) {
                 listener->OnStateChanged(GetId(), WebsocketState::Disconnected);
@@ -246,9 +276,9 @@ void Websocket::Close()
 WebsocketState Websocket::GetState() const
 {
     if (_config) {
-        const ReadLock lock(_socketMutex);
-        if (_socket) {
-            return _socket->GetState();
+        LOCK_READ_PROTECTED_OBJ(_socket);
+        if (const auto& socket = _socket.constRef()) {
+            return socket->GetState();
         }
         return WebsocketState::Disconnected;
     }
@@ -262,17 +292,20 @@ uint64_t Websocket::GetId() const
 
 bool Websocket::WriteText(const std::string& text)
 {
-    const ReadLock lock(_socketMutex);
-    return _socket && _socket->WriteText(text);
+    LOCK_READ_PROTECTED_OBJ(_socket);
+    if (const auto& socket = _socket.constRef()) {
+        return socket->WriteText(text);
+    }
+    return false;
 }
 
 void Websocket::SetListener(const std::shared_ptr<WebsocketListener>& listener)
 {
     if (_config) {
         if (listener != std::atomic_exchange(&_listener, listener)) {
-            const ReadLock lock(_socketMutex);
-            if (_socket) {
-                _socket->SetListener(listener);
+            LOCK_READ_PROTECTED_OBJ(_socket);
+            if (const auto& socket = _socket.constRef()) {
+                socket->SetListener(listener);
             }
         }
     }
@@ -281,8 +314,10 @@ void Websocket::SetListener(const std::shared_ptr<WebsocketListener>& listener)
 bool Websocket::Write(const void* buf, size_t len)
 {
     if (buf && len) {
-        const ReadLock lock(_socketMutex);
-        return _socket && _socket->WriteBinary(buf, len);
+        LOCK_READ_PROTECTED_OBJ(_socket);
+        if (const auto& socket = _socket.constRef()) {
+            return socket->WriteBinary(buf, len);
+        }
     }
     return false;
 }
@@ -345,8 +380,14 @@ template<class TConfig>
 Websocket::SocketImpl<TConfig>::SocketImpl(uint64_t id, const std::shared_ptr<const Config>& config)
     : _id(id)
     , _config(config)
+    , _debugStreamBuf(id, LogLevel::LOG_DEBUG)
+    , _errorStreamBuf(id, LogLevel::LOG_ERROR)
+    , _debugStream(&_debugStreamBuf)
+    , _errorStream(&_errorStreamBuf)
 {
     // Initialize ASIO
+    _client.get_alog().set_ostream(&_debugStream);
+    _client.get_elog().set_ostream(&_errorStream);
     _client.init_asio();
     _client.start_perpetual();
     // Register our handlers
@@ -360,11 +401,11 @@ Websocket::SocketImpl<TConfig>::SocketImpl(uint64_t id, const std::shared_ptr<co
 template<class TConfig>
 WebsocketState Websocket::SocketImpl<TConfig>::GetState()
 {
-    if (IsOpened()) {
-        return WebsocketState::Connected;
+    if (!IsOpened()) {
+        LOCK_READ_PROTECTED_OBJ(_hdl);
+        return _hdl->expired() ? WebsocketState::Disconnected : WebsocketState::Connecting;
     }
-    const ReadLock lock(_hdlMutex);
-    return _hdl.expired() ? WebsocketState::Disconnected : WebsocketState::Connecting;
+    return WebsocketState::Connected;
 }
 
 template<class TConfig>
@@ -400,11 +441,11 @@ bool Websocket::SocketImpl<TConfig>::Open(const std::string& userAgent)
 template<class TConfig>
 void Websocket::SocketImpl<TConfig>::Close()
 {
-    auto lock = std::make_unique<WriteLock>(_hdlMutex);
-    if (!_hdl.expired()) {
+    auto droppedGuard = std::make_unique<MutexWriteGuard>(_hdl);
+    if (!_hdl->expired()) {
         _client.stop();
         _client.close(_hdl, _closeCode, websocketpp::close::status::get_string(_closeCode));
-        DropHdl(std::move(lock));
+        DropHdl(std::move(droppedGuard));
     }
 }
 
@@ -413,8 +454,8 @@ bool Websocket::SocketImpl<TConfig>::WriteBinary(const void* buf, size_t len)
 {
     bool ok = false;
     if (buf && len && IsOpened()) {
-        const ReadLock lock(_hdlMutex);
-        if (!_hdl.expired()) {
+        LOCK_READ_PROTECTED_OBJ(_hdl);
+        if (!_hdl->expired()) {
             websocketpp::lib::error_code ec;
             _client.send(_hdl, buf, len, websocketpp::frame::opcode::binary, ec);
             if (ec) {
@@ -435,8 +476,8 @@ bool Websocket::SocketImpl<TConfig>::WriteText(const std::string& text)
 {
     bool ok = false;
     if (IsOpened()) {
-        const ReadLock lock(_hdlMutex);
-        if (!_hdl.expired()) {
+        LOCK_READ_PROTECTED_OBJ(_hdl);
+        if (!_hdl->expired()) {
             websocketpp::lib::error_code ec;
             _client.send(_hdl, text, websocketpp::frame::opcode::text, ec);
             if (ec) {
@@ -455,22 +496,22 @@ bool Websocket::SocketImpl<TConfig>::WriteText(const std::string& text)
 template<class TConfig>
 void Websocket::SocketImpl<TConfig>::SetListener(const std::weak_ptr<WebsocketListener>& listener)
 {
-    const WriteLock lock(_listenerMutex);
+    LOCK_WRITE_PROTECTED_OBJ(_listener);
     _listener = listener;
 }
 
 template<class TConfig>
-std::shared_ptr<WebsocketListener> Websocket::SocketImpl<TConfig>::GetListener()
+std::shared_ptr<WebsocketListener> Websocket::SocketImpl<TConfig>::GetListener() const
 {
-    const ReadLock lock(_listenerMutex);
-    return _listener.lock();
+    LOCK_READ_PROTECTED_OBJ(_listener);
+    return _listener->lock();
 }
 
 template<class TConfig>
 void Websocket::SocketImpl<TConfig>::OnSocketInit(websocketpp::connection_hdl hdl)
 {
     {
-        const WriteLock lock(_hdlMutex);
+        LOCK_WRITE_PROTECTED_OBJ(_hdl);
         _hdl = std::move(hdl);
     }
     if (const auto listener = GetListener()) {
@@ -481,8 +522,8 @@ void Websocket::SocketImpl<TConfig>::OnSocketInit(websocketpp::connection_hdl hd
 template<class TConfig>
 void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
 {
-    auto lock = std::make_unique<WriteLock>(_hdlMutex);
-    if (hdl.lock() == _hdl.lock()) {
+    auto droppedGuard = std::make_unique<MutexWriteGuard>(_hdl);
+    if (hdl.lock() == _hdl->lock()) {
         std::string error;
         if (const auto connection = _client.get_con_from_hdl(hdl)) {
             error = connection->get_ec().message();
@@ -491,7 +532,7 @@ void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
             error = "unknown error";
         }
         // report error & reset state
-        DropHdl(std::move(lock));
+        DropHdl(std::move(droppedGuard));
         if (const auto listener = GetListener()) {
             listener->OnFailed(GetId(), WebsocketListener::FailureType::General, std::move(error));
         }
@@ -501,10 +542,10 @@ void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
 template<class TConfig>
 void Websocket::SocketImpl<TConfig>::OnOpen(websocketpp::connection_hdl hdl)
 {
-    auto lock = std::make_unique<ReadLock>(_hdlMutex);
-    if (hdl.lock() == _hdl.lock()) {
+    auto droppedGuard = std::make_unique<MutexReadGuard>(_hdl);
+    if (hdl.lock() == _hdl->lock()) {
         // update state
-        SetOpened(true, std::move(lock));
+        SetOpened(true, std::move(droppedGuard));
     }
 }
 
@@ -515,8 +556,8 @@ void Websocket::SocketImpl<TConfig>::OnMessage(websocketpp::connection_hdl hdl,
     if (message) {
         bool accepted = false;
         {
-            const ReadLock lock(_hdlMutex);
-            accepted = hdl.lock() == _hdl.lock();
+            LOCK_READ_PROTECTED_OBJ(_hdl);
+            accepted = hdl.lock() == _hdl->lock();
         }
         if (accepted) {
             if (const auto listener = GetListener()) {
@@ -538,26 +579,26 @@ void Websocket::SocketImpl<TConfig>::OnMessage(websocketpp::connection_hdl hdl,
 template<class TConfig>
 void Websocket::SocketImpl<TConfig>::OnClose(websocketpp::connection_hdl hdl)
 {
-    auto lock = std::make_unique<WriteLock>(_hdlMutex);
-    if (hdl.lock() == _hdl.lock()) {
+    auto droppedGuard = std::make_unique<MutexWriteGuard>(_hdl);
+    if (hdl.lock() == _hdl->lock()) {
         // report about close & reset state
-        DropHdl(std::move(lock));
+        DropHdl(std::move(droppedGuard));
     }
 }
 
-template<class TConfig> template<class Lock>
-void Websocket::SocketImpl<TConfig>::DropHdl(std::unique_ptr<Lock> droppedLock)
+template<class TConfig> template<class Guard>
+void Websocket::SocketImpl<TConfig>::DropHdl(std::unique_ptr<Guard> droppedGuard)
 {
     _hdl = websocketpp::connection_hdl();
-    SetOpened(false, std::move(droppedLock));
+    SetOpened(false, std::move(droppedGuard));
 }
 
-template<class TConfig> template<class Lock>
-bool Websocket::SocketImpl<TConfig>::SetOpened(bool opened, std::unique_ptr<Lock> droppedLock)
+template<class TConfig> template<class Guard>
+bool Websocket::SocketImpl<TConfig>::SetOpened(bool opened, std::unique_ptr<Guard> droppedGuard)
 {
     if (opened != _opened.exchange(opened)) {
         if (const auto listener = GetListener()) {
-            droppedLock.reset();
+            droppedGuard.reset();
             listener->OnStateChanged(GetId(), GetState());
         }
         return true;
@@ -633,22 +674,100 @@ Websocket::SocketNoTls::SocketNoTls(uint64_t id, const std::shared_ptr<const Con
 {
 }
 
+Websocket::SocketWrapper::SocketWrapper(std::shared_ptr<Socket> impl)
+    : _impl(std::move(impl))
+{
+}
+
+Websocket::SocketWrapper::~SocketWrapper()
+{
+    if (auto socket = std::atomic_exchange(&_impl, std::shared_ptr<Socket>())) {
+        socket->Close();
+        _asioThread.detach();
+    }
+}
+
+std::unique_ptr<Websocket::Socket> Websocket::SocketWrapper::Create(uint64_t id,
+                                                                    const std::shared_ptr<const Config>& config)
+{
+    if (auto impl = Socket::Create(id, config)) {
+        return std::make_unique<SocketWrapper>(std::move(impl));
+    }
+    return nullptr;
+}
+
+WebsocketState Websocket::SocketWrapper::GetState()
+{
+    if (const auto impl = std::atomic_load(&_impl)) {
+        return impl->GetState();
+    }
+    return WebsocketState::Disconnected;
+}
+
+void Websocket::SocketWrapper::Run()
+{
+    if (const auto impl = std::atomic_load(&_impl)) {
+        _asioThread = std::thread([implRef = std::weak_ptr<Socket>(impl)]() {
+            if (const auto impl = implRef.lock()) {
+                impl->Run();
+            }
+        });
+    }
+}
+
+bool Websocket::SocketWrapper::Open(const std::string& userAgent)
+{
+    if (const auto impl = std::atomic_load(&_impl)) {
+        return impl->Open(userAgent);
+    }
+    return false;
+}
+
+void Websocket::SocketWrapper::Close()
+{
+    if (const auto impl = std::atomic_load(&_impl)) {
+        impl->Close();
+    }
+}
+
+bool Websocket::SocketWrapper::WriteBinary(const void* buf, size_t len)
+{
+    if (const auto impl = std::atomic_load(&_impl)) {
+        return impl->WriteBinary(buf, len);
+    }
+    return false;
+}
+
+bool Websocket::SocketWrapper::WriteText(const std::string& text)
+{
+    if (const auto impl = std::atomic_load(&_impl)) {
+        return impl->WriteText(text);
+    }
+    return false;
+}
+
+void Websocket::SocketWrapper::SetListener(const std::weak_ptr<WebsocketListener>& listener)
+{
+    if (const auto impl = std::atomic_load(&_impl)) {
+        impl->SetListener(listener);
+    }
+}
+
 void WebsocketListener::OnStateChanged(uint64_t socketId, WebsocketState state)
 {
     if (Settings::configuration.logLevel >= LogLevel::LOG_DEBUG && Settings::configuration.logTags.rtp) {
-        WriteLogMessage(LogLevel::LOG_DEBUG, "Websocket (ID is " + std::to_string(socketId)
-                        + ") state changed to " + ToString(state));
+        LogStreamBuf::Write(LogLevel::LOG_DEBUG, socketId, "state changed to " + ToString(state));
     }
 }
 
 void WebsocketListener::OnFailed(uint64_t socketId, FailureType type, std::string what)
 {
     if (Settings::configuration.logLevel >= LogLevel::LOG_ERROR && Settings::configuration.logTags.rtp) {
-        std::string error = "Websocket (ID is " + std::to_string(socketId) + ") " + ToString(type) + " failure";
+        std::string error = ToString(type) + " failure";
         if (!what.empty()) {
             error += ": " + what;
         }
-        WriteLogMessage(LogLevel::LOG_ERROR, error);
+        LogStreamBuf::Write(LogLevel::LOG_ERROR, socketId, error);
     }
 }
 
@@ -671,7 +790,23 @@ const uint8_t* StringMemoryBuffer::GetData() const
     return reinterpret_cast<const uint8_t*>(_payload.data());
 }
 
-void WriteLogMessage(LogLevel level, const std::string& message)
+LogStreamBuf::LogStreamBuf(uint64_t socketId, LogLevel level)
+    : _socketId(socketId)
+    , _level(level)
+{
+}
+
+std::streamsize LogStreamBuf::xsputn(const char* s, std::streamsize count)
+{
+    if (s && count && Settings::configuration.logTags.rtp &&
+        Settings::configuration.logLevel >= _level) {
+        Write(std::string(s, count));
+        return count;
+    }
+    return 0;
+}
+
+void LogStreamBuf::Write(LogLevel level, const std::string& message)
 {
     if (!message.empty()) {
         std::string full;
@@ -693,6 +828,18 @@ void WriteLogMessage(LogLevel level, const std::string& message)
             Logger::channel->SendLog(full.c_str(), static_cast<uint32_t>(full.size()));
         }
     }
+}
+
+void LogStreamBuf::Write(LogLevel level, uint64_t socketId, const std::string& message)
+{
+    if (!message.empty()) {
+        Write(level, "Websocket (ID is " + std::to_string(socketId) + ") " + message);
+    }
+}
+
+void LogStreamBuf::Write(const std::string& message) const
+{
+    Write(_level, _socketId, message);
 }
 
 }

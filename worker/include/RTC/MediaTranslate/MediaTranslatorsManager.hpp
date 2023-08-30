@@ -14,7 +14,7 @@ class Consumer;
 
 class MediaTranslatorsManager
 {
-    class MediaPacketsCollector;
+    class MediaPacketsSink;
     class ProducerTranslatorImpl;
     class ConsumerTranslatorImpl;
     class ProducerObserver;

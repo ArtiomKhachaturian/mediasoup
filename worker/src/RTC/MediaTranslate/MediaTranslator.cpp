@@ -6,7 +6,7 @@
 #include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/MediaVoice.hpp"
 #include "RTC/MediaTranslate/MediaLanguage.hpp"
-#include <mutex>
+#include "ProtectedObj.hpp"
 #include <optional>
 
 namespace RTC
@@ -40,11 +40,9 @@ private:
     void ResetMedia() { _mediaPosition = 0LL; }
 private:
     // websocket ref
-    Websocket* _socket;
-    std::mutex _socketMutex;
+    ProtectedObj<Websocket*> _socket;
     // input language
-    std::optional<MediaLanguage> _languageFrom = DefaultInputMediaLanguage();
-    mutable std::mutex _languageFromMutex;
+    ProtectedOptional<MediaLanguage> _languageFrom = DefaultInputMediaLanguage();
     // output language
     std::atomic<MediaLanguage> _languageTo = DefaultOutputMediaLanguage();
     // voice
@@ -55,7 +53,7 @@ private:
 
 MediaTranslator::MediaTranslator(const std::string& serviceUri,
                                  std::unique_ptr<RtpMediaFrameSerializer> serializer,
-                                 std::unique_ptr<RtpDepacketizer> depacketizer,
+                                 std::shared_ptr<RtpDepacketizer> depacketizer,
                                  const std::string& user,
                                  const std::string& password)
     : _serializer(std::move(serializer))
@@ -181,9 +179,9 @@ MediaTranslator::Impl::Impl(Websocket* socket)
 
 void MediaTranslator::Impl::Close(bool andReset)
 {
-    const std::lock_guard<std::mutex> lock(_socketMutex);
-    if (_socket) {
-        _socket->Close();
+    LOCK_WRITE_PROTECTED_OBJ(_socket);
+    if (const auto socket = _socket.constRef()) {
+        socket->Close();
         if (andReset) {
             _socket = nullptr;
         }
@@ -209,9 +207,10 @@ bool MediaTranslator::Impl::Write(const void* buf, uint32_t len)
 {
     bool ok = false;
     if (buf && len) {
-        const std::lock_guard<std::mutex> lock(_socketMutex);
-        if (_socket && WebsocketState::Connected == _socket->GetState()) {
-            ok = _socket->Write(buf, len);
+        LOCK_READ_PROTECTED_OBJ(_socket);
+        const auto socket = _socket.constRef();
+        if (socket && WebsocketState::Connected == socket->GetState()) {
+            ok = socket->Write(buf, len);
         }
     }
     if (ok) {
@@ -244,8 +243,8 @@ void MediaTranslator::Impl::ApplyFromLanguage(const std::optional<MediaLanguage>
 {
     bool changed = false;
     {
-        const std::lock_guard<std::mutex> lock(_languageFromMutex);
-        if (_languageFrom != language) {
+        LOCK_WRITE_PROTECTED_OBJ(_languageFrom);
+        if (_languageFrom.constRef() != language) {
             _languageFrom = language;
             changed = true;
         }
@@ -257,9 +256,10 @@ void MediaTranslator::Impl::ApplyFromLanguage(const std::optional<MediaLanguage>
 
 bool MediaTranslator::Impl::WriteLanguageChanges()
 {
-    const std::lock_guard<std::mutex> lock(_socketMutex);
-    if (_socket && WebsocketState::Connected == _socket->GetState()) {
-        if (!WriteJson(_socket, GetLanguageData())) {
+    LOCK_READ_PROTECTED_OBJ(_socket);
+    const auto socket = _socket.constRef();
+    if (socket && WebsocketState::Connected == socket->GetState()) {
+        if (!WriteJson(socket, GetLanguageData())) {
             // log error
             return false;
         }
@@ -274,7 +274,7 @@ nlohmann::json MediaTranslator::Impl::GetLanguageData() const
 
 std::optional<MediaLanguage> MediaTranslator::Impl::GetLanguageFrom() const
 {
-    const std::lock_guard<std::mutex> lock(_languageFromMutex);
+    LOCK_READ_PROTECTED_OBJ(_languageFrom);
     return _languageFrom;
 }
 

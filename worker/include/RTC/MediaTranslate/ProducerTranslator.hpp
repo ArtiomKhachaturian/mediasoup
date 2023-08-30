@@ -15,6 +15,7 @@ class ProducerTranslator
 public:
     virtual ~ProducerTranslator() = default;
     // general
+    virtual void Pause(bool pause = true) = 0;
     virtual void SetLanguage(const std::optional<MediaLanguage>& language = std::nullopt) = 0;
     virtual std::optional<MediaLanguage> GetLanguage() const = 0;
     virtual const std::string& GetId() const = 0;
@@ -29,6 +30,7 @@ public:
     bool RemoveAudio(const RtpStream* audioStream);
     bool RemoveVideo(const RtpStream* videoStream);
     bool SetSerializer(const RtpStream* audioStream, std::unique_ptr<RtpMediaFrameSerializer> serializer);
+    void Resume() { Pause(false); }
 };
 
 }

@@ -30,7 +30,7 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizer::AddPacket(const RtpPacket* packe
     return frame;
 }
 
-std::unique_ptr<RtpDepacketizer> RtpDepacketizer::create(const RtpCodecMimeType& mimeType)
+std::shared_ptr<RtpDepacketizer> RtpDepacketizer::create(const RtpCodecMimeType& mimeType)
 {
     switch (mimeType.type) {
         case RtpCodecMimeType::Type::UNSET:
@@ -39,7 +39,7 @@ std::unique_ptr<RtpDepacketizer> RtpDepacketizer::create(const RtpCodecMimeType&
             switch (mimeType.subtype) {
                 case RtpCodecMimeType::Subtype::MULTIOPUS:
                 case RtpCodecMimeType::Subtype::OPUS:
-                    return std::make_unique<RtpDepacketizerOpus>(mimeType);
+                    return std::make_shared<RtpDepacketizerOpus>(mimeType);
                 default:
                     break;
             }

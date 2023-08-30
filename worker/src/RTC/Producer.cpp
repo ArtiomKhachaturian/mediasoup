@@ -514,7 +514,7 @@ namespace RTC
 
 					return;
 				}
-
+                
 				// Pause all streams.
 				for (auto& kv : this->mapSsrcRtpStream)
 				{
@@ -524,6 +524,10 @@ namespace RTC
 				}
 
 				this->paused = true;
+                
+                if (const auto translator = _translatorRef.lock()) {
+                    translator->Pause();
+                }
 
 				MS_DEBUG_DEV("Producer paused [producerId:%s]", this->id.c_str());
 
@@ -552,6 +556,10 @@ namespace RTC
 				}
 
 				this->paused = false;
+                
+                if (const auto translator = _translatorRef.lock()) {
+                    translator->Resume();
+                }
 
 				MS_DEBUG_DEV("Producer resumed [producerId:%s]", this->id.c_str());
 

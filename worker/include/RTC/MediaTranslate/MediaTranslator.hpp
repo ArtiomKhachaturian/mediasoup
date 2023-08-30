@@ -21,7 +21,7 @@ class MediaTranslator : public RtpPacketsCollector
 public:
     MediaTranslator(const std::string& serviceUri,
                     std::unique_ptr<RtpMediaFrameSerializer> serializer,
-                    std::unique_ptr<RtpDepacketizer> depacketizer,
+                    std::shared_ptr<RtpDepacketizer> depacketizer,
                     const std::string& user = std::string(),
                     const std::string& password = std::string());
     ~MediaTranslator() final;
@@ -44,7 +44,7 @@ private:
     static std::shared_ptr<Impl> CreateImpl(Websocket* websocket);
 private:
     const std::unique_ptr<RtpMediaFrameSerializer> _serializer;
-    const std::unique_ptr<RtpDepacketizer> _depacketizer;
+    const std::shared_ptr<RtpDepacketizer> _depacketizer;
     const std::unique_ptr<Websocket> _websocket;
     const std::shared_ptr<Impl> _impl;
 };

@@ -1,11 +1,10 @@
 #pragma once
 
+#include "ProtectedObj.hpp"
 #include "RTC/MediaTranslate/WebsocketState.hpp"
 #include <string>
 #include <memory>
-#include <thread>
 #include <unordered_map>
-#include <mutex>
 
 namespace RTC
 {
@@ -19,9 +18,7 @@ class Websocket
     template<class TConfig> class SocketImpl;
     class SocketTls;
     class SocketNoTls;
-    using Mutex = std::recursive_mutex;
-    using ReadLock = std::lock_guard<Mutex>;
-    using WriteLock = ReadLock;
+    class SocketWrapper;
 public:
     Websocket(const std::string& uri,
               const std::string& user = std::string(),
@@ -42,9 +39,7 @@ public:
 private:
     const std::shared_ptr<const Config> _config;
     std::shared_ptr<WebsocketListener> _listener;
-    std::shared_ptr<Socket> _socket;
-    std::thread _socketAsioThread;
-    mutable Mutex _socketMutex;
+    ProtectedUniquePtr<Socket> _socket;
 };
 
 } // namespace RTC
