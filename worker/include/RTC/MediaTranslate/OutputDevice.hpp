@@ -1,5 +1,5 @@
-#ifndef MS_RTC_OUTPUT_DEVICE_HPP
-#define MS_RTC_OUTPUT_DEVICE_HPP
+#pragma once
+
 #include <cstdint>
 
 namespace RTC
@@ -28,5 +28,3 @@ public:
 };
 
 } // namespace RTC
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef MS_RTC_RTP_DEPACKETIZER_OPUS_HPP
-#define MS_RTC_RTP_DEPACKETIZER_OPUS_HPP
+#pragma once
 
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 
@@ -18,5 +17,3 @@ private:
 };
 
 } // namespace RTC
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef MS_RTC_MEDIA_TRANSLATION_VOICE_HPP
-#define MS_RTC_MEDIA_TRANSLATION_VOICE_HPP
+#pragma once
 
 #include <string>
 #include <optional>
@@ -23,5 +22,3 @@ std::string_view MediaVoiceToString(MediaVoice voice);
 std::optional<MediaVoice> MediaVoiceFromString(const std::string_view& voice);
 
 } // namespace RTC
-
-#endif

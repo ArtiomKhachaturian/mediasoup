@@ -1,5 +1,4 @@
-#ifndef MS_RTC_FIlE_WRITER_HPP
-#define MS_RTC_FIlE_WRITER_HPP
+#pragma once
 
 #include "RTC/MediaTranslate/OutputDevice.hpp"
 #include <string_view>
@@ -44,5 +43,3 @@ private:
 };
 
 } // namespace RTC
-
-#endif

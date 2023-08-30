@@ -1,5 +1,5 @@
-#ifndef MS_RTC_RTP_MEDIA_FRAME_HPP
-#define MS_RTC_RTP_MEDIA_FRAME_HPP
+#pragma once
+
 #include "RTC/RtpDictionaries.hpp"
 #include <memory>
 #include <vector>
@@ -90,5 +90,3 @@ private:
 };
 
 } // namespace RTC
-
-#endif

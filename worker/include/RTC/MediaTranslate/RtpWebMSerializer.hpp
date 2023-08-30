@@ -1,5 +1,4 @@
-#ifndef MS_RTC_WEBM_SERIALIZER_HPP
-#define MS_RTC_WEBM_SERIALIZER_HPP
+#pragma once
 
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include <mkvmuxer/mkvmuxer.h>
@@ -46,5 +45,3 @@ private:
 };
 
 } // namespace RTC
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef MS_RTC_MEDIA_FRAME_SERIALIZER_HPP
-#define MS_RTC_MEDIA_FRAME_SERIALIZER_HPP
+#pragma once
 
 #include <memory>
 
@@ -25,4 +24,3 @@ private:
 };
 
 } // namespace RTC
-#endif

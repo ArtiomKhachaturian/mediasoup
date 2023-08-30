@@ -1,5 +1,6 @@
 #define MS_CLASS "Websocket"
 #include "RTC/MediaTranslate/Websocket.hpp"
+#include "RTC/MediaTranslate/WebsocketListener.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include <websocketpp/config/asio_client.hpp>
@@ -19,6 +20,26 @@ public:
 private:
     std::string _payload;
 };
+
+inline std::string ToString(RTC::WebsocketListener::FailureType failure) {
+    switch (failure) {
+        case RTC::WebsocketListener::FailureType::General:
+            return "general";
+       case RTC::WebsocketListener::FailureType::NoConnection:
+            return "no connection";
+        case RTC::WebsocketListener::FailureType::WriteText:
+            return "write text";
+            break;
+        case RTC::WebsocketListener::FailureType::WriteBinary:
+            return "write binary";
+            break;
+        case RTC::WebsocketListener::FailureType::TlsOptions:
+            return "TLS options";
+        default:
+            break;
+    }
+    return "unknown";
+}
 
 }
 
@@ -68,7 +89,7 @@ public:
     virtual ~Socket() = default;
     virtual WebsocketState GetState() = 0;
     virtual void Run() = 0;
-    virtual bool Open() = 0;
+    virtual bool Open(const std::string& userAgent) = 0;
     virtual void Close() = 0;
     virtual bool WriteBinary(const void* buf, size_t len) = 0;
     virtual bool WriteText(const std::string& text) = 0;
@@ -86,7 +107,7 @@ public:
     // impl. of Socket
     WebsocketState GetState() final;
     void Run() final;
-    bool Open() final;
+    bool Open(const std::string& userAgent) final;
     void Close() final;
     bool WriteBinary(const void* buf, size_t len) final;
     bool WriteText(const std::string& text) final;
@@ -97,6 +118,7 @@ protected:
     const std::shared_ptr<const Config>& GetConfig() const { return _config; }
     const Client& GetClient() const { return _client; }
     Client& GetClient() { return _client; }
+    std::shared_ptr<WebsocketListener> GetListener();
 private:
     void OnSocketInit(websocketpp::connection_hdl hdl);
     void OnFail(websocketpp::connection_hdl hdl);
@@ -109,7 +131,6 @@ private:
     template<class Lock = WriteLock>
     bool SetOpened(bool opened, std::unique_ptr<Lock> droppedLock = nullptr);
     bool IsOpened() const { return _opened.load(std::memory_order_relaxed); }
-    std::shared_ptr<WebsocketListener> GetListener();
     static std::string ToText(const MessagePtr& message);
     static std::shared_ptr<MemoryBuffer> ToBinary(const MessagePtr& message);
 private:
@@ -162,7 +183,7 @@ Websocket::~Websocket()
     Close();
 }
 
-bool Websocket::Open()
+bool Websocket::Open(const std::string& userAgent)
 {
     bool result = false;
     if (_config) {
@@ -171,7 +192,7 @@ bool Websocket::Open()
             _socket = Socket::Create(GetId(), _config);
             if (_socket) {
                 _socket->SetListener(std::atomic_load(&_listener));
-                result = _socket->Open();
+                result = _socket->Open(userAgent);
                 if (result) {
                     _socketAsioThread = std::thread([socketRef = std::weak_ptr<Socket>(_socket)]() {
                         if (const auto socket = socketRef.lock()) {
@@ -336,18 +357,22 @@ void Websocket::SocketImpl<TConfig>::Run()
 }
 
 template<class TConfig>
-bool Websocket::SocketImpl<TConfig>::Open()
+bool Websocket::SocketImpl<TConfig>::Open(const std::string& userAgent)
 {
     websocketpp::lib::error_code ec;
     const auto connection = _client.get_connection(GetConfig()->GetUri(), ec);
     if (ec) {
-        // write error to log
-        MS_WARN_TAG(rtp, "Websocket get connection failure: %s", ec.message().c_str());
+        if (const auto listener = GetListener()) {
+            listener->OnFailed(GetId(), WebsocketListener::FailureType::NoConnection, ec.message());
+        }
     }
     else {
         const auto& headers = GetConfig()->GetHeaders();
         for (auto it = headers.begin(); it != headers.end(); ++it) {
             connection->append_header(it->first, it->second);
+        }
+        if (!userAgent.empty()) {
+            _client.set_user_agent(userAgent);
         }
         _client.connect(connection);
     }
@@ -375,7 +400,9 @@ bool Websocket::SocketImpl<TConfig>::WriteBinary(const void* buf, size_t len)
             websocketpp::lib::error_code ec;
             _client.send(_hdl, buf, len, websocketpp::frame::opcode::binary, ec);
             if (ec) {
-                MS_WARN_TAG(rtp, "Websocket send binary failure: %s", ec.message().c_str());
+                if (const auto listener = GetListener()) {
+                    listener->OnFailed(GetId(), WebsocketListener::FailureType::WriteBinary, ec.message());
+                }
             }
             else {
                 ok = true;
@@ -395,7 +422,9 @@ bool Websocket::SocketImpl<TConfig>::WriteText(const std::string& text)
             websocketpp::lib::error_code ec;
             _client.send(_hdl, text, websocketpp::frame::opcode::text, ec);
             if (ec) {
-                MS_WARN_TAG(rtp, "Websocket send text failure: %s", ec.message().c_str());
+                if (const auto listener = GetListener()) {
+                    listener->OnFailed(GetId(), WebsocketListener::FailureType::WriteText, ec.message());
+                }
             }
             else {
                 ok = true;
@@ -410,6 +439,13 @@ void Websocket::SocketImpl<TConfig>::SetListener(const std::weak_ptr<WebsocketLi
 {
     const WriteLock lock(_listenerMutex);
     _listener = listener;
+}
+
+template<class TConfig>
+std::shared_ptr<WebsocketListener> Websocket::SocketImpl<TConfig>::GetListener()
+{
+    const ReadLock lock(_listenerMutex);
+    return _listener.lock();
 }
 
 template<class TConfig>
@@ -436,11 +472,10 @@ void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
         else {
             error = "unknown error";
         }
-        MS_WARN_TAG(rtp, "Websocket general failure: %s", error.c_str());
         // report error & reset state
         DropHdl(std::move(lock));
         if (const auto listener = GetListener()) {
-            listener->OnFailed(GetId(), error);
+            listener->OnFailed(GetId(), WebsocketListener::FailureType::General, std::move(error));
         }
     }
 }
@@ -513,13 +548,6 @@ bool Websocket::SocketImpl<TConfig>::SetOpened(bool opened, std::unique_ptr<Lock
 }
 
 template<class TConfig>
-std::shared_ptr<WebsocketListener> Websocket::SocketImpl<TConfig>::GetListener()
-{
-    const ReadLock lock(_listenerMutex);
-    return _listener.lock();
-}
-
-template<class TConfig>
 std::string Websocket::SocketImpl<TConfig>::ToText(const MessagePtr& message)
 {
     if (message) {
@@ -546,28 +574,28 @@ Websocket::SocketTls::SocketTls(uint64_t id, const std::shared_ptr<const Config>
 Websocket::SocketTls::SslContextPtr Websocket::SocketTls::OnTlsInit(websocketpp::connection_hdl)
 {
     SslContextPtr ctx = websocketpp::lib::make_shared<asio::ssl::context>(asio::ssl::context::tlsv12_client);
-    const auto& tlsTrustStore = GetConfig()->GetTlsTrustStore();
-    if (!tlsTrustStore.empty()) {
-        ctx->add_certificate_authority(asio::buffer(tlsTrustStore.data(), tlsTrustStore.size()));
-    }
-    const auto& tlsKeyStore = GetConfig()->GetTlsTrustStore();
-    if (!tlsKeyStore.empty()) {
-        ctx->use_certificate_chain(asio::buffer(tlsKeyStore.data(), tlsKeyStore.size()));
-    }
-    const auto& tlsPrivateKey = GetConfig()->GetTlsPrivateKey();
-    if (!tlsPrivateKey.empty()) {
-        ctx->set_password_callback([config = GetConfig()](std::size_t /*size*/,
-                                                          asio::ssl::context_base::password_purpose /*purpose*/) {
-            return config->GetTlsPrivateKeyPassword();
-        });
-        ctx->use_private_key(asio::buffer(tlsPrivateKey.data(), tlsPrivateKey.size()),
-                             asio::ssl::context::file_format::pem);
-    }
-    if (!tlsTrustStore.empty() || !tlsKeyStore.empty()) { // maybe 'and' (&&) ?
-        // Activates verification mode and rejects unverified peers
-        ctx->set_verify_mode(asio::ssl::context::verify_peer | asio::ssl::context::verify_fail_if_no_peer_cert);
-    }
     try {
+        const auto& tlsTrustStore = GetConfig()->GetTlsTrustStore();
+        if (!tlsTrustStore.empty()) {
+            ctx->add_certificate_authority(asio::buffer(tlsTrustStore.data(), tlsTrustStore.size()));
+        }
+        const auto& tlsKeyStore = GetConfig()->GetTlsTrustStore();
+        if (!tlsKeyStore.empty()) {
+            ctx->use_certificate_chain(asio::buffer(tlsKeyStore.data(), tlsKeyStore.size()));
+        }
+        const auto& tlsPrivateKey = GetConfig()->GetTlsPrivateKey();
+        if (!tlsPrivateKey.empty()) {
+            ctx->set_password_callback([config = GetConfig()](std::size_t /*size*/,
+                                                              asio::ssl::context_base::password_purpose /*purpose*/) {
+                return config->GetTlsPrivateKeyPassword();
+            });
+            ctx->use_private_key(asio::buffer(tlsPrivateKey.data(), tlsPrivateKey.size()),
+                                 asio::ssl::context::file_format::pem);
+        }
+        if (!tlsTrustStore.empty() || !tlsKeyStore.empty()) { // maybe 'and' (&&) ?
+            // Activates verification mode and rejects unverified peers
+            ctx->set_verify_mode(asio::ssl::context::verify_peer | asio::ssl::context::verify_fail_if_no_peer_cert);
+        }
         ctx->set_options(asio::ssl::context::default_workarounds |
                          asio::ssl::context::no_sslv2 |
                          asio::ssl::context::no_sslv3 |
@@ -575,7 +603,9 @@ Websocket::SocketTls::SslContextPtr Websocket::SocketTls::OnTlsInit(websocketpp:
                          asio::ssl::context::no_tlsv1_1 |
                          asio::ssl::context::single_dh_use);
     } catch (const std::exception& e) {
-        MS_WARN_TAG(rtp, "Websocket SSL set options failure: %s", e.what());
+        if (const auto listener = GetListener()) {
+            listener->OnFailed(GetId(), WebsocketListener::FailureType::TlsOptions, e.what());
+        }
     }
     return ctx;
 }
@@ -583,6 +613,17 @@ Websocket::SocketTls::SslContextPtr Websocket::SocketTls::OnTlsInit(websocketpp:
 Websocket::SocketNoTls::SocketNoTls(uint64_t id, const std::shared_ptr<const Config>& config)
     : SocketImpl<websocketpp::config::asio_client>(id, config)
 {
+}
+
+void WebsocketListener::OnFailed(uint64_t socketId, FailureType type, std::string what)
+{
+    if (Settings::configuration.logLevel >= LogLevel::LOG_WARN && Settings::configuration.logTags.rtp) {
+        std::string error = "Websocket (ID is " + std::to_string(socketId) + ") " + ToString(type) + " failure";
+        if (!what.empty()) {
+            error += ": " + what;
+        }
+        Logger::channel->SendLog(error.c_str(), static_cast<uint32_t>(error.size()));
+    }
 }
 
 } // namespace RTC

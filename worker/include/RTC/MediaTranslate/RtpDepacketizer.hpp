@@ -1,5 +1,4 @@
-#ifndef MS_RTC_RTP_DEPACKETIZER_HPP
-#define MS_RTC_RTP_DEPACKETIZER_HPP
+#pragma once
 
 #include "RTC/RtpDictionaries.hpp"
 #include <memory>
@@ -30,5 +29,3 @@ private:
 };
 
 } // namespace RTC
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef MS_RTC_MEDIA_TRANSLATOR_HPP
-#define MS_RTC_MEDIA_TRANSLATOR_HPP
+#pragma once
 
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/RtpDictionaries.hpp"
@@ -51,5 +50,3 @@ private:
 };
 
 } // namespace RTC
-
-#endif

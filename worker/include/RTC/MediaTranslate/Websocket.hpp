@@ -1,7 +1,6 @@
-#ifndef MS_RTC_WEBSOCKET_HPP
-#define MS_RTC_WEBSOCKET_HPP
+#pragma once
 
-#include "MemoryBuffer.h"
+#include "RTC/MediaTranslate/WebsocketState.hpp"
 #include <string>
 #include <memory>
 #include <thread>
@@ -12,14 +11,6 @@ namespace RTC
 {
 
 class WebsocketListener;
-
-enum class WebsocketState
-{
-    Invalid, // wrong URI
-    Connecting,
-    Connected,
-    Disconnected,
-};
 
 class Websocket
 {
@@ -41,7 +32,7 @@ public:
               std::string tlsPrivateKey = std::string(),
               std::string tlsPrivateKeyPassword = std::string());
     ~Websocket();
-    bool Open();
+    bool Open(const std::string& userAgent = std::string());
     void Close();
     WebsocketState GetState() const;
     uint64_t GetId() const;
@@ -56,16 +47,4 @@ private:
     mutable Mutex _socketMutex;
 };
 
-class WebsocketListener
-{
-public:
-    virtual ~WebsocketListener() = default;
-    virtual void OnStateChanged(uint64_t /*socketId*/, WebsocketState /*state*/) {}
-    virtual void OnFailed(uint64_t /*socketId*/, const std::string& /*what*/) {}
-    virtual void OnTextMessageReceived(uint64_t /*socketId*/, std::string /*message*/) {}
-    virtual void OnBinaryMessageReceved(uint64_t /*socketId*/, const std::shared_ptr<MemoryBuffer>& /*message*/) {}
-};
-
 } // namespace RTC
-
-#endif

@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/Websocket.hpp"
+#include "RTC/MediaTranslate/WebsocketListener.hpp"
 #include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/MediaVoice.hpp"
 #include "RTC/MediaTranslate/MediaLanguage.hpp"
