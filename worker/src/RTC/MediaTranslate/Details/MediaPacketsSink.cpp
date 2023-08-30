@@ -90,8 +90,7 @@ std::shared_ptr<RtpDepacketizer> MediaPacketsSink::FetchDepackizer(const RTC::Rt
     if (it == _depacketizers->end()) {
         depacketizer = RtpDepacketizer::create(mimeType);
         if (!depacketizer) {
-            // TODO: add mime description to error
-            MS_ERROR("Failed create depacketizer for given MIME");
+            MS_ERROR("failed create depacketizer for given MIME: %s", mimeType.ToString().c_str());
         }
         _depacketizers->insert({mimeType.subtype, depacketizer});
     }

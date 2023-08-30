@@ -6,8 +6,8 @@
 namespace RTC
 {
 
-class ProducerTranslator;
-class ConsumerTranslator;
+class ProducerInputMediaStreamer;
+class ConsumerTranslatorSettings;
 class RtpPacketsCollector;
 class Websocket;
 
@@ -16,8 +16,8 @@ class TranslatorEndPoint
     class Impl;
 public:
     TranslatorEndPoint(uint32_t audioSsrc,
-                       const std::weak_ptr<ProducerTranslator>& producerRef,
-                       const std::weak_ptr<ConsumerTranslator>& consumerRef,
+                       const std::weak_ptr<ProducerInputMediaStreamer>& producerRef,
+                       const std::weak_ptr<const ConsumerTranslatorSettings>& consumerRef,
                        const std::string& serviceUri,
                        const std::string& serviceUser = std::string(),
                        const std::string& servicePassword = std::string());

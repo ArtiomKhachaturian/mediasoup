@@ -1,8 +1,7 @@
 #pragma once
 
-#include "common.hpp"
-#include "RTC/MediaTranslate/MediaLanguage.hpp"
-#include "RTC/MediaTranslate/TranslatorUnit.hpp"
+#include "RTC/MediaTranslate/ProducerInputMediaStreamer.hpp"
+#include <memory>
 
 namespace RTC
 {
@@ -10,19 +9,11 @@ namespace RTC
 class RtpPacketsCollector;
 class RtpMediaFrameSerializer;
 class RtpStream;
-class OutputDevice;
 
-class ProducerTranslator : public TranslatorUnit
+class ProducerTranslator : public ProducerInputMediaStreamer
 {
 public:
-    // general
-    virtual bool AddOutputDevice(uint32_t audioSsrc, OutputDevice* outputDevice) = 0;
-    virtual bool RemoveOutputDevice(uint32_t audioSsrc, OutputDevice* outputDevice) = 0;
-    virtual void SetLanguage(const std::optional<MediaLanguage>& language = std::nullopt) = 0;
-    virtual std::optional<MediaLanguage> GetLanguage() const = 0;
-    virtual const std::string& GetId() const = 0;
     virtual bool SetSerializer(uint32_t audioSsrc, std::unique_ptr<RtpMediaFrameSerializer> serializer) = 0;
-    // language & media management
     virtual RtpPacketsCollector* AddAudio(uint32_t audioSsrc) = 0;
     virtual RtpPacketsCollector* SetVideo(uint32_t videoSsrc, uint32_t associatedAudioSsrc) = 0;
     virtual bool RemoveAudio(uint32_t audioSsrc) = 0;
@@ -34,4 +25,4 @@ public:
     bool SetSerializer(const RtpStream* audioStream, std::unique_ptr<RtpMediaFrameSerializer> serializer);
 };
 
-}
+} // namespace RTC

@@ -3,8 +3,8 @@
 #include "RTC/MediaTranslate/Websocket.hpp"
 #include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/WebsocketListener.hpp"
-#include "RTC/MediaTranslate/ProducerTranslator.hpp"
-#include "RTC/MediaTranslate/ConsumerTranslator.hpp"
+#include "RTC/MediaTranslate/ProducerInputMediaStreamer.hpp"
+#include "RTC/MediaTranslate/ConsumerTranslatorSettings.hpp"
 #include "ProtectedObj.hpp"
 #include "Logger.hpp"
 
@@ -16,8 +16,8 @@ class TranslatorEndPoint::Impl : public WebsocketListener, private OutputDevice
 public:
     Impl(uint32_t audioSsrc,
          const std::weak_ptr<Websocket>& websocketRef,
-         const std::weak_ptr<ProducerTranslator>& producerRef,
-         const std::weak_ptr<ConsumerTranslator>& consumerRef);
+         const std::weak_ptr<ProducerInputMediaStreamer>& producerRef,
+         const std::weak_ptr<const ConsumerTranslatorSettings>& consumerRef);
     ~Impl() final { FinalizeMediaInput(); }
     void FinalizeMediaInput();
     void SetOutput(RtpPacketsCollector* output);
@@ -31,8 +31,7 @@ public:
     void OnTextMessageReceived(uint64_t socketId, std::string message) final;
     void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message) final;
 private:
-    template<class TTranslatorUnit>
-    static std::string GetId(const std::weak_ptr<TTranslatorUnit>& unit);
+    static std::string GetId(const std::weak_ptr<const TranslatorUnit>& unitRef);
     void InitializeMediaInput();
     bool WriteJson(const nlohmann::json& data);
     std::optional<TranslationPack> GetTranslationPack() const;
@@ -51,8 +50,8 @@ private:
 private:
     const uint32_t _audioSsrc;
     const std::weak_ptr<Websocket> _websocketRef;
-    const std::weak_ptr<ProducerTranslator> _producerRef;
-    const std::weak_ptr<ConsumerTranslator> _consumerRef;
+    const std::weak_ptr<ProducerInputMediaStreamer> _producerRef;
+    const std::weak_ptr<const ConsumerTranslatorSettings> _consumerRef;
     const std::string _producerId;
     const std::string _consumerId;
     std::atomic_bool _connected = false;
@@ -60,8 +59,8 @@ private:
 };
 
 TranslatorEndPoint::TranslatorEndPoint(uint32_t audioSsrc,
-                                       const std::weak_ptr<ProducerTranslator>& producerRef,
-                                       const std::weak_ptr<ConsumerTranslator>& consumerRef,
+                                       const std::weak_ptr<ProducerInputMediaStreamer>& producerRef,
+                                       const std::weak_ptr<const ConsumerTranslatorSettings>& consumerRef,
                                        const std::string& serviceUri,
                                        const std::string& serviceUser,
                                        const std::string& servicePassword)
@@ -115,8 +114,8 @@ void TranslatorEndPoint::SendTranslationChanges()
 
 TranslatorEndPoint::Impl::Impl(uint32_t audioSsrc,
                                const std::weak_ptr<Websocket>& websocketRef,
-                               const std::weak_ptr<ProducerTranslator>& producerRef,
-                               const std::weak_ptr<ConsumerTranslator>& consumerRef)
+                               const std::weak_ptr<ProducerInputMediaStreamer>& producerRef,
+                               const std::weak_ptr<const ConsumerTranslatorSettings>& consumerRef)
     : _audioSsrc(audioSsrc)
     , _websocketRef(websocketRef)
     , _producerRef(producerRef)
@@ -151,7 +150,7 @@ bool TranslatorEndPoint::Impl::SendTranslationChanges()
             const auto jsonData = GetTargetLanguageCmd(tp.value());
             ok = WriteJson(jsonData);
             if (!ok) {
-                MS_ERROR("Failed write language settings to translation service");
+                MS_ERROR("failed write language settings to translation service");
             }
         }
     }
@@ -190,8 +189,7 @@ void TranslatorEndPoint::Impl::OnBinaryMessageReceved(uint64_t /*socketId*/,
     }
 }
 
-template<class TTranslatorUnit>
-std::string TranslatorEndPoint::Impl::GetId(const std::weak_ptr<TTranslatorUnit>& unitRef)
+std::string TranslatorEndPoint::Impl::GetId(const std::weak_ptr<const TranslatorUnit>& unitRef)
 {
     if (const auto unit = unitRef.lock()) {
         return unit->GetId();
@@ -204,7 +202,7 @@ void TranslatorEndPoint::Impl::InitializeMediaInput()
     if (const auto producer = _producerRef.lock()) {
         if (SendTranslationChanges()) {
             if (!producer->AddOutputDevice(GetAudioSsrc(), this)) {
-                // TODO: log error
+                MS_ERROR("failed subscribe to input media strean");
             }
         }
     }

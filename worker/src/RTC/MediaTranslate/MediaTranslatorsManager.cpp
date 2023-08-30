@@ -52,10 +52,12 @@ public:
     // impl. of RtpPacketsCollector
     void AddPacket(const RtpCodecMimeType& mimeType, const RtpPacket* packet) final;
     // impl. of ProducerTranslator
-    bool AddOutputDevice(uint32_t audioSsrc, OutputDevice* outputDevice) final;
-    bool RemoveOutputDevice(uint32_t audioSsrc, OutputDevice* outputDevice) final;
     void SetLanguage(const std::optional<MediaLanguage>& language = std::nullopt) final;
     std::optional<MediaLanguage> GetLanguage() const final;
+    // impl. of ProducerInputMediaStreamer
+    bool AddOutputDevice(uint32_t audioSsrc, OutputDevice* outputDevice) final;
+    bool RemoveOutputDevice(uint32_t audioSsrc, OutputDevice* outputDevice) final;
+    // impl. of ProducerTranslator
     bool SetSerializer(uint32_t audioSsrc, std::unique_ptr<RtpMediaFrameSerializer> serializer) final;
     RtpPacketsCollector* AddAudio(uint32_t audioSsrc) final;
     RtpPacketsCollector* SetVideo(uint32_t videoSsrc, uint32_t associatedAudioSsrc) final;
@@ -249,6 +251,29 @@ void MediaTranslatorsManager::ProducerTranslatorImpl::AddPacket(const RtpCodecMi
     }
 }
 
+void MediaTranslatorsManager::ProducerTranslatorImpl::SetLanguage(const std::optional<MediaLanguage>& language)
+{
+    bool changed = false;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_language);
+        if (_language.constRef() != language) {
+            _language = language;
+            changed = true;
+        }
+    }
+    if (changed) {
+        if (const auto observer = _observerRef.lock()) {
+            observer->OnProducerLanguageChanged(GetId());
+        }
+    }
+}
+
+std::optional<MediaLanguage> MediaTranslatorsManager::ProducerTranslatorImpl::GetLanguage() const
+{
+    LOCK_READ_PROTECTED_OBJ(_language);
+    return _language;
+}
+
 bool MediaTranslatorsManager::ProducerTranslatorImpl::AddOutputDevice(uint32_t audioSsrc,
                                                                       OutputDevice* outputDevice)
 {
@@ -271,23 +296,6 @@ bool MediaTranslatorsManager::ProducerTranslatorImpl::RemoveOutputDevice(uint32_
         }
     }
     return false;
-}
-
-void MediaTranslatorsManager::ProducerTranslatorImpl::SetLanguage(const std::optional<MediaLanguage>& language)
-{
-    bool changed = false;
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_language);
-        if (_language.constRef() != language) {
-            _language = language;
-            changed = true;
-        }
-    }
-    if (changed) {
-        if (const auto observer = _observerRef.lock()) {
-            observer->OnProducerLanguageChanged(GetId());
-        }
-    }
 }
 
 bool MediaTranslatorsManager::ProducerTranslatorImpl::
@@ -347,12 +355,6 @@ bool MediaTranslatorsManager::ProducerTranslatorImpl::RemoveVideo(uint32_t video
         return true;
     }
     return false;
-}
-
-std::optional<MediaLanguage> MediaTranslatorsManager::ProducerTranslatorImpl::GetLanguage() const
-{
-    LOCK_READ_PROTECTED_OBJ(_language);
-    return _language;
 }
 
 void MediaTranslatorsManager::ProducerTranslatorImpl::AddAudioPacket(const RtpCodecMimeType& mimeType,
