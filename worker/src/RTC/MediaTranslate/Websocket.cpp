@@ -113,7 +113,7 @@ private:
     static std::string ToText(const MessagePtr& message);
     static std::shared_ptr<MemoryBuffer> ToBinary(const MessagePtr& message);
 private:
-    static inline constexpr uint16_t _closeCode = websocketpp::close::status::normal;
+    static inline constexpr uint16_t _closeCode = websocketpp::close::status::going_away;
     const uint64_t _id;
     const std::shared_ptr<const Config> _config;
     Client _client;
@@ -309,6 +309,7 @@ Websocket::SocketImpl<TConfig>::SocketImpl(uint64_t id, const std::shared_ptr<co
 {
     // Initialize ASIO
     _client.init_asio();
+    _client.start_perpetual();
     // Register our handlers
     _client.set_socket_init_handler(bind(&SocketImpl::OnSocketInit, this, _1));
     _client.set_message_handler(bind(&SocketImpl::OnMessage, this, _1, _2));
@@ -358,6 +359,7 @@ void Websocket::SocketImpl<TConfig>::Close()
 {
     auto lock = std::make_unique<WriteLock>(_hdlMutex);
     if (!_hdl.expired()) {
+        _client.stop();
         _client.close(_hdl, _closeCode, websocketpp::close::status::get_string(_closeCode));
         DropHdl(std::move(lock));
     }
