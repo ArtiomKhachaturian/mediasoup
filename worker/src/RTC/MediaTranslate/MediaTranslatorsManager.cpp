@@ -1,9 +1,7 @@
 #define MS_CLASS "RTC::MediaTranslatorsManager"
 #include "RTC/MediaTranslate/MediaTranslatorsManager.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
-#include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
-#include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 #include "RTC/MediaTranslate/Details/MediaPacketsSink.hpp"
@@ -18,9 +16,10 @@
 
 namespace {
 
-template<class TObserver, class... TInterfaces>
-class TranslatorUnitImpl : public TInterfaces...
+template<class TObserver, class TInterface>
+class TranslatorUnitImpl : public TInterface
 {
+    static_assert(std::is_base_of<RTC::TranslatorUnit, TInterface>::value);
 public:
     // impl. of TInterface
     const std::string& GetId() const final { return _id; }
@@ -44,7 +43,8 @@ inline bool IsVideoStream(const RTC::RtpStream* stream) {
 namespace RTC
 {
 
-class MediaTranslatorsManager::ProducerTranslatorImpl : public TranslatorUnitImpl<ProducerObserver, ProducerTranslator, RtpPacketsCollector>
+class MediaTranslatorsManager::ProducerTranslatorImpl : public TranslatorUnitImpl<ProducerObserver, ProducerTranslator>,
+                                                        public RtpPacketsCollector
 {
 public:
     ProducerTranslatorImpl(const std::string& id, const std::weak_ptr<ProducerObserver>& observerRef);
@@ -221,7 +221,7 @@ bool MediaTranslatorsManager::UnRegisterConsumer(const Consumer* consumer)
 
 MediaTranslatorsManager::ProducerTranslatorImpl::ProducerTranslatorImpl(const std::string& id,
                                                                         const std::weak_ptr<ProducerObserver>& observerRef)
-    : TranslatorUnitImpl<ProducerObserver, ProducerTranslator, RtpPacketsCollector>(id, observerRef)
+    : TranslatorUnitImpl<ProducerObserver, ProducerTranslator>(id, observerRef)
 {
 }
 
@@ -721,9 +721,9 @@ bool ProducerTranslator::SetSerializer(const RtpStream* audioStream,
 
 namespace {
 
-template<class TObserver, class... TInterfaces>
-TranslatorUnitImpl<TObserver, TInterfaces...>::TranslatorUnitImpl(const std::string& id,
-                                                                  const std::weak_ptr<TObserver>& observerRef)
+template<class TObserver, class TInterface>
+TranslatorUnitImpl<TObserver, TInterface>::TranslatorUnitImpl(const std::string& id,
+                                                              const std::weak_ptr<TObserver>& observerRef)
     : _id(id)
     , _observerRef(observerRef)
 {
