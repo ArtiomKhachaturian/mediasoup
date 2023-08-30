@@ -142,7 +142,7 @@ void MediaTranslator::SetVoice(MediaVoice voice)
     }
 }
 
-void MediaTranslator::AddPacket(const RTC::RtpCodecMimeType& mimeType, const RtpPacket* packet)
+void MediaTranslator::AddPacket(const RtpCodecMimeType& mimeType, const RtpPacket* packet)
 {
     if (packet && _depacketizer && _serializer && _websocket &&
         mimeType == _depacketizer->GetCodecMimeType() &&

@@ -14,12 +14,10 @@ class Consumer;
 
 class MediaTranslatorsManager
 {
-    class MediaPacketsSink;
     class ProducerTranslatorImpl;
     class ConsumerTranslatorImpl;
     class ProducerObserver;
     class ConsumerObserver;
-    class TranslatorService;
     class Impl;
 public:
     MediaTranslatorsManager(const std::string& serviceUri,

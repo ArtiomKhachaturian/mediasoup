@@ -176,6 +176,8 @@ common_sources = [
   'src/RTC/MediaTranslate/RtpWebMSerializer.cpp',
   'src/RTC/MediaTranslate/Websocket.cpp',
   'src/RTC/MediaTranslate/MediaLanguageAndVoice.cpp',
+  'src/RTC/MediaTranslate/Details/MediaPacketsSink.cpp',
+  'src/RTC/MediaTranslate/Details/TranslatorEndPoint.cpp',
 ]
 
 libwebm_sources = [

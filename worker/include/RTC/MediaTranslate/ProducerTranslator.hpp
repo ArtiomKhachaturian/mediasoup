@@ -2,6 +2,7 @@
 
 #include "common.hpp"
 #include "RTC/MediaTranslate/MediaLanguage.hpp"
+#include "RTC/MediaTranslate/TranslatorUnit.hpp"
 
 namespace RTC
 {
@@ -9,13 +10,14 @@ namespace RTC
 class RtpPacketsCollector;
 class RtpMediaFrameSerializer;
 class RtpStream;
+class OutputDevice;
 
-class ProducerTranslator
+class ProducerTranslator : public TranslatorUnit
 {
 public:
-    virtual ~ProducerTranslator() = default;
     // general
-    virtual void Pause(bool pause = true) = 0;
+    virtual bool AddOutputDevice(uint32_t audioSsrc, OutputDevice* outputDevice) = 0;
+    virtual bool RemoveOutputDevice(uint32_t audioSsrc, OutputDevice* outputDevice) = 0;
     virtual void SetLanguage(const std::optional<MediaLanguage>& language = std::nullopt) = 0;
     virtual std::optional<MediaLanguage> GetLanguage() const = 0;
     virtual const std::string& GetId() const = 0;
@@ -30,7 +32,6 @@ public:
     bool RemoveAudio(const RtpStream* audioStream);
     bool RemoveVideo(const RtpStream* videoStream);
     bool SetSerializer(const RtpStream* audioStream, std::unique_ptr<RtpMediaFrameSerializer> serializer);
-    void Resume() { Pause(false); }
 };
 
 }
