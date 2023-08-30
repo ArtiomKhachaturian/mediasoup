@@ -26,15 +26,19 @@ class LogStreamBuf : public std::streambuf
 {
 public:
     LogStreamBuf(uint64_t socketId, LogLevel level);
-    static void Write(LogLevel level, const std::string& message);
-    static void Write(LogLevel level, uint64_t socketId, const std::string& message);
+    static bool IsAccepted(LogLevel level);
+    static void Write(LogLevel level, std::string message);
+    static void Write(LogLevel level, uint64_t socketId, std::string message);
+protected:
     // overrides of std::streambuf
     std::streamsize xsputn(const char* s, std::streamsize count) final;
+    int sync() final;
 private:
-    void Write(const std::string& message) const;
+    void Write(std::string message) const;
 private:
     const uint64_t _socketId;
     const LogLevel _level;
+    std::string _buffer;
 };
 
 inline std::string ToString(RTC::WebsocketListener::FailureType failure) {
@@ -755,19 +759,19 @@ void Websocket::SocketWrapper::SetListener(const std::weak_ptr<WebsocketListener
 
 void WebsocketListener::OnStateChanged(uint64_t socketId, WebsocketState state)
 {
-    if (Settings::configuration.logLevel >= LogLevel::LOG_DEBUG && Settings::configuration.logTags.rtp) {
+    if (LogStreamBuf::IsAccepted(LogLevel::LOG_DEBUG)) {
         LogStreamBuf::Write(LogLevel::LOG_DEBUG, socketId, "state changed to " + ToString(state));
     }
 }
 
 void WebsocketListener::OnFailed(uint64_t socketId, FailureType type, std::string what)
 {
-    if (Settings::configuration.logLevel >= LogLevel::LOG_ERROR && Settings::configuration.logTags.rtp) {
+    if (LogStreamBuf::IsAccepted(LogLevel::LOG_ERROR)) {
         std::string error = ToString(type) + " failure";
         if (!what.empty()) {
             error += ": " + what;
         }
-        LogStreamBuf::Write(LogLevel::LOG_ERROR, socketId, error);
+        LogStreamBuf::Write(LogLevel::LOG_ERROR, socketId, std::move(error));
     }
 }
 
@@ -798,48 +802,64 @@ LogStreamBuf::LogStreamBuf(uint64_t socketId, LogLevel level)
 
 std::streamsize LogStreamBuf::xsputn(const char* s, std::streamsize count)
 {
-    if (s && count && Settings::configuration.logTags.rtp &&
-        Settings::configuration.logLevel >= _level) {
-        Write(std::string(s, count));
+    if (s && count) {
+        if (IsAccepted(_level)) {
+            _buffer += std::string(s, count);
+        }
         return count;
     }
     return 0;
 }
 
-void LogStreamBuf::Write(LogLevel level, const std::string& message)
+int LogStreamBuf::sync()
 {
-    if (!message.empty()) {
-        std::string full;
+    if (IsAccepted(_level)) {
+        Write(std::move(_buffer));
+        return 0;
+    }
+    return -1;
+}
+
+bool LogStreamBuf::IsAccepted(LogLevel level)
+{
+    return Settings::configuration.logTags.rtp && Settings::configuration.logLevel >= level;
+}
+
+void LogStreamBuf::Write(LogLevel level, std::string message)
+{
+    if (IsAccepted(level) && !message.empty()) {
+        std::string levelDesc;
         switch (level) {
             case LogLevel::LOG_DEBUG:
-                full = "D";
+                levelDesc = "D";
                 break;
             case LogLevel::LOG_WARN:
-                full = "W";
+                levelDesc = "W";
                 break;
             case LogLevel::LOG_ERROR:
-                full = "E";
+                levelDesc = "E";
                 break;
             default:
                 break;
         }
-        if (!full.empty()) {
-            full += message;
-            Logger::channel->SendLog(full.c_str(), static_cast<uint32_t>(full.size()));
+        if (!levelDesc.empty()) {
+            message.insert(0UL, levelDesc);
+            Logger::channel->SendLog(message.c_str(), static_cast<uint32_t>(message.size()));
         }
     }
 }
 
-void LogStreamBuf::Write(LogLevel level, uint64_t socketId, const std::string& message)
+void LogStreamBuf::Write(LogLevel level, uint64_t socketId, std::string message)
 {
-    if (!message.empty()) {
-        Write(level, "Websocket (ID is " + std::to_string(socketId) + ") " + message);
+    if (IsAccepted(level) && !message.empty()) {
+        message.insert(0UL, "Websocket (ID is " + std::to_string(socketId) + ") ");
+        Write(level, std::move(message));
     }
 }
 
-void LogStreamBuf::Write(const std::string& message) const
+void LogStreamBuf::Write(std::string message) const
 {
-    Write(_level, _socketId, message);
+    Write(_level, _socketId, std::move(message));
 }
 
 }
