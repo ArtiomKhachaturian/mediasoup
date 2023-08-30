@@ -29,12 +29,11 @@ public:
     static bool IsAccepted(LogLevel level);
     static void Write(LogLevel level, std::string message);
     static void Write(LogLevel level, uint64_t socketId, std::string message);
+    void Write(std::string message) const;
 protected:
     // overrides of std::streambuf
     std::streamsize xsputn(const char* s, std::streamsize count) final;
     int sync() final;
-private:
-    void Write(std::string message) const;
 private:
     const uint64_t _socketId;
     const LogLevel _level;
@@ -45,14 +44,14 @@ inline std::string ToString(RTC::WebsocketListener::FailureType failure) {
     switch (failure) {
         case RTC::WebsocketListener::FailureType::General:
             return "general";
-       case RTC::WebsocketListener::FailureType::NoConnection:
+        case RTC::WebsocketListener::FailureType::NoConnection:
             return "no connection";
+        case RTC::WebsocketListener::FailureType::CustomHeader:
+            return "custom header";
         case RTC::WebsocketListener::FailureType::WriteText:
             return "write text";
-            break;
         case RTC::WebsocketListener::FailureType::WriteBinary:
             return "write binary";
-            break;
         case RTC::WebsocketListener::FailureType::TlsOptions:
             return "TLS options";
         default:
@@ -432,14 +431,24 @@ bool Websocket::SocketImpl<TConfig>::Open(const std::string& userAgent)
     else {
         const auto& headers = GetConfig()->GetHeaders();
         for (auto it = headers.begin(); it != headers.end(); ++it) {
-            connection->append_header(it->first, it->second);
+            try {
+                connection->append_header(it->first, it->second);
+            }
+            catch(const std::exception& e) {
+                if (const auto listener = GetListener()) {
+                    listener->OnFailed(GetId(),
+                                       WebsocketListener::FailureType::CustomHeader,
+                                       e.what());
+                }
+                return false;
+            }
         }
         if (!userAgent.empty()) {
             _client.set_user_agent(userAgent);
         }
         _client.connect(connection);
     }
-    return 0 == ec.value();
+    return !ec;
 }
 
 template<class TConfig>
@@ -447,8 +456,12 @@ void Websocket::SocketImpl<TConfig>::Close()
 {
     auto droppedGuard = std::make_unique<MutexWriteGuard>(_hdl);
     if (!_hdl->expired()) {
+        websocketpp::lib::error_code ec;
+        _client.close(_hdl, _closeCode, websocketpp::close::status::get_string(_closeCode), ec);
         _client.stop();
-        _client.close(_hdl, _closeCode, websocketpp::close::status::get_string(_closeCode));
+        if (ec) { // ignore of failures during closing
+            _errorStreamBuf.Write(ec.message());
+        }
         DropHdl(std::move(droppedGuard));
     }
 }

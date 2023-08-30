@@ -15,6 +15,7 @@ public:
     {
         General,
         NoConnection,
+        CustomHeader,
         WriteText,
         WriteBinary,
         TlsOptions
