@@ -1,9 +1,12 @@
+#define MS_CLASS "RTC::FileWriter"
 #include "RTC/MediaTranslate/FileWriter.hpp"
+#include "MemoryBuffer.h"
 #include <utility>
 #ifdef _WIN32
 #include <Windows.h>
 #include <string>
 #endif
+#include "Logger.hpp"
 
 namespace RTC
 {
@@ -47,25 +50,16 @@ bool FileWriter::Flush()
     return _file && 0 == ::fflush(_file);
 }
 
-bool FileWriter::Write(const void* buf, uint32_t len)
+void FileWriter::Write(const std::shared_ptr<const MemoryBuffer>& buffer)
 {
-    if (_file && buf) {
-        return len == ::fwrite(buf, 1U, len, _file);
+    if (_file && buffer && !buffer->IsEmpty()) {
+        const auto expected = buffer->GetSize();
+        const auto actual = ::fwrite(buffer->GetData(), 1U, expected, _file);
+        if (expected != actual) {
+            MS_ERROR("file write error, expected %lu but written only %lu bytes, error code: %d",
+                     expected, actual, errno);
+        }
     }
-    return false;
-}
-
-int64_t FileWriter::GetPosition() const
-{
-    if (_file) {
-        return ::ftell(_file);
-    }
-    return -1LL;
-}
-
-bool FileWriter::SetPosition(int64_t position)
-{
-    return _file && 0 == ::fseek(_file, static_cast<long>(position), SEEK_SET);
 }
 
 FILE* FileWriter::FileOpen(std::string_view fileNameUtf8, int* error)

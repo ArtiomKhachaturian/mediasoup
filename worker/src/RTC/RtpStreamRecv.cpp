@@ -6,6 +6,9 @@
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include "RTC/Codecs/Tools.hpp"
+#ifdef WRITE_RECV_AUDIO_TO_FILE
+#include "RTC/MediaTranslate/MediaFileWriter.hpp"
+#endif
 #include <cstdio>
 
 namespace RTC
@@ -220,6 +223,14 @@ namespace RTC
 			this->inactivityCheckPeriodicTimer->Start(
 			  this->params.useDtx ? InactivityCheckIntervalWithDtx : InactivityCheckInterval);
 		}
+#ifdef WRITE_RECV_AUDIO_TO_FILE
+        const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
+        if (depacketizerPath && std::strlen(depacketizerPath)) {
+            const auto liveMode = false;
+            _fileWriter = MediaFileWriter::Create(depacketizerPath, GetMimeType(),
+                                                  GetSsrc(), liveMode);
+        }
+#endif
 	}
 
 	RtpStreamRecv::~RtpStreamRecv()
@@ -848,6 +859,11 @@ namespace RTC
 
     void RtpStreamRecv::Depacketize(const RTC::RtpPacket* packet)
     {
+#ifdef WRITE_RECV_AUDIO_TO_FILE
+        if (_fileWriter) {
+            _fileWriter->AddPacket(GetMimeType(), packet);
+        }
+#endif
         if (packetsCollector && packet) {
             packetsCollector->AddPacket(GetMimeType(), packet);
         }

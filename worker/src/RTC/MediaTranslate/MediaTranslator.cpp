@@ -23,12 +23,10 @@ public:
     void SetFromLanguageAuto() { ApplyFromLanguage(std::nullopt); }
     void SetToLanguage(MediaLanguage language);
     void SetVoice(MediaVoice voice);
-    int64_t GetMediaPosition() const { return _mediaPosition.load(std::memory_order_relaxed); }
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t, WebsocketState state) final;
     // impl. of OutputDevice
-    bool Write(const void* buf, uint32_t len) final;
-    int64_t GetPosition() const final { return _mediaPosition.load(std::memory_order_relaxed); }
+    void Write(const std::shared_ptr<const MemoryBuffer>& buffer) final;
 private:
     static bool WriteJson(Websocket* socket, const json& data);
     void ApplyFromLanguage(const std::optional<MediaLanguage>& language);
@@ -37,7 +35,6 @@ private:
     std::optional<MediaLanguage> GetLanguageFrom() const;
     MediaLanguage GetLanguageTo() const { return _languageTo.load(std::memory_order_relaxed); }
     MediaVoice GetVoice() const { return _voice.load(std::memory_order_relaxed); }
-    void ResetMedia() { _mediaPosition = 0LL; }
 private:
     // websocket ref
     ProtectedObj<Websocket*> _socket;
@@ -47,8 +44,6 @@ private:
     std::atomic<MediaLanguage> _languageTo = DefaultOutputMediaLanguage();
     // voice
     std::atomic<MediaVoice> _voice = DefaultMediaVoice();
-    // media
-    std::atomic<int64_t> _mediaPosition = 0LL;
 };
 
 MediaTranslator::MediaTranslator(const std::string& serviceUri,
@@ -186,7 +181,6 @@ void MediaTranslator::Impl::Close(bool andReset)
             _socket = nullptr;
         }
     }
-    ResetMedia();
 }
 
 void MediaTranslator::Impl::SetToLanguage(MediaLanguage language)
@@ -203,20 +197,17 @@ void MediaTranslator::Impl::SetVoice(MediaVoice voice)
     }
 }
 
-bool MediaTranslator::Impl::Write(const void* buf, uint32_t len)
+void MediaTranslator::Impl::Write(const std::shared_ptr<const MemoryBuffer>& buffer)
 {
-    bool ok = false;
-    if (buf && len) {
+    if (buffer) {
         LOCK_READ_PROTECTED_OBJ(_socket);
         const auto socket = _socket.constRef();
         if (socket && WebsocketState::Connected == socket->GetState()) {
-            ok = socket->Write(buf, len);
+            if (!socket->WriteBinary(buffer)) {
+                // TODO: log error
+            }
         }
     }
-    if (ok) {
-        _mediaPosition.fetch_add(len);
-    }
-    return ok;
 }
 
 void MediaTranslator::Impl::OnStateChanged(uint64_t socketId, WebsocketState state)
@@ -225,9 +216,6 @@ void MediaTranslator::Impl::OnStateChanged(uint64_t socketId, WebsocketState sta
     switch (state) {
         case WebsocketState::Connected:
             WriteLanguageChanges();
-            break;
-        case WebsocketState::Disconnected:
-            ResetMedia();
             break;
         default:
             break;

@@ -18,7 +18,7 @@ public:
          const std::weak_ptr<Websocket>& websocketRef,
          const std::weak_ptr<ProducerInputMediaStreamer>& producerRef,
          const std::weak_ptr<const ConsumerTranslatorSettings>& consumerRef);
-    ~Impl() final { FinalizeMediaInput(); }
+    ~Impl() final;
     void FinalizeMediaInput();
     void SetOutput(RtpPacketsCollector* output);
     uint32_t GetAudioSsrc() const { return _audioSsrc; }
@@ -45,8 +45,7 @@ private:
                                 uint32_t rtpAbsSendtime,
                                 uint32_t duration) final;
     void EndWriteMediaPayload(uint32_t ssrc, bool ok) final;
-    bool Write(const void* buf, uint32_t len) final;
-    int64_t GetPosition() const final { return 0LL; }
+    void Write(const std::shared_ptr<const MemoryBuffer>& buffer) final;
 private:
     const uint32_t _audioSsrc;
     const std::weak_ptr<Websocket> _websocketRef;
@@ -126,6 +125,11 @@ TranslatorEndPoint::Impl::Impl(uint32_t audioSsrc,
     MS_ASSERT(_audioSsrc > 0U, "invalid audio SSRC");
     MS_ASSERT(!_producerId.empty(), "empty producer ID");
     MS_ASSERT(!_consumerId.empty(), "empty consumer ID");
+}
+
+TranslatorEndPoint::Impl::~Impl()
+{
+    FinalizeMediaInput();
 }
 
 void TranslatorEndPoint::Impl::FinalizeMediaInput()
@@ -263,20 +267,17 @@ void TranslatorEndPoint::Impl::EndWriteMediaPayload(uint32_t ssrc, bool ok)
     }
 }
 
-bool TranslatorEndPoint::Impl::Write(const void* buf, uint32_t len)
+void TranslatorEndPoint::Impl::Write(const std::shared_ptr<const MemoryBuffer>& buffer)
 {
-    bool ok = false;
-    if (buf && len && IsConnected()) {
+    if (buffer && IsConnected()) {
         if (IsProducerMediaAllowed()) {
             if (const auto websocket = _websocketRef.lock()) {
-                ok = websocket->Write(buf, len);
+                if (!websocket->WriteBinary(buffer)) {
+                    // TODO: log error
+                }
             }
         }
-        else {
-            ok = true; // ignore input media traffic
-        }
     }
-    return ok;
 }
 
 } // namespace RTC

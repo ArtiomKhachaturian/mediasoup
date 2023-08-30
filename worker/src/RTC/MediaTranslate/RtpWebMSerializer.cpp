@@ -3,11 +3,43 @@
 #include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/Codecs/Opus.hpp"
+#include "MemoryBuffer.h"
 #include "Utils.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
+
+class RtpWebMSerializer::BufferedWriter : public mkvmuxer::IMkvWriter
+{
+public:
+    BufferedWriter() { ReserveBuffer(); }
+    std::shared_ptr<MemoryBuffer> takeBuffer();
+    // impl. of mkvmuxer::IMkvWriter
+    mkvmuxer::int32 Write(const void* buf, mkvmuxer::uint32 len) final;
+    mkvmuxer::int64 Position() const final;
+    mkvmuxer::int32 Position(mkvmuxer::int64 position) final;
+    bool Seekable() const final { return true; }
+    void ElementStartNotify(mkvmuxer::uint64, mkvmuxer::int64) final {}
+private:
+    // 1kb buffer is enough for single OPUS frame
+    // TODO: develop a strategy for optimal memory management for both audio & video (maybe mem pool)
+    void ReserveBuffer() { _buffer.reserve(1024); }
+private:
+    std::vector<uint8_t> _buffer;
+};
+
+class RtpWebMSerializer::MediaBufferImpl : public MemoryBuffer
+{
+public:
+    MediaBufferImpl(std::vector<uint8_t> buffer);
+    // impl. of MemoryBuffer
+    size_t GetSize() const final { return _buffer.size(); }
+    uint8_t* GetData() { return _buffer.data(); }
+    const uint8_t* GetData() const { return _buffer.data(); }
+private:
+    std::vector<uint8_t> _buffer;
+};
 
 struct RtpWebMSerializer::TrackInfo
 {
@@ -19,13 +51,14 @@ struct RtpWebMSerializer::TrackInfo
 };
 
 RtpWebMSerializer::RtpWebMSerializer()
+    : _writer(std::make_unique<BufferedWriter>())
 {
-    _segment.Init(this);
+    RtpWebMSerializer::SetLiveMode(true);
 }
 
 RtpWebMSerializer::~RtpWebMSerializer()
 {
-    _segment.Finalize();
+    RtpWebMSerializer::SetOutputDevice(nullptr);
 }
 
 bool RtpWebMSerializer::IsSupported(const RtpCodecMimeType& mimeType)
@@ -35,34 +68,45 @@ bool RtpWebMSerializer::IsSupported(const RtpCodecMimeType& mimeType)
 
 void RtpWebMSerializer::SetOutputDevice(OutputDevice* outputDevice)
 {
+    if (!outputDevice && GetOutputDevice()) {
+        _segment.Finalize();
+        CommitData(GetOutputDevice());
+    }
     RtpMediaFrameSerializer::SetOutputDevice(outputDevice);
     if (outputDevice) {
-        _segment.set_mode(outputDevice->IsFileDevice() ? mkvmuxer::Segment::kFile : mkvmuxer::Segment::kLive);
+        _segment.Init(_writer.get());
     }
+}
+
+void RtpWebMSerializer::SetLiveMode(bool liveMode)
+{
+    RtpMediaFrameSerializer::SetLiveMode(liveMode);
+    _segment.set_mode(liveMode ?  mkvmuxer::Segment::kLive : mkvmuxer::Segment::kFile);
 }
 
 void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 {
     if (mediaFrame) {
-        if (const auto device = GetOutputDevice()) {
+        if (const auto outputDevice = GetOutputDevice()) {
             if (const auto track = GetTrack(mediaFrame)) {
                 const auto& payload = mediaFrame->GetPayload();
-                device->BeginWriteMediaPayload(mediaFrame->GetSsrc(),
-                                               mediaFrame->IsKeyFrame(),
-                                               mediaFrame->GetCodecMimeType(),
-                                               mediaFrame->GetSequenceNumber(),
-                                               mediaFrame->GetTimestamp(),
-                                               mediaFrame->GetAbsSendtime(),
-                                               mediaFrame->GetDuration());
+                outputDevice->BeginWriteMediaPayload(mediaFrame->GetSsrc(),
+                                                     mediaFrame->IsKeyFrame(),
+                                                     mediaFrame->GetCodecMimeType(),
+                                                     mediaFrame->GetSequenceNumber(),
+                                                     mediaFrame->GetTimestamp(),
+                                                     mediaFrame->GetAbsSendtime(),
+                                                     mediaFrame->GetDuration());
                 const auto ok = _segment.AddFrame(payload.data(), payload.size(), track->_number,
                                                   track->GetTimestampNs(), mediaFrame->IsKeyFrame());
                 if (ok) {
                     track->_granule += mediaFrame->GetDuration();
-                    if (!device->IsFileDevice()) {
+                    if (mkvmuxer::Segment::kLive == _segment.mode()) {
                         _segment.CuesTrack(track->_number); // for live mode
                     }
                 }
-                device->EndWriteMediaPayload(mediaFrame->GetSsrc(), ok);
+                CommitData(outputDevice);
+                outputDevice->EndWriteMediaPayload(mediaFrame->GetSsrc(), ok);
             }
         }
     }
@@ -205,24 +249,50 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<
     return trackInfo;
 }
 
-mkvmuxer::int32 RtpWebMSerializer::Write(const void* buf, mkvmuxer::uint32 len)
+void RtpWebMSerializer::CommitData(OutputDevice* outputDevice)
 {
-    return GetOutputDevice() && GetOutputDevice()->Write(buf, len) ? 0 : 1;
+    if (outputDevice) {
+        if (const auto buffer = _writer->takeBuffer()) {
+            outputDevice->Write(buffer);
+        }
+    }
 }
 
-mkvmuxer::int64 RtpWebMSerializer::Position() const
+std::shared_ptr<MemoryBuffer> RtpWebMSerializer::BufferedWriter::takeBuffer()
 {
-    return GetOutputDevice() ? GetOutputDevice()->GetPosition() : -1;
+    if (!_buffer.empty()) {
+        auto buffer = std::make_shared<MediaBufferImpl>(std::move(_buffer));
+        ReserveBuffer();
+        return buffer;
+    }
+    return nullptr;
 }
 
-mkvmuxer::int32 RtpWebMSerializer::Position(mkvmuxer::int64 position)
+mkvmuxer::int32 RtpWebMSerializer::BufferedWriter::Write(const void* buf,
+                                                         mkvmuxer::uint32 len)
 {
-    return GetOutputDevice() && GetOutputDevice()->SetPosition(position) ? 0 : 1;
+    if (buf && len) {
+        auto newBytes = reinterpret_cast<const uint8_t*>(buf);
+        std::copy(newBytes, newBytes + len, std::back_inserter(_buffer));
+        return 0;
+    }
+    return 1;
 }
 
-bool RtpWebMSerializer::Seekable() const
+mkvmuxer::int64 RtpWebMSerializer::BufferedWriter::Position() const
 {
-    return GetOutputDevice() && GetOutputDevice()->IsSeekable();
+    return static_cast<mkvmuxer::int64>(_buffer.size());
+}
+
+mkvmuxer::int32 RtpWebMSerializer::BufferedWriter::Position(mkvmuxer::int64 position)
+{
+    _buffer.resize(position);
+    return 0;
+}
+
+RtpWebMSerializer::MediaBufferImpl::MediaBufferImpl(std::vector<uint8_t> buffer)
+    : _buffer(std::move(buffer))
+{
 }
 
 RtpWebMSerializer::TrackInfo::TrackInfo(uint64_t number, uint32_t rate)

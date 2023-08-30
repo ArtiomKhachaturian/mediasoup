@@ -1,16 +1,19 @@
-#ifndef MS_MEMORY_BUFFER_HPP
-#define MS_MEMORY_BUFFER_HPP
+#pragma once
 
 #include <cstdint>
 #include <cstddef>
 
-class MemoryBuffer 
+namespace RTC
+{
+
+class MemoryBuffer
 {
 public:
     virtual ~MemoryBuffer() = default;
     virtual size_t GetSize() const = 0;
     virtual uint8_t* GetData() = 0;
     virtual const uint8_t* GetData() const = 0;
+    bool IsEmpty() const { return nullptr == GetData() || 0UL == GetSize(); }
 };
 
-#endif
+} // namespace RTC

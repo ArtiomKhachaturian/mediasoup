@@ -8,9 +8,12 @@
 #include "handles/Timer.hpp"
 #include <vector>
 
+#define WRITE_RECV_AUDIO_TO_FILE // for debugging
+
 namespace RTC
 {
     class RtpPacketsCollector;
+    class MediaFileWriter;
 
 	class RtpStreamRecv : public RTC::RtpStream,
 	                      public RTC::NackGenerator::Listener,
@@ -135,6 +138,9 @@ namespace RTC
 		TransmissionCounter transmissionCounter;
 		// Just valid media.
 		RTC::RtpDataCounter mediaTransmissionCounter;
+#ifdef WRITE_RECV_AUDIO_TO_FILE
+        std::shared_ptr<MediaFileWriter> _fileWriter;
+#endif
 	};
 } // namespace RTC
 

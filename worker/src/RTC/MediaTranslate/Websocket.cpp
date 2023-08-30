@@ -11,7 +11,7 @@
 
 namespace {
 
-class StringMemoryBuffer : public MemoryBuffer
+class StringMemoryBuffer : public RTC::MemoryBuffer
 {
 public:
     StringMemoryBuffer(std::string payload);
@@ -126,7 +126,7 @@ public:
     virtual void Run() = 0;
     virtual bool Open(const std::string& userAgent) = 0;
     virtual void Close() = 0;
-    virtual bool WriteBinary(const void* buf, size_t len) = 0;
+    virtual bool WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer) = 0;
     virtual bool WriteText(const std::string& text) = 0;
     virtual void SetListener(const std::weak_ptr<WebsocketListener>& listener) = 0;
     static std::shared_ptr<Socket> Create(uint64_t id, const std::shared_ptr<const Config>& config);
@@ -144,7 +144,7 @@ public:
     void Run() final;
     bool Open(const std::string& userAgent) final;
     void Close() final;
-    bool WriteBinary(const void* buf, size_t len) final;
+    bool WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer) final;
     bool WriteText(const std::string& text) final;
     void SetListener(const std::weak_ptr<WebsocketListener>& listener) final;
 protected:
@@ -208,7 +208,7 @@ public:
     void Run() final;
     bool Open(const std::string& userAgent) final;
     void Close() final;
-    bool WriteBinary(const void* buf, size_t len) final;
+    bool WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer) final;
     bool WriteText(const std::string& text) final;
     void SetListener(const std::weak_ptr<WebsocketListener>& listener) final;
 private:
@@ -293,6 +293,17 @@ uint64_t Websocket::GetId() const
     return reinterpret_cast<uint64_t>(this);
 }
 
+bool Websocket::WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer)
+{
+    if (buffer) {
+        LOCK_READ_PROTECTED_OBJ(_socket);
+        if (const auto& socket = _socket.constRef()) {
+            return socket->WriteBinary(buffer);
+        }
+    }
+    return false;
+}
+
 bool Websocket::WriteText(const std::string& text)
 {
     LOCK_READ_PROTECTED_OBJ(_socket);
@@ -312,17 +323,6 @@ void Websocket::SetListener(const std::shared_ptr<WebsocketListener>& listener)
             }
         }
     }
-}
-
-bool Websocket::Write(const void* buf, size_t len)
-{
-    if (buf && len) {
-        LOCK_READ_PROTECTED_OBJ(_socket);
-        if (const auto& socket = _socket.constRef()) {
-            return socket->WriteBinary(buf, len);
-        }
-    }
-    return false;
 }
 
 Websocket::Config::Config(const std::shared_ptr<websocketpp::uri>& uri,
@@ -467,21 +467,25 @@ void Websocket::SocketImpl<TConfig>::Close()
 }
 
 template<class TConfig>
-bool Websocket::SocketImpl<TConfig>::WriteBinary(const void* buf, size_t len)
+bool Websocket::SocketImpl<TConfig>::WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer)
 {
     bool ok = false;
-    if (buf && len && IsOpened()) {
+    if (buffer && IsOpened()) {
         LOCK_READ_PROTECTED_OBJ(_hdl);
         if (!_hdl->expired()) {
-            websocketpp::lib::error_code ec;
-            _client.send(_hdl, buf, len, websocketpp::frame::opcode::binary, ec);
-            if (ec) {
-                if (const auto listener = GetListener()) {
-                    listener->OnFailed(GetId(), WebsocketListener::FailureType::WriteBinary, ec.message());
+            if (!buffer->IsEmpty()) {
+                websocketpp::lib::error_code ec;
+                // overhead - deep copy of input buffer,
+                // Websocketpp doesn't supports of buffers abstraction
+                _client.send(_hdl, buffer->GetData(), buffer->GetSize(), websocketpp::frame::opcode::binary, ec);
+                if (ec) {
+                    if (const auto listener = GetListener()) {
+                        listener->OnFailed(GetId(), WebsocketListener::FailureType::WriteBinary, ec.message());
+                    }
                 }
-            }
-            else {
-                ok = true;
+                else {
+                    ok = true;
+                }
             }
         }
     }
@@ -747,10 +751,10 @@ void Websocket::SocketWrapper::Close()
     }
 }
 
-bool Websocket::SocketWrapper::WriteBinary(const void* buf, size_t len)
+bool Websocket::SocketWrapper::WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer)
 {
     if (const auto impl = std::atomic_load(&_impl)) {
-        return impl->WriteBinary(buf, len);
+        return impl->WriteBinary(buffer);
     }
     return false;
 }

@@ -1,11 +1,12 @@
 #pragma once
 
-#include <cstdint>
+#include <memory>
 
 namespace RTC
 {
 
 class RtpCodecMimeType;
+class MemoryBuffer;
 
 class OutputDevice
 {
@@ -18,13 +19,7 @@ public:
                                         uint32_t /*rtpAbsSendtime*/ = 0U,
                                         uint32_t /*duration*/ = 0U) {}
     virtual void EndWriteMediaPayload(uint32_t /*ssrc*/, bool /*ok*/) {}
-    virtual bool Write(const void* buf, uint32_t len) = 0;
-    virtual int64_t GetPosition() const = 0;
-    // Set the current File position. Returns 0 on success.
-    virtual bool SetPosition(int64_t /*position*/) { return false; }
-    // Returns true if the device is seekable.
-    virtual bool IsSeekable() const { return false; }
-    virtual bool IsFileDevice() const { return false; }
+    virtual void Write(const std::shared_ptr<const MemoryBuffer>& buffer) = 0;
 };
 
 } // namespace RTC

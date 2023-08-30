@@ -35,13 +35,11 @@ private:
                                 uint32_t rtpAbsSendtime,
                                 uint32_t duration) final;
     void EndWriteMediaPayload(uint32_t ssrc, bool ok) final;
-    bool Write(const void* buf, uint32_t len) final;
-    int64_t GetPosition() const final { return _binaryWritePosition.load(std::memory_order_relaxed); }
+    void Write(const std::shared_ptr<const MemoryBuffer>& buffer) final;
 private:
     ProtectedObj<OutputDevicesSet> _outputDevices;
     ProtectedObj<DepacketizersMap> _depacketizers;
     ProtectedUniquePtr<RtpMediaFrameSerializer> _serializer;
-    std::atomic<int64_t> _binaryWritePosition = 0LL;
 };
 
 } // namespace RTC

@@ -10,6 +10,7 @@ namespace RTC
 {
 
 class WebsocketListener;
+class MemoryBuffer;
 
 class Websocket
 {
@@ -33,7 +34,7 @@ public:
     void Close();
     WebsocketState GetState() const;
     uint64_t GetId() const;
-    bool Write(const void* buf, size_t len);
+    bool WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer);
     bool WriteText(const std::string& text);
     void SetListener(const std::shared_ptr<WebsocketListener>& listener);
 private:

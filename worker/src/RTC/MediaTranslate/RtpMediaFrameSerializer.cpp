@@ -6,6 +6,11 @@
 namespace RTC
 {
 
+void RtpMediaFrameSerializer::SetOutputDevice(OutputDevice* outputDevice)
+{
+    _outputDevice = outputDevice;
+}
+
 std::unique_ptr<RtpMediaFrameSerializer> RtpMediaFrameSerializer::create(const RtpCodecMimeType& mimeType)
 {
     if (RtpWebMSerializer::IsSupported(mimeType)) {

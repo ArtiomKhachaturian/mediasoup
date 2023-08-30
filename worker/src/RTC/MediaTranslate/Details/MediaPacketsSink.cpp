@@ -123,25 +123,14 @@ void MediaPacketsSink::EndWriteMediaPayload(uint32_t ssrc, bool ok)
     }
 }
 
-bool MediaPacketsSink::Write(const void* buf, uint32_t len)
+void MediaPacketsSink::Write(const std::shared_ptr<const MemoryBuffer>& buffer)
 {
-    bool ok = false;
-    if (buf && len) {
-        size_t failures = 0UL;
-        {
-            LOCK_READ_PROTECTED_OBJ(_outputDevices);
-            for (const auto outputDevice : _outputDevices.constRef()) {
-                if (!outputDevice->Write(buf, len)) {
-                    ++failures;
-                }
-            }
-            ok = failures < _outputDevices->size();
-        }
-        if (ok) {
-            _binaryWritePosition.fetch_add(len);
+    if (buffer) {
+        LOCK_READ_PROTECTED_OBJ(_outputDevices);
+        for (const auto outputDevice : _outputDevices.constRef()) {
+            outputDevice->Write(buffer);
         }
     }
-    return ok;
 }
 
 } // namespace RTC

@@ -1,12 +1,13 @@
 #pragma once
 
 #include "RTC/MediaTranslate/OutputDevice.hpp"
-#include <string_view>
+#include <string>
 #include <stddef.h>
 #include <stdio.h>
 
 namespace RTC
 {
+
 
 class FileWriter : public OutputDevice
 {
@@ -15,7 +16,7 @@ public:
     explicit FileWriter(FILE* file);
     FileWriter(std::string_view fileNameUtf8, int* error = nullptr);
     FileWriter(FileWriter&& tmp);
-    ~FileWriter() final { Close(); }
+    ~FileWriter() override { Close(); }
     FileWriter& operator=(FileWriter&& tmp);
     // Closes the file, and implies Flush. Returns true on success, false if
     // writing buffered data fails. On failure, the file is nevertheless closed.
@@ -27,16 +28,9 @@ public:
     // Write any buffered data to the underlying file. Returns true on success,
     // false on write error. Note: Flushing when closing, is not required.
     bool Flush();
-    // Seeks to the beginning of file. Returns true on success, false on failure,
-    // e.g., if the underlying file isn't seekable.
-    bool Rewind() { return SetPosition(0LL); }
     // impl. of OutputDevice
-    bool Write(const void* buf, uint32_t len) final;
-    int64_t GetPosition() const final;
-    bool SetPosition(int64_t position) final;
-    bool IsSeekable() const final { return true; }
-    bool IsFileDevice() const final { return true; }
-private:
+    void Write(const std::shared_ptr<const MemoryBuffer>& buffer) final;
+protected:
     static FILE* FileOpen(std::string_view fileNameUtf8, int* error = nullptr);
 private:
     FILE* _file = nullptr;
