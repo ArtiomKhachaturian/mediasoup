@@ -32,11 +32,11 @@ public:
     template <typename U = T>
     ProtectedObj& operator=(U src);
     operator Mutex&() const { return _mtx; }
-    operator const T&() const { return constRef(); }
-    operator T&() { return ref(); }
-    const T& constRef() const { return _obj; }
-    T& ref() { return _obj; }
-    T take() { return std::move(_obj); }
+    operator const T&() const { return ConstRef(); }
+    operator T&() { return Ref(); }
+    const T& ConstRef() const { return _obj; }
+    T& Ref() { return _obj; }
+    T Take() { return std::move(_obj); }
     T* operator -> () noexcept { return &_obj; }
     const T* operator -> () const noexcept { return &_obj; }
 

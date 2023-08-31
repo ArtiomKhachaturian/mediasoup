@@ -175,7 +175,7 @@ MediaTranslator::Impl::Impl(Websocket* socket)
 void MediaTranslator::Impl::Close(bool andReset)
 {
     LOCK_WRITE_PROTECTED_OBJ(_socket);
-    if (const auto socket = _socket.constRef()) {
+    if (const auto socket = _socket.ConstRef()) {
         socket->Close();
         if (andReset) {
             _socket = nullptr;
@@ -201,7 +201,7 @@ void MediaTranslator::Impl::Write(const std::shared_ptr<const MemoryBuffer>& buf
 {
     if (buffer) {
         LOCK_READ_PROTECTED_OBJ(_socket);
-        const auto socket = _socket.constRef();
+        const auto socket = _socket.ConstRef();
         if (socket && WebsocketState::Connected == socket->GetState()) {
             if (!socket->WriteBinary(buffer)) {
                 // TODO: log error
@@ -232,7 +232,7 @@ void MediaTranslator::Impl::ApplyFromLanguage(const std::optional<MediaLanguage>
     bool changed = false;
     {
         LOCK_WRITE_PROTECTED_OBJ(_languageFrom);
-        if (_languageFrom.constRef() != language) {
+        if (_languageFrom.ConstRef() != language) {
             _languageFrom = language;
             changed = true;
         }
@@ -245,7 +245,7 @@ void MediaTranslator::Impl::ApplyFromLanguage(const std::optional<MediaLanguage>
 bool MediaTranslator::Impl::WriteLanguageChanges()
 {
     LOCK_READ_PROTECTED_OBJ(_socket);
-    const auto socket = _socket.constRef();
+    const auto socket = _socket.ConstRef();
     if (socket && WebsocketState::Connected == socket->GetState()) {
         if (!WriteJson(socket, GetLanguageData())) {
             // log error

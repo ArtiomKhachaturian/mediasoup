@@ -256,7 +256,7 @@ void MediaTranslatorsManager::ProducerTranslatorImpl::SetLanguage(const std::opt
     bool changed = false;
     {
         LOCK_WRITE_PROTECTED_OBJ(_language);
-        if (_language.constRef() != language) {
+        if (_language.ConstRef() != language) {
             _language = language;
             changed = true;
         }

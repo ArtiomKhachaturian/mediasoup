@@ -243,7 +243,7 @@ bool Websocket::Open(const std::string& userAgent)
     bool result = false;
     if (_config) {
         LOCK_WRITE_PROTECTED_OBJ(_socket);
-        if (!_socket.constRef()) {
+        if (!_socket.ConstRef()) {
             auto socket = SocketWrapper::Create(GetId(), _config);
             if (socket) {
                 socket->SetListener(std::atomic_load(&_listener));
@@ -264,7 +264,7 @@ bool Websocket::Open(const std::string& userAgent)
 void Websocket::Close()
 {
     LOCK_WRITE_PROTECTED_OBJ(_socket);
-    if (auto socket = _socket.take()) {
+    if (auto socket = _socket.Take()) {
         const auto wasActive = WebsocketState::Disconnected != socket->GetState();
         socket->SetListener(std::weak_ptr<WebsocketListener>());
         socket.reset();
@@ -280,7 +280,7 @@ WebsocketState Websocket::GetState() const
 {
     if (_config) {
         LOCK_READ_PROTECTED_OBJ(_socket);
-        if (const auto& socket = _socket.constRef()) {
+        if (const auto& socket = _socket.ConstRef()) {
             return socket->GetState();
         }
         return WebsocketState::Disconnected;
@@ -297,7 +297,7 @@ bool Websocket::WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer)
 {
     if (buffer) {
         LOCK_READ_PROTECTED_OBJ(_socket);
-        if (const auto& socket = _socket.constRef()) {
+        if (const auto& socket = _socket.ConstRef()) {
             return socket->WriteBinary(buffer);
         }
     }
@@ -307,7 +307,7 @@ bool Websocket::WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer)
 bool Websocket::WriteText(const std::string& text)
 {
     LOCK_READ_PROTECTED_OBJ(_socket);
-    if (const auto& socket = _socket.constRef()) {
+    if (const auto& socket = _socket.ConstRef()) {
         return socket->WriteText(text);
     }
     return false;
@@ -318,7 +318,7 @@ void Websocket::SetListener(const std::shared_ptr<WebsocketListener>& listener)
     if (_config) {
         if (listener != std::atomic_exchange(&_listener, listener)) {
             LOCK_READ_PROTECTED_OBJ(_socket);
-            if (const auto& socket = _socket.constRef()) {
+            if (const auto& socket = _socket.ConstRef()) {
                 socket->SetListener(listener);
             }
         }

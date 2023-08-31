@@ -23,7 +23,7 @@ bool MediaPacketsSink::AddOutputDevice(OutputDevice* outputDevice)
             _outputDevices->insert(outputDevice);
             if (1UL == _outputDevices->size()) {
                 LOCK_READ_PROTECTED_OBJ(_serializer);
-                if (const auto& serializer = _serializer.constRef()) {
+                if (const auto& serializer = _serializer.ConstRef()) {
                     serializer->SetOutputDevice(this);
                 }
             }
@@ -42,7 +42,7 @@ bool MediaPacketsSink::RemoveOutputDevice(OutputDevice* outputDevice)
             _outputDevices->erase(it);
             if (_outputDevices->empty()) {
                 LOCK_READ_PROTECTED_OBJ(_serializer);
-                if (const auto& serializer = _serializer.constRef()) {
+                if (const auto& serializer = _serializer.ConstRef()) {
                     serializer->SetOutputDevice(nullptr);
                 }
             }
@@ -55,12 +55,12 @@ bool MediaPacketsSink::RemoveOutputDevice(OutputDevice* outputDevice)
 void MediaPacketsSink::SetSerializer(std::unique_ptr<RtpMediaFrameSerializer> serializer)
 {
     LOCK_WRITE_PROTECTED_OBJ(_serializer);
-    if (serializer != _serializer.constRef()) {
-        if (const auto& serializer = _serializer.constRef()) {
+    if (serializer != _serializer.ConstRef()) {
+        if (const auto& serializer = _serializer.ConstRef()) {
             serializer->SetOutputDevice(nullptr);
         }
         _serializer = std::move(serializer);
-        if (const auto& serializer = _serializer.constRef()) {
+        if (const auto& serializer = _serializer.ConstRef()) {
             LOCK_READ_PROTECTED_OBJ(_outputDevices);
             if (!_outputDevices->empty()) {
                 serializer->SetOutputDevice(this);
@@ -73,7 +73,7 @@ void MediaPacketsSink::AddPacket(const RtpCodecMimeType& mimeType, const RtpPack
 {
     if (packet) {
         LOCK_READ_PROTECTED_OBJ(_serializer);
-        const auto& serializer = _serializer.constRef();
+        const auto& serializer = _serializer.ConstRef();
         if (serializer && serializer->GetOutputDevice()) {
             if (const auto depacketizer = FetchDepackizer(mimeType)) {
                 serializer->Push(depacketizer->AddPacket(packet));
@@ -108,7 +108,7 @@ void MediaPacketsSink::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
                                               uint32_t duration)
 {
     LOCK_READ_PROTECTED_OBJ(_outputDevices);
-    for (const auto outputDevice : _outputDevices.constRef()) {
+    for (const auto outputDevice : _outputDevices.ConstRef()) {
         outputDevice->BeginWriteMediaPayload(ssrc, isKeyFrame, codecMimeType,
                                              rtpSequenceNumber, rtpTimestamp,
                                              rtpAbsSendtime, duration);
@@ -118,7 +118,7 @@ void MediaPacketsSink::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
 void MediaPacketsSink::EndWriteMediaPayload(uint32_t ssrc, bool ok)
 {
     LOCK_READ_PROTECTED_OBJ(_outputDevices);
-    for (const auto outputDevice : _outputDevices.constRef()) {
+    for (const auto outputDevice : _outputDevices.ConstRef()) {
         outputDevice->EndWriteMediaPayload(ssrc, ok);
     }
 }
@@ -127,7 +127,7 @@ void MediaPacketsSink::Write(const std::shared_ptr<const MemoryBuffer>& buffer)
 {
     if (buffer) {
         LOCK_READ_PROTECTED_OBJ(_outputDevices);
-        for (const auto outputDevice : _outputDevices.constRef()) {
+        for (const auto outputDevice : _outputDevices.ConstRef()) {
             outputDevice->Write(buffer);
         }
     }
