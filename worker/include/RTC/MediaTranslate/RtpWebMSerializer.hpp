@@ -9,8 +9,6 @@ namespace RTC
 
 class RtpMediaFrame;
 class RtpCodecMimeType;
-class RtpVideoConfig;
-class RtpAudioConfig;
 
 class RtpWebMSerializer : public RtpMediaFrameSerializer
 {
@@ -29,18 +27,13 @@ public:
 private:
     static const char* GetCodec(const RtpCodecMimeType& mimeType);
     static bool IsOpusAudio(const RtpCodecMimeType& mimeType);
-    static bool SetupTrack(mkvmuxer::AudioTrack* track, const RtpAudioConfig* config,
-                           const RtpCodecMimeType& mimeType);
-    static bool SetupTrack(mkvmuxer::VideoTrack* track, const RtpVideoConfig* config,
-                           const RtpCodecMimeType& mimeType);
-    bool SetupTrack(uint64_t trackNumber, const RtpAudioConfig* config, const RtpCodecMimeType& mimeType);
-    bool SetupTrack(uint64_t trackNumber, const RtpVideoConfig* config, const RtpCodecMimeType& mimeType);
     TrackInfo* GetTrack(const std::shared_ptr<RtpMediaFrame>& mediaFrame);
     void CommitData(OutputDevice* outputDevice);
 private:
     const std::unique_ptr<BufferedWriter> _writer;
     mkvmuxer::Segment _segment;
-    std::unordered_map<size_t, TrackInfo> _tracks;
+    // key - is packet SSRC
+    std::unordered_map<uint32_t, TrackInfo> _tracks;
 };
 
 } // namespace RTC
