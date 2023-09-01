@@ -6,6 +6,8 @@
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 #include "RTC/MediaTranslate/Details/MediaPacketsSink.hpp"
 #include "RTC/MediaTranslate/Details/TranslatorEndPoint.hpp"
+#include "RTC/MediaTranslate/Details/ProducerObserver.hpp"
+#include "RTC/MediaTranslate/Details/ConsumerObserver.hpp"
 #ifdef WRITE_RECV_AUDIO_TO_FILE
 #include "RTC/MediaTranslate/MediaFileWriter.hpp"
 #endif
@@ -98,28 +100,6 @@ private:
     std::atomic<MediaVoice> _voice = DefaultMediaVoice();
 };
 
-class MediaTranslatorsManager::ProducerObserver
-{
-public:
-    virtual ~ProducerObserver() = default;
-    virtual void OnProducerPauseChanged(const std::string& producerId, bool pause) = 0;
-    virtual void OnProducerLanguageChanged(const std::string& producerId) = 0;
-    virtual void OnProducerAudioRemoved(const std::string& producerId, uint32_t audioSsrc) = 0;
-};
-
-class MediaTranslatorsManager::ConsumerObserver
-{
-public:
-    virtual ~ConsumerObserver() = default;
-    virtual void OnConsumerPauseChanged(const std::string& consumerId, bool pause) = 0;
-    virtual void OnConsumerLanguageChanged(const std::string& consumerId) = 0;
-    virtual void OnConsumerVoiceChanged(const std::string& consumerId) = 0;
-    virtual uint64_t BindToProducer(const std::string& consumerId,
-                                    uint32_t producerAudioSsrc, const std::string& producerId,
-                                    RtpPacketsCollector* output) = 0;
-    virtual void UnBindFromProducer(uint64_t bindId) = 0;
-};
-
 class MediaTranslatorsManager::Impl : public std::enable_shared_from_this<Impl>,
                                       public ProducerObserver,
                                       public ConsumerObserver
@@ -170,6 +150,11 @@ MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
 
 MediaTranslatorsManager::~MediaTranslatorsManager()
 {
+}
+
+std::weak_ptr<ProducerTranslatorSettings> MediaTranslatorsManager::GetTranslatorSettings(const Producer* producer) const
+{
+    return _impl->GetRegisteredProducer(producer);
 }
 
 std::weak_ptr<ConsumerTranslator> MediaTranslatorsManager::RegisterConsumer(const std::string& consumerId)

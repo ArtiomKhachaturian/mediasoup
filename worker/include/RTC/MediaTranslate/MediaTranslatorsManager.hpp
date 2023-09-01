@@ -11,7 +11,7 @@ namespace RTC
 {
 
 class RtpPacketsCollector;
-class ProducerTranslator;
+class ProducerTranslatorSettings;
 class ConsumerTranslator;
 class Producer;
 class Consumer;
@@ -21,8 +21,6 @@ class MediaTranslatorsManager : public TransportListener
 {
     class ProducerTranslatorImpl;
     class ConsumerTranslatorImpl;
-    class ProducerObserver;
-    class ConsumerObserver;
     class Impl;
 public:
     MediaTranslatorsManager(TransportListener* router,
@@ -30,6 +28,8 @@ public:
                             const std::string& serviceUser = std::string(),
                             const std::string& servicePassword = std::string());
     ~MediaTranslatorsManager();
+    // producers API
+    std::weak_ptr<ProducerTranslatorSettings> GetTranslatorSettings(const Producer* producer) const;
     // consumers API
     std::weak_ptr<ConsumerTranslator> RegisterConsumer(const std::string& consumerId);
     std::weak_ptr<ConsumerTranslator> RegisterConsumer(const Consumer* consumer);
