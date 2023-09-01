@@ -7,8 +7,6 @@
 #include "MediaSoupErrors.hpp"
 #include "Utils.hpp"
 #include "RTC/Codecs/Tools.hpp"
-#include "RTC/MediaTranslate/ProducerTranslator.hpp"
-#include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include "RTC/RTCP/FeedbackPs.hpp"
 #include "RTC/RTCP/FeedbackRtp.hpp"
 #include "RTC/RTCP/XrReceiverReferenceTime.hpp"
@@ -524,10 +522,6 @@ namespace RTC
 				}
 
 				this->paused = true;
-                
-                if (const auto translator = _translatorRef.lock()) {
-                    translator->Pause();
-                }
 
 				MS_DEBUG_DEV("Producer paused [producerId:%s]", this->id.c_str());
 
@@ -556,10 +550,6 @@ namespace RTC
 				}
 
 				this->paused = false;
-                
-                if (const auto translator = _translatorRef.lock()) {
-                    translator->Resume();
-                }
 
 				MS_DEBUG_DEV("Producer resumed [producerId:%s]", this->id.c_str());
 
@@ -924,11 +914,6 @@ namespace RTC
 		this->keyFrameRequestManager->KeyFrameNeeded(ssrc);
 	}
 
-    void Producer::SetMediaTranslator(const std::weak_ptr<ProducerTranslator>& translatorRef)
-    {
-        _translatorRef = translatorRef;
-    }
-
 	RTC::RtpStreamRecv* Producer::GetRtpStream(RTC::RtpPacket* packet)
 	{
 		MS_TRACE();
@@ -1242,26 +1227,8 @@ namespace RTC
 		auto useRtpInactivityCheck =
 		  this->type == RtpParameters::Type::SIMULCAST && this->rtpMapping.encodings.size() > 1;
 
-        RtpPacketsCollector* packetsCollector = nullptr;
-        if (const auto translator = _translatorRef.lock()) {
-            switch (params.mimeType.type) {
-                case RtpCodecMimeType::Type::AUDIO:
-                    if (auto serializer = RtpMediaFrameSerializer::create(params.mimeType)) {
-                        packetsCollector = translator->AddAudio(params.ssrc);
-                        if (packetsCollector) {
-                            translator->SetSerializer(params.ssrc, std::move(serializer));
-                        }
-                    }
-                    break;
-                /*case RtpCodecMimeType::Type::VIDEO:
-                    break;*/
-                default:
-                    break;
-            }
-        }
 		// Create a RtpStreamRecv for receiving a media stream.
-		auto* rtpStream = new RTC::RtpStreamRecv(this, params, SendNackDelay,
-                                                 useRtpInactivityCheck, packetsCollector);
+		auto* rtpStream = new RTC::RtpStreamRecv(this, params, SendNackDelay, useRtpInactivityCheck);
         
 		// Insert into the maps.
 		this->mapSsrcRtpStream[ssrc]              = rtpStream;

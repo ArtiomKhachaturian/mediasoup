@@ -18,6 +18,7 @@ public:
                     const std::shared_ptr<RtpDepacketizer>& depacketizer,
                     bool liveMode = false);
     ~MediaFileWriter() final;
+    void SetTargetPacketsCollector(RtpPacketsCollector* targetPacketsCollector);
     // impl. of RtpPacketsCollector
     void AddPacket(const RtpCodecMimeType& mimeType, const RtpPacket* packet) final;
     static std::shared_ptr<MediaFileWriter> Create(std::string_view outputFolderNameUtf8,
@@ -32,6 +33,7 @@ private:
     const uint32_t _ssrc;
     const std::unique_ptr<RtpMediaFrameSerializer> _serializer;
     const std::shared_ptr<RtpDepacketizer> _depacketizer;
+    RtpPacketsCollector* _targetPacketsCollector = nullptr;
 };
 
 } // namespace RTC

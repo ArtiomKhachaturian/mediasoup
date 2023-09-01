@@ -36,6 +36,8 @@ using json = nlohmann::json;
 
 namespace RTC
 {
+    class TransportListener;
+
 	class Transport : public RTC::Producer::Listener,
 	                  public RTC::Consumer::Listener,
 	                  public RTC::DataProducer::Listener,
@@ -54,67 +56,7 @@ namespace RTC
 	protected:
 		using onSendCallback   = const std::function<void(bool sent)>;
 		using onQueuedCallback = const std::function<void(bool queued, bool sctpSendBufferFull)>;
-
-	public:
-		class Listener
-		{
-		public:
-			virtual ~Listener() = default;
-
-		public:
-			virtual void OnTransportNewProducer(RTC::Transport* transport, RTC::Producer* producer) = 0;
-			virtual void OnTransportProducerClosed(RTC::Transport* transport, RTC::Producer* producer) = 0;
-			virtual void OnTransportProducerPaused(RTC::Transport* transport, RTC::Producer* producer) = 0;
-			virtual void OnTransportProducerResumed(RTC::Transport* transport, RTC::Producer* producer) = 0;
-			virtual void OnTransportProducerNewRtpStream(
-			  RTC::Transport* transport,
-			  RTC::Producer* producer,
-			  RTC::RtpStreamRecv* rtpStream,
-			  uint32_t mappedSsrc) = 0;
-			virtual void OnTransportProducerRtpStreamScore(
-			  RTC::Transport* transport,
-			  RTC::Producer* producer,
-			  RTC::RtpStreamRecv* rtpStream,
-			  uint8_t score,
-			  uint8_t previousScore) = 0;
-			virtual void OnTransportProducerRtcpSenderReport(
-			  RTC::Transport* transport,
-			  RTC::Producer* producer,
-			  RTC::RtpStreamRecv* rtpStream,
-			  bool first) = 0;
-			virtual void OnTransportProducerRtpPacketReceived(
-			  RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
-			virtual void OnTransportNeedWorstRemoteFractionLost(
-			  RTC::Transport* transport,
-			  RTC::Producer* producer,
-			  uint32_t mappedSsrc,
-			  uint8_t& worstRemoteFractionLost) = 0;
-			virtual void OnTransportNewConsumer(
-			  RTC::Transport* transport, RTC::Consumer* consumer, std::string& producerId) = 0;
-			virtual void OnTransportConsumerClosed(RTC::Transport* transport, RTC::Consumer* consumer) = 0;
-			virtual void OnTransportConsumerProducerClosed(
-			  RTC::Transport* transport, RTC::Consumer* consumer) = 0;
-			virtual void OnTransportConsumerKeyFrameRequested(
-			  RTC::Transport* transport, RTC::Consumer* consumer, uint32_t mappedSsrc) = 0;
-			virtual void OnTransportNewDataProducer(
-			  RTC::Transport* transport, RTC::DataProducer* dataProducer) = 0;
-			virtual void OnTransportDataProducerClosed(
-			  RTC::Transport* transport, RTC::DataProducer* dataProducer) = 0;
-			virtual void OnTransportDataProducerMessageReceived(
-			  RTC::Transport* transport,
-			  RTC::DataProducer* dataProducer,
-			  uint32_t ppid,
-			  const uint8_t* msg,
-			  size_t len) = 0;
-			virtual void OnTransportNewDataConsumer(
-			  RTC::Transport* transport, RTC::DataConsumer* dataConsumer, std::string& dataProducerId) = 0;
-			virtual void OnTransportDataConsumerClosed(
-			  RTC::Transport* transport, RTC::DataConsumer* dataConsumer) = 0;
-			virtual void OnTransportDataConsumerDataProducerClosed(
-			  RTC::Transport* transport, RTC::DataConsumer* dataConsumer)         = 0;
-			virtual void OnTransportListenServerClosed(RTC::Transport* transport) = 0;
-		};
-
+		
 	private:
 		struct TraceEventTypes
 		{
@@ -123,7 +65,7 @@ namespace RTC
 		};
 
 	public:
-		Transport(RTC::Shared* shared, const std::string& id, Listener* listener, json& data);
+		Transport(RTC::Shared* shared, const std::string& id,  RTC::TransportListener* listener, json& data);
 		virtual ~Transport();
         const std::string& GetId() const { return id; }
 
@@ -304,7 +246,7 @@ namespace RTC
         // Passed by argument.
         const std::string id;
 		// Passed by argument.
-		Listener* listener{ nullptr };
+        TransportListener* const listener;
 		// Allocated by this.
 		absl::flat_hash_map<std::string, RTC::Producer*> mapProducers;
 		absl::flat_hash_map<std::string, RTC::Consumer*> mapConsumers;

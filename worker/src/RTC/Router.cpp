@@ -22,7 +22,7 @@ namespace RTC
 	  : id(id),
         shared(shared),
         listener(listener),
-        _translatorsManager(std::make_shared<MediaTranslatorsManager>(_tsUri, _tsUser, _tsUserPassword))
+        _translatorsManager(std::make_shared<MediaTranslatorsManager>(this, _tsUri, _tsUser, _tsUserPassword))
 	{
 		MS_TRACE();
 
@@ -202,7 +202,7 @@ namespace RTC
 
 				// This may throw.
 				auto* webRtcTransport =
-				  new RTC::WebRtcTransport(this->shared, transportId, this, request->data);
+				  new RTC::WebRtcTransport(this->shared, transportId, _translatorsManager.get(), request->data);
 
 				// Insert into the map.
 				this->mapTransports[transportId] = webRtcTransport;
@@ -288,7 +288,7 @@ namespace RTC
 
 				// This may throw.
 				auto* webRtcTransport = new RTC::WebRtcTransport(
-				  this->shared, transportId, this, webRtcServer, iceCandidates, request->data);
+				  this->shared, transportId, _translatorsManager.get(), webRtcServer, iceCandidates, request->data);
 
 				// Insert into the map.
 				this->mapTransports[transportId] = webRtcTransport;
@@ -313,7 +313,7 @@ namespace RTC
 				SetNewTransportIdFromData(request->data, transportId);
 
 				auto* plainTransport =
-				  new RTC::PlainTransport(this->shared, transportId, this, request->data);
+				  new RTC::PlainTransport(this->shared, transportId, _translatorsManager.get(), request->data);
 
 				// Insert into the map.
 				this->mapTransports[transportId] = plainTransport;
@@ -336,7 +336,8 @@ namespace RTC
 				// This may throw
 				SetNewTransportIdFromData(request->data, transportId);
 
-				auto* pipeTransport = new RTC::PipeTransport(this->shared, transportId, this, request->data);
+				auto* pipeTransport = new RTC::PipeTransport(this->shared, transportId,
+                                                             _translatorsManager.get(), request->data);
 
 				// Insert into the map.
 				this->mapTransports[transportId] = pipeTransport;
@@ -360,7 +361,8 @@ namespace RTC
 				SetNewTransportIdFromData(request->data, transportId);
 
 				auto* directTransport =
-				  new RTC::DirectTransport(this->shared, transportId, this, request->data);
+				  new RTC::DirectTransport(this->shared, transportId,
+                                           _translatorsManager.get(), request->data);
 
 				// Insert into the map.
 				this->mapTransports[transportId] = directTransport;
@@ -555,9 +557,7 @@ namespace RTC
 	{
 		MS_TRACE();
         if (producer) {
-            
-            producer->SetMediaTranslator(_translatorsManager->RegisterProducer(producer));
-            
+                        
             MS_ASSERT(
                       this->mapProducerConsumers.find(producer) == this->mapProducerConsumers.end(),
                       "Producer already present in mapProducerConsumers");
@@ -589,10 +589,7 @@ namespace RTC
             MS_ASSERT(
                       mapProducerRtpObserversIt != this->mapProducerRtpObservers.end(),
                       "Producer not present in mapProducerRtpObservers");
-            
-            _translatorsManager->UnRegisterProducer(producer);
-            producer->SetMediaTranslator(std::weak_ptr<ProducerTranslator>());
-            
+                        
             // Close all Consumers associated to the closed Producer.
             auto& consumers = mapProducerConsumersIt->second;
             

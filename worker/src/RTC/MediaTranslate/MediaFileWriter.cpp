@@ -55,11 +55,21 @@ std::shared_ptr<MediaFileWriter> MediaFileWriter::Create(std::string_view output
     return nullptr;
 }
 
+void MediaFileWriter::SetTargetPacketsCollector(RtpPacketsCollector* targetPacketsCollector)
+{
+    if (targetPacketsCollector != this) {
+        _targetPacketsCollector = targetPacketsCollector;
+    }
+}
+
 void MediaFileWriter::AddPacket(const RtpCodecMimeType& mimeType, const RtpPacket* packet)
 {
     if (packet && _serializer && _depacketizer && packet->GetSsrc() == _ssrc &&
         _depacketizer->GetCodecMimeType() == mimeType) {
         _serializer->Push(_depacketizer->AddPacket(packet));
+    }
+    if (_targetPacketsCollector) {
+        _targetPacketsCollector->AddPacket(mimeType, packet);
     }
 }
 

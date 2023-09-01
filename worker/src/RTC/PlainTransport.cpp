@@ -45,7 +45,7 @@ namespace RTC
 	/* Instance methods. */
 
 	// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
-	PlainTransport::PlainTransport(RTC::Shared* shared, const std::string& id, RTC::Transport::Listener* listener, json& data)
+	PlainTransport::PlainTransport(RTC::Shared* shared, const std::string& id, RTC::TransportListener* listener, json& data)
 	  : RTC::Transport::Transport(shared, id, listener, data)
 	{
 		MS_TRACE();

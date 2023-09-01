@@ -25,7 +25,7 @@ namespace RTC
 
 	public:
 		PlainTransport(
-		  RTC::Shared* shared, const std::string& id, RTC::Transport::Listener* listener, json& data);
+		  RTC::Shared* shared, const std::string& id, RTC::TransportListener* listener, json& data);
 		~PlainTransport() override;
 
 	public:

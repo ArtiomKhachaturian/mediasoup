@@ -28,7 +28,7 @@ namespace RTC
 	/* Instance methods. */
 
 	WebRtcTransport::WebRtcTransport(
-	  RTC::Shared* shared, const std::string& id, RTC::Transport::Listener* listener, json& data)
+	  RTC::Shared* shared, const std::string& id, RTC::TransportListener* listener, json& data)
 	  : RTC::Transport::Transport(shared, id, listener, data)
 	{
 		MS_TRACE();
@@ -249,7 +249,7 @@ namespace RTC
 	WebRtcTransport::WebRtcTransport(
 	  RTC::Shared* shared,
 	  const std::string& id,
-	  RTC::Transport::Listener* listener,
+      RTC::TransportListener* listener,
 	  WebRtcTransportListener* webRtcTransportListener,
 	  std::vector<RTC::IceCandidate>& iceCandidates,
 	  json& data)

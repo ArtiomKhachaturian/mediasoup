@@ -25,7 +25,7 @@ namespace RTC
 
 	public:
 		PipeTransport(
-		  RTC::Shared* shared, const std::string& id, RTC::Transport::Listener* listener, json& data);
+		  RTC::Shared* shared, const std::string& id, RTC::TransportListener* listener, json& data);
 		~PipeTransport() override;
 
 	public:

@@ -6,9 +6,6 @@
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include "RTC/Codecs/Tools.hpp"
-#ifdef WRITE_RECV_AUDIO_TO_FILE
-#include "RTC/MediaTranslate/MediaFileWriter.hpp"
-#endif
 #include <cstdio>
 
 namespace RTC
@@ -197,10 +194,8 @@ namespace RTC
 	  RTC::RtpStreamRecv::Listener* listener,
 	  RTC::RtpStream::Params& params,
 	  unsigned int sendNackDelayMs,
-	  bool useRtpInactivityCheck,
-      RtpPacketsCollector* packetsCollector)
+	  bool useRtpInactivityCheck)
 	  : RTC::RtpStream::RtpStream(listener, params, 10)
-        , packetsCollector(packetsCollector)
         , sendNackDelayMs(sendNackDelayMs)
         , useRtpInactivityCheck(useRtpInactivityCheck)
         , transmissionCounter(params.spatialLayers, params.temporalLayers, this->params.useDtx ? 6000 : 2500)
@@ -241,6 +236,11 @@ namespace RTC
 		delete this->inactivityCheckPeriodicTimer;
 		this->inactivityCheckPeriodicTimer = nullptr;
 	}
+
+    void RtpStreamRecv::SetTranslationPacketsCollector(RtpPacketsCollector* translationPacketsCollector)
+    {
+        _translationPacketsCollector = translationPacketsCollector;
+    }
 
 	void RtpStreamRecv::FillJsonStats(json& jsonObject)
 	{
@@ -864,8 +864,8 @@ namespace RTC
             _fileWriter->AddPacket(GetMimeType(), packet);
         }
 #endif
-        if (packetsCollector && packet) {
-            packetsCollector->AddPacket(GetMimeType(), packet);
+        if (_translationPacketsCollector && packet) {
+            _translationPacketsCollector->AddPacket(GetMimeType(), packet);
         }
     }
 

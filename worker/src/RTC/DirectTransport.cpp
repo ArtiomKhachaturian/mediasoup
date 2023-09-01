@@ -11,7 +11,7 @@ namespace RTC
 
 	// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 	DirectTransport::DirectTransport(
-	  RTC::Shared* shared, const std::string& id, RTC::Transport::Listener* listener, json& data)
+	  RTC::Shared* shared, const std::string& id, RTC::TransportListener* listener, json& data)
 	  : RTC::Transport::Transport(shared, id, listener, data)
 	{
 		MS_TRACE();

@@ -13,7 +13,7 @@
 #include "RTC/RtpPacket.hpp"
 #include "RTC/RtpStreamRecv.hpp"
 #include "RTC/Shared.hpp"
-#include "RTC/Transport.hpp"
+#include "RTC/TransportListener.hpp"
 #include "RTC/WebRtcServer.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <nlohmann/json.hpp>
@@ -26,7 +26,7 @@ namespace RTC
 {
     class MediaTranslatorsManager;
 
-	class Router : public RTC::Transport::Listener,
+	class Router : public RTC::TransportListener,
 	               public RTC::RtpObserver::Listener,
 	               public Channel::ChannelSocket::RequestHandler
 	{

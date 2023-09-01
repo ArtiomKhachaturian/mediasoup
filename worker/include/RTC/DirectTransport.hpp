@@ -6,11 +6,12 @@
 
 namespace RTC
 {
+
 	class DirectTransport : public RTC::Transport
 	{
 	public:
 		DirectTransport(
-		  RTC::Shared* shared, const std::string& id, RTC::Transport::Listener* listener, json& data);
+		  RTC::Shared* shared, const std::string& id, RTC::TransportListener* listener, json& data);
 		~DirectTransport() override;
 
 	public:

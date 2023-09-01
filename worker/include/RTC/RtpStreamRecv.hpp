@@ -8,12 +8,9 @@
 #include "handles/Timer.hpp"
 #include <vector>
 
-#define WRITE_RECV_AUDIO_TO_FILE // for debugging
-
 namespace RTC
 {
     class RtpPacketsCollector;
-    class MediaFileWriter;
 
 	class RtpStreamRecv : public RTC::RtpStream,
 	                      public RTC::NackGenerator::Listener,
@@ -51,10 +48,10 @@ namespace RTC
 		  RTC::RtpStreamRecv::Listener* listener,
 		  RTC::RtpStream::Params& params,
 		  unsigned int sendNackDelayMs,
-		  bool useRtpInactivityCheck,
-          RtpPacketsCollector* packetsCollector = nullptr);
+		  bool useRtpInactivityCheck);
 		~RtpStreamRecv();
-
+        
+        void SetTranslationPacketsCollector(RtpPacketsCollector* translationPacketsCollector = nullptr);
 		void FillJsonStats(json& jsonObject) override;
 		bool ReceivePacket(RTC::RtpPacket* packet);
 		bool ReceiveRtxPacket(RTC::RtpPacket* packet);
@@ -106,7 +103,6 @@ namespace RTC
 		void OnNackGeneratorKeyFrameRequired() override;
 
 	private:
-        RtpPacketsCollector* const packetsCollector;
 		// Passed by argument.
 		unsigned int sendNackDelayMs{ 0u };
 		bool useRtpInactivityCheck{ false };
@@ -138,9 +134,7 @@ namespace RTC
 		TransmissionCounter transmissionCounter;
 		// Just valid media.
 		RTC::RtpDataCounter mediaTransmissionCounter;
-#ifdef WRITE_RECV_AUDIO_TO_FILE
-        std::shared_ptr<MediaFileWriter> _fileWriter;
-#endif
+        RtpPacketsCollector* _translationPacketsCollector = nullptr;
 	};
 } // namespace RTC
 

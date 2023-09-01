@@ -51,11 +51,11 @@ namespace RTC
 
 	public:
 		WebRtcTransport(
-		  RTC::Shared* shared, const std::string& id, RTC::Transport::Listener* listener, json& data);
+		  RTC::Shared* shared, const std::string& id, RTC::TransportListener* listener, json& data);
 		WebRtcTransport(
 		  RTC::Shared* shared,
 		  const std::string& id,
-		  RTC::Transport::Listener* listener,
+          TransportListener* listener,
 		  WebRtcTransportListener* webRtcTransportListener,
 		  std::vector<RTC::IceCandidate>& iceCandidates,
 		  json& data);
