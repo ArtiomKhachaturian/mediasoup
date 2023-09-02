@@ -38,7 +38,7 @@ public:
                                                         uint32_t mappedSsrc,
                                                         uint8_t& worstRemoteFractionLost) = 0;
 	virtual void OnTransportNewConsumer(Transport* transport, Consumer* consumer,
-                                        std::string& producerId) = 0;
+                                        const std::string& producerId) = 0;
 	virtual void OnTransportConsumerClosed(Transport* transport, Consumer* consumer) = 0;
 	virtual void OnTransportConsumerProducerClosed(Transport* transport, Consumer* consumer) = 0;
 	virtual void OnTransportConsumerKeyFrameRequested(Transport* transport, Consumer* consumer,
@@ -48,7 +48,7 @@ public:
 	virtual void OnTransportDataProducerMessageReceived(Transport* transport, DataProducer* dataProducer,
                                                         uint32_t ppid, const uint8_t* msg, size_t len) = 0;
 	virtual void OnTransportNewDataConsumer(Transport* transport, DataConsumer* dataConsumer,
-                                            std::string& dataProducerId) = 0;
+                                            const std::string& dataProducerId) = 0;
 	virtual void OnTransportDataConsumerClosed(Transport* transport, DataConsumer* dataConsumer) = 0;
 	virtual void OnTransportDataConsumerDataProducerClosed(Transport* transport,
                                                            DataConsumer* dataConsumer) = 0;

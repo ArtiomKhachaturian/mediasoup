@@ -1,5 +1,5 @@
 #define MS_CLASS "RTC::MediaPacketsSink"
-#include "RTC/MediaTranslate/Details/MediaPacketsSink.hpp"
+#include "RTC/MediaTranslate/MediaPacketsSink.hpp"
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include "Logger.hpp"
@@ -7,12 +7,19 @@
 namespace RTC
 {
 
-MediaPacketsSink::MediaPacketsSink()
+MediaPacketsSink::MediaPacketsSink(std::unique_ptr<RtpMediaFrameSerializer> serializer)
+    : _serializer(std::move(serializer))
 {
+    MS_ASSERT(_serializer, "serializer must not be null");
 }
 
 MediaPacketsSink::~MediaPacketsSink()
 {
+}
+
+bool MediaPacketsSink::IsCompatible(const RtpCodecMimeType& mimeType) const
+{
+    return _serializer->IsCompatible(mimeType);
 }
 
 bool MediaPacketsSink::AddOutputDevice(OutputDevice* outputDevice)
@@ -22,10 +29,7 @@ bool MediaPacketsSink::AddOutputDevice(OutputDevice* outputDevice)
         if (!_outputDevices->count(outputDevice)) {
             _outputDevices->insert(outputDevice);
             if (1UL == _outputDevices->size()) {
-                LOCK_READ_PROTECTED_OBJ(_serializer);
-                if (const auto& serializer = _serializer.ConstRef()) {
-                    serializer->SetOutputDevice(this);
-                }
+                _serializer->SetOutputDevice(this);
             }
         }
         return true;
@@ -41,10 +45,7 @@ bool MediaPacketsSink::RemoveOutputDevice(OutputDevice* outputDevice)
         if (it != _outputDevices->end()) {
             _outputDevices->erase(it);
             if (_outputDevices->empty()) {
-                LOCK_READ_PROTECTED_OBJ(_serializer);
-                if (const auto& serializer = _serializer.ConstRef()) {
-                    serializer->SetOutputDevice(nullptr);
-                }
+                _serializer->SetOutputDevice(nullptr);
             }
             return true;
         }
@@ -52,32 +53,11 @@ bool MediaPacketsSink::RemoveOutputDevice(OutputDevice* outputDevice)
     return false;
 }
 
-void MediaPacketsSink::SetSerializer(std::unique_ptr<RtpMediaFrameSerializer> serializer)
-{
-    LOCK_WRITE_PROTECTED_OBJ(_serializer);
-    if (serializer != _serializer.ConstRef()) {
-        if (const auto& serializer = _serializer.ConstRef()) {
-            serializer->SetOutputDevice(nullptr);
-        }
-        _serializer = std::move(serializer);
-        if (const auto& serializer = _serializer.ConstRef()) {
-            LOCK_READ_PROTECTED_OBJ(_outputDevices);
-            if (!_outputDevices->empty()) {
-                serializer->SetOutputDevice(this);
-            }
-        }
-    }
-}
-
 void MediaPacketsSink::AddPacket(const RtpCodecMimeType& mimeType, const RtpPacket* packet)
 {
-    if (packet) {
-        LOCK_READ_PROTECTED_OBJ(_serializer);
-        const auto& serializer = _serializer.ConstRef();
-        if (serializer && serializer->GetOutputDevice()) {
-            if (const auto depacketizer = FetchDepackizer(mimeType)) {
-                serializer->Push(depacketizer->AddPacket(packet));
-            }
+    if (packet && _serializer->GetOutputDevice()) {
+        if (const auto depacketizer = FetchDepackizer(mimeType)) {
+            _serializer->Push(depacketizer->AddPacket(packet));
         }
     }
 }

@@ -86,6 +86,11 @@ void RtpWebMSerializer::SetLiveMode(bool liveMode)
     _segment.set_mode(liveMode ?  mkvmuxer::Segment::kLive : mkvmuxer::Segment::kFile);
 }
 
+bool RtpWebMSerializer::IsCompatible(const RtpCodecMimeType& mimeType) const
+{
+    return IsSupported(mimeType);
+}
+
 void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 {
     if (mediaFrame) {

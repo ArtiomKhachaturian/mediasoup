@@ -14,6 +14,8 @@ public:
 	virtual MediaLanguage GetLanguage() const = 0;
 	virtual void SetVoice(MediaVoice voice) = 0;
 	virtual MediaVoice GetVoice() const = 0;
+    virtual void SetEnabled(bool enabled) = 0;
+    virtual bool IsEnabled() const = 0;
 };
 
 } // namespace RTC

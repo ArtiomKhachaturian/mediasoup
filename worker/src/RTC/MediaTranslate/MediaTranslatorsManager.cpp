@@ -4,13 +4,7 @@
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
-#include "RTC/MediaTranslate/Details/MediaPacketsSink.hpp"
-#include "RTC/MediaTranslate/Details/TranslatorEndPoint.hpp"
-#include "RTC/MediaTranslate/Details/ProducerObserver.hpp"
-#include "RTC/MediaTranslate/Details/ConsumerObserver.hpp"
-#ifdef WRITE_RECV_AUDIO_TO_FILE
-#include "RTC/MediaTranslate/MediaFileWriter.hpp"
-#endif
+#include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/Producer.hpp"
 #include "RTC/Consumer.hpp"
@@ -18,87 +12,12 @@
 #include "Logger.hpp"
 #include "Utils.hpp"
 
-namespace {
-
-template<class TObserver, class TInterface>
-class TranslatorUnitImpl : public TInterface
-{
-    static_assert(std::is_base_of<RTC::TranslatorUnit, TInterface>::value);
-public:
-    // impl. of TInterface
-    const std::string& GetId() const final { return _id; }
-protected:
-    TranslatorUnitImpl(const std::string& id, const std::weak_ptr<TObserver>& observerRef);
-protected:
-    const std::string _id;
-    const std::weak_ptr<TObserver> _observerRef;
-};
-
-inline bool IsAudioStream(const RTC::RtpStream* stream) {
-    return stream && RTC::RtpCodecMimeType::Type::AUDIO == stream->GetMimeType().type;
-}
-
-inline bool IsVideoStream(const RTC::RtpStream* stream) {
-    return stream && RTC::RtpCodecMimeType::Type::VIDEO == stream->GetMimeType().type;
-}
-
-}
 
 namespace RTC
 {
 
-class MediaTranslatorsManager::ProducerTranslatorImpl : public TranslatorUnitImpl<ProducerObserver, ProducerTranslator>,
-                                                        public RtpPacketsCollector
-{
-public:
-    ProducerTranslatorImpl(const std::string& id, const std::weak_ptr<ProducerObserver>& observerRef);
-    bool HasAudio(uint32_t audioSsrc) const;
-    // impl. of RtpPacketsCollector
-    void AddPacket(const RtpCodecMimeType& mimeType, const RtpPacket* packet) final;
-    // impl. of ProducerTranslator
-    void SetLanguage(const std::optional<MediaLanguage>& language = std::nullopt) final;
-    std::optional<MediaLanguage> GetLanguage() const final;
-    // impl. of ProducerInputMediaStreamer
-    bool AddOutputDevice(uint32_t audioSsrc, OutputDevice* outputDevice) final;
-    bool RemoveOutputDevice(uint32_t audioSsrc, OutputDevice* outputDevice) final;
-    // impl. of ProducerTranslator
-    bool SetSerializer(uint32_t audioSsrc, std::unique_ptr<RtpMediaFrameSerializer> serializer) final;
-    RtpPacketsCollector* AddAudio(uint32_t audioSsrc) final;
-    RtpPacketsCollector* SetVideo(uint32_t videoSsrc, uint32_t associatedAudioSsrc) final;
-    bool RemoveAudio(uint32_t audioSsrc) final;
-    bool RemoveVideo(uint32_t videoSsrc) final;
-protected:
-    void OnPauseChanged(bool pause) final;
-private:
-    void AddAudioPacket(const RtpCodecMimeType& mimeType, const RtpPacket* packet);
-    void AddVideoPacket(const RtpCodecMimeType& mimeType, const RtpPacket* packet);
-private:
-    absl::flat_hash_map<uint32_t, std::unique_ptr<MediaPacketsSink>> _audio;
-    absl::flat_hash_map<uint32_t, MediaPacketsSink*> _video;
-    // input language
-    ProtectedOptional<MediaLanguage> _language = DefaultInputMediaLanguage();
-};
-
-class MediaTranslatorsManager::ConsumerTranslatorImpl : public TranslatorUnitImpl<ConsumerObserver, ConsumerTranslator>
-{
-public:
-    ConsumerTranslatorImpl(const std::string& id, const std::weak_ptr<ConsumerObserver>& observerRef);
-    // impl. of ConsumerObserver
-    void SetLanguage(MediaLanguage language) final;
-    MediaLanguage GetLanguage() const final { return _language.load(std::memory_order_relaxed); }
-    void SetVoice(MediaVoice voice) final;
-    MediaVoice GetVoice() const final { return _voice.load(std::memory_order_relaxed); }
-    uint64_t Bind(uint32_t producerAudioSsrc, const std::string& producerId,
-                  RtpPacketsCollector* output) final;
-    void UnBind(uint64_t bindId) final;
-protected:
-    void OnPauseChanged(bool pause) final;
-private:
-    // output language
-    std::atomic<MediaLanguage> _language = DefaultOutputMediaLanguage();
-    // voice
-    std::atomic<MediaVoice> _voice = DefaultMediaVoice();
-};
+using ConsumerTranslatorsList = std::list<std::shared_ptr<ConsumerTranslator>>;
+using TranslatorEndPointsList = std::list<std::shared_ptr<TranslatorEndPoint>>;
 
 class MediaTranslatorsManager::Impl : public std::enable_shared_from_this<Impl>,
                                       public ProducerObserver,
@@ -107,35 +26,43 @@ class MediaTranslatorsManager::Impl : public std::enable_shared_from_this<Impl>,
 public:
     Impl(const std::string& serviceUri, const std::string& serviceUser, const std::string& servicePassword);
     // producers API
-    void RegisterProducer(const Producer* producer);
-    std::shared_ptr<ProducerTranslator> GetRegisteredProducer(const Producer* producer) const;
-    bool UnRegisterProducer(const Producer* producer);
-    //
-    std::weak_ptr<ConsumerTranslator> RegisterConsumer(const std::string& consumerId);
-    std::weak_ptr<ConsumerTranslator> GetRegisteredConsumer(const std::string& consumerId) const;
-    bool UnRegisterConsumer(const std::string& consumerId);
+    bool Register(const Producer* producer);
+    std::shared_ptr<ProducerTranslator> GetRegistered(const Producer* producer) const;
+    std::shared_ptr<ProducerTranslator> GetRegisteredProducer(const std::string& id) const;
+    bool UnRegister(const Producer* producer);
+    void RegisterProducerStream(const std::string& id, const RtpStream* stream, uint32_t mappedSsrc);
+    // consumers API
+    bool Register(const Consumer* consumer, const std::string& producerId);
+    std::shared_ptr<ConsumerTranslator> GetRegistered(const Consumer* consumer) const;
+    std::shared_ptr<ConsumerTranslator> GetRegisteredConsumer(const std::string& id) const;
+    ConsumerTranslatorsList GetAssociated(const std::shared_ptr<ProducerTranslator>& producer) const;
+    ConsumerTranslatorsList GetAssociated(const std::string& producerId) const;
+    bool UnRegister(const Consumer* consumer);
     // impl. of ProducerObserver
+    void onProducerMediaRegistered(const std::string& producerId, bool audio,
+                                   uint32_t ssrc, uint32_t mappedSsrc,
+                                   bool registered) final;
     void OnProducerPauseChanged(const std::string& producerId, bool pause) final;
     void OnProducerLanguageChanged(const std::string& producerId) final;
-    void OnProducerAudioRemoved(const std::string& producerId, uint32_t audioSsrc) final;
     // impl. of ConsumerObserver
     void OnConsumerPauseChanged(const std::string& consumerId, bool pause) final;
     void OnConsumerLanguageChanged(const std::string& consumerId) final;
     void OnConsumerVoiceChanged(const std::string& consumerId) final;
-    uint64_t BindToProducer(const std::string& consumerId,
-                            uint32_t producerAudioSsrc, const std::string& producerId,
-                            RtpPacketsCollector* output) final;
-    void UnBindFromProducer(uint64_t bindId) final;
+    void OnConsumerEnabledChanged(const std::string& consumerId, bool enabled) final;
 private:
-    std::list<std::shared_ptr<TranslatorEndPoint>> FindEndPointsByProducerId(const std::string& producerId) const;
-    std::list<std::shared_ptr<TranslatorEndPoint>> FindEndPointsConsumerId(const std::string& consumerId) const;
+    TranslatorEndPointsList FindEndPointsByProducerId(const std::string& producerId) const;
+    TranslatorEndPointsList FindEndPointsConsumerId(const std::string& consumerId) const;
+    void FetchEndPoint(uint32_t audioSsrc, const std::string& producerId);
+    static void OpenEndPont(const std::shared_ptr<TranslatorEndPoint>& endPoint);
+    static void RegisterStream(const std::shared_ptr<ProducerTranslator>& producerTranslator,
+                               const RtpStream* stream, uint32_t mappedSsrc);
 private:
     const std::string _serviceUri;
     const std::string _serviceUser;
     const std::string _servicePassword;
-    absl::flat_hash_map<std::string, std::shared_ptr<ProducerTranslatorImpl>> _producers;
-    absl::flat_hash_map<std::string, std::shared_ptr<ConsumerTranslatorImpl>> _consumers;
-    absl::flat_hash_map<uint64_t, std::shared_ptr<TranslatorEndPoint>> _endPoints;
+    absl::flat_hash_map<std::string, std::shared_ptr<ProducerTranslator>> _producerTranslators;
+    absl::flat_hash_map<std::string, std::shared_ptr<ConsumerTranslator>> _consumerTranslators;
+    absl::flat_hash_set<std::shared_ptr<TranslatorEndPoint>> _endPoints;
 };
 
 MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
@@ -154,64 +81,31 @@ MediaTranslatorsManager::~MediaTranslatorsManager()
 
 std::weak_ptr<ProducerTranslatorSettings> MediaTranslatorsManager::GetTranslatorSettings(const Producer* producer) const
 {
-    return _impl->GetRegisteredProducer(producer);
+    return _impl->GetRegistered(producer);
 }
 
-std::weak_ptr<ConsumerTranslator> MediaTranslatorsManager::RegisterConsumer(const std::string& consumerId)
+std::weak_ptr<ConsumerTranslatorSettings> MediaTranslatorsManager::GetTranslatorSettings(const Consumer* consumer) const
 {
-    return _impl->RegisterConsumer(consumerId);
+    return _impl->GetRegistered(consumer);
 }
 
-std::weak_ptr<ConsumerTranslator> MediaTranslatorsManager::RegisterConsumer(const Consumer* consumer)
-{
-    if (consumer) {
-        return RegisterConsumer(consumer->id);
-    }
-    return {};
-}
-
-std::weak_ptr<ConsumerTranslator> MediaTranslatorsManager::GetRegisteredConsumer(const std::string& consumerId) const
-{
-    return _impl->GetRegisteredConsumer(consumerId);
-}
-
-bool MediaTranslatorsManager::UnRegisterConsumer(const std::string& consumerId)
-{
-    return _impl->UnRegisterConsumer(consumerId);
-}
-
-bool MediaTranslatorsManager::UnRegisterConsumer(const Consumer* consumer)
-{
-    return consumer && UnRegisterConsumer(consumer->id);
-}
 
 void MediaTranslatorsManager::OnTransportNewProducer(Transport* transport, Producer* producer)
 {
     _router->OnTransportNewProducer(transport, producer);
-    _impl->RegisterProducer(producer);
+    _impl->Register(producer);
 }
 
 void MediaTranslatorsManager::OnTransportProducerClosed(Transport* transport, Producer* producer)
 {
     _router->OnTransportProducerClosed(transport, producer);
-    if (producer && _impl->UnRegisterProducer(producer)) {
-        const auto& rtpStreams = producer->GetRtpStreams();
-        for (auto it = rtpStreams.begin(); it != rtpStreams.end(); ++it) {
-            it->first->SetTranslationPacketsCollector(nullptr);
-#ifdef WRITE_RECV_AUDIO_TO_FILE
-            const auto ita = _audioFileWriters.find(it->first->GetSsrc());
-            if (ita != _audioFileWriters.end()) {
-                _audioFileWriters.erase(ita);
-            }
-#endif
-        }
-    }
+    _impl->UnRegister(producer);
 }
 
 void MediaTranslatorsManager::OnTransportProducerPaused(Transport* transport, Producer* producer)
 {
     _router->OnTransportProducerPaused(transport, producer);
-    if (const auto translator = _impl->GetRegisteredProducer(producer)) {
+    if (const auto translator = _impl->GetRegistered(producer)) {
         translator->Pause();
     }
 }
@@ -220,7 +114,7 @@ void MediaTranslatorsManager::OnTransportProducerResumed(Transport* transport,
                                                          Producer* producer)
 {
     _router->OnTransportProducerResumed(transport, producer);
-    if (const auto translator = _impl->GetRegisteredProducer(producer)) {
+    if (const auto translator = _impl->GetRegistered(producer)) {
         translator->Resume();
     }
 }
@@ -231,41 +125,8 @@ void MediaTranslatorsManager::OnTransportProducerNewRtpStream(Transport* transpo
                                                               uint32_t mappedSsrc)
 {
     _router->OnTransportProducerNewRtpStream(transport, producer, rtpStream, mappedSsrc);
-    if (rtpStream) {
-        if (const auto translator = _impl->GetRegisteredProducer(producer)) {
-            RtpPacketsCollector* packetsCollector = nullptr;
-            const auto& mime = rtpStream->GetMimeType();
-            switch (mime.type) {
-                case RtpCodecMimeType::Type::AUDIO:
-                    if (auto serializer = RtpMediaFrameSerializer::create(mime)) {
-                        packetsCollector = translator->AddAudio(rtpStream->GetSsrc());
-                        if (packetsCollector) {
-                            translator->SetSerializer(rtpStream->GetSsrc(), std::move(serializer));
-#ifdef WRITE_RECV_AUDIO_TO_FILE
-                            const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
-                            if (depacketizerPath && std::strlen(depacketizerPath)) {
-                                const auto liveMode = false;
-                                auto fileWriter = MediaFileWriter::Create(depacketizerPath,
-                                                                          mime,
-                                                                          rtpStream->GetSsrc(),
-                                                                          liveMode);
-                                if (fileWriter) {
-                                    fileWriter->SetTargetPacketsCollector(packetsCollector);
-                                    packetsCollector = fileWriter.get();
-                                    _audioFileWriters[rtpStream->GetSsrc()] = std::move(fileWriter);
-                                }
-                            }
-#endif
-                        }
-                    }
-                    break;
-                /*case RtpCodecMimeType::Type::VIDEO:
-                    break;*/
-                default:
-                    break;
-            }
-            rtpStream->SetTranslationPacketsCollector(packetsCollector);
-        }
+    if (producer && rtpStream) {
+        _impl->RegisterProducerStream(producer->id, rtpStream, mappedSsrc);
     }
 }
 
@@ -290,6 +151,11 @@ void MediaTranslatorsManager::OnTransportProducerRtpPacketReceived(Transport* tr
                                                                    RtpPacket* packet)
 {
     _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
+    if (packet) {
+        if (const auto producerTranslator = _impl->GetRegistered(producer)) {
+            producerTranslator->AddPacket(packet);
+        }
+    }
 }
 
 void MediaTranslatorsManager::OnTransportNeedWorstRemoteFractionLost(Transport* transport,
@@ -302,15 +168,19 @@ void MediaTranslatorsManager::OnTransportNeedWorstRemoteFractionLost(Transport* 
 }
 
 void MediaTranslatorsManager::OnTransportNewConsumer(Transport* transport, Consumer* consumer,
-                                                     std::string& producerId)
+                                                     const std::string& producerId)
 {
     _router->OnTransportNewConsumer(transport, consumer, producerId);
+    _impl->Register(consumer, producerId);
 }
 
 void MediaTranslatorsManager::OnTransportConsumerClosed(Transport* transport,
                                                         Consumer* consumer)
 {
     _router->OnTransportConsumerClosed(transport, consumer);
+    if (_impl->UnRegister(consumer)) {
+        
+    }
 }
 
 void MediaTranslatorsManager::OnTransportConsumerProducerClosed(Transport* transport,
@@ -349,7 +219,7 @@ void MediaTranslatorsManager::OnTransportDataProducerMessageReceived(Transport* 
 
 void MediaTranslatorsManager::OnTransportNewDataConsumer(Transport* transport,
                                                          DataConsumer* dataConsumer,
-                                                         std::string& dataProducerId)
+                                                         const std::string& dataProducerId)
 {
     _router->OnTransportNewDataConsumer(transport, dataConsumer, dataProducerId);
 }
@@ -370,223 +240,6 @@ void MediaTranslatorsManager::OnTransportListenServerClosed(Transport* transport
     _router->OnTransportListenServerClosed(transport);
 }
 
-MediaTranslatorsManager::ProducerTranslatorImpl::ProducerTranslatorImpl(const std::string& id,
-                                                                        const std::weak_ptr<ProducerObserver>& observerRef)
-    : TranslatorUnitImpl<ProducerObserver, ProducerTranslator>(id, observerRef)
-{
-}
-
-bool MediaTranslatorsManager::ProducerTranslatorImpl::HasAudio(uint32_t audioSsrc) const
-{
-    const auto ita = _audio.find(audioSsrc);
-    return ita != _audio.end();
-}
-
-void MediaTranslatorsManager::ProducerTranslatorImpl::AddPacket(const RtpCodecMimeType& mimeType,
-                                                                const RtpPacket* packet)
-{
-    if (packet && !IsPaused()) {
-        switch (mimeType.type) {
-            case RtpCodecMimeType::Type::AUDIO:
-                AddAudioPacket(mimeType, packet);
-                break;
-            case RtpCodecMimeType::Type::VIDEO:
-                AddVideoPacket(mimeType, packet);
-                break;
-            default:
-                MS_ASSERT(false, "invalid packet media type");
-                break;
-        }
-    }
-}
-
-void MediaTranslatorsManager::ProducerTranslatorImpl::SetLanguage(const std::optional<MediaLanguage>& language)
-{
-    bool changed = false;
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_language);
-        if (_language.ConstRef() != language) {
-            _language = language;
-            changed = true;
-        }
-    }
-    if (changed) {
-        if (const auto observer = _observerRef.lock()) {
-            observer->OnProducerLanguageChanged(GetId());
-        }
-    }
-}
-
-std::optional<MediaLanguage> MediaTranslatorsManager::ProducerTranslatorImpl::GetLanguage() const
-{
-    LOCK_READ_PROTECTED_OBJ(_language);
-    return _language;
-}
-
-bool MediaTranslatorsManager::ProducerTranslatorImpl::AddOutputDevice(uint32_t audioSsrc,
-                                                                      OutputDevice* outputDevice)
-{
-    if (outputDevice) {
-        const auto ita = _audio.find(audioSsrc);
-        if (ita != _audio.end()) {
-            return ita->second->AddOutputDevice(outputDevice);
-        }
-    }
-    return false;
-}
-
-bool MediaTranslatorsManager::ProducerTranslatorImpl::RemoveOutputDevice(uint32_t audioSsrc,
-                                                                         OutputDevice* outputDevice)
-{
-    if (outputDevice) {
-        const auto ita = _audio.find(audioSsrc);
-        if (ita != _audio.end()) {
-            return ita->second->RemoveOutputDevice(outputDevice);
-        }
-    }
-    return false;
-}
-
-bool MediaTranslatorsManager::ProducerTranslatorImpl::
-    SetSerializer(uint32_t audioSsrc, std::unique_ptr<RtpMediaFrameSerializer> serializer)
-{
-    if (audioSsrc) {
-        const auto ita = _audio.find(audioSsrc);
-        if (ita != _audio.end()) {
-            ita->second->SetSerializer(std::move(serializer));
-        }
-    }
-    return false;
-}
-
-RtpPacketsCollector* MediaTranslatorsManager::ProducerTranslatorImpl::AddAudio(uint32_t audioSsrc)
-{
-    const auto ita = _audio.find(audioSsrc);
-    if (ita == _audio.end()) {
-        _audio[audioSsrc] = std::make_unique<MediaPacketsSink>();
-    }
-    return this;
-}
-
-RtpPacketsCollector* MediaTranslatorsManager::ProducerTranslatorImpl::
-    SetVideo(uint32_t videoSsrc, uint32_t associatedAudioSsrc)
-{
-    MS_ASSERT(false, "no yet implemented");
-    return nullptr;
-}
-
-bool MediaTranslatorsManager::ProducerTranslatorImpl::RemoveAudio(uint32_t audioSsrc)
-{
-    auto ita = _audio.find(audioSsrc);
-    if (ita != _audio.end()) {
-        for (auto itv = _video.begin(); itv != _video.end();) {
-            if (itv->second == ita->second.get()) {
-                _video.erase(itv++);
-            }
-            else {
-                ++itv;
-            }
-        }
-        _audio.erase(ita);
-        if (const auto observer = _observerRef.lock()) {
-            observer->OnProducerAudioRemoved(GetId(), audioSsrc);
-        }
-        return true;
-    }
-    return false;
-}
-
-bool MediaTranslatorsManager::ProducerTranslatorImpl::RemoveVideo(uint32_t videoSsrc)
-{
-    auto itv = _video.find(videoSsrc);
-    if (itv != _video.end()) {
-        _video.erase(itv);
-        return true;
-    }
-    return false;
-}
-
-void MediaTranslatorsManager::ProducerTranslatorImpl::AddAudioPacket(const RtpCodecMimeType& mimeType,
-                                                                     const RtpPacket* packet)
-{
-    if (packet) {
-        const auto ita = _audio.find(packet->GetSsrc());
-        if (ita != _audio.end()) {
-            ita->second->AddPacket(mimeType, packet);
-        }
-    }
-}
-
-void MediaTranslatorsManager::ProducerTranslatorImpl::OnPauseChanged(bool pause)
-{
-    if (const auto observer = _observerRef.lock()) {
-        observer->OnProducerPauseChanged(GetId(), pause);
-    }
-}
-
-void MediaTranslatorsManager::ProducerTranslatorImpl::AddVideoPacket(const RtpCodecMimeType& mimeType,
-                                                                     const RtpPacket* packet)
-{
-    if (packet) {
-        const auto itv = _video.find(packet->GetSsrc());
-        if (itv != _video.end()) {
-            itv->second->AddPacket(mimeType, packet);
-        }
-    }
-}
-
-MediaTranslatorsManager::ConsumerTranslatorImpl::ConsumerTranslatorImpl(const std::string& id,
-                                                                        const std::weak_ptr<ConsumerObserver>& observerRef)
-    : TranslatorUnitImpl<ConsumerObserver, ConsumerTranslator>(id, observerRef)
-{
-}
-
-void MediaTranslatorsManager::ConsumerTranslatorImpl::SetLanguage(MediaLanguage language)
-{
-    if (language != _language.exchange(language)) {
-        if (const auto observer = _observerRef.lock()) {
-            observer->OnConsumerLanguageChanged(GetId());
-        }
-    }
-}
-
-void MediaTranslatorsManager::ConsumerTranslatorImpl::SetVoice(MediaVoice voice)
-{
-    if (voice != _voice.exchange(voice)) {
-        if (const auto observer = _observerRef.lock()) {
-            observer->OnConsumerVoiceChanged(GetId());
-        }
-    }
-}
-
-uint64_t MediaTranslatorsManager::ConsumerTranslatorImpl::Bind(uint32_t producerAudioSsrc,
-                                                               const std::string& producerId,
-                                                               RtpPacketsCollector* output)
-{
-    if (output && !producerId.empty()) {
-        if (const auto observer = _observerRef.lock()) {
-            return observer->BindToProducer(GetId(), producerAudioSsrc, producerId, output);
-        }
-    }
-    return 0ULL;
-}
-
-void MediaTranslatorsManager::ConsumerTranslatorImpl::UnBind(uint64_t bindId)
-{
-    if (bindId) {
-        if (const auto observer = _observerRef.lock()) {
-            observer->UnBindFromProducer(bindId);
-        }
-    }
-}
-
-void MediaTranslatorsManager::ConsumerTranslatorImpl::OnPauseChanged(bool pause)
-{
-    if (const auto observer = _observerRef.lock()) {
-        observer->OnConsumerPauseChanged(GetId(), pause);
-    }
-}
-
 MediaTranslatorsManager::Impl::Impl(const std::string& serviceUri,
                                     const std::string& serviceUser,
                                     const std::string& servicePassword)
@@ -596,92 +249,156 @@ MediaTranslatorsManager::Impl::Impl(const std::string& serviceUri,
 {
 }
 
-void MediaTranslatorsManager::Impl::RegisterProducer(const Producer* producer)
+bool MediaTranslatorsManager::Impl::Register(const Producer* producer)
 {
     if (producer && !producer->id.empty()) {
-        const auto it = _producers.find(producer->id);
-        if (it == _producers.end()) {
-            _producers[producer->id] = std::make_shared<ProducerTranslatorImpl>(producer->id,
-                                                                                weak_from_this());
+        const auto it = _producerTranslators.find(producer->id);
+        if (it == _producerTranslators.end()) {
+            const auto producerTranslator = std::make_shared<ProducerTranslator>(producer->id, weak_from_this());
+            _producerTranslators[producer->id] = producerTranslator;
+            const auto& streams = producer->GetRtpStreams();
+            for (auto it = streams.begin(); it != streams.end(); ++it) {
+                RegisterStream(producerTranslator, it->first, it->second);
+            }
         }
+        return true;
     }
+    return false;
 }
 
-std::shared_ptr<ProducerTranslator> MediaTranslatorsManager::Impl::
-    GetRegisteredProducer(const Producer* producer) const
+std::shared_ptr<ProducerTranslator> MediaTranslatorsManager::Impl::GetRegistered(const Producer* producer) const
 {
-    if (producer && !producer->id.empty()) {
-        const auto it = _producers.find(producer->id);
-        if (it != _producers.end()) {
+    return producer ? GetRegisteredProducer(producer->id) : nullptr;
+}
+
+std::shared_ptr<ProducerTranslator> MediaTranslatorsManager::Impl::GetRegisteredProducer(const std::string& id) const
+{
+    if (!id.empty()) {
+        const auto it = _producerTranslators.find(id);
+        if (it != _producerTranslators.end()) {
             return it->second;
         }
     }
     return nullptr;
 }
 
-bool MediaTranslatorsManager::Impl::UnRegisterProducer(const Producer* producer)
+bool MediaTranslatorsManager::Impl::UnRegister(const Producer* producer)
 {
     if (producer && !producer->id.empty()) {
-        const auto it = _producers.find(producer->id);
-        if (it != _producers.end()) {
-            for (auto its = _endPoints.begin(); its != _endPoints.end();) {
-                if (its->second->GetProducerId() == producer->id) {
-                    _endPoints.erase(its++);
-                }
-                else {
-                    ++its;
-                }
-            }
-            _producers.erase(it);
+        const auto it = _producerTranslators.find(producer->id);
+        if (it != _producerTranslators.end()) {
+            _producerTranslators.erase(it);
             return true;
         }
     }
     return false;
 }
 
-std::weak_ptr<ConsumerTranslator> MediaTranslatorsManager::Impl::RegisterConsumer(const std::string& consumerId)
+void MediaTranslatorsManager::Impl::RegisterProducerStream(const std::string& id,
+                                                           const RtpStream* stream,
+                                                           uint32_t mappedSsrc)
 {
-    if (!consumerId.empty()) {
-        const auto it = _consumers.find(consumerId);
-        if (it == _consumers.end()) {
-            auto consumer = std::make_shared<ConsumerTranslatorImpl>(consumerId, weak_from_this());
-            _consumers[consumerId] = consumer;
-            return consumer;
-        }
-        return it->second;
+    if (stream && mappedSsrc) {
+        RegisterStream(GetRegisteredProducer(id), stream, mappedSsrc);
     }
-    return {};
 }
 
-std::weak_ptr<ConsumerTranslator> MediaTranslatorsManager::Impl::GetRegisteredConsumer(const std::string& consumerId) const
+bool MediaTranslatorsManager::Impl::Register(const Consumer* consumer, const std::string& producerId)
 {
-    if (!consumerId.empty()) {
-        const auto it = _consumers.find(consumerId);
-        if (it != _consumers.end()) {
+    if (consumer && consumer->IsTranslationRequired() && !consumer->id.empty()) {
+        const auto it = _consumerTranslators.find(consumer->id);
+        if (it == _consumerTranslators.end()) {
+            _consumerTranslators[consumer->id] = std::make_shared<ConsumerTranslator>(consumer->id,
+                                                                                      weak_from_this(),
+                                                                                      producerId);
+            if (const auto producerTranslator = GetRegisteredProducer(producerId)) {
+                for (auto audioSsrc : producerTranslator->GetRegisteredAudio()) {
+                    FetchEndPoint(audioSsrc, producerId);
+                }
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+std::shared_ptr<ConsumerTranslator> MediaTranslatorsManager::Impl::GetRegistered(const Consumer* consumer) const
+{
+    return consumer ? GetRegisteredConsumer(consumer->id) : nullptr;
+}
+
+std::shared_ptr<ConsumerTranslator> MediaTranslatorsManager::Impl::GetRegisteredConsumer(const std::string& id) const
+{
+    if (id.empty()) {
+        const auto it = _consumerTranslators.find(id);
+        if (it != _consumerTranslators.end()) {
             return it->second;
         }
     }
+    return nullptr;
+}
+
+ConsumerTranslatorsList MediaTranslatorsManager::Impl::GetAssociated(const std::shared_ptr<ProducerTranslator>& producer) const
+{
+    if (producer) {
+        return GetAssociated(producer->GetId());
+    }
     return {};
 }
 
-bool MediaTranslatorsManager::Impl::UnRegisterConsumer(const std::string& consumerId)
+ConsumerTranslatorsList MediaTranslatorsManager::Impl::GetAssociated(const std::string& producerId) const
 {
-    if (!consumerId.empty()) {
-        const auto it = _consumers.find(consumerId);
-        if (it != _consumers.end()) {
+    ConsumerTranslatorsList consumers;
+    if (!producerId.empty()) {
+        for (auto it = _consumerTranslators.begin(); it != _consumerTranslators.end(); ++it) {
+            if (it->second->GetProducerId() == producerId) {
+                consumers.push_back(it->second);
+            }
+        }
+    }
+    return consumers;
+}
+
+bool MediaTranslatorsManager::Impl::UnRegister(const Consumer* consumer)
+{
+    if (consumer && !consumer->id.empty()) {
+        const auto it = _consumerTranslators.find(consumer->id);
+        if (it != _consumerTranslators.end()) {
             for (auto its = _endPoints.begin(); its != _endPoints.end();) {
-                if (its->second->GetConsumerId() == consumerId) {
+                if ((*its)->GetConsumerId() == consumer->id) {
                     _endPoints.erase(its++);
                 }
                 else {
                     ++its;
                 }
             }
-            _consumers.erase(it);
+            _consumerTranslators.erase(it);
             return true;
         }
     }
     return false;
+}
+
+void MediaTranslatorsManager::Impl::onProducerMediaRegistered(const std::string& producerId,
+                                                              bool audio, uint32_t ssrc,
+                                                              uint32_t /*mappedSsrc*/,
+                                                              bool registered)
+{
+    if (ssrc && !producerId.empty()) {
+        if (audio) {
+            if (!registered) {
+                for (auto it = _endPoints.begin(); it != _endPoints.end(); ++it) {
+                    const auto& endPoint = *it;
+                    if (ssrc == endPoint->GetAudioSsrc() && producerId == endPoint->GetProducerId()) {
+                        endPoint->Close();
+                    }
+                }
+            }
+            else {
+                FetchEndPoint(ssrc, producerId);
+            }
+        }
+    }
 }
 
 void MediaTranslatorsManager::Impl::OnProducerPauseChanged(const std::string& producerId,
@@ -693,21 +410,6 @@ void MediaTranslatorsManager::Impl::OnProducerLanguageChanged(const std::string&
 {
     for (const auto& endPoint : FindEndPointsByProducerId(producerId)) {
         endPoint->SendTranslationChanges();
-    }
-}
-
-void MediaTranslatorsManager::Impl::OnProducerAudioRemoved(const std::string& producerId,
-                                                           uint32_t audioSsrc)
-{
-    if (audioSsrc && !producerId.empty()) {
-        for (auto it = _endPoints.begin(); it != _endPoints.end();) {
-            if (audioSsrc == it->second->GetAudioSsrc() && it->second->GetProducerId() == producerId) {
-                _endPoints.erase(it++);
-            }
-            else {
-                ++it;
-            }
-        }
     }
 }
 
@@ -730,91 +432,107 @@ void MediaTranslatorsManager::Impl::OnConsumerVoiceChanged(const std::string& co
     }
 }
 
-uint64_t MediaTranslatorsManager::Impl::BindToProducer(const std::string& consumerId,
-                                                       uint32_t producerAudioSsrc,
-                                                       const std::string& producerId,
-                                                       RtpPacketsCollector* output)
+void MediaTranslatorsManager::Impl::OnConsumerEnabledChanged(const std::string& consumerId,
+                                                             bool enabled)
 {
-    uint64_t bindId = 0LL;
-    if (output && !consumerId.empty() && !producerId.empty()) {
-        const auto id = Utils::HashCombine(consumerId, producerAudioSsrc, producerId);
-        const auto it = _endPoints.find(id);
-        if (it == _endPoints.end()) {
-            const auto producer = _producers.find(producerId);
-            if (producer != _producers.end()) {
-                const auto consumer = _consumers.find(consumerId);
-                if (consumer != _consumers.end()) {
-                    if (producer->second->HasAudio(producerAudioSsrc)) {
-                        auto endPoint = std::make_shared<TranslatorEndPoint>(producerAudioSsrc,
-                                                                             producer->second,
-                                                                             consumer->second,
-                                                                             _serviceUri,
-                                                                             _serviceUser,
-                                                                             _servicePassword);
-                        endPoint->SetOutput(output);
-                        if (endPoint->Open()) {
-                            _endPoints[bindId = id] = std::move(endPoint);
-                        }
-                        else {
-                            // TODO: report error
-                        }
-                    }
-                    else {
-                        // TODO: report error
-                    }
-                }
-                else {
-                    // TODO: report error
-                }
-            }
-            else {
-                // TODO: report error
-            }
+    for (const auto& endPoint : FindEndPointsConsumerId(consumerId)) {
+        if (enabled) {
+            OpenEndPont(endPoint);
         }
         else {
-            bindId = id;
-            it->second->SetOutput(output);
-        }
-    }
-    return bindId;
-}
-
-void MediaTranslatorsManager::Impl::UnBindFromProducer(uint64_t bindId)
-{
-    if (bindId) {
-        const auto it = _endPoints.find(bindId);
-        if (it != _endPoints.end()) {
-            _endPoints.erase(it);
+            endPoint->Close();
         }
     }
 }
 
-std::list<std::shared_ptr<TranslatorEndPoint>> MediaTranslatorsManager::Impl::
-    FindEndPointsByProducerId(const std::string& producerId) const
+TranslatorEndPointsList MediaTranslatorsManager::Impl::FindEndPointsByProducerId(const std::string& producerId) const
 {
     std::list<std::shared_ptr<TranslatorEndPoint>> endPoints;
     if (!producerId.empty()) {
         for (auto it = _endPoints.begin(); it != _endPoints.end(); ++it) {
-            if (it->second->GetProducerId() == producerId) {
-                endPoints.push_back(it->second);
+            const auto& endPoint = *it;
+            if (producerId == endPoint->GetProducerId()) {
+                endPoints.push_back(endPoint);
             }
         }
     }
     return endPoints;
 }
 
-std::list<std::shared_ptr<TranslatorEndPoint>>
-    MediaTranslatorsManager::Impl::FindEndPointsConsumerId(const std::string& consumerId) const
+TranslatorEndPointsList MediaTranslatorsManager::Impl::FindEndPointsConsumerId(const std::string& consumerId) const
 {
     std::list<std::shared_ptr<TranslatorEndPoint>> endPoints;
     if (!consumerId.empty()) {
         for (auto it = _endPoints.begin(); it != _endPoints.end(); ++it) {
-            if (it->second->GetConsumerId() == consumerId) {
-                endPoints.push_back(it->second);
+            const auto& endPoint = *it;
+            if (consumerId == endPoint->GetConsumerId()) {
+                endPoints.push_back(endPoint);
             }
         }
     }
     return endPoints;
+}
+
+void MediaTranslatorsManager::Impl::FetchEndPoint(uint32_t audioSsrc, const std::string& producerId)
+{
+    if (audioSsrc) {
+        if (const auto producerTranslator = GetRegisteredProducer(producerId)) {
+            for (const auto& consumerTranslator : GetAssociated(producerTranslator)) {
+                bool endPointExists = false;
+                for (auto it = _endPoints.begin(); it != _endPoints.end(); ++it) {
+                    const auto& endPoint = *it;
+                    if (audioSsrc == endPoint->GetAudioSsrc() &&
+                        producerId == endPoint->GetProducerId() &&
+                        consumerTranslator->GetId() == endPoint->GetConsumerId()) {
+                        endPointExists = true;
+                        break;
+                    }
+                }
+                if (!endPointExists) {
+                    auto endPoint = std::make_shared<TranslatorEndPoint>(audioSsrc,
+                                                                         producerTranslator,
+                                                                         consumerTranslator,
+                                                                         _serviceUri,
+                                                                         _serviceUser,
+                                                                         _servicePassword);
+                    _endPoints.insert(endPoint);
+                    if (consumerTranslator->IsEnabled()) {
+                        OpenEndPont(endPoint);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void MediaTranslatorsManager::Impl::OpenEndPont(const std::shared_ptr<TranslatorEndPoint>& endPoint)
+{
+    if (endPoint) {
+        if (!endPoint->Open()) {
+            // TODO: log error
+        }
+    }
+}
+
+void MediaTranslatorsManager::Impl::RegisterStream(const std::shared_ptr<ProducerTranslator>& producerTranslator,
+                                                   const RtpStream* stream, uint32_t mappedSsrc)
+{
+    if (producerTranslator && stream) {
+        switch (stream->GetMimeType().type) {
+            case RtpCodecMimeType::Type::AUDIO:
+                if (!producerTranslator->RegisterAudio(stream, mappedSsrc)) {
+                    // TODO: log error
+                }
+                break;
+            case RtpCodecMimeType::Type::VIDEO:
+                if (!producerTranslator->RegisterVideo(stream, mappedSsrc)) {
+                    // TODO: log error
+                }
+                break;
+            default:
+                break;
+        }
+    }
 }
 
 void TranslatorUnit::Pause(bool pause)
@@ -824,58 +542,4 @@ void TranslatorUnit::Pause(bool pause)
     }
 }
 
-uint64_t ConsumerTranslator::Bind(const RtpStream* producerAudioStream, const Producer* producerId,
-                                  RtpPacketsCollector* output)
-{
-    if (producerId && output && IsAudioStream(producerAudioStream)) {
-        return Bind(producerAudioStream->GetSsrc(), producerId->id, output);
-    }
-    return 0ULL;
-}
-
-RtpPacketsCollector* ProducerTranslator::SetVideo(const RtpStream* videoStream,
-                                                  const RtpStream* associatedAudioStream)
-{
-    if (IsVideoStream(videoStream) && IsAudioStream(associatedAudioStream)) {
-        return SetVideo(videoStream->GetSsrc(), associatedAudioStream->GetSsrc());
-    }
-    return nullptr;
-}
-
-RtpPacketsCollector* ProducerTranslator::AddAudio(const RtpStream* audioStream)
-{
-    if (IsAudioStream(audioStream)) {
-        return AddAudio(audioStream->GetSsrc());
-    }
-    return nullptr;
-}
-
-bool ProducerTranslator::RemoveAudio(const RtpStream* audioStream)
-{
-    return IsAudioStream(audioStream) && RemoveAudio(audioStream->GetSsrc());
-}
-
-bool ProducerTranslator::RemoveVideo(const RtpStream* videoStream)
-{
-    return IsVideoStream(videoStream) && RemoveVideo(videoStream->GetSsrc());
-}
-
-bool ProducerTranslator::SetSerializer(const RtpStream* audioStream,
-                                       std::unique_ptr<RtpMediaFrameSerializer> serializer)
-{
-    return IsAudioStream(audioStream) && SetSerializer(audioStream->GetSsrc(), std::move(serializer));
-}
-
 } // namespace RTC
-
-namespace {
-
-template<class TObserver, class TInterface>
-TranslatorUnitImpl<TObserver, TInterface>::TranslatorUnitImpl(const std::string& id,
-                                                              const std::weak_ptr<TObserver>& observerRef)
-    : _id(id)
-    , _observerRef(observerRef)
-{
-}
-
-}

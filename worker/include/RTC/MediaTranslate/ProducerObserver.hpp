@@ -9,9 +9,11 @@ class ProducerObserver
 {
 public:
     virtual ~ProducerObserver() = default;
+    virtual void onProducerMediaRegistered(const std::string& producerId, bool audio,
+                                           uint32_t ssrc, uint32_t mappedSsrc,
+                                           bool registered) = 0;
     virtual void OnProducerPauseChanged(const std::string& producerId, bool pause) = 0;
     virtual void OnProducerLanguageChanged(const std::string& producerId) = 0;
-    virtual void OnProducerAudioRemoved(const std::string& producerId, uint32_t audioSsrc) = 0;
 };
 
 } // namespace RTC

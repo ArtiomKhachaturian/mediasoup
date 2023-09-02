@@ -3,24 +3,17 @@
 #include "common.hpp"
 #include "RTC/TransportListener.hpp"
 #include <string>
-#include <absl/container/flat_hash_map.h>
-
-#define WRITE_RECV_AUDIO_TO_FILE // for debugging
 
 namespace RTC
 {
 
-class RtpPacketsCollector;
 class ProducerTranslatorSettings;
-class ConsumerTranslator;
+class ConsumerTranslatorSettings;
 class Producer;
 class Consumer;
-class MediaFileWriter;
 
 class MediaTranslatorsManager : public TransportListener
 {
-    class ProducerTranslatorImpl;
-    class ConsumerTranslatorImpl;
     class Impl;
 public:
     MediaTranslatorsManager(TransportListener* router,
@@ -31,11 +24,7 @@ public:
     // producers API
     std::weak_ptr<ProducerTranslatorSettings> GetTranslatorSettings(const Producer* producer) const;
     // consumers API
-    std::weak_ptr<ConsumerTranslator> RegisterConsumer(const std::string& consumerId);
-    std::weak_ptr<ConsumerTranslator> RegisterConsumer(const Consumer* consumer);
-    std::weak_ptr<ConsumerTranslator> GetRegisteredConsumer(const std::string& consumerId) const;
-    bool UnRegisterConsumer(const std::string& consumerId);
-    bool UnRegisterConsumer(const Consumer* consumer);
+    std::weak_ptr<ConsumerTranslatorSettings> GetTranslatorSettings(const Consumer* consumer) const;
     // impl. of TransportListener
     void OnTransportNewProducer(Transport* transport, Producer* producer) final;
     void OnTransportProducerClosed(Transport* transport, Producer* producer) final;
@@ -54,7 +43,7 @@ public:
                                                 uint32_t mappedSsrc,
                                                 uint8_t& worstRemoteFractionLost) final;
     void OnTransportNewConsumer(Transport* transport, Consumer* consumer,
-                                std::string& producerId) final;
+                                const std::string& producerId) final;
     void OnTransportConsumerClosed(Transport* transport, Consumer* consumer) final;
     void OnTransportConsumerProducerClosed(Transport* transport, Consumer* consumer) final;
     void OnTransportConsumerKeyFrameRequested(Transport* transport, Consumer* consumer,
@@ -64,7 +53,7 @@ public:
     void OnTransportDataProducerMessageReceived(Transport* transport, DataProducer* dataProducer,
                                                 uint32_t ppid, const uint8_t* msg, size_t len) final;
     void OnTransportNewDataConsumer(Transport* transport, DataConsumer* dataConsumer,
-                                    std::string& dataProducerId);
+                                    const std::string& dataProducerId);
     void OnTransportDataConsumerClosed(Transport* transport, DataConsumer* dataConsumer) final;
     void OnTransportDataConsumerDataProducerClosed(Transport* transport,
                                                    DataConsumer* dataConsumer) final;
@@ -72,9 +61,6 @@ public:
 private:
     TransportListener* const _router;
     const std::shared_ptr<Impl> _impl;
-#ifdef WRITE_RECV_AUDIO_TO_FILE
-    absl::flat_hash_map<uint32_t, std::shared_ptr<MediaFileWriter>> _audioFileWriters;
-#endif
 };
 
 } // namespace RTC

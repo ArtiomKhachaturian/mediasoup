@@ -375,11 +375,6 @@ namespace RTC
 		}
 	}
 
-    void Consumer::AddPacket(const RTC::RtpCodecMimeType& mimeType, const RtpPacket* packet)
-    {
-        MS_TRACE();
-    }
-
 	void Consumer::TransportConnected()
 	{
 		MS_TRACE();
@@ -407,16 +402,6 @@ namespace RTC
 
 		UserOnTransportDisconnected();
 	}
-
-    void Consumer::SetMediaTranslator(const std::weak_ptr<ConsumerTranslator>& translatorRef)
-    {
-        _translatorRef = translatorRef;
-    }
-
-    std::shared_ptr<ConsumerTranslator> Consumer::GetMediaTranslator() const
-    {
-        return _translatorRef.lock();
-    }
 
 	void Consumer::ProducerPaused()
 	{

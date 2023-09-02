@@ -123,7 +123,7 @@ namespace RTC
 		{
 			return this->paused;
 		}
-		const absl::flat_hash_map<RTC::RtpStreamRecv*, uint32_t>& GetRtpStreams()
+		const absl::flat_hash_map<RTC::RtpStreamRecv*, uint32_t>& GetRtpStreams() const
 		{
 			return this->mapRtpStreamMappedSsrc;
 		}

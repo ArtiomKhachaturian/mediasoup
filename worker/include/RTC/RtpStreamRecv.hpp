@@ -10,7 +10,6 @@
 
 namespace RTC
 {
-    class RtpPacketsCollector;
 
 	class RtpStreamRecv : public RTC::RtpStream,
 	                      public RTC::NackGenerator::Listener,
@@ -51,7 +50,6 @@ namespace RTC
 		  bool useRtpInactivityCheck);
 		~RtpStreamRecv();
         
-        void SetTranslationPacketsCollector(RtpPacketsCollector* translationPacketsCollector = nullptr);
 		void FillJsonStats(json& jsonObject) override;
 		bool ReceivePacket(RTC::RtpPacket* packet);
 		bool ReceiveRtxPacket(RTC::RtpPacket* packet);
@@ -87,7 +85,6 @@ namespace RTC
 	private:
 		void CalculateJitter(uint32_t rtpTimestamp);
 		void UpdateScore();
-        void Depacketize(const RTC::RtpPacket* packet);
 
 		/* Pure virtual methods inherited from RTC::RtpStream. */
 	public:
@@ -134,7 +131,6 @@ namespace RTC
 		TransmissionCounter transmissionCounter;
 		// Just valid media.
 		RTC::RtpDataCounter mediaTransmissionCounter;
-        RtpPacketsCollector* _translationPacketsCollector = nullptr;
 	};
 } // namespace RTC
 

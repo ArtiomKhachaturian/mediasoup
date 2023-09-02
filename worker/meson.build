@@ -168,7 +168,6 @@ common_sources = [
   'src/RTC/RTCP/XrReceiverReferenceTime.cpp',
   'src/RTC/MediaTranslate/FileWriter.cpp',
   'src/RTC/MediaTranslate/MediaFileWriter.cpp',
-  'src/RTC/MediaTranslate/MediaTranslator.cpp',
   'src/RTC/MediaTranslate/MediaTranslatorsManager.cpp',
   'src/RTC/MediaTranslate/RtpDepacketizer.cpp',
   'src/RTC/MediaTranslate/RtpDepacketizerOpus.cpp',
@@ -176,9 +175,11 @@ common_sources = [
   'src/RTC/MediaTranslate/RtpMediaFrameSerializer.cpp',
   'src/RTC/MediaTranslate/RtpWebMSerializer.cpp',
   'src/RTC/MediaTranslate/Websocket.cpp',
+  'src/RTC/MediaTranslate/ConsumerTranslator.cpp',
+  'src/RTC/MediaTranslate/ProducerTranslator.cpp',
   'src/RTC/MediaTranslate/MediaLanguageAndVoice.cpp',
-  'src/RTC/MediaTranslate/Details/MediaPacketsSink.cpp',
-  'src/RTC/MediaTranslate/Details/TranslatorEndPoint.cpp',
+  'src/RTC/MediaTranslate/MediaPacketsSink.cpp',
+  'src/RTC/MediaTranslate/TranslatorEndPoint.cpp',
 ]
 
 libwebm_sources = [

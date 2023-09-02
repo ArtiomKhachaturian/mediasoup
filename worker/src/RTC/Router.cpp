@@ -680,12 +680,7 @@ namespace RTC
 
 		for (auto* consumer : consumers)
 		{
-            if (RtpCodecMimeType::Type::AUDIO == rtpStream->GetMimeType().type) {
-                if (const auto consumerTranslator = consumer->GetMediaTranslator()) {
-                    consumerTranslator->Bind(rtpStream, producer, consumer);
-                    consumer->ProducerNewRtpStream(rtpStream, mappedSsrc);
-                }
-            }
+            consumer->ProducerNewRtpStream(rtpStream, mappedSsrc);
 		}
 	}
 
@@ -726,7 +721,7 @@ namespace RTC
 
 		packet->logger.routerId = this->id;
 
-		auto& consumers = this->mapProducerConsumers.at(producer);
+		const auto& consumers = this->mapProducerConsumers.at(producer);
 
 		if (!consumers.empty())
 		{
@@ -777,7 +772,7 @@ namespace RTC
 	}
 
 	inline void Router::OnTransportNewConsumer(
-	  RTC::Transport* /*transport*/, RTC::Consumer* consumer, std::string& producerId)
+	  RTC::Transport* /*transport*/, RTC::Consumer* consumer, const std::string& producerId)
 	{
 		MS_TRACE();
         if (consumer) {
@@ -804,12 +799,6 @@ namespace RTC
             // Insert the Consumer in the maps.
             auto& consumers = mapProducerConsumersIt->second;
             
-            std::weak_ptr<ConsumerTranslator> consumerTranslatorRef;
-            if (consumer->IsTranslationRequired()) {
-                consumerTranslatorRef = _translatorsManager->RegisterConsumer(consumer);
-                consumer->SetMediaTranslator(consumerTranslatorRef);
-            }
-            
             consumers.insert(consumer);
             this->mapConsumerProducer[consumer] = producer;
             
@@ -818,11 +807,6 @@ namespace RTC
             {
                 auto* rtpStream           = kv.first;
                 const uint32_t mappedSsrc = kv.second;
-                if (RtpCodecMimeType::Type::AUDIO == rtpStream->GetMimeType().type) {
-                    if (const auto consumerTranslator = consumerTranslatorRef.lock()) {
-                        consumerTranslator->Bind(rtpStream, producer, consumer);
-                    }
-                }
                 consumer->ProducerRtpStream(rtpStream, mappedSsrc);
             }
             
@@ -852,10 +836,6 @@ namespace RTC
             MS_ASSERT(
                       this->mapProducerConsumers.find(producer) != this->mapProducerConsumers.end(),
                       "Producer not present in mapProducerConsumers");
-            
-            if (_translatorsManager->UnRegisterConsumer(consumer)) {
-                consumer->SetMediaTranslator(std::weak_ptr<ConsumerTranslator>());
-            }
             
             // Remove the Consumer from the set of Consumers of the Producer.
             auto& consumers = this->mapProducerConsumers.at(producer);
@@ -973,7 +953,7 @@ namespace RTC
 	}
 
 	inline void Router::OnTransportNewDataConsumer(
-	  RTC::Transport* /*transport*/, RTC::DataConsumer* dataConsumer, std::string& dataProducerId)
+	  RTC::Transport* /*transport*/, RTC::DataConsumer* dataConsumer, const std::string& dataProducerId)
 	{
 		MS_TRACE();
 

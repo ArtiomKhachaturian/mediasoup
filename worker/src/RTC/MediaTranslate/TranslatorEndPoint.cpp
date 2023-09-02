@@ -1,5 +1,5 @@
 #define MS_CLASS "RTC::TranslatorEndPoint"
-#include "RTC/MediaTranslate/Details/TranslatorEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/Websocket.hpp"
 #include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/WebsocketListener.hpp"

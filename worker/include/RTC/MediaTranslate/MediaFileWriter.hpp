@@ -20,7 +20,7 @@ public:
     ~MediaFileWriter() final;
     void SetTargetPacketsCollector(RtpPacketsCollector* targetPacketsCollector);
     // impl. of RtpPacketsCollector
-    void AddPacket(const RtpCodecMimeType& mimeType, const RtpPacket* packet) final;
+    void AddPacket(const RtpPacket* packet) final;
     static std::shared_ptr<MediaFileWriter> Create(std::string_view outputFolderNameUtf8,
                                                    const RTC::RtpCodecMimeType& mime,
                                                    uint32_t ssrc, bool liveMode = false,

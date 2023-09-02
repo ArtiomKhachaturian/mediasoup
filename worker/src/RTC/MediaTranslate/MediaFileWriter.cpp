@@ -62,14 +62,13 @@ void MediaFileWriter::SetTargetPacketsCollector(RtpPacketsCollector* targetPacke
     }
 }
 
-void MediaFileWriter::AddPacket(const RtpCodecMimeType& mimeType, const RtpPacket* packet)
+void MediaFileWriter::AddPacket(const RtpPacket* packet)
 {
-    if (packet && _serializer && _depacketizer && packet->GetSsrc() == _ssrc &&
-        _depacketizer->GetCodecMimeType() == mimeType) {
+    if (packet && _serializer && _depacketizer && packet->GetSsrc() == _ssrc) {
         _serializer->Push(_depacketizer->AddPacket(packet));
     }
     if (_targetPacketsCollector) {
-        _targetPacketsCollector->AddPacket(mimeType, packet);
+        _targetPacketsCollector->AddPacket(packet);
     }
 }
 

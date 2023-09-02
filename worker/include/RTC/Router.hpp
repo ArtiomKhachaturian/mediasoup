@@ -88,7 +88,7 @@ namespace RTC
 		  uint32_t mappedSsrc,
 		  uint8_t& worstRemoteFractionLost) override;
 		void OnTransportNewConsumer(
-		  RTC::Transport* transport, RTC::Consumer* consumer, std::string& producerId) override;
+		  RTC::Transport* transport, RTC::Consumer* consumer, const std::string& producerId) override;
 		void OnTransportConsumerClosed(RTC::Transport* transport, RTC::Consumer* consumer) override;
 		void OnTransportConsumerProducerClosed(RTC::Transport* transport, RTC::Consumer* consumer) override;
 		void OnTransportConsumerKeyFrameRequested(
@@ -102,7 +102,7 @@ namespace RTC
 		  const uint8_t* msg,
 		  size_t len) override;
 		void OnTransportNewDataConsumer(
-		  RTC::Transport* transport, RTC::DataConsumer* dataConsumer, std::string& dataProducerId) override;
+		  RTC::Transport* transport, RTC::DataConsumer* dataConsumer, const std::string& dataProducerId) override;
 		void OnTransportDataConsumerClosed(RTC::Transport* transport, RTC::DataConsumer* dataConsumer) override;
 		void OnTransportDataConsumerDataProducerClosed(
 		  RTC::Transport* transport, RTC::DataConsumer* dataConsumer) override;

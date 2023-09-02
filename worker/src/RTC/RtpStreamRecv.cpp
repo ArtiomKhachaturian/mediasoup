@@ -237,11 +237,6 @@ namespace RTC
 		this->inactivityCheckPeriodicTimer = nullptr;
 	}
 
-    void RtpStreamRecv::SetTranslationPacketsCollector(RtpPacketsCollector* translationPacketsCollector)
-    {
-        _translationPacketsCollector = translationPacketsCollector;
-    }
-
 	void RtpStreamRecv::FillJsonStats(json& jsonObject)
 	{
 		MS_TRACE();
@@ -288,7 +283,6 @@ namespace RTC
 		if (packet->GetPayloadType() == GetPayloadType())
 		{
 			RTC::Codecs::Tools::ProcessRtpPacket(packet, GetMimeType());
-            Depacketize(packet);
 		}
 
 		// Pass the packet to the NackGenerator.
@@ -414,7 +408,6 @@ namespace RTC
 		if (packet->GetPayloadType() == GetPayloadType())
 		{
 			RTC::Codecs::Tools::ProcessRtpPacket(packet, GetMimeType());
-            Depacketize(packet);
 		}
 
 		// Mark the packet as retransmitted.
@@ -856,18 +849,6 @@ namespace RTC
 
 		RtpStream::UpdateScore(score);
 	}
-
-    void RtpStreamRecv::Depacketize(const RTC::RtpPacket* packet)
-    {
-#ifdef WRITE_RECV_AUDIO_TO_FILE
-        if (_fileWriter) {
-            _fileWriter->AddPacket(GetMimeType(), packet);
-        }
-#endif
-        if (_translationPacketsCollector && packet) {
-            _translationPacketsCollector->AddPacket(GetMimeType(), packet);
-        }
-    }
 
 	void RtpStreamRecv::UserOnSequenceNumberReset()
 	{
