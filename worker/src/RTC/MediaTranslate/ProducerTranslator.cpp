@@ -35,7 +35,7 @@ public:
     StreamInfo(uint32_t ssrc);
     uint32_t GetSsrc() const { return _ssrc; }
     void SetSsrc(uint32_t ssrc) { _ssrc = ssrc; }
-    MimeChangeStatus SetMime(const RtpCodecMimeType& mime);
+    MimeChangeStatus SetDepacketizer(const RtpCodecMimeType& mime);
     const RtpCodecMimeType& GetMime() const;
     std::shared_ptr<RtpMediaFrame> Depacketize(const RtpPacket* packet) const;
 private:
@@ -92,6 +92,8 @@ bool ProducerTranslator::SetSink(const std::shared_ptr<MediaPacketsSink>& sink)
                     mimes.push_back(it->second->GetMime());
                 }
                 else {
+                    MS_ERROR("unable to find serializer for stream %d (mapped SSRC = %d)",
+                             it->second->GetSsrc(), it->first);
                     break;
                 }
             }
@@ -128,7 +130,7 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
             const auto it = _streams.find(mappedSsrc);
             if (it == _streams.end()) {
                 const auto steamInfo = std::make_shared<StreamInfo>(stream->GetSsrc());
-                ok = MimeChangeStatus::Changed == steamInfo->SetMime(mime);
+                ok = MimeChangeStatus::Changed == steamInfo->SetDepacketizer(mime);
                 if (ok) {
                     ok = !_sink || _sink->RegistertSerializer(mime);
                     if (ok) {
@@ -141,11 +143,13 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
 #endif
                     }
                     else {
-                        // TODO: log error
+                        MS_ERROR("unable to find serializer for stream %d (mapped SSRC = %d)",
+                                 stream->GetSsrc(), mappedSsrc);
                     }
                 }
                 else {
-                    // TODO: log error
+                    MS_ERROR("no depacketizer found for stream %d (mapped SSRC = %d)",
+                             stream->GetSsrc(), mappedSsrc);
                 }
             }
             else {
@@ -157,7 +161,7 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
                 }
                 const auto& oldMime = streamInfo->GetMime();
                 if (oldMime != mime) {
-                    switch (streamInfo->SetMime(mime)) {
+                    switch (streamInfo->SetDepacketizer(mime)) {
                         case MimeChangeStatus::Changed:
                             if (_sink) {
                                 _sink->UnRegisterSerializer(mime);
@@ -171,7 +175,8 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
                             ok = true;
                             break;
                         case MimeChangeStatus::Failed:
-                            // TODO: log error
+                            MS_ERROR("no depacketizer found for stream %d (mapped SSRC = %d)",
+                                     stream->GetSsrc(), mappedSsrc);
                             break;
                     }
                 }
@@ -290,7 +295,7 @@ std::shared_ptr<MediaFileWriter> ProducerTranslator::CreateFileWriter(const RTC:
     const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
     if (depacketizerPath && std::strlen(depacketizerPath)) {
         const bool liveMode = false;
-        return MediaFileWriter::Create(depacketizerPath, mime, ssrc);
+        return MediaFileWriter::Create(depacketizerPath, mime, ssrc, liveMode);
     }
     return nullptr;
 }
@@ -301,7 +306,7 @@ ProducerTranslator::StreamInfo::StreamInfo(uint32_t ssrc)
 {
 }
 
-MimeChangeStatus ProducerTranslator::StreamInfo::SetMime(const RtpCodecMimeType& mime)
+MimeChangeStatus ProducerTranslator::StreamInfo::SetDepacketizer(const RtpCodecMimeType& mime)
 {
     MimeChangeStatus status = MimeChangeStatus::Failed;
     if (_depacketizer && mime == _depacketizer->GetCodecMimeType()) {

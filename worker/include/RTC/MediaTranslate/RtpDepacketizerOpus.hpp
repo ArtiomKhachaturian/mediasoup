@@ -9,9 +9,8 @@ class RtpDepacketizerOpus : public RtpDepacketizer
 {
 public:
     RtpDepacketizerOpus(const RtpCodecMimeType& codecMimeType);
-protected:
     // impl. of RtpDepacketizer
-    std::shared_ptr<RtpMediaFrame> Assemble(const std::list<const RtpPacket*>& packets) const final;
+    std::shared_ptr<RtpMediaFrame> AddPacket(const RtpPacket* packet) final;
 private:
     std::allocator<uint8_t> _payloadAllocator;
 };

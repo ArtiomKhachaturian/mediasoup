@@ -254,7 +254,7 @@ bool MediaTranslatorsManager::Impl::Register(Producer* producer)
                     _primaryAudioSinks[producer->id] = sink;
                 }
                 else {
-                    // TODO: log error
+                    MS_ERROR("failed to set media sink for producer %s", producer->id.c_str());
                 }
             }
             else {
@@ -436,8 +436,9 @@ void MediaTranslatorsManager::Impl::OnProducerLanguageChanged(const std::string&
 void MediaTranslatorsManager::Impl::RegisterStream(const std::shared_ptr<ProducerTranslator>& producerTranslator,
                                                    const RtpStream* stream, uint32_t mappedSsrc)
 {
-    if (producerTranslator && !producerTranslator->RegisterStream(stream, mappedSsrc)) {
-        // TODO: log error
+    if (stream && producerTranslator && !producerTranslator->RegisterStream(stream, mappedSsrc)) {
+        MS_ERROR("failed to register stream %d (mapped SSRC = %d) for producer %s",
+                 stream->GetSsrc(), mappedSsrc, producerTranslator->GetId().c_str());
     }
 }
 
