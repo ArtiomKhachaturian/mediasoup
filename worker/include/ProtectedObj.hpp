@@ -95,4 +95,4 @@ ProtectedObj<T>& ProtectedObj<T>::operator=(U src)
     return *this;
 }
 
-} // namespace darkmatter::rtc
+} // RTC

@@ -20,7 +20,7 @@ public:
     virtual void SetOutputDevice(OutputDevice* outputDevice);
     virtual void SetLiveMode(bool /*liveMode*/ = true) {}
     OutputDevice* GetOutputDevice() const { return _outputDevice; }
-    static std::unique_ptr<RtpMediaFrameSerializer> create(const RtpCodecMimeType& mimeType);
+    static std::shared_ptr<RtpMediaFrameSerializer> create(const RtpCodecMimeType& mimeType);
 protected:
     RtpMediaFrameSerializer() = default;
 private:

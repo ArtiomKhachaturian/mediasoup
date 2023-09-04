@@ -1,25 +1,101 @@
 #define MS_CLASS "RTC::MediaPacketsSink"
 #include "RTC/MediaTranslate/MediaPacketsSink.hpp"
-#include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
+#include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "Logger.hpp"
+#include "Utils.hpp"
 
 namespace RTC
 {
 
-MediaPacketsSink::MediaPacketsSink(std::unique_ptr<RtpMediaFrameSerializer> serializer)
-    : _serializer(std::move(serializer))
+class MediaPacketsSink::Serializer
 {
-    MS_ASSERT(_serializer, "serializer must not be null");
+public:
+    Serializer(const std::shared_ptr<RtpMediaFrameSerializer>& serializer);
+    bool IsCompatible(const RtpCodecMimeType& mimeType) const;
+    void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame);
+    void SetOutputDevice(OutputDevice* outputDevice);
+    void IncRef();
+    bool DecRef();
+    // Returns true if has no more references
+    bool HasOneRef() const;
+    std::unique_ptr<Serializer> Clone() const;
+private:
+    const std::shared_ptr<RtpMediaFrameSerializer> _serializer;
+    std::atomic<uint64_t> _refCounter = 1UL;
+};
+
+MediaPacketsSink::MediaPacketsSink()
+{
 }
 
 MediaPacketsSink::~MediaPacketsSink()
 {
+    SetSerializersOutputDevice(nullptr);
 }
 
-bool MediaPacketsSink::IsCompatible(const RtpCodecMimeType& mimeType) const
+bool MediaPacketsSink::RegistertSerializer(const RtpCodecMimeType& mime)
 {
-    return _serializer->IsCompatible(mimeType);
+    bool ok = false;
+    if (RtpMediaFrame::IsValidMime(mime)) {
+        const auto key = Utils::HashCombine(mime.type, mime.subtype);
+        LOCK_WRITE_PROTECTED_OBJ(_serializers);
+        auto& serializers = _serializers.Ref();
+        auto it = serializers.find(key);
+        if (it == serializers.end()) {
+            for (it = serializers.begin(); it != serializers.end(); ++it) {
+                if (it->second->IsCompatible(mime)) {
+                    serializers[key] = it->second->Clone();
+                    ok = true;
+                    break;
+                }
+            }
+            if (!ok) {
+                if (const auto impl = RtpMediaFrameSerializer::create(mime)) {
+                    impl->SetLiveMode();
+                    auto serializer = std::make_unique<Serializer>(impl);
+                    LOCK_READ_PROTECTED_OBJ(_outputDevices);
+                    if (!_outputDevices->empty()) {
+                        serializer->SetOutputDevice(this);
+                    }
+                    serializers[key] = std::move(serializer);
+                    ok = true;
+                }
+            }
+        }
+        else {
+            it->second->IncRef();
+            ok = true;
+        }
+    }
+    return ok;
+}
+
+void MediaPacketsSink::UnRegisterSerializer(const RtpCodecMimeType& mime)
+{
+    if (RtpMediaFrame::IsValidMime(mime)) {
+        const auto key = Utils::HashCombine(mime.type, mime.subtype);
+        LOCK_WRITE_PROTECTED_OBJ(_serializers);
+        const auto it = _serializers->find(key);
+        if (it != _serializers->end() && it->second->DecRef()) {
+            _serializers->erase(it);
+        }
+    }
+}
+
+void MediaPacketsSink::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
+{
+    if (mediaFrame) {
+        LOCK_READ_PROTECTED_OBJ(_outputDevices);
+        if (!_outputDevices->empty()) {
+            const auto& mime = mediaFrame->GetCodecMimeType();
+            LOCK_READ_PROTECTED_OBJ(_serializers);
+            const auto it = _serializers->find(Utils::HashCombine(mime.type, mime.subtype));
+            if (it != _serializers->end()) {
+                it->second->Push(mediaFrame);
+            }
+        }
+    }
 }
 
 bool MediaPacketsSink::AddOutputDevice(OutputDevice* outputDevice)
@@ -29,7 +105,7 @@ bool MediaPacketsSink::AddOutputDevice(OutputDevice* outputDevice)
         if (!_outputDevices->count(outputDevice)) {
             _outputDevices->insert(outputDevice);
             if (1UL == _outputDevices->size()) {
-                _serializer->SetOutputDevice(this);
+                SetSerializersOutputDevice(this);
             }
         }
         return true;
@@ -45,7 +121,7 @@ bool MediaPacketsSink::RemoveOutputDevice(OutputDevice* outputDevice)
         if (it != _outputDevices->end()) {
             _outputDevices->erase(it);
             if (_outputDevices->empty()) {
-                _serializer->SetOutputDevice(nullptr);
+                SetSerializersOutputDevice(nullptr);
             }
             return true;
         }
@@ -53,31 +129,12 @@ bool MediaPacketsSink::RemoveOutputDevice(OutputDevice* outputDevice)
     return false;
 }
 
-void MediaPacketsSink::AddPacket(const RtpCodecMimeType& mimeType, const RtpPacket* packet)
+void MediaPacketsSink::SetSerializersOutputDevice(OutputDevice* outputDevice) const
 {
-    if (packet && _serializer->GetOutputDevice()) {
-        if (const auto depacketizer = FetchDepackizer(mimeType)) {
-            _serializer->Push(depacketizer->AddPacket(packet));
-        }
+    LOCK_READ_PROTECTED_OBJ(_serializers);
+    for (auto it = _serializers->begin(); it != _serializers->end(); ++it) {
+        it->second->SetOutputDevice(outputDevice);
     }
-}
-
-std::shared_ptr<RtpDepacketizer> MediaPacketsSink::FetchDepackizer(const RTC::RtpCodecMimeType& mimeType)
-{
-    std::shared_ptr<RtpDepacketizer> depacketizer;
-    LOCK_WRITE_PROTECTED_OBJ(_depacketizers);
-    const auto it = _depacketizers->find(mimeType.subtype);
-    if (it == _depacketizers->end()) {
-        depacketizer = RtpDepacketizer::create(mimeType);
-        if (!depacketizer) {
-            MS_ERROR("failed create depacketizer for given MIME: %s", mimeType.ToString().c_str());
-        }
-        _depacketizers->insert({mimeType.subtype, depacketizer});
-    }
-    else {
-        depacketizer = it->second;
-    }
-    return depacketizer;
 }
 
 void MediaPacketsSink::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
@@ -111,6 +168,63 @@ void MediaPacketsSink::Write(const std::shared_ptr<const MemoryBuffer>& buffer)
             outputDevice->Write(buffer);
         }
     }
+}
+
+MediaPacketsSink::Serializer::Serializer(const std::shared_ptr<RtpMediaFrameSerializer>& serializer)
+    : _serializer(serializer)
+{
+}
+
+bool MediaPacketsSink::Serializer::IsCompatible(const RtpCodecMimeType& mimeType) const
+{
+    return _serializer->IsCompatible(mimeType);
+}
+
+void MediaPacketsSink::Serializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
+{
+    _serializer->Push(mediaFrame);
+}
+
+void MediaPacketsSink::Serializer::SetOutputDevice(OutputDevice* outputDevice)
+{
+    _serializer->SetOutputDevice(outputDevice);
+}
+
+void MediaPacketsSink::Serializer::IncRef()
+{
+    // Relaxed memory order: The current thread is allowed to act on the
+    // resource protected by the reference counter both before and after the
+    // atomic op, so this function doesn't prevent memory access reordering.
+    _refCounter.fetch_add(1U, std::memory_order_relaxed);
+}
+
+bool MediaPacketsSink::Serializer::DecRef()
+{
+    // Use release-acquire barrier to ensure all actions on the protected
+    // resource are finished before the resource can be freed.
+    // When refCountAfterSubtract > 0, this function require
+    // std::memory_order_release part of the barrier.
+    // When refCountAfterSubtract == 0, this function require
+    // std::memory_order_acquire part of the barrier.
+    // In addition std::memory_order_release is used for synchronization with
+    // the HasOneRef function to make sure all actions on the protected resource
+    // are finished before the resource is assumed to have exclusive access.
+    const auto refCountAfterSubtract = _refCounter.fetch_sub(1U, std::memory_order_acq_rel) - 1U;
+    return 0U == refCountAfterSubtract;
+}
+
+bool MediaPacketsSink::Serializer::HasOneRef() const
+{
+    // To ensure resource protected by the reference counter has exclusive
+    // access, all changes to the resource before it was released by other
+    // threads must be visible by current thread. That is provided by release
+    // (in DecRef) and acquire (in this function) ordering.
+    return _refCounter.load(std::memory_order_acquire) == 1ULL;
+}
+
+std::unique_ptr<MediaPacketsSink::Serializer> MediaPacketsSink::Serializer::Clone() const
+{
+    return std::make_unique<Serializer>(_serializer);
 }
 
 } // namespace RTC

@@ -28,7 +28,7 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::create(const RtpPacket* packet,
                                                      std::unique_ptr<RtpMediaConfig> mediaConfig,
                                                      const std::allocator<uint8_t>& payloadAllocator)
 {
-    if (packet && mediaConfig) {
+    if (packet && mediaConfig && IsValidMime(codecMimeType)) {
         auto payload = CreatePayloadCopy(packet, payloadAllocator);
         if (!payload.empty()) {
             return std::make_shared<RtpMediaFrame>(codecMimeType, packet->IsKeyFrame(),
@@ -39,6 +39,12 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::create(const RtpPacket* packet,
         }
     }
     return nullptr;
+}
+
+bool RtpMediaFrame::IsValidMime(const RtpCodecMimeType& mime)
+{
+    return mime.IsMediaCodec() && (RtpCodecMimeType::Type::AUDIO == mime.type ||
+                                   RtpCodecMimeType::Type::VIDEO == mime.type);
 }
 
 std::vector<uint8_t> RtpMediaFrame::CreatePayloadCopy(const RtpPacket* packet,

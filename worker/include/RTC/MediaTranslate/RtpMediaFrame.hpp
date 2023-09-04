@@ -24,6 +24,7 @@ public:
                                                  uint32_t durationMs,
                                                  std::unique_ptr<RtpMediaConfig> mediaConfig,
                                                  const std::allocator<uint8_t>& payloadAllocator = {});
+    static bool IsValidMime(const RtpCodecMimeType& mime);
     const RtpCodecMimeType& GetCodecMimeType() const { return _codecMimeType; }
     bool IsKeyFrame() const { return _isKeyFrame; }
     const std::vector<uint8_t>& GetPayload() const { return _payload; }

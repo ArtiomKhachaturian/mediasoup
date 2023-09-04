@@ -4,7 +4,8 @@
 #include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/WebsocketListener.hpp"
 #include "RTC/MediaTranslate/ProducerInputMediaStreamer.hpp"
-#include "RTC/MediaTranslate/ConsumerTranslatorSettings.hpp"
+#include "RTC/MediaTranslate/MediaLanguage.hpp"
+#include "RTC/MediaTranslate/MediaVoice.hpp"
 #include "ProtectedObj.hpp"
 #include "Logger.hpp"
 
@@ -14,29 +15,34 @@ namespace RTC
 class TranslatorEndPoint::Impl : public WebsocketListener, private OutputDevice
 {
 public:
-    Impl(uint32_t audioSsrc,
-         const std::weak_ptr<Websocket>& websocketRef,
-         const std::weak_ptr<ProducerInputMediaStreamer>& producerRef,
-         const std::weak_ptr<const ConsumerTranslatorSettings>& consumerRef);
+    Impl(const std::weak_ptr<Websocket>& websocketRef, const std::string& userAgent);
     ~Impl() final;
-    void FinalizeMediaInput();
-    void SetOutput(RtpPacketsCollector* output);
-    uint32_t GetAudioSsrc() const { return _audioSsrc; }
-    const std::string& GetProducerId() const { return _producerId; }
-    const std::string& GetConsumerId() const { return _consumerId; }
+    void FinalizeMedia();
+    void Open();
+    void Close();
+    void SetProducerLanguage(const std::optional<MediaLanguage>& language);
+    void SetConsumerLanguage(MediaLanguage language);
+    void SetConsumerVoice(MediaVoice voice);
+    void SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
+    void SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef);
     bool IsConnected() const { return _connected.load(std::memory_order_relaxed); }
-    bool SendTranslationChanges();
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
     void OnTextMessageReceived(uint64_t socketId, std::string message) final;
     void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message) final;
 private:
-    static std::string GetId(const std::weak_ptr<const TranslatorUnit>& unitRef);
+    bool IsWantsToOpen() const { return _wantsToOpen.load(std::memory_order_relaxed); }
+    void OpenWebsocket();
+    void CloseWebsocket();
     void InitializeMediaInput();
+    void InitializeMediaInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
+    void FinalizeMediaInput();
+    void FinalizeMediaInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
+    bool SendTranslationChanges();
     bool WriteJson(const nlohmann::json& data);
-    std::optional<TranslationPack> GetTranslationPack() const;
-    bool IsProducerMediaAllowed() const;
-    bool IsConsumerMediaAllowed() const;
+    MediaLanguage GetConsumerLanguage() const { return _consumerLanguage.load(std::memory_order_relaxed); }
+    MediaVoice GetConsumerVoice() const { return _consumerVoice.load(std::memory_order_relaxed); }
+    std::optional<MediaLanguage> GetProducerLanguage() const;
     // impl. of OutputDevice
     void BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
                                 const RtpCodecMimeType& codecMimeType,
@@ -47,118 +53,163 @@ private:
     void EndWriteMediaPayload(uint32_t ssrc, bool ok) final;
     void Write(const std::shared_ptr<const MemoryBuffer>& buffer) final;
 private:
-    const uint32_t _audioSsrc;
     const std::weak_ptr<Websocket> _websocketRef;
-    const std::weak_ptr<ProducerInputMediaStreamer> _producerRef;
-    const std::weak_ptr<const ConsumerTranslatorSettings> _consumerRef;
-    const std::string _producerId;
-    const std::string _consumerId;
+    const std::string _userAgent;
     std::atomic_bool _connected = false;
-    ProtectedObj<RtpPacketsCollector*> _output;
+    std::atomic<MediaLanguage> _consumerLanguage = DefaultOutputMediaLanguage();
+    std::atomic<MediaVoice> _consumerVoice = DefaultMediaVoice();
+    ProtectedOptional<MediaLanguage> _producerLanguage = DefaultInputMediaLanguage();
+    ProtectedSharedPtr<ProducerInputMediaStreamer> _input;
+    ProtectedWeakPtr<RtpPacketsCollector> _outputRef;
+    std::atomic_bool _wantsToOpen = false;
 };
 
-TranslatorEndPoint::TranslatorEndPoint(uint32_t audioSsrc,
-                                       const std::weak_ptr<ProducerInputMediaStreamer>& producerRef,
-                                       const std::weak_ptr<const ConsumerTranslatorSettings>& consumerRef,
-                                       const std::string& serviceUri,
+TranslatorEndPoint::TranslatorEndPoint(const std::string& serviceUri,
                                        const std::string& serviceUser,
-                                       const std::string& servicePassword)
+                                       const std::string& servicePassword,
+                                       const std::string& userAgent)
     : _websocket(std::make_shared<Websocket>(serviceUri, serviceUser, servicePassword))
-    , _impl(std::make_shared<Impl>(audioSsrc, _websocket, producerRef, consumerRef))
+    , _impl(std::make_shared<Impl>(_websocket, userAgent))
 {
     _websocket->SetListener(_impl);
 }
 
 TranslatorEndPoint::~TranslatorEndPoint()
 {
-    SetOutput(nullptr);
     Close();
+    _impl->FinalizeMedia();
 }
 
-uint32_t TranslatorEndPoint::GetAudioSsrc() const
+void TranslatorEndPoint::Open()
 {
-    return _impl->GetAudioSsrc();
-}
-
-const std::string& TranslatorEndPoint::GetProducerId() const
-{
-    return _impl->GetProducerId();
-}
-
-const std::string& TranslatorEndPoint::GetConsumerId() const
-{
-    return _impl->GetConsumerId();
-}
-
-bool TranslatorEndPoint::Open(const std::string& userAgent)
-{
-    return _websocket->Open(userAgent);
+    _impl->Open();
 }
 
 void TranslatorEndPoint::Close()
 {
-    _websocket->Close();
-    _impl->FinalizeMediaInput();
+    _impl->Close();
 }
 
-void TranslatorEndPoint::SetOutput(RtpPacketsCollector* output)
+void TranslatorEndPoint::SetProducerLanguage(const std::optional<MediaLanguage>& language)
 {
-    _impl->SetOutput(output);
+    _impl->SetProducerLanguage(language);
 }
 
-void TranslatorEndPoint::SendTranslationChanges()
+void TranslatorEndPoint::SetConsumerLanguage(MediaLanguage language)
 {
-    _impl->SendTranslationChanges();
+    _impl->SetConsumerLanguage(language);
 }
 
-TranslatorEndPoint::Impl::Impl(uint32_t audioSsrc,
-                               const std::weak_ptr<Websocket>& websocketRef,
-                               const std::weak_ptr<ProducerInputMediaStreamer>& producerRef,
-                               const std::weak_ptr<const ConsumerTranslatorSettings>& consumerRef)
-    : _audioSsrc(audioSsrc)
-    , _websocketRef(websocketRef)
-    , _producerRef(producerRef)
-    , _consumerRef(consumerRef)
-    , _producerId(GetId(_producerRef))
-    , _consumerId(GetId(_consumerRef))
+void TranslatorEndPoint::SetConsumerVoice(MediaVoice voice)
 {
-    MS_ASSERT(_audioSsrc > 0U, "invalid audio SSRC");
-    MS_ASSERT(!_producerId.empty(), "empty producer ID");
-    MS_ASSERT(!_consumerId.empty(), "empty consumer ID");
+    _impl->SetConsumerVoice(voice);
+}
+
+void TranslatorEndPoint::SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input)
+{
+    _impl->SetInput(input);
+}
+
+void TranslatorEndPoint::SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef)
+{
+    _impl->SetOutput(outputRef);
+}
+
+TranslatorEndPoint::Impl::Impl(const std::weak_ptr<Websocket>& websocketRef, const std::string& userAgent)
+    : _websocketRef(websocketRef)
+    , _userAgent(userAgent)
+{
 }
 
 TranslatorEndPoint::Impl::~Impl()
 {
-    FinalizeMediaInput();
+    FinalizeMedia();
 }
 
-void TranslatorEndPoint::Impl::FinalizeMediaInput()
+void TranslatorEndPoint::Impl::FinalizeMedia()
 {
-    if (const auto producer = _producerRef.lock()) {
-        producer->RemoveOutputDevice(GetAudioSsrc(), this);
+    FinalizeMediaInput();
+    SetInput(nullptr);
+    SetOutput(std::weak_ptr<RtpPacketsCollector>());
+}
+
+void TranslatorEndPoint::Impl::Open()
+{
+    if (!_wantsToOpen.exchange(true)) {
+        LOCK_READ_PROTECTED_OBJ(_input);
+        if (_input.ConstRef()) {
+            OpenWebsocket();
+        }
     }
 }
 
-void TranslatorEndPoint::Impl::SetOutput(RtpPacketsCollector* output)
+void TranslatorEndPoint::Impl::Close()
 {
-    LOCK_WRITE_PROTECTED_OBJ(_output);
-    _output = output;
+    if (_wantsToOpen.exchange(false)) {
+        CloseWebsocket();
+    }
 }
 
-bool TranslatorEndPoint::Impl::SendTranslationChanges()
+void TranslatorEndPoint::Impl::SetProducerLanguage(const std::optional<MediaLanguage>& language)
 {
-    bool ok = false;
-    if (IsConnected()) {
-        const auto tp = GetTranslationPack();
-        if (tp.has_value()) {
-            const auto jsonData = GetTargetLanguageCmd(tp.value());
-            ok = WriteJson(jsonData);
-            if (!ok) {
-                MS_ERROR("failed write language settings to translation service");
+    bool changed = false;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_producerLanguage);
+        if (language != _producerLanguage.ConstRef()) {
+            _producerLanguage = language;
+            changed = true;
+        }
+    }
+    if (changed) {
+        SendTranslationChanges();
+    }
+}
+
+void TranslatorEndPoint::Impl::SetConsumerLanguage(MediaLanguage language)
+{
+    if (language != _consumerLanguage.exchange(language)) {
+        SendTranslationChanges();
+    }
+}
+
+void TranslatorEndPoint::Impl::SetConsumerVoice(MediaVoice voice)
+{
+    if (voice != _consumerVoice.exchange(voice)) {
+        SendTranslationChanges();
+    }
+}
+
+void TranslatorEndPoint::Impl::SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input)
+{
+    bool changed = false;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_input);
+        if (input != _input.ConstRef()) {
+            FinalizeMediaInput(_input.ConstRef());
+            _input = input;
+            changed = true;
+            if (input && IsConnected()) {
+                InitializeMediaInput(input);
             }
         }
     }
-    return ok;
+    if (changed) {
+        const auto maybeOpen = nullptr != input;
+        if (maybeOpen == IsWantsToOpen()) {
+            if (maybeOpen) {
+                OpenWebsocket();
+            }
+            else {
+                CloseWebsocket();
+            }
+        }
+    }
+}
+
+void TranslatorEndPoint::Impl::SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef)
+{
+    LOCK_WRITE_PROTECTED_OBJ(_outputRef);
+    _outputRef = outputRef;
 }
 
 void TranslatorEndPoint::Impl::OnStateChanged(uint64_t socketId, WebsocketState state)
@@ -167,7 +218,9 @@ void TranslatorEndPoint::Impl::OnStateChanged(uint64_t socketId, WebsocketState 
     switch (state) {
         case WebsocketState::Connected:
             _connected = true;
-            InitializeMediaInput();
+            if (SendTranslationChanges()) {
+                InitializeMediaInput();
+            }
             break;
         case WebsocketState::Disconnected:
             _connected = false;
@@ -180,36 +233,69 @@ void TranslatorEndPoint::Impl::OnStateChanged(uint64_t socketId, WebsocketState 
 
 void TranslatorEndPoint::Impl::OnTextMessageReceived(uint64_t /*socketId*/, std::string /*message*/)
 {
-    if (IsConsumerMediaAllowed()) {
-        
-    }
 }
 
 void TranslatorEndPoint::Impl::OnBinaryMessageReceved(uint64_t /*socketId*/,
                                                       const std::shared_ptr<MemoryBuffer>& /*message*/)
 {
-    if (IsConsumerMediaAllowed()) {
-        
+}
+
+void TranslatorEndPoint::Impl::OpenWebsocket()
+{
+    if (const auto websocket = _websocketRef.lock()) {
+        if (!websocket->Open(_userAgent)) {
+            MS_ERROR("failed to open websocket");
+        }
     }
 }
 
-std::string TranslatorEndPoint::Impl::GetId(const std::weak_ptr<const TranslatorUnit>& unitRef)
+void TranslatorEndPoint::Impl::CloseWebsocket()
 {
-    if (const auto unit = unitRef.lock()) {
-        return unit->GetId();
+    if (const auto websocket = _websocketRef.lock()) {
+        websocket->Close();
     }
-    return std::string();
 }
 
 void TranslatorEndPoint::Impl::InitializeMediaInput()
 {
-    if (const auto producer = _producerRef.lock()) {
-        if (SendTranslationChanges()) {
-            if (!producer->AddOutputDevice(GetAudioSsrc(), this)) {
-                MS_ERROR("failed subscribe to input media strean");
-            }
+    LOCK_READ_PROTECTED_OBJ(_input);
+    InitializeMediaInput(_input.ConstRef());
+}
+
+void TranslatorEndPoint::Impl::InitializeMediaInput(const std::shared_ptr<ProducerInputMediaStreamer>& input)
+{
+    if (input) {
+        if (!input->AddOutputDevice(this)) {
+            MS_ERROR("failed subscribe to input media stream");
         }
     }
+}
+
+void TranslatorEndPoint::Impl::FinalizeMediaInput()
+{
+    LOCK_READ_PROTECTED_OBJ(_input);
+    FinalizeMediaInput(_input.ConstRef());
+}
+
+void TranslatorEndPoint::Impl::FinalizeMediaInput(const std::shared_ptr<ProducerInputMediaStreamer>& input)
+{
+    if (input) {
+        input->RemoveOutputDevice(this);
+    }
+}
+
+bool TranslatorEndPoint::Impl::SendTranslationChanges()
+{
+    bool ok = false;
+    if (IsConnected()) {
+        const TranslationPack tp(GetConsumerLanguage(), GetConsumerVoice(), GetProducerLanguage());
+        const auto jsonData = GetTargetLanguageCmd(tp);
+        ok = WriteJson(jsonData);
+        if (!ok) {
+            MS_ERROR("failed write language settings to translation service");
+        }
+    }
+    return ok;
 }
 
 bool TranslatorEndPoint::Impl::WriteJson(const nlohmann::json& data)
@@ -220,32 +306,10 @@ bool TranslatorEndPoint::Impl::WriteJson(const nlohmann::json& data)
     return false;
 }
 
-std::optional<TranslationPack> TranslatorEndPoint::Impl::GetTranslationPack() const
+std::optional<MediaLanguage> TranslatorEndPoint::Impl::GetProducerLanguage() const
 {
-    if (const auto producer = _producerRef.lock()) {
-        if (const auto consumer = _consumerRef.lock()) {
-            return std::make_optional<TranslationPack>(consumer->GetLanguage(),
-                                                       consumer->GetVoice(),
-                                                       producer->GetLanguage());
-        }
-    }
-    return std::nullopt;
-}
-
-bool TranslatorEndPoint::Impl::IsProducerMediaAllowed() const
-{
-    if (const auto producer = _producerRef.lock()) {
-        return !producer->IsPaused();
-    }
-    return false;
-}
-
-bool TranslatorEndPoint::Impl::IsConsumerMediaAllowed() const
-{
-    if (const auto consumer = _consumerRef.lock()) {
-        return !consumer->IsPaused();
-    }
-    return false;
+    LOCK_READ_PROTECTED_OBJ(_producerLanguage);
+    return _producerLanguage.ConstRef();
 }
 
 void TranslatorEndPoint::Impl::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
@@ -270,11 +334,9 @@ void TranslatorEndPoint::Impl::EndWriteMediaPayload(uint32_t ssrc, bool ok)
 void TranslatorEndPoint::Impl::Write(const std::shared_ptr<const MemoryBuffer>& buffer)
 {
     if (buffer && IsConnected()) {
-        if (IsProducerMediaAllowed()) {
-            if (const auto websocket = _websocketRef.lock()) {
-                if (!websocket->WriteBinary(buffer)) {
-                    // TODO: log error
-                }
+        if (const auto websocket = _websocketRef.lock()) {
+            if (!websocket->WriteBinary(buffer)) {
+                // TODO: log error
             }
         }
     }
