@@ -1,5 +1,7 @@
 #define MS_CLASS "RTC::RtpDepacketizer"
 #include "RTC/MediaTranslate/RtpDepacketizerOpus.hpp"
+#include "RTC/MediaTranslate/RtpDepacketizerVp8.hpp"
+#include "RTC/MediaTranslate/RtpDepacketizerVp9.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 

@@ -4,6 +4,7 @@
 #include "RTC/MediaTranslate/MediaPacketsSink.hpp"
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/Producer.hpp"
 #include "RTC/Consumer.hpp"
@@ -437,8 +438,9 @@ void MediaTranslatorsManager::Impl::RegisterStream(const std::shared_ptr<Produce
                                                    const RtpStream* stream, uint32_t mappedSsrc)
 {
     if (stream && producerTranslator && !producerTranslator->RegisterStream(stream, mappedSsrc)) {
-        MS_ERROR("failed to register stream %d (mapped SSRC = %d) for producer %s",
-                 stream->GetSsrc(), mappedSsrc, producerTranslator->GetId().c_str());
+        const auto desc = GetStreamInfoString(mappedSsrc, stream);
+        MS_ERROR("failed to register stream %s for producer %s", desc.c_str(),
+                 producerTranslator->GetId().c_str());
     }
 }
 

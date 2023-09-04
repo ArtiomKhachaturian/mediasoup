@@ -3,7 +3,7 @@
 #include "RTC/MediaTranslate/MediaPacketsSink.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
-#include "RTC/MediaTranslate/RtpMediaFrame.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 #include "RTC/MediaTranslate/MediaFileWriter.hpp"
 #endif
@@ -19,10 +19,6 @@ enum class MimeChangeStatus
     NotChanged,
     Failed
 };
-
-inline bool IsAudioMime(const RTC::RtpCodecMimeType& mime) {
-    return RTC::RtpCodecMimeType::Type::AUDIO == mime.type;
-}
 
 }
 
@@ -92,8 +88,9 @@ bool ProducerTranslator::SetSink(const std::shared_ptr<MediaPacketsSink>& sink)
                     mimes.push_back(it->second->GetMime());
                 }
                 else {
-                    MS_ERROR("unable to find serializer for stream %d (mapped SSRC = %d)",
-                             it->second->GetSsrc(), it->first);
+                    const auto desc = GetStreamInfoString(it->first, it->second->GetSsrc(),
+                                                          it->second->GetMime());
+                    MS_ERROR("unable to find serializer for stream %s", desc.c_str());
                     break;
                 }
             }
@@ -126,16 +123,16 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
     if (mappedSsrc && stream) {
         const auto& mime = stream->GetMimeType();
         MS_ASSERT(IsAudioMime(mime) == IsAudio(), "mime types mistmatch");
-        if (RtpMediaFrame::IsValidMime(mime)) {
+        if (IsValidMediaMime(mime)) {
             const auto it = _streams.find(mappedSsrc);
             if (it == _streams.end()) {
-                const auto steamInfo = std::make_shared<StreamInfo>(stream->GetSsrc());
-                ok = MimeChangeStatus::Changed == steamInfo->SetDepacketizer(mime);
+                const auto streamInfo = std::make_shared<StreamInfo>(stream->GetSsrc());
+                ok = MimeChangeStatus::Changed == streamInfo->SetDepacketizer(mime);
                 if (ok) {
                     ok = !_sink || _sink->RegistertSerializer(mime);
                     if (ok) {
-                        _streams[mappedSsrc] = steamInfo;
-                        onProducerStreamRegistered(steamInfo, mappedSsrc, true);
+                        _streams[mappedSsrc] = streamInfo;
+                        onProducerStreamRegistered(streamInfo, mappedSsrc, true);
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
                         if (const auto mediaFileWriter = CreateFileWriter(mime, mappedSsrc)) {
                             _mediaFileWriters[mappedSsrc] = mediaFileWriter;
@@ -143,13 +140,13 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
 #endif
                     }
                     else {
-                        MS_ERROR("unable to find serializer for stream %d (mapped SSRC = %d)",
-                                 stream->GetSsrc(), mappedSsrc);
+                        const auto desc = GetStreamInfoString(mappedSsrc, stream);
+                        MS_ERROR("unable to find serializer for stream %s", desc.c_str());
                     }
                 }
                 else {
-                    MS_ERROR("no depacketizer found for stream %d (mapped SSRC = %d)",
-                             stream->GetSsrc(), mappedSsrc);
+                    const auto desc = GetStreamInfoString(mappedSsrc, stream);
+                    MS_ERROR("no depacketizer found for stream %s", desc.c_str());
                 }
             }
             else {
@@ -175,8 +172,10 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
                             ok = true;
                             break;
                         case MimeChangeStatus::Failed:
-                            MS_ERROR("no depacketizer found for stream %d (mapped SSRC = %d)",
-                                     stream->GetSsrc(), mappedSsrc);
+                            {
+                                const auto desc = GetStreamInfoString(mappedSsrc, stream);
+                                MS_ERROR("no depacketizer found for stream %s", desc.c_str());
+                            }
                             break;
                     }
                 }

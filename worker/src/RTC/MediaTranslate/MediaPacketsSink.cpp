@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/MediaPacketsSink.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 
@@ -37,7 +38,7 @@ MediaPacketsSink::~MediaPacketsSink()
 bool MediaPacketsSink::RegistertSerializer(const RtpCodecMimeType& mime)
 {
     bool ok = false;
-    if (RtpMediaFrame::IsValidMime(mime)) {
+    if (IsValidMediaMime(mime)) {
         const auto key = Utils::HashCombine(mime.type, mime.subtype);
         LOCK_WRITE_PROTECTED_OBJ(_serializers);
         auto& serializers = _serializers.Ref();
@@ -73,7 +74,7 @@ bool MediaPacketsSink::RegistertSerializer(const RtpCodecMimeType& mime)
 
 void MediaPacketsSink::UnRegisterSerializer(const RtpCodecMimeType& mime)
 {
-    if (RtpMediaFrame::IsValidMime(mime)) {
+    if (IsValidMediaMime(mime)) {
         const auto key = Utils::HashCombine(mime.type, mime.subtype);
         LOCK_WRITE_PROTECTED_OBJ(_serializers);
         const auto it = _serializers->find(key);

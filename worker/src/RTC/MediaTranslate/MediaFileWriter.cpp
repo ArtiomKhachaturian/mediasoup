@@ -4,27 +4,8 @@
 #include "RTC/RtpPacket.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
-#include "RTC/MediaTranslate/RtpMediaFrame.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "Logger.hpp"
-
-namespace {
-
-// 1st - file type, 2nd - extension
-inline std::pair<std::string, std::string> GetFileNameMetrics(const RTC::RtpCodecMimeType& mime)
-{
-    if (RTC::RtpMediaFrame::IsValidMime(mime)) {
-        const auto type = RTC::RtpCodecMimeType::type2String.find(mime.type);
-        if (type !=  RTC::RtpCodecMimeType::type2String.end()) {
-            const auto subtype = RTC::RtpCodecMimeType::subtype2String.find(mime.subtype);
-            if (subtype != RTC::RtpCodecMimeType::subtype2String.end()) {
-                return std::make_pair(type->second, subtype->second);
-            }
-        }
-    }
-    return {};
-}
-
-}
 
 namespace RTC
 {
@@ -85,10 +66,13 @@ std::string MediaFileWriter::FormatMediaFileName(std::string_view outputFolderNa
                                                  const RTC::RtpCodecMimeType& mime, uint32_t ssrc)
 {
     if (!outputFolderNameUtf8.empty()) {
-        const auto metrics = GetFileNameMetrics(mime);
-        if (!metrics.first.empty() && !metrics.second.empty()) {
-            const std::string fileName = metrics.first + std::to_string(ssrc) + "." + metrics.second;
-            return std::string(outputFolderNameUtf8.data(), outputFolderNameUtf8.size()) + "/" + fileName;
+        const auto& type = MimeTypeToString(mime);
+        if (!type.empty()) {
+            const auto& subType = MimeSubTypeToString(mime);
+            if (!subType.empty()) {
+                const std::string fileName = type + std::to_string(ssrc) + "." + subType;
+                return std::string(outputFolderNameUtf8.data(), outputFolderNameUtf8.size()) + "/" + fileName;
+            }
         }
     }
     return std::string();
