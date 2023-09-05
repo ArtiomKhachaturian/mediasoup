@@ -43,7 +43,9 @@ std::shared_ptr<MediaFileWriter> MediaFileWriter::Create(std::string_view output
     if (!outputFolderNameUtf8.empty()) {
         if (const auto serializer = RtpMediaFrameSerializer::create(mime)) {
             if (auto depacketizer = RtpDepacketizer::create(mime, sampleRate)) {
-                const auto filename = FormatMediaFileName(std::move(outputFolderNameUtf8), mime, ssrc);
+                const auto filename = FormatMediaFileName(std::move(outputFolderNameUtf8),
+                                                          mime, ssrc,
+                                                          serializer->GetFileExtension(mime));
                 FILE* file = FileOpen(filename, fileOpenError);
                 if (file) {
                     return std::make_unique<MediaFileWriter>(file, ssrc, serializer,
@@ -63,15 +65,19 @@ void MediaFileWriter::AddPacket(const RtpPacket* packet)
 }
 
 std::string MediaFileWriter::FormatMediaFileName(std::string_view outputFolderNameUtf8,
-                                                 const RTC::RtpCodecMimeType& mime, uint32_t ssrc)
+                                                 const RTC::RtpCodecMimeType& mime,
+                                                 uint32_t ssrc,
+                                                 std::string_view fileExtension)
 {
     if (!outputFolderNameUtf8.empty()) {
         const auto& type = MimeTypeToString(mime);
         if (!type.empty()) {
-            const auto& subType = MimeSubTypeToString(mime);
-            if (!subType.empty()) {
-                const std::string fileName = type + std::to_string(ssrc) + "." + subType;
-                return std::string(outputFolderNameUtf8.data(), outputFolderNameUtf8.size()) + "/" + fileName;
+            if (fileExtension.empty()) {
+                fileExtension = MimeSubTypeToString(mime);
+            }
+            if (!fileExtension.empty()) {
+                const std::string fileName = type + std::to_string(ssrc) + "." + std::string(fileExtension);
+                return std::string(outputFolderNameUtf8) + "/" + fileName;
             }
         }
     }

@@ -135,9 +135,8 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
                         _streams[mappedSsrc] = streamInfo;
                         onProducerStreamRegistered(streamInfo, mappedSsrc, true);
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-                        if (const auto mediaFileWriter = CreateFileWriter(mime,
-                                                                          stream->GetClockRate(),
-                                                                          mappedSsrc)) {
+                        if (const auto mediaFileWriter = CreateFileWriter(mime, mappedSsrc,
+                                                                          stream->GetClockRate())) {
                             _mediaFileWriters[mappedSsrc] = mediaFileWriter;
                         }
 #endif

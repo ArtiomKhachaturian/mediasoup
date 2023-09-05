@@ -1,4 +1,4 @@
-#include "RTC/MediaTranslate/RtpDepacketizerVp8.hpp"
+#include "RTC/MediaTranslate/RtpDepacketizerVpx.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/Codecs/VP8.hpp"
 #include "RTC/RtpPacket.hpp"
@@ -6,12 +6,12 @@
 namespace RTC
 {
 
-RtpDepacketizerVp8::RtpDepacketizerVp8(const RtpCodecMimeType& codecMimeType, uint32_t sampleRate)
+RtpDepacketizerVpx::RtpDepacketizerVpx(const RtpCodecMimeType& codecMimeType, uint32_t sampleRate)
     : RtpDepacketizer(codecMimeType, sampleRate)
 {
 }
 
-std::shared_ptr<RtpMediaFrame> RtpDepacketizerVp8::AddPacket(const RtpPacket* packet)
+std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* packet)
 {
     /*if (packet && packet->GetPayload()) {
         std::unique_ptr<RtpVideoConfig> config;

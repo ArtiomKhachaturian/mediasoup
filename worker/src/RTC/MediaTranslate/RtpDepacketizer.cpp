@@ -1,7 +1,6 @@
 #define MS_CLASS "RTC::RtpDepacketizer"
 #include "RTC/MediaTranslate/RtpDepacketizerOpus.hpp"
-#include "RTC/MediaTranslate/RtpDepacketizerVp8.hpp"
-#include "RTC/MediaTranslate/RtpDepacketizerVp9.hpp"
+#include "RTC/MediaTranslate/RtpDepacketizerVpx.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 
@@ -31,9 +30,8 @@ std::unique_ptr<RtpDepacketizer> RtpDepacketizer::create(const RtpCodecMimeType&
         case RtpCodecMimeType::Type::VIDEO:
             switch (mimeType.GetSubtype()) {
                 case RtpCodecMimeType::Subtype::VP8:
-                    //return std::make_unique<RtpDepacketizerVp8>(mimeType, sampleRate);
                 case RtpCodecMimeType::Subtype::VP9:
-                    //return std::make_unique<RtpDepacketizerVp9>(mimeType, sampleRate);
+                    //return std::make_unique<RtpDepacketizerVpx>(mimeType, sampleRate);
                 default:
                     break;
             }

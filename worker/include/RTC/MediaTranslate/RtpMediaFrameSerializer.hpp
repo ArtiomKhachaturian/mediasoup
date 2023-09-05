@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 namespace RTC
 {
@@ -15,6 +16,7 @@ public:
     RtpMediaFrameSerializer(const RtpMediaFrameSerializer&) = delete;
     RtpMediaFrameSerializer(RtpMediaFrameSerializer&&) = delete;
     virtual ~RtpMediaFrameSerializer() = default;
+    virtual std::string_view GetFileExtension(const RtpCodecMimeType& mimeType) const;
     virtual bool IsCompatible(const RtpCodecMimeType& mimeType) const = 0;
     virtual void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame) = 0;
     virtual void SetOutputDevice(OutputDevice* outputDevice);

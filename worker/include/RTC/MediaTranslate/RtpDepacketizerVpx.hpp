@@ -5,10 +5,10 @@
 namespace RTC
 {
 
-class RtpDepacketizerVp8 : public RtpDepacketizer
+class RtpDepacketizerVpx : public RtpDepacketizer
 {
 public:
-    RtpDepacketizerVp8(const RtpCodecMimeType& codecMimeType, uint32_t sampleRate);
+    RtpDepacketizerVpx(const RtpCodecMimeType& codecMimeType, uint32_t sampleRate);
     // impl. of RtpDepacketizer
     std::shared_ptr<RtpMediaFrame> AddPacket(const RtpPacket* packet) final;
 };

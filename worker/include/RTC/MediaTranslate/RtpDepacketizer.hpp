@@ -2,7 +2,6 @@
 
 #include "RTC/RtpDictionaries.hpp"
 #include <memory>
-#include <list>
 
 namespace RTC
 {

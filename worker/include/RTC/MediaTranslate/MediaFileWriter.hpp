@@ -27,7 +27,9 @@ public:
                                                    int* fileOpenError = nullptr);
 private:
     static std::string FormatMediaFileName(std::string_view outputFolderNameUtf8,
-                                           const RTC::RtpCodecMimeType& mime, uint32_t ssrc);
+                                           const RTC::RtpCodecMimeType& mime,
+                                           uint32_t ssrc,
+                                           std::string_view fileExtension = "");
 private:
     const uint32_t _ssrc;
     const std::shared_ptr<RtpMediaFrameSerializer> _serializer;

@@ -74,6 +74,11 @@ void RtpWebMSerializer::SetLiveMode(bool liveMode)
     _segment.set_mode(liveMode ?  mkvmuxer::Segment::kLive : mkvmuxer::Segment::kFile);
 }
 
+std::string_view RtpWebMSerializer::GetFileExtension(const RtpCodecMimeType&) const
+{
+    return "webm";
+}
+
 bool RtpWebMSerializer::IsCompatible(const RtpCodecMimeType& mimeType) const
 {
     return IsSupported(mimeType);
@@ -141,7 +146,7 @@ const char* RtpWebMSerializer::GetCodec(const RtpCodecMimeType& mimeType)
 RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 {
     RtpWebMSerializer::TrackInfo* trackInfo = nullptr;
-    if (mediaFrame && mediaFrame->IsKeyFrame()) {
+    if (mediaFrame  ) {
         const auto& mimeType = mediaFrame->GetCodecMimeType();
         if (const auto codecId = GetCodec(mimeType)) {
             const auto ssrc = mediaFrame->GetSsrc();
@@ -187,9 +192,11 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<
                 }
                 else if (const auto config = mediaFrame->GetVideoConfig()) {
                     if (const auto videoTrack = static_cast<mkvmuxer::VideoTrack*>(track)) {
-                        videoTrack->set_frame_rate(config->_frameRate);
-                        videoTrack->set_width(config->_width);
-                        videoTrack->set_height(config->_height);
+                        if (mediaFrame->IsKeyFrame()) {
+                            videoTrack->set_frame_rate(config->_frameRate);
+                            videoTrack->set_width(config->_width);
+                            videoTrack->set_height(config->_height);
+                        }
                     }
                 }
                 if (trackInfo->_codec != mimeType.GetSubtype()) {
