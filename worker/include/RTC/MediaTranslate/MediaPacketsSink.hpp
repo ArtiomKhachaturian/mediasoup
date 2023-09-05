@@ -6,7 +6,7 @@
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_set.h>
 #include <absl/container/flat_hash_map.h>
-#include <atomic>
+#include <string_view>
 
 namespace RTC
 {
@@ -25,6 +25,7 @@ public:
     bool RegistertSerializer(const RtpCodecMimeType& mimeType);
     void UnRegisterSerializer(const RtpCodecMimeType& mimeType);
     void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame);
+    std::string_view GetFileExtension(const RtpCodecMimeType& mime) const;
     // impl. of ProducerInputMediaStreamer
     bool AddOutputDevice(OutputDevice* outputDevice) final;
     bool RemoveOutputDevice(OutputDevice* outputDevice) final;

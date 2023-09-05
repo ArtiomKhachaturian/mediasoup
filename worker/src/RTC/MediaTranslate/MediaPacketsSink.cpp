@@ -14,6 +14,7 @@ public:
     Serializer(const std::shared_ptr<RtpMediaFrameSerializer>& serializer);
     bool IsCompatible(const RtpCodecMimeType& mimeType) const;
     void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame);
+    std::string_view GetFileExtension(const RtpCodecMimeType& mime) const;
     void SetOutputDevice(OutputDevice* outputDevice);
     void IncRef();
     bool DecRef();
@@ -96,6 +97,18 @@ void MediaPacketsSink::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
             }
         }
     }
+}
+
+std::string_view MediaPacketsSink::GetFileExtension(const RtpCodecMimeType& mime) const
+{
+    if (mime && mime.IsMediaCodec()) {
+        LOCK_READ_PROTECTED_OBJ(_serializers);
+        const auto it = _serializers->find(GetMimeKey(mime));
+        if (it != _serializers->end()) {
+            return it->second->GetFileExtension(mime);
+        }
+    }
+    return {};
 }
 
 bool MediaPacketsSink::AddOutputDevice(OutputDevice* outputDevice)
@@ -188,6 +201,11 @@ bool MediaPacketsSink::Serializer::IsCompatible(const RtpCodecMimeType& mimeType
 void MediaPacketsSink::Serializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 {
     _serializer->Push(mediaFrame);
+}
+
+std::string_view MediaPacketsSink::Serializer::GetFileExtension(const RtpCodecMimeType& mime) const
+{
+    return _serializer->GetFileExtension(mime);
 }
 
 void MediaPacketsSink::Serializer::SetOutputDevice(OutputDevice* outputDevice)

@@ -19,7 +19,7 @@ class RtpStream;
 class RtpCodecMimeType;
 class MediaPacketsSink;
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-class MediaFileWriter;
+class FileWriter;
 #endif
 class Producer;
 
@@ -53,8 +53,8 @@ protected:
     void OnPauseChanged(bool pause) final;
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 private:
-    static std::shared_ptr<MediaFileWriter> CreateFileWriter(const RTC::RtpCodecMimeType& mime,
-                                                             uint32_t ssrc, uint32_t sampleRate);
+    void EnsureFileWriter(const RTC::RtpCodecMimeType& mime, uint32_t mappedSsrc);
+    void DestroyFileWriter(const RTC::RtpCodecMimeType& mime, uint32_t mappedSsrc);
 #endif
 private:
     Producer* const _producer;
@@ -64,7 +64,7 @@ private:
     absl::flat_hash_map<uint32_t, std::shared_ptr<StreamInfo>> _streams;
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     // key is mapped media SSRC
-    absl::flat_hash_map<uint32_t, std::shared_ptr<MediaFileWriter>> _mediaFileWriters;
+    absl::flat_hash_map<uint32_t, std::unique_ptr<FileWriter>> _mediaFileWriters;
 #endif
     // input language
     std::optional<MediaLanguage> _language = DefaultInputMediaLanguage();
