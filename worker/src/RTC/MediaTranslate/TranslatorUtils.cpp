@@ -13,13 +13,7 @@ namespace RTC
 std::string GetStreamInfoString(uint32_t mappedSsrc, uint32_t ssrc,
                                 const RtpCodecMimeType& mime)
 {
-    std::string mimeString;
-    if (IsValidMediaMime(mime)) {
-        mimeString = MimeTypeToString(mime.type) + "/" + MimeSubTypeToString(mime.subtype);
-    }
-    else {
-        mimeString = "invalid mime";
-    }
+    std::string mimeString = mime.IsValid() ? mime.ToString() : "invalid mime";
     return "[" + mimeString + ", SSRC = " + std::to_string(ssrc) + ", mapped SSRC = " +
            std::to_string(mappedSsrc) + "]";
 }
@@ -30,11 +24,6 @@ std::string GetStreamInfoString(uint32_t mappedSsrc, const RtpStream* stream)
         return GetStreamInfoString(mappedSsrc, stream->GetSsrc(), stream->GetMimeType());
     }
     return std::string();
-}
-
-bool IsValidMediaMime(const RtpCodecMimeType& mime)
-{
-    return mime.IsMediaCodec() && (IsAudioMime(mime) || IsVideoMime(mime));
 }
 
 const std::string& MimeTypeToString(RtpCodecMimeType::Type type)
@@ -48,8 +37,8 @@ const std::string& MimeTypeToString(RtpCodecMimeType::Type type)
 
 const std::string& MimeTypeToString(const RtpCodecMimeType& mime)
 {
-    if (IsVideoMime(mime)) {
-        return MimeTypeToString(mime.type);
+    if (mime.IsMediaCodec()) {
+        return MimeTypeToString(mime.GetType());
     }
     return g_emptyString;
 }
@@ -65,8 +54,8 @@ const std::string& MimeSubTypeToString(RtpCodecMimeType::Subtype subtype)
 
 const std::string& MimeSubTypeToString(const RtpCodecMimeType& mime)
 {
-    if (IsVideoMime(mime)) {
-        return MimeSubTypeToString(mime.subtype);
+    if (mime.IsMediaCodec()) {
+        return MimeSubTypeToString(mime.GetSubtype());
     }
     return g_emptyString;
 }

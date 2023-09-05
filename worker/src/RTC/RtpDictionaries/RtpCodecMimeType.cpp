@@ -81,6 +81,12 @@ namespace RTC
 
 	/* Instance methods. */
 
+    RtpCodecMimeType::RtpCodecMimeType(Type type, Subtype subtype)
+    {
+        this->type = type;
+        this->subtype = subtype;
+    }
+
 	void RtpCodecMimeType::SetMimeType(const std::string& mimeType)
 	{
 		MS_TRACE();
@@ -118,21 +124,13 @@ namespace RTC
 
 			this->subtype = it->second;
 		}
-
-		// Set mimeType.
-		this->mimeType = RtpCodecMimeType::type2String[this->type] + "/" +
-		                 RtpCodecMimeType::subtype2String[this->subtype];
 	}
 
-	void RtpCodecMimeType::UpdateMimeType()
-	{
-		MS_TRACE();
+    std::string RtpCodecMimeType::ToString() const
+    {
+        MS_ASSERT(GetType() != Type::UNSET, "type unset");
+        MS_ASSERT(GetSubtype() != Subtype::UNSET, "subtype unset");
+        return RtpCodecMimeType::type2String[GetType()] + "/" + RtpCodecMimeType::subtype2String[GetSubtype()];
+    }
 
-		MS_ASSERT(this->type != Type::UNSET, "type unset");
-		MS_ASSERT(this->subtype != Subtype::UNSET, "subtype unset");
-
-		// Set mimeType.
-		this->mimeType = RtpCodecMimeType::type2String[this->type] + "/" +
-		                 RtpCodecMimeType::subtype2String[this->subtype];
-	}
 } // namespace RTC

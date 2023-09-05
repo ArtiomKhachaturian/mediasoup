@@ -1,13 +1,14 @@
 #include "RTC/MediaTranslate/RtpDepacketizerVp9.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
-#include "RTC/Codecs/VP8.hpp"
+#include "RTC/Codecs/VP9.hpp"
 #include "RTC/RtpPacket.hpp"
 
 namespace RTC
 {
 
-RtpDepacketizerVp9::RtpDepacketizerVp9(const RtpCodecMimeType& codecMimeType)
-    : RtpDepacketizer(codecMimeType)
+RtpDepacketizerVp9::RtpDepacketizerVp9(const RtpCodecMimeType& codecMimeType,
+                                       uint32_t sampleRate)
+    : RtpDepacketizer(codecMimeType, sampleRate)
 {
 }
 

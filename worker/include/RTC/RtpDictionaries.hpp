@@ -81,48 +81,64 @@ namespace RTC
 		static absl::flat_hash_map<Subtype, std::string> subtype2String;
 
 	public:
-		RtpCodecMimeType() = default;
+		RtpCodecMimeType(Type type = Type::UNSET, Subtype subtype = Subtype::UNSET);
+        
+        Type GetType() const { return this->type; }
+        
+        Subtype GetSubtype() const { return this->subtype; }
+        
+        void SetType(Type type) { this->type = type; }
+        
+        void SetSubType(Subtype subtype) { this->subtype = subtype; }
 
 		bool operator==(const RtpCodecMimeType& other) const
 		{
-			return this->type == other.type && this->subtype == other.subtype;
+			return GetType() == other.GetType() && GetSubtype() == other.GetSubtype();
 		}
 
 		bool operator!=(const RtpCodecMimeType& other) const
 		{
-			return !(*this == other);
+            return GetType() != other.GetType() || GetSubtype() != other.GetSubtype();
 		}
+        
+        operator bool () const { return IsValid(); }
 
 		void SetMimeType(const std::string& mimeType);
 
-		void UpdateMimeType();
-
-		const std::string& ToString() const
-		{
-			return this->mimeType;
-		}
+        std::string ToString() const;
+        
+        bool IsValid() const
+        {
+            return Type::UNSET != GetType() && Subtype::UNSET != GetSubtype();
+        }
 
 		bool IsMediaCodec() const
 		{
-			return this->subtype >= Subtype(100) && this->subtype < (Subtype)300;
+			return IsAudioCodec() || IsVideoCodec();
 		}
+        
+        bool IsAudioCodec() const
+        {
+            return GetSubtype() >= Subtype(100) && GetSubtype() < Subtype(200);
+        }
+        
+        bool IsVideoCodec() const
+        {
+            return GetSubtype() >= Subtype(200) && GetSubtype() < Subtype(300);
+        }
 
 		bool IsComplementaryCodec() const
 		{
-			return this->subtype >= Subtype(300) && this->subtype < (Subtype)400;
+			return GetSubtype() >= Subtype(300) && GetSubtype() < Subtype(400);
 		}
 
 		bool IsFeatureCodec() const
 		{
-			return this->subtype >= Subtype(400);
+			return GetSubtype() >= Subtype(400);
 		}
-
-	public:
-		Type type{ Type::UNSET };
-		Subtype subtype{ Subtype::UNSET };
-
 	private:
-		std::string mimeType;
+        Type type;
+        Subtype subtype;
 	};
 
 	class RtpHeaderExtensionUri

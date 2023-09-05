@@ -15,12 +15,11 @@ namespace RTC
 
 	/* Instance methods. */
 
-	RtxStream::RtxStream(RTC::RtxStream::Params& params) : params(params)
+	RtxStream::RtxStream(RTC::RtxStream::Params& params)
+        : params(params)
 	{
 		MS_TRACE();
-
-		MS_ASSERT(
-		  params.mimeType.subtype == RTC::RtpCodecMimeType::Subtype::RTX, "mimeType.subtype is not RTX");
+		MS_ASSERT(params.mimeType.GetSubtype() == RTC::RtpCodecMimeType::Subtype::RTX, "mimeType.subtype is not RTX");
 	}
 
 	RtxStream::~RtxStream()

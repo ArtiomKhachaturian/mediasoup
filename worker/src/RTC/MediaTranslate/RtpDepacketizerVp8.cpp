@@ -6,14 +6,14 @@
 namespace RTC
 {
 
-RtpDepacketizerVp8::RtpDepacketizerVp8(const RtpCodecMimeType& codecMimeType)
-    : RtpDepacketizer(codecMimeType)
+RtpDepacketizerVp8::RtpDepacketizerVp8(const RtpCodecMimeType& codecMimeType, uint32_t sampleRate)
+    : RtpDepacketizer(codecMimeType, sampleRate)
 {
 }
 
 std::shared_ptr<RtpMediaFrame> RtpDepacketizerVp8::AddPacket(const RtpPacket* packet)
 {
-    if (packet && packet->GetPayload()) {
+    /*if (packet && packet->GetPayload()) {
         std::unique_ptr<RtpVideoConfig> config;
         bool valid = false;
         if (packet->IsKeyFrame()) {
@@ -33,7 +33,7 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVp8::AddPacket(const RtpPacket* pa
                                          static_cast<uint32_t>(140),
                                          std::move(config));
         }
-    }
+    }*/
     return nullptr;
 }
 

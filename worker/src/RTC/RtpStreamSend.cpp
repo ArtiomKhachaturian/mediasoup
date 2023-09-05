@@ -36,7 +36,7 @@ namespace RTC
 		{
 			uint32_t maxRetransmissionDelayMs;
 
-			switch (params.mimeType.type)
+			switch (params.mimeType.GetType())
 			{
 				case RTC::RtpCodecMimeType::Type::VIDEO:
 				{

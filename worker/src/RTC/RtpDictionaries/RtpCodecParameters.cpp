@@ -131,7 +131,7 @@ namespace RTC
 		static std::string aptString{ "apt" };
 
 		// Check per MIME parameters and set default values.
-		switch (this->mimeType.subtype)
+		switch (this->mimeType.GetSubtype())
 		{
 			case RTC::RtpCodecMimeType::Subtype::RTX:
 			{

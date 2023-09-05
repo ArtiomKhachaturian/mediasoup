@@ -35,9 +35,9 @@ namespace RTC
 
 		// Create the encoding context for Opus.
 		if (
-		  mediaCodec->mimeType.type == RTC::RtpCodecMimeType::Type::AUDIO &&
-		  (mediaCodec->mimeType.subtype == RTC::RtpCodecMimeType::Subtype::OPUS ||
-		   mediaCodec->mimeType.subtype == RTC::RtpCodecMimeType::Subtype::MULTIOPUS))
+		  mediaCodec->mimeType.GetType() == RTC::RtpCodecMimeType::Type::AUDIO &&
+		  (mediaCodec->mimeType.GetSubtype() == RTC::RtpCodecMimeType::Subtype::OPUS ||
+		   mediaCodec->mimeType.GetSubtype() == RTC::RtpCodecMimeType::Subtype::MULTIOPUS))
 		{
 			RTC::Codecs::EncodingContext::Params params;
 

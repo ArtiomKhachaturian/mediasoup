@@ -54,7 +54,7 @@ namespace RTC
 
 		jsonObject["timestamp"]            = nowMs;
 		jsonObject["ssrc"]                 = this->params.ssrc;
-		jsonObject["kind"]                 = RtpCodecMimeType::type2String[this->params.mimeType.type];
+		jsonObject["kind"]                 = RtpCodecMimeType::type2String[this->params.mimeType.GetType()];
 		jsonObject["mimeType"]             = this->params.mimeType.ToString();
 		jsonObject["packetsLost"]          = this->packetsLost;
 		jsonObject["fractionLost"]         = this->fractionLost;
@@ -98,14 +98,12 @@ namespace RTC
 
 		params.ssrc             = ssrc;
 		params.payloadType      = payloadType;
-		params.mimeType.type    = GetMimeType().type;
-		params.mimeType.subtype = RTC::RtpCodecMimeType::Subtype::RTX;
 		params.clockRate        = GetClockRate();
 		params.rrid             = GetRid();
 		params.cname            = GetCname();
-
-		// Tell the RtpCodecMimeType to update its string based on current type and subtype.
-		params.mimeType.UpdateMimeType();
+        // Tell the RtpCodecMimeType to update its string based on current type and subtype.
+        params.mimeType.SetType(GetMimeType().GetType());
+        params.mimeType.SetSubType(RTC::RtpCodecMimeType::Subtype::RTX);
 
 		this->rtxStream = new RTC::RtxStream(params);
 	}

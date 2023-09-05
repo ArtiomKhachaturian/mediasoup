@@ -22,7 +22,8 @@ public:
     void AddPacket(const RtpPacket* packet) final;
     static std::shared_ptr<MediaFileWriter> Create(std::string_view outputFolderNameUtf8,
                                                    const RTC::RtpCodecMimeType& mime,
-                                                   uint32_t ssrc, bool liveMode = false,
+                                                   uint32_t ssrc, uint32_t sampleRate,
+                                                   bool liveMode = false,
                                                    int* fileOpenError = nullptr);
 private:
     static std::string FormatMediaFileName(std::string_view outputFolderNameUtf8,

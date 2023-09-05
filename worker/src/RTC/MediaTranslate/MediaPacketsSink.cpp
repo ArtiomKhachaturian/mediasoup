@@ -2,7 +2,6 @@
 #include "RTC/MediaTranslate/MediaPacketsSink.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
-#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 
@@ -38,8 +37,8 @@ MediaPacketsSink::~MediaPacketsSink()
 bool MediaPacketsSink::RegistertSerializer(const RtpCodecMimeType& mime)
 {
     bool ok = false;
-    if (IsValidMediaMime(mime)) {
-        const auto key = Utils::HashCombine(mime.type, mime.subtype);
+    if (mime && mime.IsMediaCodec()) {
+        const auto key = GetMimeKey(mime);
         LOCK_WRITE_PROTECTED_OBJ(_serializers);
         auto& serializers = _serializers.Ref();
         auto it = serializers.find(key);
@@ -74,8 +73,8 @@ bool MediaPacketsSink::RegistertSerializer(const RtpCodecMimeType& mime)
 
 void MediaPacketsSink::UnRegisterSerializer(const RtpCodecMimeType& mime)
 {
-    if (IsValidMediaMime(mime)) {
-        const auto key = Utils::HashCombine(mime.type, mime.subtype);
+    if (mime && mime.IsMediaCodec()) {
+        const auto key = GetMimeKey(mime);
         LOCK_WRITE_PROTECTED_OBJ(_serializers);
         const auto it = _serializers->find(key);
         if (it != _serializers->end() && it->second->DecRef()) {
@@ -91,7 +90,7 @@ void MediaPacketsSink::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
         if (!_outputDevices->empty()) {
             const auto& mime = mediaFrame->GetCodecMimeType();
             LOCK_READ_PROTECTED_OBJ(_serializers);
-            const auto it = _serializers->find(Utils::HashCombine(mime.type, mime.subtype));
+            const auto it = _serializers->find(GetMimeKey(mime));
             if (it != _serializers->end()) {
                 it->second->Push(mediaFrame);
             }
@@ -128,6 +127,11 @@ bool MediaPacketsSink::RemoveOutputDevice(OutputDevice* outputDevice)
         }
     }
     return false;
+}
+
+size_t MediaPacketsSink::GetMimeKey(const RtpCodecMimeType& mimeType)
+{
+    return Utils::HashCombine(mimeType.GetType(), mimeType.GetSubtype());
 }
 
 void MediaPacketsSink::SetSerializersOutputDevice(OutputDevice* outputDevice) const

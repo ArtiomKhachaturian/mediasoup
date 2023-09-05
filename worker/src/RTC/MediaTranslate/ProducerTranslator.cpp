@@ -28,7 +28,7 @@ namespace RTC
 class ProducerTranslator::StreamInfo
 {
 public:
-    StreamInfo(uint32_t ssrc);
+    StreamInfo(uint32_t sampleRate, uint32_t ssrc);
     uint32_t GetSsrc() const { return _ssrc; }
     void SetSsrc(uint32_t ssrc) { _ssrc = ssrc; }
     MimeChangeStatus SetDepacketizer(const RtpCodecMimeType& mime);
@@ -36,6 +36,7 @@ public:
     std::shared_ptr<RtpMediaFrame> Depacketize(const RtpPacket* packet) const;
 private:
     static inline const RtpCodecMimeType _invalidMime;
+    const uint32_t _sampleRate;
     uint32_t _ssrc;
     std::unique_ptr<RtpDepacketizer> _depacketizer;
 };
@@ -122,11 +123,11 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
     bool ok = false;
     if (mappedSsrc && stream) {
         const auto& mime = stream->GetMimeType();
-        MS_ASSERT(IsAudioMime(mime) == IsAudio(), "mime types mistmatch");
-        if (IsValidMediaMime(mime)) {
+        MS_ASSERT(mime.IsAudioCodec() == IsAudio(), "mime types mistmatch");
+        if (mime.IsMediaCodec()) {
             const auto it = _streams.find(mappedSsrc);
             if (it == _streams.end()) {
-                const auto streamInfo = std::make_shared<StreamInfo>(stream->GetSsrc());
+                const auto streamInfo = std::make_shared<StreamInfo>(stream->GetClockRate(), stream->GetSsrc());
                 ok = MimeChangeStatus::Changed == streamInfo->SetDepacketizer(mime);
                 if (ok) {
                     ok = !_sink || _sink->RegistertSerializer(mime);
@@ -134,7 +135,9 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
                         _streams[mappedSsrc] = streamInfo;
                         onProducerStreamRegistered(streamInfo, mappedSsrc, true);
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-                        if (const auto mediaFileWriter = CreateFileWriter(mime, mappedSsrc)) {
+                        if (const auto mediaFileWriter = CreateFileWriter(mime,
+                                                                          stream->GetClockRate(),
+                                                                          mappedSsrc)) {
                             _mediaFileWriters[mappedSsrc] = mediaFileWriter;
                         }
 #endif
@@ -276,8 +279,9 @@ void ProducerTranslator::onProducerStreamRegistered(const std::shared_ptr<Stream
                                                     uint32_t mappedSsrc, bool registered)
 {
     if (streamInfo) {
+        MS_ASSERT(streamInfo->GetMime(), "invalid mime");
         InvokeObserverMethod(&ProducerObserver::onProducerStreamRegistered,
-                             IsAudioMime(streamInfo->GetMime()), streamInfo->GetSsrc(),
+                             streamInfo->GetMime().IsAudioCodec(), streamInfo->GetSsrc(),
                              mappedSsrc, registered);
     }
 }
@@ -289,31 +293,35 @@ void ProducerTranslator::OnPauseChanged(bool pause)
 
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 std::shared_ptr<MediaFileWriter> ProducerTranslator::CreateFileWriter(const RTC::RtpCodecMimeType& mime,
-                                                                      uint32_t ssrc)
+                                                                      uint32_t ssrc,
+                                                                      uint32_t sampleRate)
 {
     const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
     if (depacketizerPath && std::strlen(depacketizerPath)) {
         const bool liveMode = false;
-        return MediaFileWriter::Create(depacketizerPath, mime, ssrc, liveMode);
+        return MediaFileWriter::Create(depacketizerPath, mime, ssrc, sampleRate, liveMode);
     }
     return nullptr;
 }
 #endif
 
-ProducerTranslator::StreamInfo::StreamInfo(uint32_t ssrc)
-    : _ssrc(ssrc)
+ProducerTranslator::StreamInfo::StreamInfo(uint32_t sampleRate, uint32_t ssrc)
+    : _sampleRate(sampleRate)
+    , _ssrc(ssrc)
 {
 }
 
 MimeChangeStatus ProducerTranslator::StreamInfo::SetDepacketizer(const RtpCodecMimeType& mime)
 {
     MimeChangeStatus status = MimeChangeStatus::Failed;
-    if (_depacketizer && mime == _depacketizer->GetCodecMimeType()) {
-        status = MimeChangeStatus::NotChanged;
-    }
-    else if (auto depacketizer = RtpDepacketizer::create(mime)) {
-        _depacketizer = std::move(depacketizer);
-        status = MimeChangeStatus::Changed;
+    if (mime) {
+        if (_depacketizer && mime == _depacketizer->GetCodecMimeType()) {
+            status = MimeChangeStatus::NotChanged;
+        }
+        else if (auto depacketizer = RtpDepacketizer::create(mime, _sampleRate)) {
+            _depacketizer = std::move(depacketizer);
+            status = MimeChangeStatus::Changed;
+        }
     }
     return status;
 }

@@ -37,12 +37,12 @@ MediaFileWriter::~MediaFileWriter()
 
 std::shared_ptr<MediaFileWriter> MediaFileWriter::Create(std::string_view outputFolderNameUtf8,
                                                          const RTC::RtpCodecMimeType& mime,
-                                                         uint32_t ssrc, bool liveMode,
-                                                         int* fileOpenError)
+                                                         uint32_t ssrc, uint32_t sampleRate,
+                                                         bool liveMode, int* fileOpenError)
 {
     if (!outputFolderNameUtf8.empty()) {
         if (const auto serializer = RtpMediaFrameSerializer::create(mime)) {
-            if (auto depacketizer = RtpDepacketizer::create(mime)) {
+            if (auto depacketizer = RtpDepacketizer::create(mime, sampleRate)) {
                 const auto filename = FormatMediaFileName(std::move(outputFolderNameUtf8), mime, ssrc);
                 FILE* file = FileOpen(filename, fileOpenError);
                 if (file) {

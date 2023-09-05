@@ -110,7 +110,7 @@ void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 
 bool RtpWebMSerializer::IsOpusAudio(const RtpCodecMimeType& mimeType)
 {
-    switch (mimeType.subtype) {
+    switch (mimeType.GetSubtype()) {
         case RtpCodecMimeType::Subtype::OPUS:
         case RtpCodecMimeType::Subtype::MULTIOPUS:
             // https://en.wikipedia.org/wiki/SILK
@@ -124,7 +124,7 @@ bool RtpWebMSerializer::IsOpusAudio(const RtpCodecMimeType& mimeType)
 
 const char* RtpWebMSerializer::GetCodec(const RtpCodecMimeType& mimeType)
 {
-    switch (mimeType.subtype) {
+    switch (mimeType.GetSubtype()) {
         case RtpCodecMimeType::Subtype::VP8:
             return mkvmuxer::Tracks::kVp8CodecId;
         case RtpCodecMimeType::Subtype::VP9:
@@ -141,7 +141,7 @@ const char* RtpWebMSerializer::GetCodec(const RtpCodecMimeType& mimeType)
 RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 {
     RtpWebMSerializer::TrackInfo* trackInfo = nullptr;
-    if (mediaFrame) {
+    if (mediaFrame && mediaFrame->IsKeyFrame()) {
         const auto& mimeType = mediaFrame->GetCodecMimeType();
         if (const auto codecId = GetCodec(mimeType)) {
             const auto ssrc = mediaFrame->GetSsrc();
@@ -150,24 +150,17 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<
                 if (codecId) {
                     const mkvmuxer::int32 trackNumber = static_cast<mkvmuxer::int32>(_tracks.size()) + 1;
                     bool added = false;
-                    uint32_t rate = 0U;
                     if (const auto config = mediaFrame->GetAudioConfig()) {
-                        added = 0 != _segment.AddAudioTrack(config->GetSampleRate(),
-                                                            config->GetChannelCount(),
+                        added = 0 != _segment.AddAudioTrack(mediaFrame->GetSampleRate(),
+                                                            config->_channelCount,
                                                             trackNumber);
-                        if (added) {
-                            rate = config->GetSampleRate();
-                        }
                     }
                     else if (const auto config = mediaFrame->GetVideoConfig()) {
-                        added = 0 != _segment.AddVideoTrack(config->GetWidth(),
-                                                            config->GetHeight(),
+                        added = 0 != _segment.AddVideoTrack(config->_width, config->_height,
                                                             trackNumber);
-                        if (added) {
-                            rate = static_cast<uint32_t>(std::round(config->GetFrameRate()));
-                        }
                     }
                     if (added && _segment.GetTrackByNumber(trackNumber)) {
+                        const uint32_t rate = mediaFrame->GetSampleRate();
                         it = _tracks.emplace(ssrc, TrackInfo(trackNumber, rate)).first;
                         trackInfo = &it->second;
                     }
@@ -180,28 +173,28 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<
                 const auto track = _segment.GetTrackByNumber(trackInfo->_number);
                 if (const auto config = mediaFrame->GetAudioConfig()) {
                     if (const auto audioTrack = static_cast<mkvmuxer::AudioTrack*>(track)) {
-                        audioTrack->set_bit_depth(config->GetBitsPerSample());
-                        audioTrack->set_channels(config->GetChannelCount());
-                        audioTrack->set_sample_rate(config->GetSampleRate());
-                        if (trackInfo->_codec != mimeType.subtype) {
-                            if (48000U == config->GetSampleRate()) { // https://wiki.xiph.org/MatroskaOpus
+                        audioTrack->set_bit_depth(config->_bitsPerSample);
+                        audioTrack->set_channels(config->_channelCount);
+                        audioTrack->set_sample_rate(mediaFrame->GetSampleRate());
+                        if (trackInfo->_codec != mimeType.GetSubtype()) {
+                            if (48000U == mediaFrame->GetSampleRate()) { // https://wiki.xiph.org/MatroskaOpus
                                 track->set_seek_pre_roll(80000000ULL);
                             }
-                            Codecs::Opus::OpusHead head(config->GetChannelCount(), config->GetSampleRate());
+                            Codecs::Opus::OpusHead head(config->_channelCount, mediaFrame->GetSampleRate());
                             audioTrack->SetCodecPrivate(reinterpret_cast<const uint8_t*>(&head), sizeof(head));
                         }
                     }
                 }
                 else if (const auto config = mediaFrame->GetVideoConfig()) {
                     if (const auto videoTrack = static_cast<mkvmuxer::VideoTrack*>(track)) {
-                        videoTrack->set_frame_rate(config->GetFrameRate());
-                        videoTrack->set_width(config->GetWidth());
-                        videoTrack->set_height(config->GetHeight());
+                        videoTrack->set_frame_rate(config->_frameRate);
+                        videoTrack->set_width(config->_width);
+                        videoTrack->set_height(config->_height);
                     }
                 }
-                if (trackInfo->_codec != mimeType.subtype) {
+                if (trackInfo->_codec != mimeType.GetSubtype()) {
                     track->set_codec_id(codecId);
-                    trackInfo->_codec = mimeType.subtype;
+                    trackInfo->_codec = mimeType.GetSubtype();
                 }
             }
         }

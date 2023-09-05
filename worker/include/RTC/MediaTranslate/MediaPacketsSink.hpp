@@ -29,6 +29,7 @@ public:
     bool AddOutputDevice(OutputDevice* outputDevice) final;
     bool RemoveOutputDevice(OutputDevice* outputDevice) final;
 private:
+    static size_t GetMimeKey(const RtpCodecMimeType& mimeType);
     void SetSerializersOutputDevice(OutputDevice* outputDevice) const;
     // impl. of OutputDevice
     void BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,

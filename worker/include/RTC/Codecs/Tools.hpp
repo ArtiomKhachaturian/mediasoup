@@ -20,11 +20,11 @@ namespace RTC
 		public:
 			static bool CanBeKeyFrame(const RTC::RtpCodecMimeType& mimeType)
 			{
-				switch (mimeType.type)
+				switch (mimeType.GetType())
 				{
 					case RTC::RtpCodecMimeType::Type::VIDEO:
 					{
-						switch (mimeType.subtype)
+						switch (mimeType.GetSubtype())
 						{
 							case RTC::RtpCodecMimeType::Subtype::VP8:
 							case RTC::RtpCodecMimeType::Subtype::VP9:
@@ -45,11 +45,11 @@ namespace RTC
 
 			static void ProcessRtpPacket(RTC::RtpPacket* packet, const RTC::RtpCodecMimeType& mimeType)
 			{
-				switch (mimeType.type)
+				switch (mimeType.GetType())
 				{
 					case RTC::RtpCodecMimeType::Type::VIDEO:
 					{
-						switch (mimeType.subtype)
+						switch (mimeType.GetSubtype())
 						{
 							case RTC::RtpCodecMimeType::Subtype::VP8:
 							{
@@ -84,7 +84,7 @@ namespace RTC
 
 					case RTC::RtpCodecMimeType::Type::AUDIO:
 					{
-						switch (mimeType.subtype)
+						switch (mimeType.GetSubtype())
 						{
 							case RTC::RtpCodecMimeType::Subtype::OPUS:
 							case RTC::RtpCodecMimeType::Subtype::MULTIOPUS:
@@ -118,11 +118,11 @@ namespace RTC
 
 					case RTC::RtpParameters::Type::SIMULCAST:
 					{
-						switch (mimeType.type)
+						switch (mimeType.GetType())
 						{
 							case RTC::RtpCodecMimeType::Type::VIDEO:
 							{
-								switch (mimeType.subtype)
+								switch (mimeType.GetSubtype())
 								{
 									case RTC::RtpCodecMimeType::Subtype::VP8:
 									case RTC::RtpCodecMimeType::Subtype::H264:
@@ -141,11 +141,11 @@ namespace RTC
 
 					case RTC::RtpParameters::Type::SVC:
 					{
-						switch (mimeType.type)
+						switch (mimeType.GetType())
 						{
 							case RTC::RtpCodecMimeType::Type::VIDEO:
 							{
-								switch (mimeType.subtype)
+								switch (mimeType.GetSubtype())
 								{
 									case RTC::RtpCodecMimeType::Subtype::VP9:
 									case RTC::RtpCodecMimeType::Subtype::H264_SVC:
@@ -177,11 +177,11 @@ namespace RTC
 			static EncodingContext* GetEncodingContext(
 			  const RTC::RtpCodecMimeType& mimeType, RTC::Codecs::EncodingContext::Params& params)
 			{
-				switch (mimeType.type)
+				switch (mimeType.GetType())
 				{
 					case RTC::RtpCodecMimeType::Type::VIDEO:
 					{
-						switch (mimeType.subtype)
+						switch (mimeType.GetSubtype())
 						{
 							case RTC::RtpCodecMimeType::Subtype::VP8:
 								return new RTC::Codecs::VP8::EncodingContext(params);
@@ -198,7 +198,7 @@ namespace RTC
 
 					case RTC::RtpCodecMimeType::Type::AUDIO:
 					{
-						switch (mimeType.subtype)
+						switch (mimeType.GetSubtype())
 						{
 							case RTC::RtpCodecMimeType::Subtype::OPUS:
 							case RTC::RtpCodecMimeType::Subtype::MULTIOPUS:

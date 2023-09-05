@@ -6,8 +6,9 @@
 namespace RTC
 {
 
-RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& codecMimeType)
-    : RtpDepacketizer(codecMimeType)
+RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& codecMimeType,
+                                         uint32_t sampleRate)
+    : RtpDepacketizer(codecMimeType, sampleRate)
 {
 }
 
@@ -17,10 +18,12 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* p
         bool stereo = false;
         Codecs::Opus::FrameSize frameSize;
         Codecs::Opus::ParseTOC(packet->GetPayload()[0], nullptr, nullptr, &frameSize, &stereo);
-        auto audioConfig = std::make_unique<RtpAudioConfig>(stereo ? 2U : 1U);
-        return RtpMediaFrame::create(packet,
-                                     GetCodecMimeType(), static_cast<uint32_t>(frameSize),
-                                     std::move(audioConfig), _payloadAllocator);
+        RtpAudioFrameConfig config;
+        config._channelCount = stereo ? 2U : 1U;
+        config._bitsPerSample = 16U;
+        return RtpMediaFrame::CreateAudio(packet, GetCodecMimeType().GetSubtype(),
+                                          GetSampleRate(), config,
+                                          static_cast<uint32_t>(frameSize));
     }
     return nullptr;
 }

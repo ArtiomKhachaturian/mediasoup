@@ -54,7 +54,7 @@ protected:
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 private:
     static std::shared_ptr<MediaFileWriter> CreateFileWriter(const RTC::RtpCodecMimeType& mime,
-                                                             uint32_t ssrc);
+                                                             uint32_t ssrc, uint32_t sampleRate);
 #endif
 private:
     Producer* const _producer;
