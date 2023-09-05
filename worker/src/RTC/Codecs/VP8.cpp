@@ -118,8 +118,25 @@ namespace RTC
 			// clang-format on
 			{
 				payloadDescriptor->isKeyFrame = true;
-			}
+                if (len >= 10U) {
+                    // Start code for VP8 key frame
+                    /* Keyframe header consists of a three-byte sync code
+                        * followed by the width and height and associated scaling
+                        * factors.
+                        */
+                    if (data[offset + 3] == 0x9d && data[offset + 4] == 0x01 &&
+                        data[offset + 5] == 0x2a) {
+                        const uint16_t hor = data[offset + 7] << 8 | data[offset + 6];
+                        const uint16_t ver = data[offset + 9] << 8 | data[offset + 8];
+                        payloadDescriptor->width = hor & 0x3fff;
+                        payloadDescriptor->horizontalScale = hor >> 14;
+                        payloadDescriptor->height = ver & 0x3fff;
+                        payloadDescriptor->verticalScale = ver >> 14;
+                    }
+                }
 
+			}
+            
 			return payloadDescriptor.release();
 		}
 

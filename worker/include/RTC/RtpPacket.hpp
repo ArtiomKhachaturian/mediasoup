@@ -600,6 +600,11 @@ namespace RTC
 		{
 			this->payloadDescriptorHandler.reset(payloadDescriptorHandler);
 		}
+        
+        std::shared_ptr<const Codecs::PayloadDescriptorHandler> GetPayloadDescriptorHandler() const
+        {
+            return this->payloadDescriptorHandler;
+        }
 
 		bool ProcessPayload(RTC::Codecs::EncodingContext* context, bool& marker);
 

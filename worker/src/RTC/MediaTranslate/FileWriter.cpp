@@ -1,6 +1,6 @@
 #define MS_CLASS "RTC::FileWriter"
 #include "RTC/MediaTranslate/FileWriter.hpp"
-#include "MemoryBuffer.h"
+#include "MemoryBuffer.hpp"
 #include <utility>
 #ifdef _WIN32
 #include <Windows.h>

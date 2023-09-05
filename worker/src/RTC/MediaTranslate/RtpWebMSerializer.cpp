@@ -2,8 +2,8 @@
 #include "RTC/MediaTranslate/RtpWebMSerializer.hpp"
 #include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
+#include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "RTC/Codecs/Opus.hpp"
-#include "MemoryBuffer.h"
 #include "Utils.hpp"
 #include "Logger.hpp"
 
@@ -25,18 +25,6 @@ private:
     // 1kb buffer is enough for single OPUS frame
     // TODO: develop a strategy for optimal memory management for both audio & video (maybe mem pool)
     void ReserveBuffer() { _buffer.reserve(1024); }
-private:
-    std::vector<uint8_t> _buffer;
-};
-
-class RtpWebMSerializer::MediaBufferImpl : public MemoryBuffer
-{
-public:
-    MediaBufferImpl(std::vector<uint8_t> buffer);
-    // impl. of MemoryBuffer
-    size_t GetSize() const final { return _buffer.size(); }
-    uint8_t* GetData() { return _buffer.data(); }
-    const uint8_t* GetData() const { return _buffer.data(); }
 private:
     std::vector<uint8_t> _buffer;
 };
@@ -93,7 +81,7 @@ bool RtpWebMSerializer::IsCompatible(const RtpCodecMimeType& mimeType) const
 
 void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 {
-    if (mediaFrame) {
+    if (mediaFrame && mediaFrame->GetPayload()) {
         if (const auto outputDevice = GetOutputDevice()) {
             if (const auto track = GetTrack(mediaFrame)) {
                 const auto& payload = mediaFrame->GetPayload();
@@ -104,8 +92,9 @@ void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
                                                      mediaFrame->GetTimestamp(),
                                                      mediaFrame->GetAbsSendtime(),
                                                      mediaFrame->GetDuration());
-                const auto ok = _segment.AddFrame(payload.data(), payload.size(), track->_number,
-                                                  track->GetTimestampNs(), mediaFrame->IsKeyFrame());
+                const auto ok = _segment.AddFrame(payload->GetData(), payload->GetSize(),
+                                                  track->_number, track->GetTimestampNs(),
+                                                  mediaFrame->IsKeyFrame());
                 if (ok) {
                     track->_granule += mediaFrame->GetDuration();
                     if (mkvmuxer::Segment::kLive == _segment.mode()) {
@@ -232,7 +221,7 @@ void RtpWebMSerializer::CommitData(OutputDevice* outputDevice)
 std::shared_ptr<MemoryBuffer> RtpWebMSerializer::BufferedWriter::takeBuffer()
 {
     if (!_buffer.empty()) {
-        auto buffer = std::make_shared<MediaBufferImpl>(std::move(_buffer));
+        auto buffer = std::make_shared<SimpleMemoryBuffer>(std::move(_buffer));
         ReserveBuffer();
         return buffer;
     }
@@ -259,11 +248,6 @@ mkvmuxer::int32 RtpWebMSerializer::BufferedWriter::Position(mkvmuxer::int64 posi
 {
     _buffer.resize(position);
     return 0;
-}
-
-RtpWebMSerializer::MediaBufferImpl::MediaBufferImpl(std::vector<uint8_t> buffer)
-    : _buffer(std::move(buffer))
-{
 }
 
 RtpWebMSerializer::TrackInfo::TrackInfo(uint64_t number, uint32_t rate, RtpCodecMimeType::Subtype codec)

@@ -28,6 +28,14 @@ std::unique_ptr<RtpDepacketizer> RtpDepacketizer::create(const RtpCodecMimeType&
             }
             break;
         case RtpCodecMimeType::Type::VIDEO:
+            switch (mimeType.subtype) {
+                case RtpCodecMimeType::Subtype::VP8:
+                    //return std::make_unique<RtpDepacketizerVp8>(mimeType);
+                case RtpCodecMimeType::Subtype::VP9:
+                    //return std::make_unique<RtpDepacketizerVp9>(mimeType);
+                default:
+                    break;
+            }
             break;
     }
     return nullptr;
