@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/RtpDepacketizerOpus.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/RtpMediaTimeStampProvider.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/Codecs/Opus.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
@@ -18,7 +19,7 @@ public:
     uint64_t GetTimeStampNano(const std::shared_ptr<const RtpMediaFrame>& frame) final;
 private:
     const uint32_t _sampleRate;
-    absl::flat_hash_map<uint32_t, uint64_t> _granules;
+    absl::flat_hash_map<uint32_t, uint32_t> _granules;
 };
 
 RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& codecMimeType,
@@ -58,7 +59,7 @@ uint64_t RtpDepacketizerOpus::TimeStampProviderImpl::GetTimeStampNano(const std:
         const auto it = _granules.find(frame->GetSsrc());
         if (it != _granules.end()) {
             it->second += frame->GetDuration();
-            ts = (it->second * 1000ULL * 1000ULL * 1000ULL) / _sampleRate;
+            ts = MilliToNano(it->second) / _sampleRate;
         }
         else {
             _granules[frame->GetSsrc()] = 0ULL;
