@@ -8,7 +8,6 @@
 namespace RTC
 {
 
-
 class FileWriter : public OutputDevice
 {
 public:

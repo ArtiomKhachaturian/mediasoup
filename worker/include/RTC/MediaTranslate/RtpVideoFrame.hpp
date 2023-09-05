@@ -10,6 +10,7 @@ class RtpVideoFrame : public RtpMediaFrame
 public:
     RtpVideoFrame(const RtpCodecMimeType& codecMimeType,
                   const std::shared_ptr<const MemoryBuffer>& payload,
+                  const std::shared_ptr<RtpMediaTimeStampProvider>& timeStampProvider,
                   bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
                   uint16_t sequenceNumber, uint32_t sampleRate,
                   const RtpVideoFrameConfig& videoConfig,

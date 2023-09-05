@@ -3,6 +3,7 @@
 #include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/RtpMediaTimeStampProvider.hpp"
 #include "RTC/Codecs/Opus.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
@@ -32,12 +33,8 @@ private:
 struct RtpWebMSerializer::TrackInfo
 {
     const uint64_t _number;
-    const uint32_t _rate;
     RtpCodecMimeType::Subtype _codec;
-    uint64_t _granule = 0ULL;
-    TrackInfo(uint64_t number, uint32_t rate,
-              RtpCodecMimeType::Subtype codec = RtpCodecMimeType::Subtype::UNSET);
-    uint64_t GetTimestampNs() const;
+    TrackInfo(uint64_t number, RtpCodecMimeType::Subtype codec = RtpCodecMimeType::Subtype::UNSET);
 };
 
 RtpWebMSerializer::RtpWebMSerializer()
@@ -89,25 +86,27 @@ void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
     if (mediaFrame && mediaFrame->GetPayload()) {
         if (const auto outputDevice = GetOutputDevice()) {
             if (const auto track = GetTrack(mediaFrame)) {
-                const auto& payload = mediaFrame->GetPayload();
-                outputDevice->BeginWriteMediaPayload(mediaFrame->GetSsrc(),
-                                                     mediaFrame->IsKeyFrame(),
-                                                     mediaFrame->GetCodecMimeType(),
-                                                     mediaFrame->GetSequenceNumber(),
-                                                     mediaFrame->GetTimestamp(),
-                                                     mediaFrame->GetAbsSendtime(),
-                                                     mediaFrame->GetDuration());
-                const auto ok = _segment.AddFrame(payload->GetData(), payload->GetSize(),
-                                                  track->_number, track->GetTimestampNs(),
-                                                  mediaFrame->IsKeyFrame());
-                if (ok) {
-                    track->_granule += mediaFrame->GetDuration();
-                    if (mkvmuxer::Segment::kLive == _segment.mode()) {
-                        _segment.CuesTrack(track->_number); // for live mode
+                if (const auto tsp = mediaFrame->GetTimeStampProvider()) {
+                    const auto& payload = mediaFrame->GetPayload();
+                    outputDevice->BeginWriteMediaPayload(mediaFrame->GetSsrc(),
+                                                         mediaFrame->IsKeyFrame(),
+                                                         mediaFrame->GetCodecMimeType(),
+                                                         mediaFrame->GetSequenceNumber(),
+                                                         mediaFrame->GetTimestamp(),
+                                                         mediaFrame->GetAbsSendtime(),
+                                                         mediaFrame->GetDuration());
+                    const auto ok = _segment.AddFrame(payload->GetData(), payload->GetSize(),
+                                                      track->_number,
+                                                      tsp->GetTimeStampNano(mediaFrame),
+                                                      mediaFrame->IsKeyFrame());
+                    if (ok) {
+                        if (mkvmuxer::Segment::kLive == _segment.mode()) {
+                            _segment.CuesTrack(track->_number); // for live mode
+                        }
                     }
+                    CommitData(outputDevice);
+                    outputDevice->EndWriteMediaPayload(mediaFrame->GetSsrc(), ok);
                 }
-                CommitData(outputDevice);
-                outputDevice->EndWriteMediaPayload(mediaFrame->GetSsrc(), ok);
             }
         }
     }
@@ -165,8 +164,7 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<
                                                             trackNumber);
                     }
                     if (added && _segment.GetTrackByNumber(trackNumber)) {
-                        const uint32_t rate = mediaFrame->GetSampleRate();
-                        it = _tracks.emplace(ssrc, TrackInfo(trackNumber, rate)).first;
+                        it = _tracks.emplace(ssrc, TrackInfo(trackNumber)).first;
                         trackInfo = &it->second;
                     }
                 }
@@ -250,16 +248,10 @@ mkvmuxer::int32 RtpWebMSerializer::BufferedWriter::Position(mkvmuxer::int64 posi
     return 0;
 }
 
-RtpWebMSerializer::TrackInfo::TrackInfo(uint64_t number, uint32_t rate, RtpCodecMimeType::Subtype codec)
+RtpWebMSerializer::TrackInfo::TrackInfo(uint64_t number, RtpCodecMimeType::Subtype codec)
     : _number(number)
-    , _rate(rate)
     , _codec(codec)
 {
-}
-
-uint64_t RtpWebMSerializer::TrackInfo::GetTimestampNs() const
-{
-    return (_granule * 1000ULL * 1000ULL * 1000ULL) / _rate;
 }
 
 } // namespace RTC

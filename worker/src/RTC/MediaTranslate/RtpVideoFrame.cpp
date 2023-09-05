@@ -7,11 +7,12 @@ namespace RTC
 
 RtpVideoFrame::RtpVideoFrame(const RtpCodecMimeType& codecMimeType,
                              const std::shared_ptr<const MemoryBuffer>& payload,
+                             const std::shared_ptr<RtpMediaTimeStampProvider>& timeStampProvider,
                              bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
                              uint16_t sequenceNumber, uint32_t sampleRate,
                              const RtpVideoFrameConfig& videoConfig,
                              uint32_t durationMs)
-    : RtpMediaFrame(codecMimeType, payload, isKeyFrame, timestamp,
+    : RtpMediaFrame(codecMimeType, payload, timeStampProvider, isKeyFrame, timestamp,
                     ssrc, sequenceNumber, sampleRate, durationMs)
     , _videoConfig(videoConfig)
 {
