@@ -17,12 +17,11 @@ public:
     RtpMediaFrameSerializer(RtpMediaFrameSerializer&&) = delete;
     virtual ~RtpMediaFrameSerializer() = default;
     virtual std::string_view GetFileExtension(const RtpCodecMimeType& mimeType) const;
-    virtual bool IsCompatible(const RtpCodecMimeType& mimeType) const = 0;
     virtual void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame) = 0;
     virtual void SetOutputDevice(OutputDevice* outputDevice);
     virtual void SetLiveMode(bool /*liveMode*/ = true) {}
     OutputDevice* GetOutputDevice() const { return _outputDevice; }
-    static std::shared_ptr<RtpMediaFrameSerializer> create(const RtpCodecMimeType& mimeType);
+    static std::unique_ptr<RtpMediaFrameSerializer> create(const RtpCodecMimeType& mimeType);
 protected:
     RtpMediaFrameSerializer() = default;
 private:

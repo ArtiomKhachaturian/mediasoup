@@ -23,7 +23,6 @@ public:
     void SetOutputDevice(OutputDevice* outputDevice) final;
     void SetLiveMode(bool liveMode) final;
     std::string_view GetFileExtension(const RtpCodecMimeType& mimeType) const final;
-    bool IsCompatible(const RtpCodecMimeType& mimeType) const final;
     void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame) final;
 private:
     static const char* GetCodec(const RtpCodecMimeType& mimeType);

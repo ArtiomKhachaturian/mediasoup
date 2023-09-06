@@ -18,6 +18,7 @@ class RtpMediaFrameSerializer;
 class RtpStream;
 class RtpCodecMimeType;
 class MediaPacketsSink;
+class ProducerInputMediaStreamer;
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 class FileWriter;
 #endif
@@ -34,8 +35,7 @@ public:
     void RemoveObserver(ProducerObserver* observer);
     bool RegisterStream(const RtpStream* stream, uint32_t mappedSsrc);
     bool UnRegisterStream(uint32_t mappedSsrc);
-    bool SetSink(const std::shared_ptr<MediaPacketsSink>& sink);
-    const std::shared_ptr<MediaPacketsSink>& GetSink() const { return _sink; }
+    std::shared_ptr<ProducerInputMediaStreamer> GetMediaStreamer() const;
     // list of ssrcs
     std::list<uint32_t> GetRegisteredSsrcs(bool mapped) const;
     // impl. of TranslatorUnit
@@ -59,7 +59,7 @@ private:
 #endif
 private:
     Producer* const _producer;
-    std::shared_ptr<MediaPacketsSink> _sink;
+    const std::shared_ptr<MediaPacketsSink> _sink;
     std::list<ProducerObserver*> _observers;
     // key is mapped media SSRC
     absl::flat_hash_map<uint32_t, std::shared_ptr<StreamInfo>> _streams;

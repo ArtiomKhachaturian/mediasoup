@@ -93,11 +93,6 @@ std::string_view RtpWebMSerializer::GetFileExtension(const RtpCodecMimeType&) co
     return "webm";
 }
 
-bool RtpWebMSerializer::IsCompatible(const RtpCodecMimeType& mimeType) const
-{
-    return IsSupported(mimeType);
-}
-
 void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 {
     if (mediaFrame && mediaFrame->GetPayload()) {

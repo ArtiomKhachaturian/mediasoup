@@ -43,6 +43,7 @@ private:
 
 ProducerTranslator::ProducerTranslator(Producer* producer)
     : _producer(producer)
+    , _sink(std::make_shared<MediaPacketsSink>())
 {
     MS_ASSERT(_producer, "producer must not be null");
 }
@@ -52,7 +53,6 @@ ProducerTranslator::~ProducerTranslator()
     for (const auto mappedSsrc : GetRegisteredSsrcs(true)) {
         UnRegisterStream(mappedSsrc);
     }
-    SetSink(nullptr);
 }
 
 bool ProducerTranslator::IsAudio() const
@@ -79,56 +79,6 @@ void ProducerTranslator::RemoveObserver(ProducerObserver* observer)
     }
 }
 
-bool ProducerTranslator::SetSink(const std::shared_ptr<MediaPacketsSink>& sink)
-{
-    if (sink != _sink) {
-        bool ok = false;
-        if (sink && !_streams.empty()) {
-            std::list<RtpCodecMimeType> mimes;
-            for (auto it = _streams.begin(); it != _streams.end(); ++it) {
-                if (sink->RegistertSerializer(it->second->GetMime())) {
-                    mimes.push_back(it->second->GetMime());
-                }
-                else {
-                    const auto desc = GetStreamInfoString(it->first, it->second->GetSsrc(),
-                                                          it->second->GetMime());
-                    MS_ERROR("unable to find serializer for stream %s", desc.c_str());
-                    break;
-                }
-            }
-            ok = _streams.size() == mimes.size();
-            if (!ok) { // rollback mimes registration
-                for (const auto& mime : mimes) {
-                    sink->UnRegisterSerializer(mime);
-                }
-            }
-        }
-        else {
-            ok = true;
-        }
-        if (ok) {
-            if (_sink) {
-                for (auto it = _streams.begin(); it != _streams.end(); ++it) {
-                    _sink->UnRegisterSerializer(it->second->GetMime());
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-                    DestroyFileWriter(it->second->GetMime(), it->first);
-#endif
-                }
-            }
-            _sink = sink;
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-            if (ok) {
-                for (auto it = _streams.begin(); it != _streams.end(); ++it) {
-                    EnsureFileWriter(it->second->GetMime(), it->first);
-                }
-            }
-#endif
-        }
-        return ok;
-    }
-    return true;
-}
-
 bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mappedSsrc)
 {
     bool ok = false;
@@ -141,7 +91,7 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
                 const auto streamInfo = std::make_shared<StreamInfo>(stream->GetClockRate(), stream->GetSsrc());
                 ok = MimeChangeStatus::Changed == streamInfo->SetDepacketizer(mime);
                 if (ok) {
-                    ok = !_sink || _sink->RegistertSerializer(mime);
+                    ok = _sink->RegistertSerializer(mime);
                     if (ok) {
                         _streams[mappedSsrc] = streamInfo;
                         onProducerStreamRegistered(streamInfo, mappedSsrc, true);
@@ -170,13 +120,8 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
                 if (oldMime != mime) {
                     switch (streamInfo->SetDepacketizer(mime)) {
                         case MimeChangeStatus::Changed:
-                            if (_sink) {
-                                _sink->UnRegisterSerializer(mime);
-                                ok = _sink->RegistertSerializer(mime);
-                            }
-                            else {
-                                ok = true;
-                            }
+                            _sink->UnRegisterSerializer(mime);
+                            ok = _sink->RegistertSerializer(mime);
                             break;
                         case MimeChangeStatus::NotChanged:
                             ok = true;
@@ -212,9 +157,7 @@ bool ProducerTranslator::UnRegisterStream(uint32_t mappedSsrc)
         const auto it = _streams.find(mappedSsrc);
         if (it != _streams.end()) {
             const auto streamInfo = it->second;
-            if (_sink) {
-                _sink->UnRegisterSerializer(streamInfo->GetMime());
-            }
+            _sink->UnRegisterSerializer(streamInfo->GetMime());
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
             DestroyFileWriter(streamInfo->GetMime(), mappedSsrc);
 #endif
@@ -224,6 +167,11 @@ bool ProducerTranslator::UnRegisterStream(uint32_t mappedSsrc)
         }
     }
     return false;
+}
+
+std::shared_ptr<ProducerInputMediaStreamer> ProducerTranslator::GetMediaStreamer() const
+{
+    return _sink;
 }
 
 std::list<uint32_t> ProducerTranslator::GetRegisteredSsrcs(bool mapped) const
@@ -248,11 +196,9 @@ const std::string& ProducerTranslator::GetId() const
 void ProducerTranslator::AddPacket(const RtpPacket* packet)
 {
     if (packet && !IsPaused()) {
-        if (_sink) {
-            const auto it = _streams.find(packet->GetSsrc());
-            if (it != _streams.end()) {
-                _sink->Push(it->second->Depacketize(packet));
-            }
+        const auto it = _streams.find(packet->GetSsrc());
+        if (it != _streams.end()) {
+            _sink->Push(it->second->Depacketize(packet));
         }
     }
 }
@@ -295,7 +241,7 @@ void ProducerTranslator::OnPauseChanged(bool pause)
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 void ProducerTranslator::EnsureFileWriter(const RTC::RtpCodecMimeType& mime, uint32_t mappedSsrc)
 {
-    if (_sink && mime.IsMediaCodec()) {
+    if (mime.IsMediaCodec()) {
         const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
         if (depacketizerPath && std::strlen(depacketizerPath)) {
             const auto& type = MimeTypeToString(mime);
@@ -326,9 +272,7 @@ void ProducerTranslator::DestroyFileWriter(const RTC::RtpCodecMimeType& mime, ui
     if (mime.IsMediaCodec()) {
         const auto it = _mediaFileWriters.find(mappedSsrc);
         if (it != _mediaFileWriters.end()) {
-            if (_sink) {
-                _sink->UnRegisterSerializer(mime);
-            }
+            _sink->UnRegisterSerializer(mime);
             _mediaFileWriters.erase(it);
         }
     }
