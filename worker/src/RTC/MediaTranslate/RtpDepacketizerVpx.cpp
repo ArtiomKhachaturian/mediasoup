@@ -23,7 +23,7 @@ RtpDepacketizerVpx::RtpDepacketizerVpx(const RtpCodecMimeType& codecMimeType, ui
 std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* packet)
 {
     if (packet && packet->GetPayload()) {
-        /*switch (GetCodecMimeType().GetSubtype()) {
+        switch (GetCodecMimeType().GetSubtype()) {
             case RtpCodecMimeType::Subtype::VP8:
                 if (packet->IsKeyFrame()) {
                     return CreateVp8KeyFrame(packet);
@@ -36,45 +36,42 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* pa
                 return CreateInfaFrame(packet);
             default:
                 break;
-        }*/
+        }
     }
     return nullptr;
 }
 
-std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateVp8KeyFrame(const RtpPacket* packet,
-                                                                     uint32_t samplesCount) const
+std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateVp8KeyFrame(const RtpPacket* packet) const
 {
     if (const auto vp8pd = GetVp8PayloadDescriptor(packet)) {
         RtpVideoFrameConfig config;
         config._width = vp8pd->width;
         config._height = vp8pd->height;
         config._frameRate = 30.; // TODO: replace to real value from RTP params
-        return CreateFrame(packet, samplesCount, config);
+        return CreateFrame(packet, config);
     }
     return nullptr;
 }
 
-std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateVp9KeyFrame(const RtpPacket* packet,
-                                                                     uint32_t samplesCount) const
+std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateVp9KeyFrame(const RtpPacket* packet) const
 {
     // TODO: not yet implemented
     return nullptr;
 }
 
-std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateInfaFrame(const RtpPacket* packet,
-                                                                   uint32_t samplesCount) const
+std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateInfaFrame(const RtpPacket* packet) const
 {
     if (packet) {
-        return CreateFrame(packet, samplesCount, {});
+        return CreateFrame(packet, {});
     }
     return nullptr;
 }
 
-std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateFrame(const RtpPacket* packet, uint32_t samplesCount,
+std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateFrame(const RtpPacket* packet,
                                                                const RtpVideoFrameConfig& videoConfig) const
 {
     return RtpMediaFrame::CreateVideo(packet, GetCodecMimeType().GetSubtype(),
-                                      GetSampleRate(), samplesCount, videoConfig);
+                                      GetSampleRate(), videoConfig);
 }
 
 } // namespace RTC

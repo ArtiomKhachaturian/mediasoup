@@ -19,28 +19,28 @@ class RtpMediaFrame
 public:
     RtpMediaFrame(const RtpCodecMimeType& codecMimeType,
                   const std::shared_ptr<const MemoryBuffer>& payload,
-                  bool isKeyFrame, uint32_t timestamp, uint32_t ssrc, uint16_t sequenceNumber,
-                  uint32_t sampleRate, uint32_t samplesCount);
+                  bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
+                  uint16_t sequenceNumber, uint32_t sampleRate);
     virtual ~RtpMediaFrame() = default;
     static std::shared_ptr<RtpMediaFrame> CreateAudio(const RtpPacket* packet,
                                                       RtpCodecMimeType::Subtype codecType,
-                                                      uint32_t sampleRate, uint32_t samplesCount,
+                                                      uint32_t sampleRate,
                                                       const RtpAudioFrameConfig& audioConfig,
                                                       const std::allocator<uint8_t>& payloadAllocator = {});
     static std::shared_ptr<RtpMediaFrame> CreateAudio(const RtpPacket* packet,
                                                       const std::shared_ptr<const MemoryBuffer>& payload,
                                                       RtpCodecMimeType::Subtype codecType,
-                                                      uint32_t sampleRate, uint32_t samplesCount,
+                                                      uint32_t sampleRate,
                                                       const RtpAudioFrameConfig& audioConfig);
     static std::shared_ptr<RtpMediaFrame> CreateVideo(const RtpPacket* packet,
                                                       RtpCodecMimeType::Subtype codecType,
-                                                      uint32_t sampleRate, uint32_t samplesCount,
+                                                      uint32_t sampleRate,
                                                       const RtpVideoFrameConfig& videoConfig,
                                                       const std::allocator<uint8_t>& payloadAllocator = {});
     static std::shared_ptr<RtpMediaFrame> CreateVideo(const RtpPacket* packet,
                                                       const std::shared_ptr<const MemoryBuffer>& payload,
                                                       RtpCodecMimeType::Subtype codecType,
-                                                      uint32_t sampleRate, uint32_t samplesCount,
+                                                      uint32_t sampleRate,
                                                       const RtpVideoFrameConfig& videoConfig);
     // common
     bool IsAudio() const;
@@ -51,7 +51,6 @@ public:
     uint32_t GetSsrc() const { return _ssrc; }
     uint16_t GetSequenceNumber() const { return _sequenceNumber; }
     uint32_t GetSampleRate() const { return _sampleRate; }
-    uint32_t GetSamplesCount() const { return _samplesCount; }
     uint32_t GetAbsSendtime() const { return _absSendtime; }
     void SetAbsSendtime(uint32_t absSendtime) { _absSendtime = absSendtime; }
     // audio configuration
@@ -69,7 +68,6 @@ private:
     const uint32_t _ssrc;
     const uint16_t _sequenceNumber;
     const uint32_t _sampleRate;
-    const uint32_t _samplesCount;
     uint32_t _absSendtime = 0U;
 };
 

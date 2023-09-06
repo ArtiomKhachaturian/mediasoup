@@ -218,14 +218,6 @@ namespace RTC
 			this->inactivityCheckPeriodicTimer->Start(
 			  this->params.useDtx ? InactivityCheckIntervalWithDtx : InactivityCheckInterval);
 		}
-#ifdef WRITE_RECV_AUDIO_TO_FILE
-        const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
-        if (depacketizerPath && std::strlen(depacketizerPath)) {
-            const auto liveMode = false;
-            _fileWriter = MediaFileWriter::Create(depacketizerPath, GetMimeType(),
-                                                  GetSsrc(), liveMode);
-        }
-#endif
 	}
 
 	RtpStreamRecv::~RtpStreamRecv()

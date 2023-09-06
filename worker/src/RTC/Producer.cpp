@@ -950,7 +950,7 @@ namespace RTC
 		// First, look for an encoding with matching media or RTX ssrc value.
 		for (size_t i{ 0 }; i < this->rtpParameters.encodings.size(); ++i)
 		{
-			auto& encoding           = this->rtpParameters.encodings[i];
+			const auto& encoding           = this->rtpParameters.encodings[i];
 			const auto* mediaCodec   = this->rtpParameters.GetCodecForEncoding(encoding);
 			const auto* rtxCodec     = this->rtpParameters.GetRtxCodecForEncoding(encoding);
 			const bool isMediaPacket = (mediaCodec->payloadType == payloadType);

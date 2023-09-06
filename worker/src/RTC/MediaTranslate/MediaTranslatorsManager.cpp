@@ -411,7 +411,7 @@ void MediaTranslatorsManager::Impl::RegisterStream(const std::shared_ptr<Produce
 {
     if (stream && producerTranslator && !producerTranslator->RegisterStream(stream, mappedSsrc)) {
         const auto desc = GetStreamInfoString(mappedSsrc, stream);
-        MS_ERROR("failed to register stream %s for producer %s", desc.c_str(),
+        MS_ERROR("failed to register stream [%s] for producer %s", desc.c_str(),
                  producerTranslator->GetId().c_str());
     }
 }

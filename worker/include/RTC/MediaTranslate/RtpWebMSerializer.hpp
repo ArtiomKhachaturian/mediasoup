@@ -3,6 +3,7 @@
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include <mkvmuxer/mkvmuxer.h>
 #include <unordered_map>
+#include <string>
 
 namespace RTC
 {
@@ -28,13 +29,13 @@ public:
 private:
     static const char* GetCodec(const RtpCodecMimeType& mimeType);
     static bool IsOpusAudio(const RtpCodecMimeType& mimeType);
-    TrackInfo* GetTrack(const std::shared_ptr<RtpMediaFrame>& mediaFrame);
+    TrackInfo* GetTrack(const std::shared_ptr<const RtpMediaFrame>& mediaFrame);
     void CommitData(OutputDevice* outputDevice);
 private:
     const std::unique_ptr<BufferedWriter> _writer;
     mkvmuxer::Segment _segment;
     // key - is packet SSRC
-    std::unordered_map<uint32_t, TrackInfo> _tracks;
+    std::unordered_map<uint32_t, std::unique_ptr<TrackInfo>> _tracks;
 };
 
 } // namespace RTC

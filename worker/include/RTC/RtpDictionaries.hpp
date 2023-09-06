@@ -293,8 +293,8 @@ namespace RTC
 		explicit RtpParameters(json& data);
 
 		void FillJson(json& jsonObject) const;
-		const RTC::RtpCodecParameters* GetCodecForEncoding(RtpEncodingParameters& encoding) const;
-		const RTC::RtpCodecParameters* GetRtxCodecForEncoding(RtpEncodingParameters& encoding) const;
+		const RTC::RtpCodecParameters* GetCodecForEncoding(const RtpEncodingParameters& encoding) const;
+		const RTC::RtpCodecParameters* GetRtxCodecForEncoding(const RtpEncodingParameters& encoding) const;
 
 	private:
 		void ValidateCodecs();

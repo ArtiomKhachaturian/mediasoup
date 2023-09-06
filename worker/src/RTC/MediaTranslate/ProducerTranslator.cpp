@@ -101,12 +101,12 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
                     }
                     else {
                         const auto desc = GetStreamInfoString(mappedSsrc, stream);
-                        MS_ERROR("unable to find serializer for stream %s", desc.c_str());
+                        MS_ERROR("unable to find serializer for stream [%s]", desc.c_str());
                     }
                 }
                 else {
                     const auto desc = GetStreamInfoString(mappedSsrc, stream);
-                    MS_ERROR("no depacketizer found for stream %s", desc.c_str());
+                    MS_ERROR("no depacketizer found for stream [%s]", desc.c_str());
                 }
             }
             else {
@@ -129,7 +129,7 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
                         case MimeChangeStatus::Failed:
                             {
                                 const auto desc = GetStreamInfoString(mappedSsrc, stream);
-                                MS_ERROR("no depacketizer found for stream %s", desc.c_str());
+                                MS_ERROR("no depacketizer found for stream [%s]", desc.c_str());
                             }
                             break;
                     }

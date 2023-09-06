@@ -23,7 +23,7 @@ class RtpWebMSerializer::BufferedWriter : public mkvmuxer::IMkvWriter
 {
 public:
     BufferedWriter() { ReserveBuffer(); }
-    std::shared_ptr<MemoryBuffer> takeBuffer();
+    std::shared_ptr<MemoryBuffer> TakeBuffer();
     // impl. of mkvmuxer::IMkvWriter
     mkvmuxer::int32 Write(const void* buf, mkvmuxer::uint32 len) final;
     mkvmuxer::int64 Position() const final;
@@ -43,14 +43,18 @@ class RtpWebMSerializer::TrackInfo
 public:
     TrackInfo(uint64_t number, RtpCodecMimeType::Subtype codec = RtpCodecMimeType::Subtype::UNSET);
     uint64_t GetNumber() const { return _number; }
+    bool IsAccepted(const std::shared_ptr<RtpMediaFrame>& mediaFrame) const;
     // return true if changed
     bool SetCodec(RtpCodecMimeType::Subtype codec);
+    bool SetCodec(const RtpCodecMimeType& mime) { return SetCodec(mime.GetSubtype()); }
+    bool SetCodec(const std::shared_ptr<const RtpMediaFrame>& mediaFrame);
     RtpCodecMimeType::Subtype GetCodec() const { return _codec; }
-    void AddWrittenSamples(uint32_t samplesCount) { _granule += samplesCount; }
+    void SetLastRtpTimeStamp(uint32_t lastRtpTimestamp);
     uint64_t GetTimeStampNano(uint32_t sampleRate) const;
 private:
     const uint64_t _number;
     RtpCodecMimeType::Subtype _codec;
+    uint32_t _lastRtpTimestamp = 0ULL;
     uint64_t _granule = 0ULL;
 };
 
@@ -97,7 +101,8 @@ void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 {
     if (mediaFrame && mediaFrame->GetPayload()) {
         if (const auto outputDevice = GetOutputDevice()) {
-            if (const auto track = GetTrack(mediaFrame)) {
+            const auto track = GetTrack(mediaFrame);
+            if (track && track->IsAccepted(mediaFrame)) {
                 const auto timestamp = track->GetTimeStampNano(mediaFrame->GetSampleRate());
                 const auto& payload = mediaFrame->GetPayload();
                 outputDevice->BeginWriteMediaPayload(mediaFrame->GetSsrc(),
@@ -109,14 +114,14 @@ void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
                 const auto ok = _segment.AddFrame(payload->GetData(), payload->GetSize(),
                                                   track->GetNumber(), timestamp,
                                                   mediaFrame->IsKeyFrame());
-                if (ok) {
-                    track->AddWrittenSamples(mediaFrame->GetSamplesCount());
-                }
-                else {
-                    // TODO: log error ?
-                }
+                track->SetLastRtpTimeStamp(mediaFrame->GetTimestamp());
                 CommitData(outputDevice);
                 outputDevice->EndWriteMediaPayload(mediaFrame->GetSsrc(), ok);
+                if (!ok) {
+                    const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
+                    MS_ERROR("unable write frame to MKV media [%s] to track #%llu",
+                             frameInfo.c_str(), track->GetNumber());
+                }
             }
         }
     }
@@ -152,14 +157,12 @@ const char* RtpWebMSerializer::GetCodec(const RtpCodecMimeType& mimeType)
     return nullptr;
 }
 
-RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
+RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<const RtpMediaFrame>& mediaFrame)
 {
-    RtpWebMSerializer::TrackInfo* trackInfo = nullptr;
+    TrackInfo* trackInfo = nullptr;
     if (mediaFrame) {
-        const auto& mimeType = mediaFrame->GetCodecMimeType();
-        if (const auto codecId = GetCodec(mimeType)) {
-            const auto ssrc = mediaFrame->GetSsrc();
-            auto it = _tracks.find(ssrc);
+        if (const auto codecId = GetCodec(mediaFrame->GetCodecMimeType())) {
+            const auto it = _tracks.find(mediaFrame->GetSsrc());
             if (it == _tracks.end()) {
                 if (codecId) {
                     const mkvmuxer::int32 trackNumber = static_cast<mkvmuxer::int32>(_tracks.size()) + 1;
@@ -174,21 +177,23 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<
                                                             trackNumber);
                     }
                     if (added) {
-                        it = _tracks.emplace(ssrc, TrackInfo(trackNumber)).first;
-                        trackInfo = &it->second;
+                        auto addedTrackInfo = std::make_unique<TrackInfo>(trackNumber);
+                        trackInfo = addedTrackInfo.get();
+                        _tracks[mediaFrame->GetSsrc()] = std::move(addedTrackInfo);
                     }
                     else {
-                        const auto errorInfo = GetStreamInfoString(mimeType, mediaFrame->GetSsrc());
-                        MS_ERROR("failed add MKV writer media track for %s", errorInfo.c_str());
+                        const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
+                        MS_ERROR("failed to add MKV writer [%s] track", frameInfo.c_str());
+                        _tracks[mediaFrame->GetSsrc()] = nullptr;
                     }
                 }
             }
             else {
-                trackInfo = &it->second;
+                trackInfo = it->second.get();
             }
             if (trackInfo) {
                 if (const auto track = _segment.GetTrackByNumber(trackInfo->GetNumber())) {
-                    const auto codecTypeChanged = trackInfo->SetCodec(mimeType.GetSubtype());
+                    const auto codecTypeChanged = trackInfo->SetCodec(mediaFrame);
                     if (const auto config = mediaFrame->GetAudioConfig()) {
                         if (const auto audioTrack = static_cast<mkvmuxer::AudioTrack*>(track)) {
                             audioTrack->set_bit_depth(config->_bitsPerSample);
@@ -207,6 +212,7 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<
                     else if (const auto config = mediaFrame->GetVideoConfig()) {
                         if (const auto videoTrack = static_cast<mkvmuxer::VideoTrack*>(track)) {
                             if (mediaFrame->IsKeyFrame()) {
+                                videoTrack->SetAlphaMode(mkvmuxer::VideoTrack::kNoAlpha);
                                 videoTrack->set_frame_rate(config->_frameRate);
                                 videoTrack->set_width(config->_width);
                                 videoTrack->set_height(config->_height);
@@ -217,11 +223,6 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<
                         track->set_codec_id(codecId);
                     }
                 }
-                else {
-                    const auto errorInfo = GetStreamInfoString(mimeType, mediaFrame->GetSsrc());
-                    MS_ERROR("unable to find MKV writer media track #%llu for %s",
-                             trackInfo->GetNumber(), errorInfo.c_str());
-                }
             }
         }
     }
@@ -231,13 +232,13 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<
 void RtpWebMSerializer::CommitData(OutputDevice* outputDevice)
 {
     if (outputDevice) {
-        if (const auto buffer = _writer->takeBuffer()) {
+        if (const auto buffer = _writer->TakeBuffer()) {
             outputDevice->Write(buffer);
         }
     }
 }
 
-std::shared_ptr<MemoryBuffer> RtpWebMSerializer::BufferedWriter::takeBuffer()
+std::shared_ptr<MemoryBuffer> RtpWebMSerializer::BufferedWriter::TakeBuffer()
 {
     if (!_buffer.empty()) {
         auto buffer = std::make_shared<SimpleMemoryBuffer>(std::move(_buffer));
@@ -275,6 +276,11 @@ RtpWebMSerializer::TrackInfo::TrackInfo(uint64_t number, RtpCodecMimeType::Subty
 {
 }
 
+bool RtpWebMSerializer::TrackInfo::IsAccepted(const std::shared_ptr<RtpMediaFrame>& mediaFrame) const
+{
+    return mediaFrame && mediaFrame->GetTimestamp() > _lastRtpTimestamp;
+}
+
 bool RtpWebMSerializer::TrackInfo::SetCodec(RtpCodecMimeType::Subtype codec)
 {
     if (codec != _codec) {
@@ -288,6 +294,21 @@ uint64_t RtpWebMSerializer::TrackInfo::GetTimeStampNano(uint32_t sampleRate) con
 {
     MS_ASSERT(sampleRate, "invalid sample rate of media frame");
     return MilliToNano(_granule) / sampleRate;
+}
+
+bool RtpWebMSerializer::TrackInfo::SetCodec(const std::shared_ptr<const RtpMediaFrame>& mediaFrame)
+{
+    return mediaFrame && SetCodec(mediaFrame->GetCodecMimeType());
+}
+
+void RtpWebMSerializer::TrackInfo::SetLastRtpTimeStamp(uint32_t lastRtpTimestamp)
+{
+    if (lastRtpTimestamp > _lastRtpTimestamp) {
+        if (_lastRtpTimestamp) {
+            _granule += lastRtpTimestamp - _lastRtpTimestamp;
+        }
+        _lastRtpTimestamp = lastRtpTimestamp;
+    }
 }
 
 } // namespace RTC

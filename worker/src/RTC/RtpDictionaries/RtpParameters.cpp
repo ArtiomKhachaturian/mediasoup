@@ -238,7 +238,7 @@ namespace RTC
 			jsonObject["rtcp"] = json::object();
 	}
 
-	const RTC::RtpCodecParameters* RtpParameters::GetCodecForEncoding(RtpEncodingParameters& encoding) const
+	const RTC::RtpCodecParameters* RtpParameters::GetCodecForEncoding(const RtpEncodingParameters& encoding) const
 	{
 		MS_TRACE();
 
@@ -247,7 +247,7 @@ namespace RTC
 
 		for (; it != this->codecs.end(); ++it)
 		{
-			auto& codec = *it;
+			const auto& codec = *it;
 
 			if (codec.payloadType == payloadType)
 				return std::addressof(codec);
@@ -260,7 +260,7 @@ namespace RTC
 		return nullptr;
 	}
 
-	const RTC::RtpCodecParameters* RtpParameters::GetRtxCodecForEncoding(RtpEncodingParameters& encoding) const
+	const RTC::RtpCodecParameters* RtpParameters::GetRtxCodecForEncoding(const RtpEncodingParameters& encoding) const
 	{
 		MS_TRACE();
 
