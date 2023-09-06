@@ -55,11 +55,12 @@ inline static const char* GetCodecId(const RTC::RtpCodecMimeType& mime) {
 namespace RTC
 {
 
-class RtpWebMSerializer::BufferedWriter : public mkvmuxer::IMkvWriter
+class RtpWebMSerializer::BufferedWriter : public mkvmuxer::IMkvWriter,
+                                          private SimpleMemoryBuffer
 {
 public:
     BufferedWriter() { ReserveBuffer(); }
-    std::shared_ptr<MemoryBuffer> TakeBuffer();
+    std::shared_ptr<MemoryBuffer> TakeWrittenData();
     // impl. of mkvmuxer::IMkvWriter
     mkvmuxer::int32 Write(const void* buf, mkvmuxer::uint32 len) final;
     mkvmuxer::int64 Position() const final;
@@ -69,9 +70,7 @@ public:
 private:
     // 1kb buffer is enough for single OPUS frame
     // TODO: develop a strategy for optimal memory management for both audio & video (maybe mem pool)
-    void ReserveBuffer() { _buffer.reserve(1024); }
-private:
-    std::vector<uint8_t> _buffer;
+    void ReserveBuffer() { Reserve(1024); }
 };
 
 class RtpWebMSerializer::TrackInfo
@@ -246,41 +245,34 @@ mkvmuxer::Track* RtpWebMSerializer::CreateMediaTrack(const std::shared_ptr<const
 void RtpWebMSerializer::CommitData(OutputDevice* outputDevice)
 {
     if (outputDevice) {
-        if (const auto buffer = _writer->TakeBuffer()) {
+        if (const auto buffer = _writer->TakeWrittenData()) {
             outputDevice->Write(buffer);
         }
     }
 }
 
-std::shared_ptr<MemoryBuffer> RtpWebMSerializer::BufferedWriter::TakeBuffer()
+std::shared_ptr<MemoryBuffer> RtpWebMSerializer::BufferedWriter::TakeWrittenData()
 {
-    if (!_buffer.empty()) {
-        auto buffer = std::make_shared<SimpleMemoryBuffer>(std::move(_buffer));
+    if (const auto buffer = Take()) {
         ReserveBuffer();
         return buffer;
     }
     return nullptr;
 }
 
-mkvmuxer::int32 RtpWebMSerializer::BufferedWriter::Write(const void* buf,
-                                                         mkvmuxer::uint32 len)
+mkvmuxer::int32 RtpWebMSerializer::BufferedWriter::Write(const void* buf, mkvmuxer::uint32 len)
 {
-    if (buf && len) {
-        auto newBytes = reinterpret_cast<const uint8_t*>(buf);
-        std::copy(newBytes, newBytes + len, std::back_inserter(_buffer));
-        return 0;
-    }
-    return 1;
+    return Append(buf, len) ? 0 : 1;
 }
 
 mkvmuxer::int64 RtpWebMSerializer::BufferedWriter::Position() const
 {
-    return static_cast<mkvmuxer::int64>(_buffer.size());
+    return static_cast<mkvmuxer::int64>(GetSize());
 }
 
 mkvmuxer::int32 RtpWebMSerializer::BufferedWriter::Position(mkvmuxer::int64 position)
 {
-    _buffer.resize(position);
+    Resize(position);
     return 0;
 }
 

@@ -99,7 +99,7 @@ namespace RTC
 			class EncodingContext : public RTC::Codecs::EncodingContext
 			{
 			public:
-				explicit EncodingContext(RTC::Codecs::EncodingContext::Params& params)
+				explicit EncodingContext(const RTC::Codecs::EncodingContext::Params& params)
 				  : RTC::Codecs::EncodingContext(params)
 				{
 				}
@@ -142,6 +142,10 @@ namespace RTC
 				{
 					return this->payloadDescriptor->isKeyFrame;
 				}
+                size_t GetPayloadDescriptorSize() const override
+                {
+                    return this->payloadDescriptor->size;
+                }
 
 			private:
 				std::unique_ptr<PayloadDescriptor> payloadDescriptor;

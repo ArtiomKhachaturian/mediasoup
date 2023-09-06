@@ -119,7 +119,7 @@ namespace RTC
 			{
 				payloadDescriptor->isKeyFrame = true;
 			}
-            
+            payloadDescriptor->size = offset;
 			return payloadDescriptor.release();
 		}
 

@@ -12,6 +12,7 @@ namespace RTC
 		{
 			virtual ~PayloadDescriptor() = default;
 			virtual void Dump() const    = 0;
+            size_t size = 0UL;
 		};
 
 		// Encoding context used by PayloadDescriptorHandler to properly rewrite the
@@ -27,7 +28,8 @@ namespace RTC
 			};
 
 		public:
-			explicit EncodingContext(RTC::Codecs::EncodingContext::Params& params) : params(params)
+			explicit EncodingContext(const RTC::Codecs::EncodingContext::Params& params)
+                : params(params)
 			{
 			}
 			virtual ~EncodingContext() = default;
@@ -108,6 +110,7 @@ namespace RTC
 			virtual uint8_t GetSpatialLayer() const                                                  = 0;
 			virtual uint8_t GetTemporalLayer() const                                                 = 0;
 			virtual bool IsKeyFrame() const                                                          = 0;
+            virtual size_t GetPayloadDescriptorSize() const                                          = 0;
 		};
 	} // namespace Codecs
 } // namespace RTC

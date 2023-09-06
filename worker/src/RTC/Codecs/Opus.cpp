@@ -71,7 +71,7 @@ namespace RTC
 			{
 				payloadDescriptor->isDtx = true;
 			}
-
+            payloadDescriptor->size = 1UL;
 			return payloadDescriptor.release();
 		}
 

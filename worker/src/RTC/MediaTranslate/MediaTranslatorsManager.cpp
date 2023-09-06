@@ -240,6 +240,13 @@ bool MediaTranslatorsManager::Impl::Register(Producer* producer)
         const auto it = _producerTranslators.find(producer->id);
         if (it == _producerTranslators.end()) {
             const auto producerTranslator = std::make_shared<ProducerTranslator>(producer);
+            if (!producerTranslator->IsAudio()) {
+                for (auto it2 = _producerTranslators.begin(); it2 != _producerTranslators.end(); ++it2) {
+                    if (!it2->second->IsAudio()) {
+                        return true;
+                    }
+                }
+            }
             //if (!producerTranslator->IsAudio()) { // for tests only
                 const auto& streams = producer->GetRtpStreams();
                 for (auto it = streams.begin(); it != streams.end(); ++it) {
