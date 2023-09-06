@@ -13,10 +13,10 @@ public:
     // impl. of RtpDepacketizer
     std::shared_ptr<RtpMediaFrame> AddPacket(const RtpPacket* packet) final;
 private:
-    std::shared_ptr<RtpMediaFrame> CreateVp8KeyFrame(const RtpPacket* packet) const;
-    std::shared_ptr<RtpMediaFrame> CreateVp9KeyFrame(const RtpPacket* packet) const;
-    std::shared_ptr<RtpMediaFrame> CreateInfaFrame(const RtpPacket* packet) const;
-    std::shared_ptr<RtpMediaFrame> CreateFrame(const RtpPacket* packet,
+    std::shared_ptr<RtpMediaFrame> CreateVp8KeyFrame(const RtpPacket* packet, uint32_t samplesCount) const;
+    std::shared_ptr<RtpMediaFrame> CreateVp9KeyFrame(const RtpPacket* packet, uint32_t samplesCount) const;
+    std::shared_ptr<RtpMediaFrame> CreateInfaFrame(const RtpPacket* packet, uint32_t samplesCount) const;
+    std::shared_ptr<RtpMediaFrame> CreateFrame(const RtpPacket* packet, uint32_t samplesCount,
                                                const RtpVideoFrameConfig& videoConfig) const;
 };
 

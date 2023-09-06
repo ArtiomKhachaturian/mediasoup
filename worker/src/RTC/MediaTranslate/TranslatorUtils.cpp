@@ -10,18 +10,27 @@ const std::string g_emptyString;
 namespace RTC
 {
 
-std::string GetStreamInfoString(uint32_t mappedSsrc, uint32_t ssrc,
-                                const RtpCodecMimeType& mime)
+std::string GetStreamInfoString(const RtpCodecMimeType& mime,
+                                uint32_t mappedSsrc, uint32_t ssrc)
 {
-    std::string mimeString = mime.IsValid() ? mime.ToString() : "invalid mime";
-    return "[" + mimeString + ", SSRC = " + std::to_string(ssrc) + ", mapped SSRC = " +
-           std::to_string(mappedSsrc) + "]";
+    if (mappedSsrc || ssrc) {
+        std::string ssrcInfo;
+        if (ssrc) {
+            ssrcInfo += ", SSRC = " + std::to_string(ssrc);
+        }
+        if (mappedSsrc) {
+            ssrcInfo += ", mapped SSRC = " + std::to_string(mappedSsrc);
+        }
+        const std::string mimeString = mime.IsValid() ? mime.ToString() : "invalid mime";
+        return "[" + mimeString + ssrcInfo + "]";
+    }
+    return std::string();
 }
 
 std::string GetStreamInfoString(uint32_t mappedSsrc, const RtpStream* stream)
 {
     if (stream) {
-        return GetStreamInfoString(mappedSsrc, stream->GetSsrc(), stream->GetMimeType());
+        return GetStreamInfoString(stream->GetMimeType(), mappedSsrc, stream->GetSsrc());
     }
     return std::string();
 }

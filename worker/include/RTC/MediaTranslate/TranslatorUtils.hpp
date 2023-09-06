@@ -7,8 +7,8 @@ namespace RTC
 
 class RtpStream;
 
-std::string GetStreamInfoString(uint32_t mappedSsrc, uint32_t ssrc,
-                                const RtpCodecMimeType& mime);
+std::string GetStreamInfoString(const RtpCodecMimeType& mime,
+                                uint32_t mappedSsrc = 0U, uint32_t ssrc = 0U);
 std::string GetStreamInfoString(uint32_t mappedSsrc, const RtpStream* stream);
 
 const std::string& MimeTypeToString(RtpCodecMimeType::Type type);

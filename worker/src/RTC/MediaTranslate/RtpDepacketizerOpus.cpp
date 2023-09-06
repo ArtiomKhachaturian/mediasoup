@@ -20,11 +20,14 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* p
 {
     if (packet && packet->GetPayload()) {
         bool stereo = false;
-        Codecs::Opus::ParseTOC(packet->GetPayload()[0], nullptr, nullptr, nullptr, &stereo);
+        Codecs::Opus::FrameSize frameSize;
+        Codecs::Opus::ParseTOC(packet->GetPayload()[0], nullptr, nullptr, &frameSize, &stereo);
         RtpAudioFrameConfig config;
         config._channelCount = stereo ? 2U : 1U;
         config._bitsPerSample = 16U;
-        return RtpMediaFrame::CreateAudio(packet, GetCodecMimeType().GetSubtype(), GetSampleRate(), config);
+        return RtpMediaFrame::CreateAudio(packet, GetCodecMimeType().GetSubtype(),
+                                          GetSampleRate(), static_cast<uint32_t>(frameSize),
+                                          config);
     }
     return nullptr;
 }

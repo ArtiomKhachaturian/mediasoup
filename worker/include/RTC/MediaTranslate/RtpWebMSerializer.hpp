@@ -10,6 +10,7 @@ namespace RTC
 class RtpMediaFrame;
 class RtpCodecMimeType;
 
+// https://www.webmproject.org/docs/container/#muxer-guidelines
 class RtpWebMSerializer : public RtpMediaFrameSerializer
 {
     class BufferedWriter;

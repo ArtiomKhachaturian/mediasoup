@@ -14,7 +14,7 @@ public:
     RtpAudioFrame(const RtpCodecMimeType& codecMimeType,
                   const std::shared_ptr<const MemoryBuffer>& payload,
                   bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
-                  uint16_t sequenceNumber, uint32_t sampleRate,
+                  uint16_t sequenceNumber, uint32_t sampleRate, uint32_t samplesCount,
                   const RtpAudioFrameConfig& audioConfig);
     // overrides of RtpMediaFrame
     const RtpAudioFrameConfig* GetAudioConfig() const final { return &_audioConfig; }
@@ -28,7 +28,7 @@ public:
     RtpVideoFrame(const RtpCodecMimeType& codecMimeType,
                   const std::shared_ptr<const MemoryBuffer>& payload,
                   bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
-                  uint16_t sequenceNumber, uint32_t sampleRate,
+                  uint16_t sequenceNumber, uint32_t sampleRate, uint32_t samplesCount,
                   const RtpVideoFrameConfig& videoConfig);
     // overrides of RtpMediaFrame
     const RtpVideoFrameConfig* GetVideoConfig() const { return &_videoConfig; }
@@ -39,7 +39,8 @@ private:
 RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& codecMimeType,
                              const std::shared_ptr<const MemoryBuffer>& payload,
                              bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
-                             uint16_t sequenceNumber, uint32_t sampleRate)
+                             uint16_t sequenceNumber, uint32_t sampleRate,
+                             uint32_t samplesCount)
     : _codecMimeType(codecMimeType)
     , _payload(payload)
     , _isKeyFrame(isKeyFrame)
@@ -47,21 +48,23 @@ RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& codecMimeType,
     , _ssrc(ssrc)
     , _sequenceNumber(sequenceNumber)
     , _sampleRate(sampleRate)
+    , _samplesCount(samplesCount)
 {
     MS_ASSERT(_codecMimeType.IsMediaCodec(), "invalid media codec");
     MS_ASSERT(_payload && !_payload->IsEmpty(), "wrong payload");
     MS_ASSERT(_sampleRate, "sample rate must be greater than zero");
+    MS_ASSERT(_samplesCount, "sample count must be greater than zero");
 }
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packet,
                                                           RtpCodecMimeType::Subtype codecType,
-                                                          uint32_t sampleRate,
+                                                          uint32_t sampleRate, uint32_t samplesCount,
                                                           const RtpAudioFrameConfig& audioConfig,
                                                           const std::allocator<uint8_t>& payloadAllocator)
 {
     if (packet) {
         const auto payload = CreatePayload(packet, payloadAllocator);
-        return CreateAudio(packet, payload, codecType, sampleRate, audioConfig);
+        return CreateAudio(packet, payload, codecType, sampleRate, samplesCount, audioConfig);
     }
     return nullptr;
 }
@@ -69,7 +72,7 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packe
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packet,
                                                           const std::shared_ptr<const MemoryBuffer>& payload,
                                                           RtpCodecMimeType::Subtype codecType,
-                                                          uint32_t sampleRate,
+                                                          uint32_t sampleRate, uint32_t samplesCount,
                                                           const RtpAudioFrameConfig& audioConfig)
 {
     if (packet && payload) {
@@ -77,20 +80,21 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packe
         MS_ASSERT(codecMimeType.IsAudioCodec(), "is not audio codec");
         return std::make_shared<RtpAudioFrame>(codecMimeType, payload, packet->IsKeyFrame(),
                                                packet->GetTimestamp(), packet->GetSsrc(),
-                                               packet->GetSequenceNumber(), sampleRate, audioConfig);
+                                               packet->GetSequenceNumber(), sampleRate,
+                                               samplesCount, audioConfig);
     }
     return nullptr;
 }
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateVideo(const RtpPacket* packet,
                                                           RtpCodecMimeType::Subtype codecType,
-                                                          uint32_t sampleRate,
+                                                          uint32_t sampleRate, uint32_t samplesCount,
                                                           const RtpVideoFrameConfig& videoConfig,
                                                           const std::allocator<uint8_t>& payloadAllocator)
 {
     if (packet) {
         const auto payload = CreatePayload(packet, payloadAllocator);
-        return CreateVideo(packet, payload, codecType, sampleRate, videoConfig);
+        return CreateVideo(packet, payload, codecType, sampleRate, samplesCount, videoConfig);
     }
     return nullptr;
 }
@@ -98,7 +102,7 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateVideo(const RtpPacket* packe
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateVideo(const RtpPacket* packet,
                                                           const std::shared_ptr<const MemoryBuffer>& payload,
                                                           RtpCodecMimeType::Subtype codecType,
-                                                          uint32_t sampleRate,
+                                                          uint32_t sampleRate, uint32_t samplesCount,
                                                           const RtpVideoFrameConfig& videoConfig)
 {
     if (packet && payload) {
@@ -106,7 +110,8 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateVideo(const RtpPacket* packe
         MS_ASSERT(codecMimeType.IsVideoCodec(), "is not video codec");
         return std::make_shared<RtpVideoFrame>(codecMimeType, payload, packet->IsKeyFrame(),
                                                packet->GetTimestamp(), packet->GetSsrc(),
-                                               packet->GetSequenceNumber(), sampleRate, videoConfig);
+                                               packet->GetSequenceNumber(), sampleRate,
+                                               samplesCount, videoConfig);
     }
     return nullptr;
 }
@@ -129,8 +134,9 @@ RtpMediaFrame::RtpAudioFrame::RtpAudioFrame(const RtpCodecMimeType& codecMimeTyp
                                             const std::shared_ptr<const MemoryBuffer>& payload,
                                             bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
                                             uint16_t sequenceNumber, uint32_t sampleRate,
-                                            const RtpAudioFrameConfig& audioConfig)
-    : RtpMediaFrame(codecMimeType, payload, isKeyFrame, timestamp, ssrc, sequenceNumber, sampleRate)
+                                            uint32_t samplesCount, const RtpAudioFrameConfig& audioConfig)
+    : RtpMediaFrame(codecMimeType, payload, isKeyFrame, timestamp,
+                    ssrc, sequenceNumber, sampleRate, samplesCount)
     , _audioConfig(audioConfig)
 {
     MS_ASSERT(_audioConfig._channelCount, "channels count must be greater than zero");
@@ -141,8 +147,9 @@ RtpMediaFrame::RtpVideoFrame::RtpVideoFrame(const RtpCodecMimeType& codecMimeTyp
                                             const std::shared_ptr<const MemoryBuffer>& payload,
                                             bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
                                             uint16_t sequenceNumber, uint32_t sampleRate,
-                                            const RtpVideoFrameConfig& videoConfig)
-    : RtpMediaFrame(codecMimeType, payload, isKeyFrame, timestamp, ssrc, sequenceNumber, sampleRate)
+                                            uint32_t samplesCount, const RtpVideoFrameConfig& videoConfig)
+    : RtpMediaFrame(codecMimeType, payload, isKeyFrame, timestamp,
+                    ssrc, sequenceNumber, sampleRate, samplesCount)
     , _videoConfig(videoConfig)
 {
     if (isKeyFrame) {
