@@ -88,6 +88,7 @@ void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
             if (const auto track = GetTrack(mediaFrame)) {
                 if (const auto tsp = mediaFrame->GetTimeStampProvider()) {
                     const auto& payload = mediaFrame->GetPayload();
+                    MS_ASSERT(mediaFrame->GetSampleRate(), "invalid sample rate of media frame");
                     outputDevice->BeginWriteMediaPayload(mediaFrame->GetSsrc(),
                                                          mediaFrame->IsKeyFrame(),
                                                          mediaFrame->GetCodecMimeType(),
@@ -95,9 +96,9 @@ void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
                                                          mediaFrame->GetTimestamp(),
                                                          mediaFrame->GetAbsSendtime(),
                                                          mediaFrame->GetDuration());
+                    const auto ts = tsp->GetTimeStampNano(mediaFrame) / mediaFrame->GetSampleRate();
                     const auto ok = _segment.AddFrame(payload->GetData(), payload->GetSize(),
-                                                      track->_number,
-                                                      tsp->GetTimeStampNano(mediaFrame),
+                                                      track->_number, ts,
                                                       mediaFrame->IsKeyFrame());
                     if (ok) {
                         if (mkvmuxer::Segment::kLive == _segment.mode()) {

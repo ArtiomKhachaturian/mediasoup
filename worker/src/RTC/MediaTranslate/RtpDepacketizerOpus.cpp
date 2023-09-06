@@ -14,18 +14,17 @@ namespace RTC
 class RtpDepacketizerOpus::TimeStampProviderImpl : public RtpMediaTimeStampProvider
 {
 public:
-    TimeStampProviderImpl(uint32_t sampleRate);
+    TimeStampProviderImpl() = default;
     // impl. of RtpMediaTimeStampProvider
     uint64_t GetTimeStampNano(const std::shared_ptr<const RtpMediaFrame>& frame) final;
 private:
-    const uint32_t _sampleRate;
     absl::flat_hash_map<uint32_t, uint32_t> _granules;
 };
 
 RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& codecMimeType,
                                          uint32_t sampleRate)
     : RtpDepacketizer(codecMimeType, sampleRate)
-    , _timeStampProvider(std::make_shared<TimeStampProviderImpl>(sampleRate))
+    , _timeStampProvider(std::make_shared<TimeStampProviderImpl>())
 {
 }
 
@@ -45,21 +44,16 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* p
     return nullptr;
 }
 
-RtpDepacketizerOpus::TimeStampProviderImpl::TimeStampProviderImpl(uint32_t sampleRate)
-    : _sampleRate(sampleRate)
-{
-}
-
 uint64_t RtpDepacketizerOpus::TimeStampProviderImpl::GetTimeStampNano(const std::shared_ptr<const RtpMediaFrame>& frame)
 {
     uint64_t ts = 0ULL;
     if (frame) {
-        MS_ASSERT(_sampleRate == frame->GetSampleRate(), "sample rate mistmatch");
+        MS_ASSERT(this == frame->GetTimeStampProvider().get(), "time stamp provider mistmatch");
         MS_ASSERT(frame->GetDuration(), "invalid duration");
         const auto it = _granules.find(frame->GetSsrc());
         if (it != _granules.end()) {
             it->second += frame->GetDuration();
-            ts = MilliToNano(it->second) / _sampleRate;
+            ts = MilliToNano(it->second);
         }
         else {
             _granules[frame->GetSsrc()] = 0ULL;
