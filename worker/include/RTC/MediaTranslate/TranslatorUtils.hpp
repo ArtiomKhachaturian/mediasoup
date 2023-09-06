@@ -17,8 +17,4 @@ const std::string& MimeTypeToString(const RtpCodecMimeType& mime);
 const std::string& MimeSubTypeToString(RtpCodecMimeType::Subtype subtype);
 const std::string& MimeSubTypeToString(const RtpCodecMimeType& mime);
 
-inline uint64_t MilliToNano(uint32_t milli) {
-    return milli * 1000ULL * 1000ULL * 1000ULL;
-}
-
 } // namespace RTC

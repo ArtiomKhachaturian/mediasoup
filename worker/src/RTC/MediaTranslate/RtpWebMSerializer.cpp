@@ -3,10 +3,17 @@
 #include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
-#include "RTC/MediaTranslate/RtpMediaTimeStampProvider.hpp"
 #include "RTC/Codecs/Opus.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
+
+namespace {
+
+inline uint64_t MilliToNano(uint64_t milli) {
+    return milli * 1000ULL * 1000ULL * 1000ULL;
+}
+
+}
 
 namespace RTC
 {
@@ -30,11 +37,21 @@ private:
     std::vector<uint8_t> _buffer;
 };
 
-struct RtpWebMSerializer::TrackInfo
+class RtpWebMSerializer::TrackInfo
 {
+public:
+    TrackInfo(uint64_t number, RtpCodecMimeType::Subtype codec = RtpCodecMimeType::Subtype::UNSET);
+    uint64_t GetNumber() const { return _number; }
+    // return true if changed
+    bool SetCodec(RtpCodecMimeType::Subtype codec);
+    RtpCodecMimeType::Subtype GetCodec() const { return _codec; }
+    void SetLastRtpTimeStamp(uint32_t timeStampMilli);
+    uint64_t GetTimeStampNano() const { return MilliToNano(_granule); }
+private:
     const uint64_t _number;
     RtpCodecMimeType::Subtype _codec;
-    TrackInfo(uint64_t number, RtpCodecMimeType::Subtype codec = RtpCodecMimeType::Subtype::UNSET);
+    uint32_t _lastTimestamp = 0ULL;
+    uint64_t _granule = 0ULL;
 };
 
 RtpWebMSerializer::RtpWebMSerializer()
@@ -86,28 +103,26 @@ void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
     if (mediaFrame && mediaFrame->GetPayload()) {
         if (const auto outputDevice = GetOutputDevice()) {
             if (const auto track = GetTrack(mediaFrame)) {
-                if (const auto tsp = mediaFrame->GetTimeStampProvider()) {
-                    const auto& payload = mediaFrame->GetPayload();
-                    MS_ASSERT(mediaFrame->GetSampleRate(), "invalid sample rate of media frame");
-                    outputDevice->BeginWriteMediaPayload(mediaFrame->GetSsrc(),
-                                                         mediaFrame->IsKeyFrame(),
-                                                         mediaFrame->GetCodecMimeType(),
-                                                         mediaFrame->GetSequenceNumber(),
-                                                         mediaFrame->GetTimestamp(),
-                                                         mediaFrame->GetAbsSendtime(),
-                                                         mediaFrame->GetDuration());
-                    const auto ts = tsp->GetTimeStampNano(mediaFrame) / mediaFrame->GetSampleRate();
-                    const auto ok = _segment.AddFrame(payload->GetData(), payload->GetSize(),
-                                                      track->_number, ts,
-                                                      mediaFrame->IsKeyFrame());
-                    if (ok) {
-                        if (mkvmuxer::Segment::kLive == _segment.mode()) {
-                            _segment.CuesTrack(track->_number); // for live mode
-                        }
+                const auto& payload = mediaFrame->GetPayload();
+                MS_ASSERT(mediaFrame->GetSampleRate(), "invalid sample rate of media frame");
+                outputDevice->BeginWriteMediaPayload(mediaFrame->GetSsrc(),
+                                                     mediaFrame->IsKeyFrame(),
+                                                     mediaFrame->GetCodecMimeType(),
+                                                     mediaFrame->GetSequenceNumber(),
+                                                     mediaFrame->GetTimestamp(),
+                                                     mediaFrame->GetAbsSendtime());
+                const auto ts = track->GetTimeStampNano() / mediaFrame->GetSampleRate();
+                const auto ok = _segment.AddFrame(payload->GetData(), payload->GetSize(),
+                                                  track->GetNumber(), ts,
+                                                  mediaFrame->IsKeyFrame());
+                if (ok) {
+                    if (mkvmuxer::Segment::kLive == _segment.mode()) {
+                        _segment.CuesTrack(track->GetNumber()); // for live mode
                     }
-                    CommitData(outputDevice);
-                    outputDevice->EndWriteMediaPayload(mediaFrame->GetSsrc(), ok);
                 }
+                track->SetLastRtpTimeStamp(mediaFrame->GetTimestamp());
+                CommitData(outputDevice);
+                outputDevice->EndWriteMediaPayload(mediaFrame->GetSsrc(), ok);
             }
         }
     }
@@ -174,13 +189,13 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<
                 trackInfo = &it->second;
             }
             if (trackInfo) {
-                const auto track = _segment.GetTrackByNumber(trackInfo->_number);
+                const auto track = _segment.GetTrackByNumber(trackInfo->GetNumber());
                 if (const auto config = mediaFrame->GetAudioConfig()) {
                     if (const auto audioTrack = static_cast<mkvmuxer::AudioTrack*>(track)) {
                         audioTrack->set_bit_depth(config->_bitsPerSample);
                         audioTrack->set_channels(config->_channelCount);
                         audioTrack->set_sample_rate(mediaFrame->GetSampleRate());
-                        if (trackInfo->_codec != mimeType.GetSubtype()) {
+                        if (trackInfo->GetCodec() != mimeType.GetSubtype()) {
                             if (48000U == mediaFrame->GetSampleRate()) { // https://wiki.xiph.org/MatroskaOpus
                                 track->set_seek_pre_roll(80000000ULL);
                             }
@@ -198,9 +213,8 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrack(const std::shared_ptr<
                         }
                     }
                 }
-                if (trackInfo->_codec != mimeType.GetSubtype()) {
+                if (trackInfo->SetCodec(mimeType.GetSubtype())) {
                     track->set_codec_id(codecId);
-                    trackInfo->_codec = mimeType.GetSubtype();
                 }
             }
         }
@@ -253,6 +267,25 @@ RtpWebMSerializer::TrackInfo::TrackInfo(uint64_t number, RtpCodecMimeType::Subty
     : _number(number)
     , _codec(codec)
 {
+}
+
+bool RtpWebMSerializer::TrackInfo::SetCodec(RtpCodecMimeType::Subtype codec)
+{
+    if (codec != _codec) {
+        _codec = codec;
+        return true;
+    }
+    return false;
+}
+
+void RtpWebMSerializer::TrackInfo::SetLastRtpTimeStamp(uint32_t timeStampMilli)
+{
+    if (timeStampMilli != _lastTimestamp) {
+        if (timeStampMilli >= _lastTimestamp && _lastTimestamp) {
+            _granule += timeStampMilli - _lastTimestamp;
+        }
+        _lastTimestamp = timeStampMilli;
+    }
 }
 
 } // namespace RTC

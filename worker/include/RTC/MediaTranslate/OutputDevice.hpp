@@ -16,8 +16,7 @@ public:
                                         const RtpCodecMimeType& /*codecMimeType*/,
                                         uint16_t /*rtpSequenceNumber*/,
                                         uint32_t /*rtpTimestamp*/,
-                                        uint32_t /*rtpAbsSendtime*/ = 0U,
-                                        uint32_t /*duration*/ = 0U) {}
+                                        uint32_t /*rtpAbsSendtime*/ = 0U) {}
     virtual void EndWriteMediaPayload(uint32_t /*ssrc*/, bool /*ok*/) {}
     virtual void Write(const std::shared_ptr<const MemoryBuffer>& buffer) = 0;
 };

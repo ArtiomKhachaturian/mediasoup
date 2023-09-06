@@ -11,56 +11,46 @@ namespace RTC
 {
 
 class RtpPacket;
-class RtpMediaTimeStampProvider;
 
 class RtpMediaFrame
 {
+    class RtpAudioFrame;
+    class RtpVideoFrame;
 public:
     RtpMediaFrame(const RtpCodecMimeType& codecMimeType,
                   const std::shared_ptr<const MemoryBuffer>& payload,
-                  const std::shared_ptr<RtpMediaTimeStampProvider>& timeStampProvider,
                   bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
-                  uint16_t sequenceNumber, uint32_t sampleRate, uint32_t durationMs = 0U);
+                  uint16_t sequenceNumber, uint32_t sampleRate);
     virtual ~RtpMediaFrame() = default;
     static std::shared_ptr<RtpMediaFrame> CreateAudio(const RtpPacket* packet,
                                                       RtpCodecMimeType::Subtype codecType,
-                                                      const std::shared_ptr<RtpMediaTimeStampProvider>& timeStampProvider,
                                                       uint32_t sampleRate,
                                                       const RtpAudioFrameConfig& audioConfig,
-                                                      uint32_t durationMs = 0U,
                                                       const std::allocator<uint8_t>& payloadAllocator = {});
     static std::shared_ptr<RtpMediaFrame> CreateAudio(const RtpPacket* packet,
                                                       const std::shared_ptr<const MemoryBuffer>& payload,
-                                                      const std::shared_ptr<RtpMediaTimeStampProvider>& timeStampProvider,
                                                       RtpCodecMimeType::Subtype codecType,
                                                       uint32_t sampleRate,
-                                                      const RtpAudioFrameConfig& audioConfig,
-                                                      uint32_t durationMs = 0U);
+                                                      const RtpAudioFrameConfig& audioConfig);
     static std::shared_ptr<RtpMediaFrame> CreateVideo(const RtpPacket* packet,
                                                       RtpCodecMimeType::Subtype codecType,
-                                                      const std::shared_ptr<RtpMediaTimeStampProvider>& timeStampProvider,
                                                       uint32_t sampleRate,
                                                       const RtpVideoFrameConfig& videoConfig,
-                                                      uint32_t durationMs = 0U,
                                                       const std::allocator<uint8_t>& payloadAllocator = {});
     static std::shared_ptr<RtpMediaFrame> CreateVideo(const RtpPacket* packet,
                                                       const std::shared_ptr<const MemoryBuffer>& payload,
-                                                      const std::shared_ptr<RtpMediaTimeStampProvider>& timeStampProvider,
                                                       RtpCodecMimeType::Subtype codecType,
                                                       uint32_t sampleRate,
-                                                      const RtpVideoFrameConfig& videoConfig,
-                                                      uint32_t durationMs = 0U);
+                                                      const RtpVideoFrameConfig& videoConfig);
     // common
     bool IsAudio() const;
     const RtpCodecMimeType& GetCodecMimeType() const { return _codecMimeType; }
     bool IsKeyFrame() const { return _isKeyFrame; }
     const std::shared_ptr<const MemoryBuffer>& GetPayload() const { return _payload; }
-    const std::shared_ptr<RtpMediaTimeStampProvider>& GetTimeStampProvider() const { return _timeStampProvider; }
     uint32_t GetTimestamp() const { return _timestamp; }
     uint32_t GetSsrc() const { return _ssrc; }
     uint16_t GetSequenceNumber() const { return _sequenceNumber; }
     uint32_t GetSampleRate() const { return _sampleRate; }
-    uint32_t GetDuration() const { return _durationMs; }
     uint32_t GetAbsSendtime() const { return _absSendtime; }
     void SetAbsSendtime(uint32_t absSendtime) { _absSendtime = absSendtime; }
     // audio configuration
@@ -73,13 +63,11 @@ private:
 private:
     const RtpCodecMimeType _codecMimeType;
     const std::shared_ptr<const MemoryBuffer> _payload;
-    const std::shared_ptr<RtpMediaTimeStampProvider> _timeStampProvider;
     const bool _isKeyFrame;
     const uint32_t _timestamp;
     const uint32_t _ssrc;
     const uint16_t _sequenceNumber;
     const uint32_t _sampleRate;
-    const uint32_t _durationMs;
     uint32_t _absSendtime = 0U;
 };
 

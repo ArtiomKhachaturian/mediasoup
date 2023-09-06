@@ -37,8 +37,7 @@ private:
                                 const RtpCodecMimeType& mimeType,
                                 uint16_t rtpSequenceNumber,
                                 uint32_t rtpTimestamp,
-                                uint32_t rtpAbsSendtime,
-                                uint32_t duration) final;
+                                uint32_t rtpAbsSendtime) final;
     void EndWriteMediaPayload(uint32_t ssrc, bool ok) final;
     void Write(const std::shared_ptr<const MemoryBuffer>& buffer) final;
 private:

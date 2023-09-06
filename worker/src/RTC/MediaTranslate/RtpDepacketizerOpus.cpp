@@ -1,7 +1,6 @@
 #define MS_CLASS "RTC::RtpDepacketizerOpus"
 #include "RTC/MediaTranslate/RtpDepacketizerOpus.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
-#include "RTC/MediaTranslate/RtpMediaTimeStampProvider.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/Codecs/Opus.hpp"
 #include "RTC/RtpPacket.hpp"
@@ -11,20 +10,9 @@
 namespace RTC
 {
 
-class RtpDepacketizerOpus::TimeStampProviderImpl : public RtpMediaTimeStampProvider
-{
-public:
-    TimeStampProviderImpl() = default;
-    // impl. of RtpMediaTimeStampProvider
-    uint64_t GetTimeStampNano(const std::shared_ptr<const RtpMediaFrame>& frame) final;
-private:
-    absl::flat_hash_map<uint32_t, uint32_t> _granules;
-};
-
 RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& codecMimeType,
                                          uint32_t sampleRate)
     : RtpDepacketizer(codecMimeType, sampleRate)
-    , _timeStampProvider(std::make_shared<TimeStampProviderImpl>())
 {
 }
 
@@ -32,34 +20,13 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* p
 {
     if (packet && packet->GetPayload()) {
         bool stereo = false;
-        Codecs::Opus::FrameSize frameSize;
-        Codecs::Opus::ParseTOC(packet->GetPayload()[0], nullptr, nullptr, &frameSize, &stereo);
+        Codecs::Opus::ParseTOC(packet->GetPayload()[0], nullptr, nullptr, nullptr, &stereo);
         RtpAudioFrameConfig config;
         config._channelCount = stereo ? 2U : 1U;
         config._bitsPerSample = 16U;
-        return RtpMediaFrame::CreateAudio(packet, GetCodecMimeType().GetSubtype(),
-                                          _timeStampProvider, GetSampleRate(), config,
-                                          static_cast<uint32_t>(frameSize));
+        return RtpMediaFrame::CreateAudio(packet, GetCodecMimeType().GetSubtype(), GetSampleRate(), config);
     }
     return nullptr;
-}
-
-uint64_t RtpDepacketizerOpus::TimeStampProviderImpl::GetTimeStampNano(const std::shared_ptr<const RtpMediaFrame>& frame)
-{
-    uint64_t ts = 0ULL;
-    if (frame) {
-        MS_ASSERT(this == frame->GetTimeStampProvider().get(), "time stamp provider mistmatch");
-        MS_ASSERT(frame->GetDuration(), "invalid duration");
-        const auto it = _granules.find(frame->GetSsrc());
-        if (it != _granules.end()) {
-            it->second += frame->GetDuration();
-            ts = MilliToNano(it->second);
-        }
-        else {
-            _granules[frame->GetSsrc()] = 0ULL;
-        }
-    }
-    return ts;
 }
 
 } // namespace RTC

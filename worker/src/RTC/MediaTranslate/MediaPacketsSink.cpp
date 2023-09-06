@@ -159,14 +159,13 @@ void MediaPacketsSink::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
                                               const RtpCodecMimeType& codecMimeType,
                                               uint16_t rtpSequenceNumber,
                                               uint32_t rtpTimestamp,
-                                              uint32_t rtpAbsSendtime,
-                                              uint32_t duration)
+                                              uint32_t rtpAbsSendtime)
 {
     LOCK_READ_PROTECTED_OBJ(_outputDevices);
     for (const auto outputDevice : _outputDevices.ConstRef()) {
         outputDevice->BeginWriteMediaPayload(ssrc, isKeyFrame, codecMimeType,
                                              rtpSequenceNumber, rtpTimestamp,
-                                             rtpAbsSendtime, duration);
+                                             rtpAbsSendtime);
     }
 }
 

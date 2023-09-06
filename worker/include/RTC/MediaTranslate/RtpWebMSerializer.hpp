@@ -13,7 +13,7 @@ class RtpCodecMimeType;
 class RtpWebMSerializer : public RtpMediaFrameSerializer
 {
     class BufferedWriter;
-    struct TrackInfo;
+    class TrackInfo;
 public:
     // OPUS or VORBIS serializer
     RtpWebMSerializer();
