@@ -27,15 +27,18 @@ public:
     std::string_view GetFileExtension(const RtpCodecMimeType& mimeType) const final;
     void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame) final;
 private:
-    static const char* GetCodec(const RtpCodecMimeType& mimeType);
-    static bool IsOpusAudio(const RtpCodecMimeType& mimeType);
-    TrackInfo* GetTrack(const std::shared_ptr<const RtpMediaFrame>& mediaFrame);
+    TrackInfo* GetTrackInfo(const std::shared_ptr<const RtpMediaFrame>& mediaFrame);
+    mkvmuxer::Track* CreateMediaTrack(const std::shared_ptr<const RtpMediaFrame>& mediaFrame);
     void CommitData(OutputDevice* outputDevice);
 private:
+    static inline constexpr mkvmuxer::int32 _audioTrackId = 1;
+    static inline constexpr mkvmuxer::int32 _videoTrackId = 2;
     const std::unique_ptr<BufferedWriter> _writer;
     mkvmuxer::Segment _segment;
     // key - is packet SSRC
-    std::unordered_map<uint32_t, std::unique_ptr<TrackInfo>> _tracks;
+    std::unordered_map<uint32_t, std::unique_ptr<TrackInfo>> _tracksInfo;
+    uint64_t _audioTrackNumber = 0ULL;
+    uint64_t _videoTrackNumber = 0ULL;
 };
 
 } // namespace RTC
