@@ -61,11 +61,6 @@ namespace RTC
 				uint8_t tlIndex : 2;
 				uint8_t y : 1;
 				uint8_t keyIndex : 5;
-                // dimensions & scale (valid only for key frame)
-                uint16_t width = 0;
-                uint8_t horizontalScale = 1;
-                uint16_t height = 0;
-                uint8_t verticalScale = 1;
 				// Parsed values.
 				bool isKeyFrame{ false };
 				bool hasPictureId{ false };

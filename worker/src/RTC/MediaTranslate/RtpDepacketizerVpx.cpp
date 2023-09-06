@@ -4,13 +4,6 @@
 #include "RTC/Codecs/VP9.hpp"
 #include "RTC/RtpPacket.hpp"
 
-namespace {
-
-using namespace RTC;
-
-std::unique_ptr<Codecs::VP8::PayloadDescriptor> GetVp8PayloadDescriptor(const RtpPacket* packet);
-
-}
 
 namespace RTC
 {
@@ -28,12 +21,12 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* pa
                 if (packet->IsKeyFrame()) {
                     return CreateVp8KeyFrame(packet);
                 }
-                return CreateInfaFrame(packet);
+                return CreateInterFrame(packet);
             case RtpCodecMimeType::Subtype::VP9:
                 if (packet->IsKeyFrame()) {
                     return CreateVp9KeyFrame(packet);
                 }
-                return CreateInfaFrame(packet);
+                return CreateInterFrame(packet);
             default:
                 break;
         }
@@ -41,14 +34,43 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* pa
     return nullptr;
 }
 
+bool RtpDepacketizerVpx::ParseVp8VideoConfig(const RtpPacket* packet,
+                                             RtpVideoFrameConfig& videoConfig)
+{
+    if (packet && packet->IsKeyFrame()) {
+        if (const auto payload = packet->GetPayload()) {
+            const auto len = packet->GetPayloadLength();
+            if (len >= _vp8VideoConfigOffset + 10U) {
+                // Start code for VP8 key frame:
+                // Keyframe header consists of a three-byte sync code
+                // followed by the width and height and associated scaling factors
+                if (payload[_vp8VideoConfigOffset + 3U] == 0x9d &&
+                    payload[_vp8VideoConfigOffset + 4U] == 0x01 &&
+                    payload[_vp8VideoConfigOffset + 5U] == 0x2a) {
+                    const uint16_t hor = payload[_vp8VideoConfigOffset + 7U] << 8 |
+                                         payload[_vp8VideoConfigOffset + 6U];
+                    const uint16_t ver = payload[_vp8VideoConfigOffset + 9U] << 8 |
+                                         payload[_vp8VideoConfigOffset + 8U];
+                    videoConfig._width = hor & 0x3fff;
+                    videoConfig._widthScale = hor >> 14;
+                    videoConfig._height = ver & 0x3fff;
+                    videoConfig._heightScale = ver >> 14;
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateVp8KeyFrame(const RtpPacket* packet) const
 {
-    if (const auto vp8pd = GetVp8PayloadDescriptor(packet)) {
+    if (packet) {
         RtpVideoFrameConfig config;
-        config._width = vp8pd->width;
-        config._height = vp8pd->height;
-        config._frameRate = 30.; // TODO: replace to real value from RTP params
-        return CreateFrame(packet, config);
+        if (ParseVp8VideoConfig(packet, config)) {
+            config._frameRate = 30.; // TODO: replace to real value from RTP params
+            return CreateFrame(packet, config);
+        }
     }
     return nullptr;
 }
@@ -59,7 +81,7 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateVp9KeyFrame(const RtpPa
     return nullptr;
 }
 
-std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateInfaFrame(const RtpPacket* packet) const
+std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateInterFrame(const RtpPacket* packet) const
 {
     if (packet) {
         return CreateFrame(packet, {});
@@ -75,16 +97,3 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::CreateFrame(const RtpPacket* 
 }
 
 } // namespace RTC
-
-namespace {
-
-std::unique_ptr<Codecs::VP8::PayloadDescriptor> GetVp8PayloadDescriptor(const RtpPacket* packet) {
-    if (packet) {
-        const auto data = packet->GetPayload();
-        const auto len = packet->GetPayloadLength();
-        return std::unique_ptr<Codecs::VP8::PayloadDescriptor>(Codecs::VP8::Parse(data, len));
-    }
-    return nullptr;
-}
-
-}
