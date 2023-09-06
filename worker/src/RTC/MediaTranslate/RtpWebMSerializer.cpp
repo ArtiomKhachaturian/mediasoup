@@ -130,14 +130,11 @@ void RtpWebMSerializer::SetOutputDevice(OutputDevice* outputDevice)
 void RtpWebMSerializer::SetLiveMode(bool liveMode)
 {
     RtpMediaFrameSerializer::SetLiveMode(liveMode);
-    if (liveMode) {
-        _segment.set_mode(mkvmuxer::Segment::kLive);
-        _segment.set_estimate_file_duration(false);
-    }
-    else {
-        _segment.set_mode(mkvmuxer::Segment::kFile);
-        _segment.set_estimate_file_duration(true);
-    }
+    const auto mkvMode = liveMode ? mkvmuxer::Segment::kLive : mkvmuxer::Segment::kFile;
+    const auto fileMode = mkvmuxer::Segment::kFile == mkvMode;
+    _segment.set_mode(mkvMode);
+    _segment.set_estimate_file_duration(fileMode);
+    _segment.OutputCues(fileMode);
 }
 
 std::string_view RtpWebMSerializer::GetFileExtension(const RtpCodecMimeType&) const
@@ -179,37 +176,28 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrackInfo(const std::shared_
 {
     TrackInfo* trackInfo = nullptr;
     if (mediaFrame && GetCodecId(mediaFrame->GetCodecMimeType())) {
-        const auto it = _tracksInfo.find(mediaFrame->GetSsrc());
-        if (it == _tracksInfo.end()) {
-            auto& trackNumber = mediaFrame->IsAudio() ? _audioTrackNumber : _videoTrackNumber;
-            auto track = _segment.GetTrackByNumber(trackNumber);
-            if (!track) {
-                track = CreateMediaTrack(mediaFrame);
-                if (track) {
-                    trackNumber = track->number();
-                    if (!mediaFrame->IsAudio() || 0ULL == _videoTrackNumber) {
-                        if (!_segment.CuesTrack(trackNumber)) {
+        auto& sharedTrackInfo = mediaFrame->IsAudio() ? _audioTrackInfo : _videoTrackInfo;
+        if (!sharedTrackInfo) {
+            auto& hasError = mediaFrame->IsAudio() ? _hasAudioTrackCreationError : _hasVideoTrackCreationError;
+            if (!hasError) {
+                if (const auto track = CreateMediaTrack(mediaFrame)) {
+                    sharedTrackInfo = std::make_unique<TrackInfo>(track, mediaFrame->IsAudio());
+                    /*if (_videoTrackInfo || (_audioTrackInfo && !_videoTrackInfo)) {
+                        if (!_segment.CuesTrack(track->number())) {
                             const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
                             MS_ERROR("failed to cue MKV writer media [%s] track #%llu",
-                                     frameInfo.c_str(), trackNumber);
+                                     frameInfo.c_str(), track->number());
                         }
-                    }
+                    }*/
+                }
+                else {
+                    hasError = true;
+                    const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
+                    MS_ERROR("unable to create MKV writer [%s] track", frameInfo.c_str());
                 }
             }
-            if (track) {
-                auto addedTrackInfo = std::make_unique<TrackInfo>(track, mediaFrame->IsAudio());
-                trackInfo = addedTrackInfo.get();
-                _tracksInfo[mediaFrame->GetSsrc()] = std::move(addedTrackInfo);
-            }
-            else {
-                const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
-                MS_ERROR("failed to obtain MKV writer [%s] track", frameInfo.c_str());
-                _tracksInfo[mediaFrame->GetSsrc()] = nullptr;
-            }
         }
-        else {
-            trackInfo = it->second.get();
-        }
+        trackInfo = sharedTrackInfo.get();
         if (mkvmuxer::Track* track = trackInfo ? trackInfo->GetTrack() : nullptr) {
             trackInfo->SetCodec(mediaFrame);
             if (const auto config = mediaFrame->GetAudioConfig()) {

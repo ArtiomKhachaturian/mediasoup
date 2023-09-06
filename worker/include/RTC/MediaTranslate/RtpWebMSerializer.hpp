@@ -2,8 +2,6 @@
 
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include <mkvmuxer/mkvmuxer.h>
-#include <unordered_map>
-#include <string>
 
 namespace RTC
 {
@@ -36,9 +34,10 @@ private:
     const std::unique_ptr<BufferedWriter> _writer;
     mkvmuxer::Segment _segment;
     // key - is packet SSRC
-    std::unordered_map<uint32_t, std::unique_ptr<TrackInfo>> _tracksInfo;
-    uint64_t _audioTrackNumber = 0ULL;
-    uint64_t _videoTrackNumber = 0ULL;
+    std::unique_ptr<TrackInfo> _audioTrackInfo;
+    std::unique_ptr<TrackInfo> _videoTrackInfo;
+    bool _hasAudioTrackCreationError = false;
+    bool _hasVideoTrackCreationError = false;
 };
 
 } // namespace RTC

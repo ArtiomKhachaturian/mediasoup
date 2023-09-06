@@ -240,14 +240,14 @@ bool MediaTranslatorsManager::Impl::Register(Producer* producer)
         const auto it = _producerTranslators.find(producer->id);
         if (it == _producerTranslators.end()) {
             const auto producerTranslator = std::make_shared<ProducerTranslator>(producer);
-            if (!producerTranslator->IsAudio()) { // for tests only
+            //if (!producerTranslator->IsAudio()) { // for tests only
                 const auto& streams = producer->GetRtpStreams();
                 for (auto it = streams.begin(); it != streams.end(); ++it) {
                     RegisterStream(producerTranslator, it->first, it->second);
                 }
                 _producerTranslators[producer->id] = producerTranslator;
                 producerTranslator->AddObserver(this);
-            }
+            //}
         }
         return true;
     }
@@ -310,7 +310,7 @@ bool MediaTranslatorsManager::Impl::Register(Consumer* consumer, const std::stri
                 consumerTranslator = it->second;
             }
             consumerTranslator->SetProducerLanguage(producerTranslator->GetLanguage());
-            consumerTranslator->SetProducerInput(producerTranslator->GetMediaStreamer());
+            //consumerTranslator->SetProducerInput(producerTranslator->GetMediaStreamer());
             return true;
         }
     }
