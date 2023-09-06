@@ -31,7 +31,7 @@ std::unique_ptr<RtpDepacketizer> RtpDepacketizer::create(const RtpCodecMimeType&
             switch (mimeType.GetSubtype()) {
                 case RtpCodecMimeType::Subtype::VP8:
                 case RtpCodecMimeType::Subtype::VP9:
-                    //return std::make_unique<RtpDepacketizerVpx>(mimeType, sampleRate);
+                    return std::make_unique<RtpDepacketizerVpx>(mimeType, sampleRate);
                 default:
                     break;
             }

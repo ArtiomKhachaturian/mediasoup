@@ -35,6 +35,7 @@ public:
     bool RegisterStream(const RtpStream* stream, uint32_t mappedSsrc);
     bool UnRegisterStream(uint32_t mappedSsrc);
     bool SetSink(const std::shared_ptr<MediaPacketsSink>& sink);
+    const std::shared_ptr<MediaPacketsSink>& GetSink() const { return _sink; }
     // list of ssrcs
     std::list<uint32_t> GetRegisteredSsrcs(bool mapped) const;
     // impl. of TranslatorUnit
