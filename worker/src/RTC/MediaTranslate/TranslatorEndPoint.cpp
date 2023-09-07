@@ -264,9 +264,7 @@ void TranslatorEndPoint::Impl::InitializeMediaInput()
 void TranslatorEndPoint::Impl::InitializeMediaInput(const std::shared_ptr<ProducerInputMediaStreamer>& input)
 {
     if (input) {
-        if (!input->AddOutputDevice(this)) {
-            MS_ERROR("failed subscribe to input media stream");
-        }
+        input->AddOutputDevice(this);
     }
 }
 

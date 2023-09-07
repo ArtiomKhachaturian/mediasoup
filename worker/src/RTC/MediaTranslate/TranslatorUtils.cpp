@@ -13,19 +13,17 @@ const std::string g_emptyString;
 namespace RTC
 {
 
-std::string GetMediaFrameInfoString(const std::shared_ptr<const RtpMediaFrame>& mediaFrame,
-                                    uint32_t ssrc)
+std::string GetMediaFrameInfoString(const std::shared_ptr<const RtpMediaFrame>& mediaFrame)
 {
     if (mediaFrame) {
-        auto streamInfo = GetStreamInfoString(mediaFrame->GetCodecMimeType(),
-                                              mediaFrame->GetSsrc(), ssrc);
+        auto streamInfo = GetStreamInfoString(mediaFrame->GetCodecMimeType(), mediaFrame->GetSsrc());
         if (!streamInfo.empty()) {
             std::string configInfo;
             if (const auto config = mediaFrame->GetAudioConfig()) {
-                configInfo = RtpAudioFrameConfigToString(*config);
+                configInfo = config->ToString();
             }
             else if (const auto config = mediaFrame->GetVideoConfig()) {
-                configInfo = RtpVideoFrameConfigToString(*config);
+                configInfo = config->ToString();
             }
             if (!configInfo.empty()) {
                 return streamInfo + ", " + configInfo;
@@ -36,19 +34,11 @@ std::string GetMediaFrameInfoString(const std::shared_ptr<const RtpMediaFrame>& 
     return std::string();
 }
 
-std::string GetStreamInfoString(const RtpCodecMimeType& mime,
-                                uint32_t mappedSsrc, uint32_t ssrc)
+std::string GetStreamInfoString(const RtpCodecMimeType& mime, uint32_t mappedSsrc)
 {
-    if (mappedSsrc || ssrc) {
-        std::string ssrcInfo;
-        if (ssrc) {
-            ssrcInfo += ", SSRC = " + std::to_string(ssrc);
-        }
-        if (mappedSsrc) {
-            ssrcInfo += ", mapped SSRC = " + std::to_string(mappedSsrc);
-        }
+    if (mappedSsrc) {
         const std::string mimeString = mime.IsValid() ? mime.ToString() : "invalid mime";
-        return mimeString + ssrcInfo;
+        return mimeString + ", mapped SSRC = " + std::to_string(mappedSsrc);
     }
     return std::string();
 }
@@ -56,7 +46,7 @@ std::string GetStreamInfoString(const RtpCodecMimeType& mime,
 std::string GetStreamInfoString(uint32_t mappedSsrc, const RtpStream* stream)
 {
     if (stream) {
-        return GetStreamInfoString(stream->GetMimeType(), mappedSsrc, stream->GetSsrc());
+        return GetStreamInfoString(stream->GetMimeType(), mappedSsrc);
     }
     return std::string();
 }
@@ -93,18 +83,6 @@ const std::string& MimeSubTypeToString(const RtpCodecMimeType& mime)
         return MimeSubTypeToString(mime.GetSubtype());
     }
     return g_emptyString;
-}
-
-std::string RtpAudioFrameConfigToString(const RtpAudioFrameConfig& config)
-{
-    return std::to_string(config._channelCount) + " channels, " +
-           std::to_string(config._bitsPerSample) + " bits";
-}
-
-std::string RtpVideoFrameConfigToString(const RtpVideoFrameConfig& config)
-{
-    return std::to_string(config._width) + "x" + std::to_string(config._height) +
-           " px, " + std::to_string(config._frameRate) + " fps";
 }
 
 } // namespace RTC

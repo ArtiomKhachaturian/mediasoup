@@ -6,6 +6,7 @@
 #include <Windows.h>
 #include <string>
 #endif
+#include <unistd.h>
 #include "Logger.hpp"
 
 namespace RTC
@@ -48,6 +49,14 @@ bool FileWriter::Close()
 bool FileWriter::Flush()
 {
     return _file && 0 == ::fflush(_file);
+}
+
+void FileWriter::StartStream(bool restart)
+{
+    OutputDevice::StartStream(restart);
+    if (restart && _file) {
+        ::ftruncate(fileno(_file), 0ULL);
+    }
 }
 
 void FileWriter::Write(const std::shared_ptr<const MemoryBuffer>& buffer)

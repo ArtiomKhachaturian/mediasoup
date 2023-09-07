@@ -28,7 +28,7 @@ namespace RTC
 class RtpDepacketizerVpx::RtpAssembly
 {
 public:
-    RtpAssembly(const RtpDepacketizerVpx* owner);
+    RtpAssembly(const RtpCodecMimeType& mime);
     std::shared_ptr<RtpMediaFrame> AddPacket(const RtpPacket* packet);
 private:
     static bool ParseVp8VideoConfig(const RtpPacket* packet,
@@ -37,14 +37,14 @@ private:
                                     RtpVideoFrameConfig& videoConfig);
     bool AddPayload(const RtpPacket* packet);
 private:
-    const RtpDepacketizerVpx* const _owner;
+    const RtpCodecMimeType _mime;
     SimpleMemoryBuffer _payload;
     uint32_t _lastTimeStamp = 0U;
 };
 
 
-RtpDepacketizerVpx::RtpDepacketizerVpx(const RtpCodecMimeType& codecMimeType, uint32_t sampleRate)
-    : RtpDepacketizer(codecMimeType, sampleRate)
+RtpDepacketizerVpx::RtpDepacketizerVpx(const RtpCodecMimeType& codecMimeType)
+    : RtpDepacketizer(codecMimeType)
 {
 }
 
@@ -57,7 +57,7 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* pa
     if (packet && packet->GetPayload() && packet->GetPayloadLength()) {
         auto it = _assemblies.find(packet->GetSsrc());
         if (it == _assemblies.end()) {
-            auto assembly = std::make_unique<RtpAssembly>(this);
+            auto assembly = std::make_unique<RtpAssembly>(GetCodecMimeType());
             it = _assemblies.insert({packet->GetSsrc(), std::move(assembly)}).first;
         }
         return it->second->AddPacket(packet);
@@ -65,30 +65,30 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* pa
     return nullptr;
 }
 
-RtpDepacketizerVpx::RtpAssembly::RtpAssembly(const RtpDepacketizerVpx* owner)
-    : _owner(owner)
+RtpDepacketizerVpx::RtpAssembly::RtpAssembly(const RtpCodecMimeType& mime)
+    : _mime(mime)
 {
 }
 
 std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(const RtpPacket* packet)
 {
     if (packet && packet->GetPayload() && packet->GetPayloadLength()) {
-        const auto& mime = _owner->GetCodecMimeType();
         if (_lastTimeStamp != packet->GetTimestamp()) {
             _lastTimeStamp = packet->GetTimestamp();
             _payload.Resize(0U);
         }
         // Add payload
         if (AddPayload(packet)) {
-            RtpVideoFrameConfig videoConfig;
+            std::shared_ptr<RtpVideoFrameConfig> videoConfig;
             bool ok = true;
             if (packet->IsKeyFrame()) {
-                switch (mime.GetSubtype()) {
+                videoConfig = std::make_shared<RtpVideoFrameConfig>();
+                switch (_mime.GetSubtype()) {
                     case RtpCodecMimeType::Subtype::VP8:
-                        ok = ParseVp8VideoConfig(packet, videoConfig);
+                        ok = ParseVp8VideoConfig(packet, *videoConfig);
                         break;
                     case RtpCodecMimeType::Subtype::VP9:
-                        ok = ParseVp9VideoConfig(packet, videoConfig);
+                        ok = ParseVp9VideoConfig(packet, *videoConfig);
                         break;
                     default:
                         break;
@@ -98,23 +98,22 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(const 
                 if (packet->HasMarker()) {
                     if (const auto payload = _payload.Take()) {
                         return RtpMediaFrame::CreateVideo(packet, payload,
-                                                          mime.GetSubtype(),
-                                                          _owner->GetSampleRate(),
-                                                          std::move(videoConfig));
+                                                          _mime.GetSubtype(),
+                                                          videoConfig);
                     }
                     else {
-                        const auto error = GetStreamInfoString(mime, packet->GetSsrc());
+                        const auto error = GetStreamInfoString(_mime, packet->GetSsrc());
                         MS_ERROR("failed to take assembled payload for stream [%s]", error.c_str());
                     }
                 }
             }
             else {
-                const auto error = GetStreamInfoString(mime, packet->GetSsrc());
+                const auto error = GetStreamInfoString(_mime, packet->GetSsrc());
                 MS_ERROR("failed to parse video config for stream [%s]", error.c_str());
             }
         }
         else {
-            const auto error = GetStreamInfoString(mime, packet->GetSsrc());
+            const auto error = GetStreamInfoString(_mime, packet->GetSsrc());
             MS_ERROR("failed to add payload for stream [%s]", error.c_str());
         }
     }
@@ -146,9 +145,9 @@ bool RtpDepacketizerVpx::RtpAssembly::ParseVp8VideoConfig(const RtpPacket* packe
                     payload[offset + 5U] == 0x2a) {
                     const uint16_t hor = payload[offset + 7U] << 8 | payload[offset + 6U];
                     const uint16_t ver = payload[offset + 9U] << 8 | payload[offset + 8U];
-                    videoConfig._width = hor & 0x3fff;
+                    videoConfig.SetWidth(hor & 0x3fff);
                     //videoConfig._widthScale = hor >> 14;
-                    videoConfig._height = ver & 0x3fff;
+                    videoConfig.SetHeight(ver & 0x3fff);
                     //videoConfig._heightScale = ver >> 14;
                     return true;
                 }

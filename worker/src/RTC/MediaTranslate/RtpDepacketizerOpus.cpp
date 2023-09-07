@@ -14,7 +14,10 @@ namespace RTC
 class RtpDepacketizerOpus::OpusHeadBuffer : public MemoryBuffer
 {
 public:
+    OpusHeadBuffer() = default;
+    OpusHeadBuffer(uint32_t sampleRate);
     OpusHeadBuffer(uint8_t channelCount, uint32_t sampleRate);
+    uint8_t GetChannelCount() const { return _head._channelCount; }
     // impl. of MemoryBuffer
     size_t GetSize() const final { return sizeof(_head); }
     uint8_t* GetData() final { return reinterpret_cast<uint8_t*>(&_head); }
@@ -25,7 +28,13 @@ private:
 
 RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& codecMimeType,
                                          uint32_t sampleRate)
-    : RtpDepacketizer(codecMimeType, sampleRate)
+    : RtpDepacketizer(codecMimeType)
+    , _sampleRate(sampleRate)
+    , _opusCodecData(std::make_shared<OpusHeadBuffer>(sampleRate))
+{
+}
+
+RtpDepacketizerOpus::~RtpDepacketizerOpus()
 {
 }
 
@@ -34,15 +43,22 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* p
     if (packet && packet->GetPayload()) {
         bool stereo = false;
         Codecs::Opus::ParseTOC(packet->GetPayload()[0], nullptr, nullptr, nullptr, &stereo);
-        RtpAudioFrameConfig config;
-        config._channelCount = stereo ? 2U : 1U;
-        config._bitsPerSample = 16U;
-        config._codecSpecificData = std::make_unique<OpusHeadBuffer>(config._channelCount,
-                                                                     GetSampleRate());
-        return RtpMediaFrame::CreateAudio(packet, GetCodecMimeType().GetSubtype(),
-                                          GetSampleRate(), std::move(config));
+        auto config = std::make_shared<RtpAudioFrameConfig>();
+        config->SetChannelCount(stereo ? 2U : 1U);
+        config->SetBitsPerSample(16U);
+        if (_opusCodecData->GetChannelCount() != config->GetChannelCount()) {
+            _opusCodecData = std::make_shared<OpusHeadBuffer>(config->GetChannelCount(),
+                                                              _sampleRate);
+        }
+        config->SetCodecSpecificData(_opusCodecData);
+        return RtpMediaFrame::CreateAudio(packet, GetCodecMimeType().GetSubtype(), config);
     }
     return nullptr;
+}
+
+RtpDepacketizerOpus::OpusHeadBuffer::OpusHeadBuffer(uint32_t sampleRate)
+{
+    _head._sampleRate = sampleRate;
 }
 
 RtpDepacketizerOpus::OpusHeadBuffer::OpusHeadBuffer(uint8_t channelCount, uint32_t sampleRate)

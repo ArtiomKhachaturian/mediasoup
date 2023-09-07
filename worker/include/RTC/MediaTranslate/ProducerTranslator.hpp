@@ -6,10 +6,7 @@
 #include "RTC/MediaTranslate/ProducerObserver.hpp"
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
-#include <absl/container/flat_hash_set.h>
 #include <list>
-
-#define WRITE_PRODUCER_RECV_TO_FILE
 
 namespace RTC
 {
@@ -18,10 +15,8 @@ class ProducerObserver;
 class RtpMediaFrameSerializer;
 class RtpStream;
 class RtpCodecMimeType;
-class ProducerInputMediaStreamer;
+class RtpMediaFrameSerializer;
 class Producer;
-class MediaPacketsSink;
-class FileWriter;
 
 class ProducerTranslator : public ProducerTranslatorSettings,
                            public RtpPacketsCollector
@@ -33,13 +28,11 @@ public:
     bool IsAudio() const;
     void AddObserver(ProducerObserver* observer);
     void RemoveObserver(ProducerObserver* observer);
-    bool RegisterStream(const RtpStream* stream, uint32_t mappedSsrc);
-    bool RegisterStream(const RtpCodecMimeType& mime, uint32_t clockRate,
-                        uint32_t mappedSsrc, uint32_t ssrc = 0U);
-    bool UnRegisterStream(uint32_t mappedSsrc);
-    std::shared_ptr<ProducerInputMediaStreamer> GetMediaStreamer() const;
+    bool AddStream(const RtpStream* stream, uint32_t mappedSsrc);
+    bool AddStream(const RtpCodecMimeType& mime, uint32_t clockRate, uint32_t mappedSsrc);
+    bool RemoveStream(uint32_t mappedSsrc);
     // list of ssrcs
-    std::list<uint32_t> GetRegisteredSsrcs(bool mapped) const;
+    std::list<uint32_t> GetAddedStreams() const;
     // impl. of TranslatorUnit
     const std::string& GetId() const final;
     // impl. of RtpPacketsCollector
@@ -50,21 +43,15 @@ public:
 protected:
     template <class Method, typename... Args>
     void InvokeObserverMethod(const Method& method, Args&&... args) const;
-    void onProducerStreamRegistered(const std::shared_ptr<StreamInfo>& streamInfo,
-                                    uint32_t mappedSsrc, bool registered);
-    // impl. of
+    // override of TranslatorUnit
     void OnPauseChanged(bool pause) final;
 private:
     Producer* const _producer;
-    const std::shared_ptr<MediaPacketsSink> _sink;
     std::list<ProducerObserver*> _observers;
     // key is mapped media SSRC
-    absl::flat_hash_map<uint32_t, std::shared_ptr<StreamInfo>> _streams;
+    absl::flat_hash_map<uint32_t, std::unique_ptr<StreamInfo>> _streams;
     // input language
     std::optional<MediaLanguage> _language = DefaultInputMediaLanguage();
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-    std::unique_ptr<FileWriter> _fileWriter;
-#endif
 };
 
 } // namespace RTC

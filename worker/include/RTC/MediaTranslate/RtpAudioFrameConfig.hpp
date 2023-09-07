@@ -1,21 +1,25 @@
 #pragma once
 
-#include <cstdint>
-#include <string>
-#include <memory>
+#include "RTC/MediaTranslate/RtpMediaFrameConfig.hpp"
 
 namespace RTC
 {
 
 class MemoryBuffer;
 
-struct RtpAudioFrameConfig
+class RtpAudioFrameConfig : public RtpMediaFrameConfig
 {
-	uint8_t _channelCount  = 1U;
-    uint8_t _bitsPerSample = 16U;
-    std::unique_ptr<const MemoryBuffer> _codecSpecificData;
+public:
+    RtpAudioFrameConfig() = default;
+    void SetChannelCount(uint8_t channelCount);
+    uint8_t GetChannelCount() const { return _channelCount.load(std::memory_order_relaxed); }
+    void SetBitsPerSample(uint8_t bitsPerSample);
+    uint8_t GetBitsPerSample() const { return _bitsPerSample.load(std::memory_order_relaxed); }
+    // impl. of RtpMediaFrameConfig
+    std::string ToString() const;
+private:
+    std::atomic<uint8_t> _channelCount  = 1U;
+    std::atomic<uint8_t> _bitsPerSample = 16U;
 };
-
-std::string RtpAudioFrameConfigToString(const RtpAudioFrameConfig& config);
 
 } // namespace RTC

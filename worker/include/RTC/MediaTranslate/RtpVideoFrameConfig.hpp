@@ -1,23 +1,29 @@
 #pragma once
 
-#include <cstdint>
-#include <string>
-#include <memory>
+#include "RTC/MediaTranslate/RtpMediaFrameConfig.hpp"
 
 namespace RTC
 {
 
 class MemoryBuffer;
 
-struct RtpVideoFrameConfig
+class RtpVideoFrameConfig : public RtpMediaFrameConfig
 {
-	int32_t _width    = 0;
-    int32_t _height   = 0;
-    double _frameRate = 0.; // optional
-    std::unique_ptr<const MemoryBuffer> _codecSpecificData;
-    bool HasResolution() const { return _width > 0 && _height > 0; }
+public:
+    RtpVideoFrameConfig() = default;
+    void SetWidth(int32_t width);
+    int32_t GetWidth() const { return _width.load(std::memory_order_relaxed); }
+    void SetHeight(int32_t height);
+    int32_t GetHeight() const { return _height.load(std::memory_order_relaxed); }
+    void SetFrameRate(double frameRate); // optional
+    double GetFrameRate() const { return _frameRate.load(std::memory_order_relaxed); }
+    bool HasResolution() const { return GetWidth() > 0 && GetHeight() > 0; }
+    // impl. of RtpMediaFrameConfig
+    std::string ToString() const;
+private:
+    std::atomic<int32_t> _width    = 0;
+    std::atomic<int32_t> _height   = 0;
+    std::atomic<double> _frameRate = 0.;
 };
-
-std::string RtpVideoFrameConfigToString(const RtpVideoFrameConfig& config);
 
 } // namespace RTC

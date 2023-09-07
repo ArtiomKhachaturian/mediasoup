@@ -1,24 +1,26 @@
 #define MS_CLASS "RTC::RtpWebMSerializer"
 #include "RTC/MediaTranslate/RtpWebMSerializer.hpp"
-#include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
+#include <mkvmuxer/mkvmuxer.h>
 
 namespace {
+
+using namespace RTC;
 
 inline uint64_t MilliToNano(uint64_t milli) {
     return milli * 1000ULL * 1000ULL * 1000ULL;
 }
 
-inline bool IsOpusAudioCodec(RTC::RtpCodecMimeType::Subtype codec) {
+inline bool IsOpusAudioCodec(RtpCodecMimeType::Subtype codec) {
     switch (codec) {
-        case RTC::RtpCodecMimeType::Subtype::OPUS:
-        case RTC::RtpCodecMimeType::Subtype::MULTIOPUS:
+        case RtpCodecMimeType::Subtype::OPUS:
+        case RtpCodecMimeType::Subtype::MULTIOPUS:
             // https://en.wikipedia.org/wiki/SILK
-        case RTC::RtpCodecMimeType::Subtype::SILK: // needs to be tested
+        case RtpCodecMimeType::Subtype::SILK: // needs to be tested
             return true;
         default:
             break;
@@ -26,15 +28,15 @@ inline bool IsOpusAudioCodec(RTC::RtpCodecMimeType::Subtype codec) {
     return false;
 }
 
-inline bool IsOpusAudioCodec(const RTC::RtpCodecMimeType& mime) {
+inline bool IsOpusAudioCodec(const RtpCodecMimeType& mime) {
     return IsOpusAudioCodec(mime.GetSubtype());
 }
 
-inline static const char* GetCodecId(RTC::RtpCodecMimeType::Subtype codec) {
+inline static const char* GetCodecId(RtpCodecMimeType::Subtype codec) {
     switch (codec) {
-        case RTC::RtpCodecMimeType::Subtype::VP8:
+        case RtpCodecMimeType::Subtype::VP8:
             return mkvmuxer::Tracks::kVp8CodecId;
-        case RTC::RtpCodecMimeType::Subtype::VP9:
+        case RtpCodecMimeType::Subtype::VP9:
             return mkvmuxer::Tracks::kVp9CodecId;
         default:
             if (IsOpusAudioCodec(codec)) {
@@ -45,21 +47,51 @@ inline static const char* GetCodecId(RTC::RtpCodecMimeType::Subtype codec) {
     return nullptr;
 }
 
-inline static const char* GetCodecId(const RTC::RtpCodecMimeType& mime) {
+inline static const char* GetCodecId(const RtpCodecMimeType& mime) {
     return GetCodecId(mime.GetSubtype());
 }
+
+/*class MkvFrame
+{
+private:
+    std::shared_ptr<const MemoryBuffer> _data;
+    bool _isKeyFrame;
+    uint64_t _timeStampNano;
+};*/
 
 }
 
 namespace RTC
 {
 
-class RtpWebMSerializer::BufferedWriter : public mkvmuxer::IMkvWriter,
+class RtpWebMSerializer::BufferedWriter : private mkvmuxer::IMkvWriter,
                                           private SimpleMemoryBuffer
 {
 public:
-    BufferedWriter() { ReserveBuffer(); }
+    BufferedWriter();
+    ~BufferedWriter() final { Finalize(); }
+    void Finalize();
+    bool IsInitialized() const { return _initialized; }
+    bool HasWroteMedia() const { return _wroteMedia; }
+    void SetLiveMode(bool live);
+    bool AddFrame(const std::shared_ptr<const MemoryBuffer>& data, int32_t number,
+                  uint64_t timeCode, bool isKeyFrame);
+    bool AddAudioTrack(int32_t number);
+    bool AddVideoTrack(int32_t number);
+    void SetAudioSampleRate(int32_t number, uint32_t sampleRate, bool opusCodec);
+    void SetTrackSettings(int32_t number, const char* codec,
+                          const std::shared_ptr<const RtpAudioFrameConfig>& config);
+    void SetTrackSettings(int32_t number, const char* codec,
+                          const std::shared_ptr<const RtpVideoFrameConfig>& config);
     std::shared_ptr<MemoryBuffer> TakeWrittenData();
+private:
+    static bool SetCodecSpecific(mkvmuxer::Track* track,
+                                 const std::shared_ptr<const MemoryBuffer>& specific);
+    mkvmuxer::Track* GetTrack(int32_t number) const;
+    bool IsValidForTracksAdding() const;
+    // 1kb buffer is enough for single OPUS frame
+    // TODO: develop a strategy for optimal memory management for both audio & video (maybe mem pool)
+    void ReserveBuffer() { Reserve(1024); }
     // impl. of mkvmuxer::IMkvWriter
     mkvmuxer::int32 Write(const void* buf, mkvmuxer::uint32 len) final;
     mkvmuxer::int64 Position() const final;
@@ -67,46 +99,54 @@ public:
     bool Seekable() const final { return true; }
     void ElementStartNotify(mkvmuxer::uint64, mkvmuxer::int64) final {}
 private:
-    // 1kb buffer is enough for single OPUS frame
-    // TODO: develop a strategy for optimal memory management for both audio & video (maybe mem pool)
-    void ReserveBuffer() { Reserve(1024); }
+    mkvmuxer::Segment _segment;
+    const bool _initialized;
+    bool _wroteMedia = false;
+    absl::flat_hash_map<int32_t, uint64_t> _tracksReference;
+    size_t _audioTracksCount = 0UL;
+    size_t _videoTracksCount = 0UL;
 };
 
 class RtpWebMSerializer::TrackInfo
 {
 public:
-    TrackInfo(mkvmuxer::Track* track);
-    uint64_t GetNumber() const { return _track->number(); }
-    bool IsAudio() const { return mkvmuxer::Tracks::kAudio == _track->type(); }
+    TrackInfo(int32_t number, bool audio, uint32_t clockRate);
+    int32_t GetNumber() const { return _number; }
+    uint32_t GetClockRate() const { return _clockRate; }
+    bool IsAudio() const { return _audio; }
     bool IsAccepted(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) const;
-    void SetSeekPreRoll(uint64_t seekPreRoll) { _track->set_seek_pre_roll(seekPreRoll); }
     // return true if changed
     bool SetCodec(RtpCodecMimeType::Subtype codec);
     bool SetCodec(const RtpCodecMimeType& mime) { return SetCodec(mime.GetSubtype()); }
     RtpCodecMimeType::Subtype GetCodec() const { return _codec; }
     void SetLastRtpTimeStamp(uint32_t lastRtpTimestamp);
     void SetLastRtpTimeStamp(const std::shared_ptr<const RtpMediaFrame>& mediaFrame);
-    uint64_t GetTimeStampNano(uint32_t sampleRate) const;
-    void SetConfig(const RtpAudioFrameConfig* config);
-    void SetConfig(const RtpVideoFrameConfig* config);
+    void ResetRtpTiming();
+    uint64_t GetTimeStampNano() const;
+    void SetLatestConfig(const std::shared_ptr<const RtpAudioFrameConfig>& config);
+    void SetLatestConfig(const std::shared_ptr<const RtpVideoFrameConfig>& config);
+    const std::shared_ptr<const RtpAudioFrameConfig>& GetLatestAudioConfig() const;
+    const std::shared_ptr<const RtpVideoFrameConfig>& GetLatestVideoConfig() const;
 private:
-    bool SetCodecPrivate(const MemoryBuffer* codecPrivate);
+    template<bool forAudio> void TestConsistency() const;
 private:
-    mkvmuxer::Track* const _track;
+    const int32_t _number;
+    const bool _audio;
+    const uint32_t _clockRate;
     RtpCodecMimeType::Subtype _codec;
     uint32_t _lastRtpTimestamp = 0ULL;
     uint64_t _granule = 0ULL;
+    std::shared_ptr<const RtpAudioFrameConfig> _latestAudioConfig;
+    std::shared_ptr<const RtpVideoFrameConfig> _latestVideoConfig;
 };
 
 RtpWebMSerializer::RtpWebMSerializer()
-    : _writer(std::make_unique<BufferedWriter>())
 {
-    RtpWebMSerializer::SetLiveMode(true);
 }
 
 RtpWebMSerializer::~RtpWebMSerializer()
 {
-    RtpWebMSerializer::SetOutputDevice(nullptr);
+    DestroyWriter(false);
 }
 
 bool RtpWebMSerializer::IsSupported(const RtpCodecMimeType& mimeType)
@@ -114,26 +154,15 @@ bool RtpWebMSerializer::IsSupported(const RtpCodecMimeType& mimeType)
     return nullptr != GetCodecId(mimeType);
 }
 
-void RtpWebMSerializer::SetOutputDevice(OutputDevice* outputDevice)
-{
-    if (!outputDevice && GetOutputDevice()) {
-        _segment.Finalize();
-        CommitData(GetOutputDevice());
-    }
-    RtpMediaFrameSerializer::SetOutputDevice(outputDevice);
-    if (outputDevice && !_segment.Init(_writer.get())) {
-        MS_ERROR("failed to init of MKV writer segment");
-    }
-}
-
 void RtpWebMSerializer::SetLiveMode(bool liveMode)
 {
     RtpMediaFrameSerializer::SetLiveMode(liveMode);
-    const auto mkvMode = liveMode ? mkvmuxer::Segment::kLive : mkvmuxer::Segment::kFile;
-    const auto fileMode = mkvmuxer::Segment::kFile == mkvMode;
-    _segment.set_mode(mkvMode);
-    _segment.set_estimate_file_duration(fileMode);
-    _segment.OutputCues(fileMode);
+    if (_liveMode != liveMode) {
+        _liveMode = liveMode;
+        if (_writer) {
+            _writer->SetLiveMode(liveMode);
+        }
+    }
 }
 
 std::string_view RtpWebMSerializer::GetFileExtension(const RtpCodecMimeType&) const
@@ -141,57 +170,69 @@ std::string_view RtpWebMSerializer::GetFileExtension(const RtpCodecMimeType&) co
     return "webm";
 }
 
-bool RtpWebMSerializer::RegisterAudio(uint32_t ssrc, RtpCodecMimeType::Subtype codec,
-                                      const RtpAudioFrameConfig* config)
+bool RtpWebMSerializer::AddAudio(uint32_t ssrc, uint32_t clockRate,
+                                 RtpCodecMimeType::Subtype codec,
+                                 const std::shared_ptr<const RtpAudioFrameConfig>& config)
 {
     if (ssrc) {
-        if (RtpCodecMimeType::Subtype::UNSET != codec) {
-            const RtpCodecMimeType mime(RtpCodecMimeType::Type::AUDIO, codec);
-            MS_ASSERT(mime.IsAudioCodec(), "invalid audio codec");
+        const RtpCodecMimeType mime(RtpCodecMimeType::Type::AUDIO, codec);
+        if(RtpCodecMimeType::Subtype::UNSET == codec || mime.IsAudioCodec()) {
+            return AddMedia(ssrc, clockRate, mime, config);
         }
-        return RegisterMedia<mkvmuxer::AudioTrack>(ssrc, codec, config);
     }
     return false;
 }
 
-bool RtpWebMSerializer::RegisterVideo(uint32_t ssrc, RtpCodecMimeType::Subtype codec,
-                                      const RtpVideoFrameConfig* config)
+bool RtpWebMSerializer::AddVideo(uint32_t ssrc, uint32_t clockRate,
+                                 RtpCodecMimeType::Subtype codec,
+                                 const std::shared_ptr<const RtpVideoFrameConfig>& config)
 {
     if (ssrc) {
-        if (RtpCodecMimeType::Subtype::UNSET != codec) {
-            const RtpCodecMimeType mime(RtpCodecMimeType::Type::VIDEO, codec);
-            MS_ASSERT(mime.IsVideoCodec(), "invalid video codec");
+        const RtpCodecMimeType mime(RtpCodecMimeType::Type::VIDEO, codec);
+        if(RtpCodecMimeType::Subtype::UNSET == codec || mime.IsVideoCodec()) {
+            return AddMedia(ssrc, clockRate, mime, config);
         }
-        return RegisterMedia<mkvmuxer::VideoTrack>(ssrc, codec, config);
     }
     return false;
+}
+
+void RtpWebMSerializer::RemoveMedia(uint32_t ssrc)
+{
+    if (ssrc) {
+        const auto it = _tracksInfo.find(ssrc);
+        if (it != _tracksInfo.end()) {
+            _tracksInfo.erase(it);
+            if (_writer) {
+                const auto hasWroteMedia = _writer->HasWroteMedia();
+                DestroyWriter(false);
+                if (!_tracksInfo.empty()) {
+                    InitWriter(hasWroteMedia);
+                }
+            }
+        }
+    }
 }
 
 void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
 {
-    if (mediaFrame && mediaFrame->GetPayload()) {
-        if (const auto outputDevice = GetOutputDevice()) {
-            const auto trackInfo = GetTrackInfo(mediaFrame);
-            if (trackInfo && trackInfo->IsAccepted(mediaFrame)) {
-                const auto timestamp = trackInfo->GetTimeStampNano(mediaFrame->GetSampleRate());
-                const auto& payload = mediaFrame->GetPayload();
-                outputDevice->BeginWriteMediaPayload(mediaFrame->GetSsrc(),
-                                                     mediaFrame->IsKeyFrame(),
-                                                     mediaFrame->GetCodecMimeType(),
-                                                     mediaFrame->GetSequenceNumber(),
-                                                     mediaFrame->GetTimestamp(),
-                                                     mediaFrame->GetAbsSendtime());
-                const auto ok = _segment.AddFrame(payload->GetData(), payload->GetSize(),
-                                                  trackInfo->GetNumber(), timestamp,
-                                                  mediaFrame->IsKeyFrame());
-                trackInfo->SetLastRtpTimeStamp(mediaFrame);
-                CommitData(outputDevice);
-                outputDevice->EndWriteMediaPayload(mediaFrame->GetSsrc(), ok);
-                if (!ok) {
-                    const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
-                    MS_ERROR("unable write frame to MKV media [%s] to track #%llu",
-                             frameInfo.c_str(), trackInfo->GetNumber());
-                }
+    if (mediaFrame && _writer && HasDevices()) {
+        if (const auto trackInfo = GetTrackInfo(mediaFrame)) {
+            const auto timestamp = trackInfo->GetTimeStampNano();
+            BeginWriteMediaPayload(mediaFrame->GetSsrc(), mediaFrame->IsKeyFrame(),
+                                   mediaFrame->GetCodecMimeType(), mediaFrame->GetSequenceNumber(),
+                                   mediaFrame->GetTimestamp(), mediaFrame->GetAbsSendtime());
+            const auto ok = _writer->AddFrame(mediaFrame->GetPayload(),
+                                              trackInfo->GetNumber(),
+                                              timestamp,
+                                              mediaFrame->IsKeyFrame());
+            trackInfo->SetLastRtpTimeStamp(mediaFrame);
+            WritePayload(_writer->TakeWrittenData());
+            EndWriteMediaPayload(mediaFrame->GetSsrc(), ok);
+            if (!ok) {
+                const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
+                MS_ERROR("unable write frame to MKV media [%s] to track #%d",
+                         frameInfo.c_str(), trackInfo->GetNumber());
+                DestroyWriter(true);
             }
         }
     }
@@ -205,23 +246,21 @@ bool RtpWebMSerializer::IsCompatible(const RtpCodecMimeType& mimeType) const
 RtpWebMSerializer::TrackInfo* RtpWebMSerializer::
     GetTrackInfo(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) const
 {
-    if (mediaFrame) {
+    if (_writer && mediaFrame && mediaFrame->GetPayload()) {
         const auto& mime = mediaFrame->GetCodecMimeType();
         if (IsSupported(mime)) {
             const auto it = _tracksInfo.find(mediaFrame->GetSsrc());
-            if (it != _tracksInfo.end()) {
+            if (it != _tracksInfo.end() && it->second->IsAccepted(mediaFrame)) {
+                const auto number = it->second->GetNumber();
                 it->second->SetCodec(mime);
-                if (IsOpusAudioCodec(mime)) {
-                    // https://wiki.xiph.org/MatroskaOpus
-                    if (48000U == mediaFrame->GetSampleRate()) {
-                        it->second->SetSeekPreRoll(80000000ULL);
-                    }
-                }
+                const auto codec = GetCodecId(mime);
                 if (it->second->IsAudio()) {
-                    it->second->SetConfig(mediaFrame->GetAudioConfig());
+                    _writer->SetTrackSettings(number, codec, mediaFrame->GetAudioConfig());
+                    it->second->SetLatestConfig(mediaFrame->GetAudioConfig());
                 }
-                else {
-                    it->second->SetConfig(mediaFrame->GetVideoConfig());
+                else if (mediaFrame->IsKeyFrame()) { // video
+                    _writer->SetTrackSettings(number, codec, mediaFrame->GetVideoConfig());
+                    it->second->SetLatestConfig(mediaFrame->GetVideoConfig());
                 }
                 return it->second.get();
             }
@@ -230,23 +269,109 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::
     return nullptr;
 }
 
-template<class TMkvMediaTrack, class TConfig>
-bool RtpWebMSerializer::RegisterMedia(uint32_t ssrc, RtpCodecMimeType::Subtype codec,
-                                      const TConfig* config)
+void RtpWebMSerializer::InitWriter(bool restart)
 {
-    bool registered = false;
-    if (ssrc) {
-        const auto it = _tracksInfo.find(ssrc);
-        if (it == _tracksInfo.end()) {
-            if (const auto track = AddMediaTrack(ssrc, config)) {
-                auto trackInfo = std::make_unique<TrackInfo>(track);
-                trackInfo->SetCodec(codec);
-                trackInfo->SetConfig(config);
-                _tracksInfo[ssrc] = std::move(trackInfo);
-                registered = true;
+    auto writer = std::make_unique<BufferedWriter>();
+    bool ok = writer->IsInitialized();
+    if (ok) {
+        for (auto it = _tracksInfo.begin(); it != _tracksInfo.end(); ++it) {
+            const auto number = it->second->GetNumber();
+            if (it->second->IsAudio()) {
+                ok = writer->AddAudioTrack(number);
             }
             else {
-                MS_ERROR("unable to create MKV writer track, [SSRC = %du]", ssrc);
+                ok = writer->AddVideoTrack(number);
+            }
+            if (ok) {
+                const auto codec = GetCodecId(it->second->GetCodec());
+                if (it->second->IsAudio()) {
+                    writer->SetAudioSampleRate(number, it->second->GetClockRate(),
+                                               IsOpusAudioCodec(it->second->GetCodec()));
+                    writer->SetTrackSettings(number, codec, it->second->GetLatestAudioConfig());
+                }
+                else {
+                    writer->SetTrackSettings(number, codec, it->second->GetLatestVideoConfig());
+                }
+            }
+            else {
+                break;
+            }
+        }
+        if (ok) {
+            _writer = std::move(writer);
+            _writer->SetLiveMode(_liveMode);
+        }
+        else {
+            MS_ERROR("failed to recreate of MKV writer tracks");
+        }
+    }
+    else {
+        MS_ERROR("failed to init of MKV writer segment");
+    }
+    if (ok) {
+        StartStream(restart);
+    }
+    else { // failure
+        EndStream(true);
+    }
+}
+
+void RtpWebMSerializer::DestroyWriter(bool failure)
+{
+    if (_writer) {
+        _writer->Finalize();
+        if (HasDevices()) {
+            WritePayload(_writer->TakeWrittenData());
+        }
+        _writer.reset();
+        for (auto it = _tracksInfo.begin(); it != _tracksInfo.end(); ++it) {
+            it->second->ResetRtpTiming();
+        }
+        EndStream(failure);
+    }
+}
+
+template<class TConfig>
+bool RtpWebMSerializer::AddMedia(uint32_t ssrc, uint32_t clockRate,
+                                 const RtpCodecMimeType& mime,
+                                 const std::shared_ptr<TConfig>& config)
+{
+    bool registered = false;
+    if (ssrc && RtpCodecMimeType::Type::UNSET != mime.GetType()) {
+        const auto it = _tracksInfo.find(ssrc);
+        if (it == _tracksInfo.end()) {
+            if (!_writer) {
+                InitWriter(false);
+            }
+            else if(_writer->HasWroteMedia()) {
+                DestroyWriter(false);
+                InitWriter(true);
+            }
+            if (_writer) {
+                bool added = false;
+                const auto number = static_cast<int32_t>(_tracksInfo.size()) + 1;
+                if (RtpCodecMimeType::Type::AUDIO == mime.GetType()) {
+                    added = _writer->AddAudioTrack(number);
+                }
+                else if (RtpCodecMimeType::Type::VIDEO == mime.GetType()) {
+                    added = _writer->AddVideoTrack(number);
+                }
+                if (added) {
+                    _writer->SetTrackSettings(number, GetCodecId(mime), config);
+                    const auto audio = RtpCodecMimeType::Type::AUDIO == mime.GetType();
+                    auto trackInfo = std::make_unique<TrackInfo>(number, audio, clockRate);
+                    if (audio) {
+                        _writer->SetAudioSampleRate(number, clockRate, IsOpusAudioCodec(mime));
+                    }
+                    trackInfo->SetCodec(mime);
+                    trackInfo->SetLatestConfig(config);
+                    _tracksInfo[ssrc] = std::move(trackInfo);
+                    registered = true;
+                }
+                else {
+                    MS_ERROR("unable to create MKV writer track, [SSRC = %du]", ssrc);
+                    DestroyWriter(true);
+                }
             }
         }
         else {
@@ -256,48 +381,136 @@ bool RtpWebMSerializer::RegisterMedia(uint32_t ssrc, RtpCodecMimeType::Subtype c
     return registered;
 }
 
-mkvmuxer::Track* RtpWebMSerializer::AddMediaTrack(uint32_t ssrc, const RtpAudioFrameConfig* config)
+RtpWebMSerializer::BufferedWriter::BufferedWriter()
+    : _initialized(_segment.Init(this))
 {
-    if (ssrc) {
-        int32_t sampleRate = 0, channels = 0;
-        if (config) {
-            channels = config->_channelCount;
-        }
-        const auto expected = static_cast<int32_t>(_tracksInfo.size());
-        const auto actual = _segment.AddAudioTrack(sampleRate, channels, expected);
-        if (actual) {
-            return _segment.GetTrackByNumber(actual);
-        }
+    if (IsInitialized()) {
+        ReserveBuffer();
     }
-    return nullptr;
 }
 
-mkvmuxer::Track* RtpWebMSerializer::AddMediaTrack(uint32_t ssrc, const RtpVideoFrameConfig* config)
+void RtpWebMSerializer::BufferedWriter::Finalize()
 {
-    if (ssrc) {
-        int32_t width = 0, height = 0;
-        if (config) {
-            width = config->_width;
-            height = config->_height;
+    if (IsInitialized()) {
+        _segment.Finalize();
+    }
+}
+
+void RtpWebMSerializer::BufferedWriter::SetLiveMode(bool live)
+{
+    if (_initialized) {
+        if (live) {
+            _segment.set_mode(mkvmuxer::Segment::kLive);
+            _segment.set_estimate_file_duration(false);
+            _segment.OutputCues(false);
         }
-        const auto expected = static_cast<int32_t>(_tracksInfo.size());
-        const auto actual = _segment.AddVideoTrack(width, height, expected);
-        if (actual) {
-            const auto videoTrack = static_cast<mkvmuxer::VideoTrack*>(_segment.GetTrackByNumber(actual));
-            if (videoTrack) {
-                videoTrack->SetAlphaMode(mkvmuxer::VideoTrack::kNoAlpha);
+        else {
+            _segment.set_mode(mkvmuxer::Segment::kFile);
+            _segment.set_estimate_file_duration(true);
+            _segment.OutputCues(true);
+        }
+    }
+}
+
+bool RtpWebMSerializer::BufferedWriter::AddFrame(const std::shared_ptr<const MemoryBuffer>& data,
+                                                 int32_t number,
+                                                 uint64_t timeCode, bool isKeyFrame)
+{
+    if (data && IsInitialized()) {
+        const auto it = _tracksReference.find(number);
+        if (it != _tracksReference.end()) {
+            return _segment.AddFrame(data->GetData(), data->GetSize(), it->second,
+                                     timeCode, isKeyFrame);
+        }
+    }
+    return false;
+}
+
+bool RtpWebMSerializer::BufferedWriter::AddAudioTrack(int32_t number)
+{
+    bool ok = false;
+    if (IsValidForTracksAdding()) {
+        if (!GetTrack(number)) {
+            const auto refNumber = _segment.AddAudioTrack(0, 0, number);
+            if (refNumber) {
+                _tracksReference[number] = refNumber;
+                ok = true;
+                ++_audioTracksCount;
+                if (0ULL == _videoTracksCount) {
+                    _segment.CuesTrack(refNumber);
+                }
             }
-            return videoTrack;
+        }
+        else {
+            ok = true;
         }
     }
-    return nullptr;
+    return ok;
 }
 
-void RtpWebMSerializer::CommitData(OutputDevice* outputDevice)
+bool RtpWebMSerializer::BufferedWriter::AddVideoTrack(int32_t number)
 {
-    if (outputDevice) {
-        if (const auto buffer = _writer->TakeWrittenData()) {
-            outputDevice->Write(buffer);
+    bool ok = false;
+    if (IsValidForTracksAdding()) {
+        if (!GetTrack(number)) {
+            const auto refNumber = _segment.AddVideoTrack(0, 0, number);
+            if (refNumber) {
+                _tracksReference[number] = refNumber;
+                ok = true;
+                if (0ULL == _videoTracksCount++) {
+                    _segment.CuesTrack(refNumber);
+                }
+            }
+        }
+        else {
+            ok = true;
+        }
+    }
+    return ok;
+}
+
+void RtpWebMSerializer::BufferedWriter::SetAudioSampleRate(int32_t number,
+                                                           uint32_t sampleRate,
+                                                           bool opusCodec)
+{
+    if (const auto track = static_cast<mkvmuxer::AudioTrack*>(GetTrack(number))) {
+        track->set_sample_rate(sampleRate);
+        // https://wiki.xiph.org/MatroskaOpus
+        if (opusCodec && 48000U == sampleRate) {
+            track->set_seek_pre_roll(80000000ULL);
+        }
+    }
+}
+
+void RtpWebMSerializer::BufferedWriter::SetTrackSettings(int32_t number,
+                                                         const char* codec,
+                                                         const std::shared_ptr<const RtpAudioFrameConfig>& config)
+{
+    if (const auto track = static_cast<mkvmuxer::AudioTrack*>(GetTrack(number))) {
+        track->set_codec_id(codec);
+        if (config) {
+            track->set_channels(config->GetChannelCount());
+            track->set_bit_depth(config->GetBitsPerSample());
+            if (!SetCodecSpecific(track, config->GetCodecSpecificData())) {
+                MS_ERROR("failed to setup of MKV writer audio codec data");
+            }
+        }
+    }
+}
+
+void RtpWebMSerializer::BufferedWriter::SetTrackSettings(int32_t number,
+                                                         const char* codec,
+                                                         const std::shared_ptr<const RtpVideoFrameConfig>& config)
+{
+    if (const auto track = static_cast<mkvmuxer::VideoTrack*>(GetTrack(number))) {
+        track->set_codec_id(codec);
+        if (config) {
+            track->set_frame_rate(config->GetFrameRate());
+            track->set_width(config->GetWidth());
+            track->set_height(config->GetHeight());
+            if (!SetCodecSpecific(track, config->GetCodecSpecificData())) {
+                MS_ERROR("failed to setup of MKV writer video codec data");
+            }
         }
     }
 }
@@ -311,9 +524,43 @@ std::shared_ptr<MemoryBuffer> RtpWebMSerializer::BufferedWriter::TakeWrittenData
     return nullptr;
 }
 
+
+bool RtpWebMSerializer::BufferedWriter::SetCodecSpecific(mkvmuxer::Track* track,
+                                                         const std::shared_ptr<const MemoryBuffer>& specific)
+{
+    if (track) {
+        return !specific || track->SetCodecPrivate(specific->GetData(), specific->GetSize());
+    }
+    return true;
+}
+
+mkvmuxer::Track* RtpWebMSerializer::BufferedWriter::GetTrack(int32_t number) const
+{
+    if (IsInitialized()) {
+        const auto it = _tracksReference.find(number);
+        if (it != _tracksReference.end()) {
+            return _segment.GetTrackByNumber(it->second);
+        }
+    }
+    return nullptr;
+}
+
+bool RtpWebMSerializer::BufferedWriter::IsValidForTracksAdding() const
+{
+    if (IsInitialized()) {
+        MS_ASSERT(!HasWroteMedia(), "has wrotten bytes - reinitialization of MKV writer required");
+        return true;
+    }
+    return false;
+}
+
 mkvmuxer::int32 RtpWebMSerializer::BufferedWriter::Write(const void* buf, mkvmuxer::uint32 len)
 {
-    return Append(buf, len) ? 0 : 1;
+    if (Append(buf, len)) {
+        _wroteMedia = true;
+        return 0;
+    }
+    return 1;
 }
 
 mkvmuxer::int64 RtpWebMSerializer::BufferedWriter::Position() const
@@ -327,10 +574,13 @@ mkvmuxer::int32 RtpWebMSerializer::BufferedWriter::Position(mkvmuxer::int64 posi
     return 0;
 }
 
-RtpWebMSerializer::TrackInfo::TrackInfo(mkvmuxer::Track* track)
-    : _track(track)
+RtpWebMSerializer::TrackInfo::TrackInfo(int32_t number, bool audio, uint32_t clockRate)
+    : _number(number)
+    , _audio(audio)
+    , _clockRate(clockRate)
     , _codec(RtpCodecMimeType::Subtype::UNSET)
 {
+    MS_ASSERT(_clockRate, "sample rate must be greater than zero");
 }
 
 bool RtpWebMSerializer::TrackInfo::IsAccepted(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) const
@@ -341,19 +591,15 @@ bool RtpWebMSerializer::TrackInfo::IsAccepted(const std::shared_ptr<const RtpMed
 bool RtpWebMSerializer::TrackInfo::SetCodec(RtpCodecMimeType::Subtype codec)
 {
     if (codec != _codec) {
-        if (const auto codecId = GetCodecId(codec)) {
-            _codec = codec;
-            _track->set_codec_id(codecId);
-            return true;
-        }
+        _codec = codec;
+        return true;
     }
     return false;
 }
 
-uint64_t RtpWebMSerializer::TrackInfo::GetTimeStampNano(uint32_t sampleRate) const
+uint64_t RtpWebMSerializer::TrackInfo::GetTimeStampNano() const
 {
-    MS_ASSERT(sampleRate, "invalid sample rate of media frame");
-    return MilliToNano(_granule) / sampleRate;
+    return MilliToNano(_granule) / GetClockRate();
 }
 
 void RtpWebMSerializer::TrackInfo::SetLastRtpTimeStamp(uint32_t lastRtpTimestamp)
@@ -373,36 +619,34 @@ void RtpWebMSerializer::TrackInfo::SetLastRtpTimeStamp(const std::shared_ptr<con
     }
 }
 
-void RtpWebMSerializer::TrackInfo::SetConfig(const RtpAudioFrameConfig* config)
+void RtpWebMSerializer::TrackInfo::ResetRtpTiming()
 {
-    if (config) {
-        MS_ASSERT(IsAudio(), "is not audio track");
-        const auto audioTrack = static_cast<mkvmuxer::AudioTrack*>(_track);
-        audioTrack->set_channels(config->_channelCount);
-        audioTrack->set_bit_depth(config->_bitsPerSample);
-        if (!SetCodecPrivate(config->_codecSpecificData.get())) {
-            MS_ERROR("failed to setup of MKV writer audio codec data");
-        }
-    }
+    _lastRtpTimestamp = 0U;
+    _granule = 0ULL;
 }
 
-void RtpWebMSerializer::TrackInfo::SetConfig(const RtpVideoFrameConfig* config)
+void RtpWebMSerializer::TrackInfo::SetLatestConfig(const std::shared_ptr<const RtpAudioFrameConfig>& config)
 {
-    if (config) {
-        MS_ASSERT(!IsAudio(), "is not video track");
-        const auto videoTrack = static_cast<mkvmuxer::VideoTrack*>(_track);
-        videoTrack->set_frame_rate(config->_frameRate);
-        videoTrack->set_width(config->_width);
-        videoTrack->set_height(config->_height);
-        if (!SetCodecPrivate(config->_codecSpecificData.get())) {
-            MS_ERROR("failed to setup of MKV writer video codec data");
-        }
-    }
+    MS_ASSERT(IsAudio(), "set incorrect config for audio track");
+    _latestAudioConfig = config;
 }
 
-bool RtpWebMSerializer::TrackInfo::SetCodecPrivate(const MemoryBuffer* codecPrivate)
+void RtpWebMSerializer::TrackInfo::SetLatestConfig(const std::shared_ptr<const RtpVideoFrameConfig>& config)
 {
-    return !codecPrivate || _track->SetCodecPrivate(codecPrivate->GetData(), codecPrivate->GetSize());
+    MS_ASSERT(!IsAudio(), "set incorrect config for video track");
+    _latestVideoConfig = config;
+}
+
+const std::shared_ptr<const RtpAudioFrameConfig>& RtpWebMSerializer::TrackInfo::GetLatestAudioConfig() const
+{
+    MS_ASSERT(IsAudio(), "get incorrect config for audio track");
+    return _latestAudioConfig;
+}
+
+const std::shared_ptr<const RtpVideoFrameConfig>& RtpWebMSerializer::TrackInfo::GetLatestVideoConfig() const
+{
+    MS_ASSERT(!IsAudio(), "get incorrect config for video track");
+    return _latestVideoConfig;
 }
 
 } // namespace RTC

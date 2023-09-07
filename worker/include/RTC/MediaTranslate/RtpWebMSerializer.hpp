@@ -1,7 +1,6 @@
 #pragma once
 
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
-#include <mkvmuxer/mkvmuxer.h>
 #include <absl/container/flat_hash_map.h>
 
 namespace RTC
@@ -21,26 +20,27 @@ public:
     ~RtpWebMSerializer() final;
     static bool IsSupported(const RtpCodecMimeType& mimeType);
     // impl. of RtpMediaFrameSerializer
-    void SetOutputDevice(OutputDevice* outputDevice) final;
     void SetLiveMode(bool liveMode) final;
     std::string_view GetFileExtension(const RtpCodecMimeType& mimeType) const final;
-    bool RegisterAudio(uint32_t ssrc, RtpCodecMimeType::Subtype codec,
-                       const RtpAudioFrameConfig* config) final;
-    bool RegisterVideo(uint32_t ssrc, RtpCodecMimeType::Subtype codec,
-                       const RtpVideoFrameConfig* config) final;
+    bool AddAudio(uint32_t ssrc, uint32_t clockRate,
+                  RtpCodecMimeType::Subtype codec,
+                  const std::shared_ptr<const RtpAudioFrameConfig>& config) final;
+    bool AddVideo(uint32_t ssrc, uint32_t clockRate,
+                  RtpCodecMimeType::Subtype codec,
+                  const std::shared_ptr<const RtpVideoFrameConfig>& config) final;
+    void RemoveMedia(uint32_t ssrc) final;
     void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame) final;
     bool IsCompatible(const RtpCodecMimeType& mimeType) const final;
 private:
-    template<class TMkvMediaTrack, class TConfig>
-    bool RegisterMedia(uint32_t ssrc, RtpCodecMimeType::Subtype codec, const TConfig* config);
-    mkvmuxer::Track* AddMediaTrack(uint32_t ssrc, const RtpAudioFrameConfig* config);
-    mkvmuxer::Track* AddMediaTrack(uint32_t ssrc, const RtpVideoFrameConfig* config);
+    void InitWriter(bool restart);
+    void DestroyWriter(bool failure = false);
+    template<class TConfig>
+    bool AddMedia(uint32_t ssrc, uint32_t clockRate, const RtpCodecMimeType& mime, 
+                  const std::shared_ptr<TConfig>& config);
     TrackInfo* GetTrackInfo(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) const;
-    //mkvmuxer::Track* CreateMediaTrack(const std::shared_ptr<const RtpMediaFrame>& mediaFrame);
-    void CommitData(OutputDevice* outputDevice);
 private:
-    const std::unique_ptr<BufferedWriter> _writer;
-    mkvmuxer::Segment _segment;
+    std::unique_ptr<BufferedWriter> _writer;
+    bool _liveMode = true;
     // key - is packet SSRC
     absl::flat_hash_map<uint32_t, std::unique_ptr<TrackInfo>> _tracksInfo;
 };

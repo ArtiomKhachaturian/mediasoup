@@ -7,9 +7,8 @@
 namespace RTC
 {
 
-RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& codecMimeType, uint32_t sampleRate)
+RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& codecMimeType)
     : _codecMimeType(codecMimeType)
-    , _sampleRate(sampleRate)
 {
     MS_ASSERT(_codecMimeType.IsMediaCodec(), "invalid media codec");
 }
@@ -31,7 +30,7 @@ std::unique_ptr<RtpDepacketizer> RtpDepacketizer::create(const RtpCodecMimeType&
             switch (mimeType.GetSubtype()) {
                 case RtpCodecMimeType::Subtype::VP8:
                 case RtpCodecMimeType::Subtype::VP9:
-                    return std::make_unique<RtpDepacketizerVpx>(mimeType, sampleRate);
+                    return std::make_unique<RtpDepacketizerVpx>(mimeType);
                 default:
                     break;
             }

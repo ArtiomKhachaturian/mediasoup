@@ -180,7 +180,6 @@ common_sources = [
   'src/RTC/MediaTranslate/ConsumerTranslator.cpp',
   'src/RTC/MediaTranslate/ProducerTranslator.cpp',
   'src/RTC/MediaTranslate/MediaLanguageAndVoice.cpp',
-  'src/RTC/MediaTranslate/MediaPacketsSink.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint.cpp',
 ]
 

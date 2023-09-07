@@ -745,6 +745,7 @@ namespace RTC
 			{
 				std::string producerId;
 
+                const auto strf = to_string(request->data);
 				// This may throw.
 				SetNewProducerIdFromData(request->data, producerId);
 

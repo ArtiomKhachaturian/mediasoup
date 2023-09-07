@@ -19,11 +19,9 @@ public:
     static std::unique_ptr<RtpDepacketizer> create(const RtpCodecMimeType& mimeType,
                                                    uint32_t sampleRate);
 protected:
-    RtpDepacketizer(const RtpCodecMimeType& codecMimeType, uint32_t sampleRate);
-    uint32_t GetSampleRate() const { return _sampleRate; }
+    RtpDepacketizer(const RtpCodecMimeType& codecMimeType);
 private:
     const RtpCodecMimeType _codecMimeType;
-    const uint32_t _sampleRate;
 };
 
 } // namespace RTC

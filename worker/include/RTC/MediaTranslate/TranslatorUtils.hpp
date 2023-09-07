@@ -9,11 +9,9 @@ namespace RTC
 class RtpStream;
 class RtpMediaFrame;
 
-std::string GetMediaFrameInfoString(const std::shared_ptr<const RtpMediaFrame>& mediaFrame,
-                                    uint32_t ssrc = 0U);
+std::string GetMediaFrameInfoString(const std::shared_ptr<const RtpMediaFrame>& mediaFrame);
 
-std::string GetStreamInfoString(const RtpCodecMimeType& mime,
-                                uint32_t mappedSsrc = 0U, uint32_t ssrc = 0U);
+std::string GetStreamInfoString(const RtpCodecMimeType& mime, uint32_t mappedSsrc = 0U);
 std::string GetStreamInfoString(uint32_t mappedSsrc, const RtpStream* stream);
 
 const std::string& MimeTypeToString(RtpCodecMimeType::Type type);
