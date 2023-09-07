@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/RtpDepacketizerVpx.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/Codecs/VP8.hpp"
 #include "RTC/Codecs/VP9.hpp"
 #include "RTC/RtpPacket.hpp"
@@ -34,8 +35,7 @@ private:
                                     RtpVideoFrameConfig& videoConfig);
     static bool ParseVp9VideoConfig(const RtpPacket* packet,
                                     RtpVideoFrameConfig& videoConfig);
-    bool AddVp8Payload(const RtpPacket* packet);
-    bool AddVp9Payload(const RtpPacket* packet);
+    bool AddPayload(const RtpPacket* packet);
 private:
     const RtpDepacketizerVpx* const _owner;
     SimpleMemoryBuffer _payload;
@@ -73,26 +73,17 @@ RtpDepacketizerVpx::RtpAssembly::RtpAssembly(const RtpDepacketizerVpx* owner)
 std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(const RtpPacket* packet)
 {
     if (packet && packet->GetPayload() && packet->GetPayloadLength()) {
-        bool ok = true;
+        const auto& mime = _owner->GetCodecMimeType();
         if (_lastTimeStamp != packet->GetTimestamp()) {
             _lastTimeStamp = packet->GetTimestamp();
             _payload.Resize(0U);
         }
         // Add payload
-        switch (_owner->GetCodecMimeType().GetSubtype()) {
-            case RtpCodecMimeType::Subtype::VP8:
-                ok = AddVp8Payload(packet);
-                break;
-            case RtpCodecMimeType::Subtype::VP9:
-                ok = AddVp9Payload(packet);
-                break;
-            default:
-                break;
-        }
-        if (ok) {
+        if (AddPayload(packet)) {
             RtpVideoFrameConfig videoConfig;
+            bool ok = true;
             if (packet->IsKeyFrame()) {
-                switch (_owner->GetCodecMimeType().GetSubtype()) {
+                switch (mime.GetSubtype()) {
                     case RtpCodecMimeType::Subtype::VP8:
                         ok = ParseVp8VideoConfig(packet, videoConfig);
                         break;
@@ -102,28 +93,29 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(const 
                     default:
                         break;
                 }
-                if (ok) {
-                    videoConfig._frameRate = 30.; // TODO: replace to real value
-                }
             }
             if (ok) {
                 if (packet->HasMarker()) {
-                    const auto codecType = _owner->GetCodecMimeType().GetSubtype();
-                    const auto sampleRate = _owner->GetSampleRate();
                     if (const auto payload = _payload.Take()) {
-                        return RtpMediaFrame::CreateVideo(packet, payload, codecType, sampleRate, videoConfig);
+                        return RtpMediaFrame::CreateVideo(packet, payload,
+                                                          mime.GetSubtype(),
+                                                          _owner->GetSampleRate(),
+                                                          std::move(videoConfig));
                     }
                     else {
-                        // TODO: log error
+                        const auto error = GetStreamInfoString(mime, packet->GetSsrc());
+                        MS_ERROR("failed to take assembled payload for stream [%s]", error.c_str());
                     }
                 }
             }
             else {
-                // TODO: log error
+                const auto error = GetStreamInfoString(mime, packet->GetSsrc());
+                MS_ERROR("failed to parse video config for stream [%s]", error.c_str());
             }
         }
         else {
-            // TODO: log error
+            const auto error = GetStreamInfoString(mime, packet->GetSsrc());
+            MS_ERROR("failed to add payload for stream [%s]", error.c_str());
         }
     }
     return nullptr;
@@ -172,12 +164,18 @@ bool RtpDepacketizerVpx::RtpAssembly::ParseVp9VideoConfig(const RtpPacket* packe
     if (const auto pds = GetPayloadDescriptorSize(packet)) {
         if (const auto payload = packet->GetPayload()) {
             //const auto offset = pds.value();
+            /*vp9_parser::Vp9HeaderParser parser;
+            if (parser.ParseUncompressedHeader(payload, packet->GetPayloadLength())) {
+                videoConfig._width = parser.width();
+                videoConfig._height = parser.height();
+                return true;
+            }*/
         }
     }
     return false;
 }
 
-bool RtpDepacketizerVpx::RtpAssembly::AddVp8Payload(const RtpPacket* packet)
+bool RtpDepacketizerVpx::RtpAssembly::AddPayload(const RtpPacket* packet)
 {
     if (const auto pds = GetPayloadDescriptorSize(packet)) {
         if (const auto payload = packet->GetPayload()) {
@@ -188,11 +186,6 @@ bool RtpDepacketizerVpx::RtpAssembly::AddVp8Payload(const RtpPacket* packet)
             }
         }
     }
-    return false;
-}
-
-bool RtpDepacketizerVpx::RtpAssembly::AddVp9Payload(const RtpPacket* packet)
-{
     return false;
 }
 

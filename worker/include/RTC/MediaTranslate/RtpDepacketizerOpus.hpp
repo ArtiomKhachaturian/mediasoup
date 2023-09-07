@@ -7,6 +7,7 @@ namespace RTC
 
 class RtpDepacketizerOpus : public RtpDepacketizer
 {
+    class OpusHeadBuffer;
 public:
     RtpDepacketizerOpus(const RtpCodecMimeType& codecMimeType, uint32_t sampleRate);
     // impl. of RtpDepacketizer

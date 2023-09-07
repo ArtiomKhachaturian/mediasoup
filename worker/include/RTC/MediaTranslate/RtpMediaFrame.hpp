@@ -25,23 +25,23 @@ public:
     static std::shared_ptr<RtpMediaFrame> CreateAudio(const RtpPacket* packet,
                                                       RtpCodecMimeType::Subtype codecType,
                                                       uint32_t sampleRate,
-                                                      const RtpAudioFrameConfig& audioConfig,
+                                                      RtpAudioFrameConfig audioConfig,
                                                       const std::allocator<uint8_t>& payloadAllocator = {});
     static std::shared_ptr<RtpMediaFrame> CreateAudio(const RtpPacket* packet,
                                                       const std::shared_ptr<const MemoryBuffer>& payload,
                                                       RtpCodecMimeType::Subtype codecType,
                                                       uint32_t sampleRate,
-                                                      const RtpAudioFrameConfig& audioConfig);
+                                                      RtpAudioFrameConfig audioConfig);
     static std::shared_ptr<RtpMediaFrame> CreateVideo(const RtpPacket* packet,
                                                       RtpCodecMimeType::Subtype codecType,
                                                       uint32_t sampleRate,
-                                                      const RtpVideoFrameConfig& videoConfig,
+                                                      RtpVideoFrameConfig videoConfig,
                                                       const std::allocator<uint8_t>& payloadAllocator = {});
     static std::shared_ptr<RtpMediaFrame> CreateVideo(const RtpPacket* packet,
                                                       const std::shared_ptr<const MemoryBuffer>& payload,
                                                       RtpCodecMimeType::Subtype codecType,
                                                       uint32_t sampleRate,
-                                                      const RtpVideoFrameConfig& videoConfig);
+                                                      RtpVideoFrameConfig videoConfig);
     // common
     bool IsAudio() const;
     const RtpCodecMimeType& GetCodecMimeType() const { return _codecMimeType; }

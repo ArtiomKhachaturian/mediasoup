@@ -15,7 +15,7 @@ public:
                   const std::shared_ptr<const MemoryBuffer>& payload,
                   bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
                   uint16_t sequenceNumber, uint32_t sampleRate,
-                  const RtpAudioFrameConfig& audioConfig);
+                  RtpAudioFrameConfig audioConfig);
     // overrides of RtpMediaFrame
     const RtpAudioFrameConfig* GetAudioConfig() const final { return &_audioConfig; }
 private:
@@ -29,7 +29,7 @@ public:
                   const std::shared_ptr<const MemoryBuffer>& payload,
                   bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
                   uint16_t sequenceNumber, uint32_t sampleRate,
-                  const RtpVideoFrameConfig& videoConfig);
+                  RtpVideoFrameConfig videoConfig);
     // overrides of RtpMediaFrame
     const RtpVideoFrameConfig* GetVideoConfig() const { return &_videoConfig; }
 private:
@@ -56,12 +56,12 @@ RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& codecMimeType,
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packet,
                                                           RtpCodecMimeType::Subtype codecType,
                                                           uint32_t sampleRate,
-                                                          const RtpAudioFrameConfig& audioConfig,
+                                                          RtpAudioFrameConfig audioConfig,
                                                           const std::allocator<uint8_t>& payloadAllocator)
 {
     if (packet) {
         const auto payload = CreatePayload(packet, payloadAllocator);
-        return CreateAudio(packet, payload, codecType, sampleRate, audioConfig);
+        return CreateAudio(packet, payload, codecType, sampleRate, std::move(audioConfig));
     }
     return nullptr;
 }
@@ -70,7 +70,7 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packe
                                                           const std::shared_ptr<const MemoryBuffer>& payload,
                                                           RtpCodecMimeType::Subtype codecType,
                                                           uint32_t sampleRate,
-                                                          const RtpAudioFrameConfig& audioConfig)
+                                                          RtpAudioFrameConfig audioConfig)
 {
     if (packet && payload) {
         const RtpCodecMimeType codecMimeType(RtpCodecMimeType::Type::AUDIO, codecType);
@@ -78,7 +78,7 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packe
         return std::make_shared<RtpAudioFrame>(codecMimeType, payload, packet->IsKeyFrame(),
                                                packet->GetTimestamp(), packet->GetSsrc(),
                                                packet->GetSequenceNumber(), sampleRate,
-                                               audioConfig);
+                                               std::move(audioConfig));
     }
     return nullptr;
 }
@@ -86,12 +86,12 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packe
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateVideo(const RtpPacket* packet,
                                                           RtpCodecMimeType::Subtype codecType,
                                                           uint32_t sampleRate,
-                                                          const RtpVideoFrameConfig& videoConfig,
+                                                          RtpVideoFrameConfig videoConfig,
                                                           const std::allocator<uint8_t>& payloadAllocator)
 {
     if (packet) {
         const auto payload = CreatePayload(packet, payloadAllocator);
-        return CreateVideo(packet, payload, codecType, sampleRate, videoConfig);
+        return CreateVideo(packet, payload, codecType, sampleRate, std::move(videoConfig));
     }
     return nullptr;
 }
@@ -100,7 +100,7 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateVideo(const RtpPacket* packe
                                                           const std::shared_ptr<const MemoryBuffer>& payload,
                                                           RtpCodecMimeType::Subtype codecType,
                                                           uint32_t sampleRate,
-                                                          const RtpVideoFrameConfig& videoConfig)
+                                                          RtpVideoFrameConfig videoConfig)
 {
     if (packet && payload) {
         const RtpCodecMimeType codecMimeType(RtpCodecMimeType::Type::VIDEO, codecType);
@@ -108,7 +108,7 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateVideo(const RtpPacket* packe
         return std::make_shared<RtpVideoFrame>(codecMimeType, payload, packet->IsKeyFrame(),
                                                packet->GetTimestamp(), packet->GetSsrc(),
                                                packet->GetSequenceNumber(), sampleRate,
-                                               videoConfig);
+                                               std::move(videoConfig));
     }
     return nullptr;
 }
@@ -131,9 +131,9 @@ RtpMediaFrame::RtpAudioFrame::RtpAudioFrame(const RtpCodecMimeType& codecMimeTyp
                                             const std::shared_ptr<const MemoryBuffer>& payload,
                                             bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
                                             uint16_t sequenceNumber, uint32_t sampleRate,
-                                            const RtpAudioFrameConfig& audioConfig)
+                                            RtpAudioFrameConfig audioConfig)
     : RtpMediaFrame(codecMimeType, payload, isKeyFrame, timestamp, ssrc, sequenceNumber, sampleRate)
-    , _audioConfig(audioConfig)
+    , _audioConfig(std::move(audioConfig))
 {
     MS_ASSERT(_audioConfig._channelCount, "channels count must be greater than zero");
     MS_ASSERT(_audioConfig._bitsPerSample && (0U == _audioConfig._bitsPerSample % 8), "invalid bits per sample");
@@ -143,9 +143,9 @@ RtpMediaFrame::RtpVideoFrame::RtpVideoFrame(const RtpCodecMimeType& codecMimeTyp
                                             const std::shared_ptr<const MemoryBuffer>& payload,
                                             bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
                                             uint16_t sequenceNumber, uint32_t sampleRate,
-                                            const RtpVideoFrameConfig& videoConfig)
+                                            RtpVideoFrameConfig videoConfig)
     : RtpMediaFrame(codecMimeType, payload, isKeyFrame, timestamp, ssrc, sequenceNumber, sampleRate)
-    , _videoConfig(videoConfig)
+    , _videoConfig(std::move(videoConfig))
 {
     if (isKeyFrame) {
         MS_ASSERT(_videoConfig._height > 0, "video height should be greater than zero");
