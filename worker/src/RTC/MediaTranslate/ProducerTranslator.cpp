@@ -36,12 +36,12 @@ public:
     StreamInfo(uint32_t sampleRate, uint32_t mappedSsrc, uint32_t ssrc);
     ~StreamInfo() final;
     uint32_t GetMappedSsrc() const { return _mappedSsrc; }
-    uint32_t GetSsrc() const { return _ssrc; }
     void SetSsrc(uint32_t ssrc) { _ssrc = ssrc; }
     MimeChangeStatus SetMime(const RtpCodecMimeType& mime);
     const RtpCodecMimeType& GetMime() const;
     void DepacketizeAndSerialize(const RtpPacket* packet) const;
     // impl. of ProducerInputMediaStreamer
+    uint32_t GetSsrc() const final { return _ssrc.load(std::memory_order_relaxed); }
     bool AddOutputDevice(OutputDevice* outputDevice) final;
     bool RemoveOutputDevice(OutputDevice* outputDevice) final;
 private:
@@ -63,7 +63,7 @@ private:
     static inline const RtpCodecMimeType _invalidMime;
     const uint32_t _sampleRate;
     const uint32_t _mappedSsrc;
-    uint32_t _ssrc;
+    std::atomic<uint32_t> _ssrc;
     ProtectedUniquePtr<RtpDepacketizer> _depacketizer;
     ProtectedUniquePtr<RtpMediaFrameSerializer> _serializer;
     ProtectedObj<OutputDevicesSet> _outputDevices;

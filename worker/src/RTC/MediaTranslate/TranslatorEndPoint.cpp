@@ -25,6 +25,7 @@ public:
     void SetConsumerVoice(MediaVoice voice);
     void SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
     void SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef);
+    uint32_t GetProducerInputSsrc() const;
     bool IsConnected() const { return _connected.load(std::memory_order_relaxed); }
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
@@ -112,6 +113,11 @@ void TranslatorEndPoint::SetInput(const std::shared_ptr<ProducerInputMediaStream
 void TranslatorEndPoint::SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef)
 {
     _impl->SetOutput(outputRef);
+}
+
+uint32_t TranslatorEndPoint::GetProducerInputSsrc() const
+{
+    return _impl->GetProducerInputSsrc();
 }
 
 TranslatorEndPoint::Impl::Impl(const std::weak_ptr<Websocket>& websocketRef, const std::string& userAgent)
@@ -211,6 +217,15 @@ void TranslatorEndPoint::Impl::SetOutput(const std::weak_ptr<RtpPacketsCollector
     _outputRef = outputRef;
 }
 
+uint32_t TranslatorEndPoint::Impl::GetProducerInputSsrc() const
+{
+    LOCK_READ_PROTECTED_OBJ(_input);
+    if (const auto& input = _input.ConstRef()) {
+        return input->GetSsrc();
+    }
+    return 0U;
+}
+
 void TranslatorEndPoint::Impl::OnStateChanged(uint64_t socketId, WebsocketState state)
 {
     WebsocketListener::OnStateChanged(socketId, state);
@@ -285,24 +300,25 @@ void TranslatorEndPoint::Impl::FinalizeMediaInput(const std::shared_ptr<Producer
 
 bool TranslatorEndPoint::Impl::SendTranslationChanges()
 {
-    bool ok = false;
     if (IsConnected()) {
         const TranslationPack tp(GetConsumerLanguage(), GetConsumerVoice(), GetProducerLanguage());
         const auto jsonData = GetTargetLanguageCmd(tp);
-        ok = WriteJson(jsonData);
-        if (!ok) {
-            MS_ERROR("failed write language settings to translation service");
-        }
+        return WriteJson(jsonData);
     }
-    return ok;
+    return false;
 }
 
 bool TranslatorEndPoint::Impl::WriteJson(const nlohmann::json& data)
 {
+    bool ok = false;
     if (const auto websocket = _websocketRef.lock()) {
-        return websocket->WriteText(to_string(data));
+        const auto jsonAsText = to_string(data);
+        ok = websocket->WriteText(jsonAsText);
+        if (!ok) {
+            MS_ERROR("failed write JSON command '%s' into translation service", jsonAsText.c_str());
+        }
     }
-    return false;
+    return ok;
 }
 
 std::optional<MediaLanguage> TranslatorEndPoint::Impl::GetProducerLanguage() const
@@ -334,7 +350,7 @@ void TranslatorEndPoint::Impl::Write(const std::shared_ptr<const MemoryBuffer>& 
     if (buffer && IsConnected()) {
         if (const auto websocket = _websocketRef.lock()) {
             if (!websocket->WriteBinary(buffer)) {
-                // TODO: log error
+                MS_ERROR("failed write binary buffer into into translation service");
             }
         }
     }

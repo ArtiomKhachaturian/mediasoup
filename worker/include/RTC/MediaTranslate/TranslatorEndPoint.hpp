@@ -30,6 +30,7 @@ public:
     void SetConsumerVoice(MediaVoice voice);
     void SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
     void SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef);
+    uint32_t GetProducerInputSsrc() const;
 private:
     const std::shared_ptr<Websocket> _websocket;
     const std::shared_ptr<Impl> _impl;

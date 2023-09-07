@@ -24,6 +24,7 @@ public:
     const std::string& GetProducerId() const { return _producerId; }
     void AddObserver(ConsumerObserver* observer);
     void RemoveObserver(ConsumerObserver* observer);
+    uint32_t GetProducerInputSsrc() const;
     void SetProducerInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
     void SetProducerLanguage(const std::optional<MediaLanguage>& language);
     // impl. of TranslatorUnit

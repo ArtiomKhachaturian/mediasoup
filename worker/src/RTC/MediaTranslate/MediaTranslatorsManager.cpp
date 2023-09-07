@@ -240,21 +240,12 @@ bool MediaTranslatorsManager::Impl::Register(Producer* producer)
         const auto it = _producerTranslators.find(producer->id);
         if (it == _producerTranslators.end()) {
             const auto producerTranslator = std::make_shared<ProducerTranslator>(producer);
-            if (!producerTranslator->IsAudio()) {
-                for (auto it2 = _producerTranslators.begin(); it2 != _producerTranslators.end(); ++it2) {
-                    if (!it2->second->IsAudio()) {
-                        return true;
-                    }
-                }
+            const auto& streams = producer->GetRtpStreams();
+            for (auto it = streams.begin(); it != streams.end(); ++it) {
+                RegisterStream(producerTranslator, it->first, it->second);
             }
-            //if (!producerTranslator->IsAudio()) { // for tests only
-                const auto& streams = producer->GetRtpStreams();
-                for (auto it = streams.begin(); it != streams.end(); ++it) {
-                    RegisterStream(producerTranslator, it->first, it->second);
-                }
-                _producerTranslators[producer->id] = producerTranslator;
-                producerTranslator->AddObserver(this);
-            //}
+            _producerTranslators[producer->id] = producerTranslator;
+            producerTranslator->AddObserver(this);
         }
         return true;
     }
@@ -375,28 +366,27 @@ bool MediaTranslatorsManager::Impl::UnRegister(const Consumer* consumer)
 
 void MediaTranslatorsManager::Impl::onProducerStreamRegistered(const std::string& producerId,
                                                                bool audio, uint32_t ssrc,
-                                                               uint32_t /*mappedSsrc*/,
+                                                               uint32_t mappedSsrc,
                                                                bool registered)
 {
     if (ssrc && !producerId.empty()) {
-        /*if (audio) {
-            if (!registered) {
-                for (auto it = _endPoints.begin(); it != _endPoints.end(); ++it) {
-                    const auto& endPoint = *it;
-                    if (ssrc == endPoint->GetAudioSsrc() && producerId == endPoint->GetProducerId()) {
-                        endPoint->Close();
+        if (audio) {
+            if (const auto producerTranslator = GetRegisteredProducer(producerId)) {
+                for (const auto& consumerTranslator : GetAssociated(producerTranslator)) {
+                    if (registered) {
+                        consumerTranslator->SetProducerInput(producerTranslator->GetMediaStreamer(mappedSsrc));
+                    }
+                    else if (consumerTranslator->GetProducerInputSsrc() == ssrc) {
+                        consumerTranslator->SetProducerInput(nullptr);
                     }
                 }
             }
-            else {
-                FetchEndPoint(ssrc, producerId);
-            }
-        }*/
+        }
     }
 }
 
-void MediaTranslatorsManager::Impl::OnProducerPauseChanged(const std::string& producerId,
-                                                           bool pause)
+void MediaTranslatorsManager::Impl::OnProducerPauseChanged(const std::string& /*producerId*/,
+                                                           bool /*pause*/)
 {
 }
 
