@@ -25,7 +25,6 @@ public:
     void SetConsumerVoice(MediaVoice voice);
     void SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
     void SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef);
-    uint32_t GetProducerInputSsrc() const;
     bool IsConnected() const { return _connected.load(std::memory_order_relaxed); }
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
@@ -113,11 +112,6 @@ void TranslatorEndPoint::SetInput(const std::shared_ptr<ProducerInputMediaStream
 void TranslatorEndPoint::SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef)
 {
     _impl->SetOutput(outputRef);
-}
-
-uint32_t TranslatorEndPoint::GetProducerInputSsrc() const
-{
-    return _impl->GetProducerInputSsrc();
 }
 
 TranslatorEndPoint::Impl::Impl(const std::weak_ptr<Websocket>& websocketRef, const std::string& userAgent)
@@ -215,15 +209,6 @@ void TranslatorEndPoint::Impl::SetOutput(const std::weak_ptr<RtpPacketsCollector
 {
     LOCK_WRITE_PROTECTED_OBJ(_outputRef);
     _outputRef = outputRef;
-}
-
-uint32_t TranslatorEndPoint::Impl::GetProducerInputSsrc() const
-{
-    LOCK_READ_PROTECTED_OBJ(_input);
-    if (const auto& input = _input.ConstRef()) {
-        return input->GetSsrc();
-    }
-    return 0U;
 }
 
 void TranslatorEndPoint::Impl::OnStateChanged(uint64_t socketId, WebsocketState state)

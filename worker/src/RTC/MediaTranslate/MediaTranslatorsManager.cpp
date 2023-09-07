@@ -240,12 +240,14 @@ bool MediaTranslatorsManager::Impl::Register(Producer* producer)
         const auto it = _producerTranslators.find(producer->id);
         if (it == _producerTranslators.end()) {
             const auto producerTranslator = std::make_shared<ProducerTranslator>(producer);
-            const auto& streams = producer->GetRtpStreams();
-            for (auto it = streams.begin(); it != streams.end(); ++it) {
-                RegisterStream(producerTranslator, it->first, it->second);
+            if (!producerTranslator->IsAudio()) {
+                const auto& streams = producer->GetRtpStreams();
+                for (auto it = streams.begin(); it != streams.end(); ++it) {
+                    RegisterStream(producerTranslator, it->first, it->second);
+                }
+                _producerTranslators[producer->id] = producerTranslator;
+                producerTranslator->AddObserver(this);
             }
-            _producerTranslators[producer->id] = producerTranslator;
-            producerTranslator->AddObserver(this);
         }
         return true;
     }
@@ -308,7 +310,7 @@ bool MediaTranslatorsManager::Impl::Register(Consumer* consumer, const std::stri
                 consumerTranslator = it->second;
             }
             consumerTranslator->SetProducerLanguage(producerTranslator->GetLanguage());
-            //consumerTranslator->SetProducerInput(producerTranslator->GetMediaStreamer());
+            consumerTranslator->SetProducerInput(producerTranslator->GetMediaStreamer());
             return true;
         }
     }
@@ -369,20 +371,7 @@ void MediaTranslatorsManager::Impl::onProducerStreamRegistered(const std::string
                                                                uint32_t mappedSsrc,
                                                                bool registered)
 {
-    if (ssrc && !producerId.empty()) {
-        if (audio) {
-            if (const auto producerTranslator = GetRegisteredProducer(producerId)) {
-                for (const auto& consumerTranslator : GetAssociated(producerTranslator)) {
-                    if (registered) {
-                        consumerTranslator->SetProducerInput(producerTranslator->GetMediaStreamer(mappedSsrc));
-                    }
-                    else if (consumerTranslator->GetProducerInputSsrc() == ssrc) {
-                        consumerTranslator->SetProducerInput(nullptr);
-                    }
-                }
-            }
-        }
-    }
+    
 }
 
 void MediaTranslatorsManager::Impl::OnProducerPauseChanged(const std::string& /*producerId*/,
