@@ -16,7 +16,7 @@ namespace RTC
 std::string GetMediaFrameInfoString(const std::shared_ptr<const RtpMediaFrame>& mediaFrame)
 {
     if (mediaFrame) {
-        auto streamInfo = GetStreamInfoString(mediaFrame->GetCodecMimeType(), mediaFrame->GetSsrc());
+        auto streamInfo = GetStreamInfoString(mediaFrame->GetMimeType(), mediaFrame->GetSsrc());
         if (!streamInfo.empty()) {
             std::string configInfo;
             if (const auto config = mediaFrame->GetAudioConfig()) {

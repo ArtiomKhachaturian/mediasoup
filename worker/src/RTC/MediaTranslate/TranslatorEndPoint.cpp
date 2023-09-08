@@ -47,7 +47,7 @@ private:
     // impl. of OutputDevice
     void StartStream(bool restart) noexcept final;
     void BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
-                                const RtpCodecMimeType& codecMimeType,
+                                const RtpCodecMimeType& mimeType,
                                 uint16_t rtpSequenceNumber,
                                 uint32_t rtpTimestamp,
                                 uint32_t rtpAbsSendtime) noexcept final;
@@ -333,12 +333,12 @@ void TranslatorEndPoint::Impl::StartStream(bool restart) noexcept
 }
 
 void TranslatorEndPoint::Impl::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
-                                                      const RtpCodecMimeType& codecMimeType,
+                                                      const RtpCodecMimeType& mimeType,
                                                       uint16_t rtpSequenceNumber,
                                                       uint32_t rtpTimestamp,
                                                       uint32_t rtpAbsSendtime) noexcept
 {
-    OutputDevice::BeginWriteMediaPayload(ssrc, isKeyFrame, codecMimeType,
+    OutputDevice::BeginWriteMediaPayload(ssrc, isKeyFrame, mimeType,
                                          rtpSequenceNumber, rtpTimestamp, rtpAbsSendtime);
     if (IsConnected()) {
         // TODO: send JSON command

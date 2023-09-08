@@ -36,18 +36,18 @@ private:
     const std::shared_ptr<const RtpVideoFrameConfig> _videoConfig;
 };
 
-RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& codecMimeType,
+RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& mimeType,
                              const std::shared_ptr<const MemoryBuffer>& payload,
                              bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
                              uint16_t sequenceNumber)
-    : _codecMimeType(codecMimeType)
+    : _mimeType(mimeType)
     , _payload(payload)
     , _isKeyFrame(isKeyFrame)
     , _timestamp(timestamp)
     , _ssrc(ssrc)
     , _sequenceNumber(sequenceNumber)
 {
-    MS_ASSERT(_codecMimeType.IsMediaCodec(), "invalid media codec");
+    MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
     MS_ASSERT(_payload && !_payload->IsEmpty(), "wrong payload");
 }
 
@@ -109,11 +109,6 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateVideo(const RtpPacket* packe
                                                packet->GetSequenceNumber(), videoConfig);
     }
     return nullptr;
-}
-
-bool RtpMediaFrame::IsAudio() const
-{
-    return _codecMimeType.IsAudioCodec();
 }
 
 std::shared_ptr<const MemoryBuffer> RtpMediaFrame::CreatePayload(const RtpPacket* packet,

@@ -5,7 +5,7 @@
 #include <string>
 
 #define WRITE_PRODUCER_RECV_TO_FILE
-#define DEBUG_UNITED_PRODUCER_MEDIA
+//#define DEBUG_UNITED_PRODUCER_MEDIA
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC
@@ -63,6 +63,9 @@ public:
                                                    DataConsumer* dataConsumer) final;
     void OnTransportListenServerClosed(Transport* transport) final;
 private:
+#ifdef DEBUG_UNITED_PRODUCER_MEDIA
+    static inline constexpr size_t _maxVideosInAudioSerializer = 1UL;
+#endif
     TransportListener* const _router;
     const std::shared_ptr<Impl> _impl;
 };

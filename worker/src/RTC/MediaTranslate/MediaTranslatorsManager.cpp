@@ -432,7 +432,8 @@ void MediaTranslatorsManager::Impl::onStreamAdded(const std::string& producerId,
                                                   uint32_t clockRate)
 {
 #ifdef DEBUG_UNITED_PRODUCER_MEDIA
-    if (mime.IsVideoCodec() && _mapFromVideoSsrcProducerToAudio.empty()) {
+    static_assert(_maxVideosInAudioSerializer > 0UL);
+    if (mime.IsVideoCodec() && _mapFromVideoSsrcProducerToAudio.size() < _maxVideosInAudioSerializer) {
         for (auto it = _producerTranslators.begin(); it != _producerTranslators.end(); ++it) {
             if (it->second->IsAudio()) {
                 _mapFromVideoSsrcProducerToAudio[mappedSsrc] = it->second->GetId();

@@ -23,7 +23,7 @@ public:
         ForceOff
     };
 public:
-    RtpMediaFrame(const RtpCodecMimeType& codecMimeType,
+    RtpMediaFrame(const RtpCodecMimeType& mimeType,
                   const std::shared_ptr<const MemoryBuffer>& payload,
                   bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
                   uint16_t sequenceNumber);
@@ -49,8 +49,8 @@ public:
                                                       const std::shared_ptr<const RtpVideoFrameConfig>& videoConfig,
                                                       KeyFrameMark keyFrameMark = KeyFrameMark::Auto);
     // common
-    bool IsAudio() const;
-    const RtpCodecMimeType& GetCodecMimeType() const { return _codecMimeType; }
+    const RtpCodecMimeType& GetMimeType() const { return _mimeType; }
+    bool IsAudio() const { return GetMimeType().IsAudioCodec(); }
     bool IsKeyFrame() const { return _isKeyFrame; }
     const std::shared_ptr<const MemoryBuffer>& GetPayload() const { return _payload; }
     uint32_t GetTimestamp() const { return _timestamp; }
@@ -67,7 +67,7 @@ private:
                                                              const std::allocator<uint8_t>& payloadAllocator);
     static bool IsKeyFrame(const RtpPacket* packet, KeyFrameMark keyFrameMark);
 private:
-    const RtpCodecMimeType _codecMimeType;
+    const RtpCodecMimeType _mimeType;
     const std::shared_ptr<const MemoryBuffer> _payload;
     const bool _isKeyFrame;
     const uint32_t _timestamp;

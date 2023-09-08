@@ -22,7 +22,7 @@ inline constexpr uint64_t ValueToNano(T value) {
     return value * 1000ULL * 1000ULL * 1000ULL;
 }
 
-inline bool IsOpusAudioCodec(RtpCodecMimeType::Subtype codec) {
+inline bool IsOpus(RtpCodecMimeType::Subtype codec) {
     switch (codec) {
         case RtpCodecMimeType::Subtype::OPUS:
         case RtpCodecMimeType::Subtype::MULTIOPUS:
@@ -35,8 +35,8 @@ inline bool IsOpusAudioCodec(RtpCodecMimeType::Subtype codec) {
     return false;
 }
 
-inline bool IsOpusAudioCodec(const RtpCodecMimeType& mime) {
-    return IsOpusAudioCodec(mime.GetSubtype());
+inline bool IsOpus(const RtpCodecMimeType& mime) {
+    return IsOpus(mime.GetSubtype());
 }
 
 inline static const char* GetCodecId(RtpCodecMimeType::Subtype codec) {
@@ -46,7 +46,7 @@ inline static const char* GetCodecId(RtpCodecMimeType::Subtype codec) {
         case RtpCodecMimeType::Subtype::VP9:
             return mkvmuxer::Tracks::kVp9CodecId;
         default:
-            if (IsOpusAudioCodec(codec)) {
+            if (IsOpus(codec)) {
                 return mkvmuxer::Tracks::kOpusCodecId;
             }
             break;
@@ -71,6 +71,8 @@ public:
     bool WriteToSegment(mkvmuxer::Segment& segment) const;
     bool IsValid() const { return nullptr != _mvkFrame.get(); }
     const std::shared_ptr<RtpMediaFrame>& GetMediaFrame() const { return _mediaFrame; }
+private:
+    static bool IsKeyFrame(const std::shared_ptr<RtpMediaFrame>& mediaFrame);
 private:
     std::shared_ptr<RtpMediaFrame> _mediaFrame;
     std::unique_ptr<mkvmuxer::Frame> _mvkFrame;
@@ -268,7 +270,7 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::
     GetTrackInfo(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) const
 {
     if (_writer && mediaFrame && mediaFrame->GetPayload()) {
-        const auto& mime = mediaFrame->GetCodecMimeType();
+        const auto& mime = mediaFrame->GetMimeType();
         if (IsSupported(mime)) {
             const auto it = _tracksInfo.find(mediaFrame->GetSsrc());
             if (it != _tracksInfo.end() && it->second->IsAccepted(mediaFrame)) {
@@ -308,7 +310,7 @@ void RtpWebMSerializer::InitWriter()
                     const auto codec = GetCodecId(it->second->GetCodec());
                     if (it->second->IsAudio()) {
                         writer->SetAudioSampleRate(number, it->second->GetClockRate(),
-                                                   IsOpusAudioCodec(it->second->GetCodec()));
+                                                   IsOpus(it->second->GetCodec()));
                         writer->SetTrackSettings(number, codec, it->second->GetLatestAudioConfig());
                     }
                     else {
@@ -384,7 +386,7 @@ bool RtpWebMSerializer::AddMedia(uint32_t ssrc, uint32_t clockRate,
                     const auto audio = RtpCodecMimeType::Type::AUDIO == mime.GetType();
                     auto trackInfo = std::make_unique<TrackInfo>(number, audio, clockRate);
                     if (audio) {
-                        _writer->SetAudioSampleRate(number, clockRate, IsOpusAudioCodec(mime));
+                        _writer->SetAudioSampleRate(number, clockRate, IsOpus(mime));
                     }
                     trackInfo->SetCodec(mime);
                     trackInfo->SetLatestConfig(config);
@@ -646,7 +648,7 @@ bool RtpWebMSerializer::BufferedWriter::WriteFrames(uint64_t timestamp,
                     const auto& mediaFrame = mkvFrame.GetMediaFrame();
                     serializer->BeginWriteMediaPayload(mediaFrame->GetSsrc(),
                                                        mediaFrame->IsKeyFrame(),
-                                                       mediaFrame->GetCodecMimeType(),
+                                                       mediaFrame->GetMimeType(),
                                                        mediaFrame->GetSequenceNumber(),
                                                        mediaFrame->GetTimestamp(),
                                                        mediaFrame->GetAbsSendtime());
@@ -787,7 +789,7 @@ MkvFrame::MkvFrame(const std::shared_ptr<RtpMediaFrame>& mediaFrame,
             _mvkFrame->Init(payload->GetData(), payload->GetSize());
             _mvkFrame->set_track_number(trackNumber);
             _mvkFrame->set_timestamp(mkvTimestamp);
-            _mvkFrame->set_is_key(_mediaFrame->IsKeyFrame());
+            _mvkFrame->set_is_key(IsKeyFrame(mediaFrame));
         }
     }
 }
@@ -795,6 +797,11 @@ MkvFrame::MkvFrame(const std::shared_ptr<RtpMediaFrame>& mediaFrame,
 bool MkvFrame::WriteToSegment(mkvmuxer::Segment& segment) const
 {
     return IsValid() && segment.AddGenericFrame(_mvkFrame.get());
+}
+
+bool MkvFrame::IsKeyFrame(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
+{
+    return mediaFrame && (mediaFrame->IsKeyFrame() || mediaFrame->IsAudio());
 }
 
 }
