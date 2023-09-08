@@ -741,14 +741,13 @@ void RtpWebMSerializer::TrackInfo::ResetRtpTiming()
 
 uint64_t RtpWebMSerializer::TrackInfo::UpdateTimeStamp(uint32_t lastRtpTimestamp)
 {
-    const auto current = ValueToNano(_granule) / GetClockRate();
     if (lastRtpTimestamp > _lastRtpTimestamp) {
         if (_lastRtpTimestamp) {
             _granule += lastRtpTimestamp - _lastRtpTimestamp;
         }
         _lastRtpTimestamp = lastRtpTimestamp;
     }
-    return current;
+    return ValueToNano(_granule) / GetClockRate();
 }
 
 void RtpWebMSerializer::TrackInfo::SetLatestConfig(const std::shared_ptr<const RtpAudioFrameConfig>& config)
