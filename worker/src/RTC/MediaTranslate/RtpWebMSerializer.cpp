@@ -3,6 +3,8 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
+#include "RTC/MediaTranslate/RtpAudioFrameConfig.hpp"
+#include "RTC/MediaTranslate/RtpVideoFrameConfig.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
 #include <mkvmuxer/mkvmuxer.h>
@@ -84,8 +86,6 @@ private:
 };
 
 }
-
-// TODO: fix audio & video sync, see as in https://github.com/unity3d-jp/FrameCapturer/blob/5d3ba17e5ba12d62eaaa49c51f3336a4487fc8b2/Plugin/fccore/Encoder/WebM/fcWebMContext.cpp
 
 namespace RTC
 {

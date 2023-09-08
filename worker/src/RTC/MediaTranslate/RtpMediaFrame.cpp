@@ -2,6 +2,8 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/RtpAudioFrameConfig.hpp"
+#include "RTC/MediaTranslate/RtpVideoFrameConfig.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 

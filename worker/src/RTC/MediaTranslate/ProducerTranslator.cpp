@@ -29,7 +29,7 @@ public:
     uint32_t GetMappedSsrc() const { return _mappedSsrc; }
     MimeChangeStatus SetMime(const RtpCodecMimeType& mime);
     const RtpCodecMimeType& GetMime() const;
-    std::shared_ptr<RtpMediaFrame> Depacketize(const RtpPacket* packet) const;
+    std::shared_ptr<const RtpMediaFrame> Depacketize(const RtpPacket* packet) const;
 private:
     static inline const RtpCodecMimeType _invalidMime;
     const uint32_t _clockRate;
@@ -93,7 +93,6 @@ bool ProducerTranslator::AddStream(const RtpCodecMimeType& mime, uint32_t clockR
             auto streamInfo = std::make_unique<StreamInfo>(clockRate, mappedSsrc);
             ok = MimeChangeStatus::Changed == streamInfo->SetMime(mime);
             if (ok) {
-                const auto streamInfoRef = streamInfo.get();
                 _streams[mappedSsrc] = std::move(streamInfo);
                 InvokeObserverMethod(&ProducerObserver::onStreamAdded, mappedSsrc,
                                      mime, clockRate);
@@ -190,7 +189,7 @@ MimeChangeStatus ProducerTranslator::StreamInfo::SetMime(const RtpCodecMimeType&
     MimeChangeStatus status = MimeChangeStatus::Failed;
     if (mime) {
         LOCK_WRITE_PROTECTED_OBJ(_depacketizer);
-        if (_depacketizer->get() && mime == _depacketizer->get()->GetCodecMimeType()) {
+        if (_depacketizer->get() && mime == _depacketizer->get()->GetMimeType()) {
             status = MimeChangeStatus::NotChanged;
         }
         else {
@@ -207,12 +206,12 @@ const RtpCodecMimeType& ProducerTranslator::StreamInfo::GetMime() const
 {
     LOCK_READ_PROTECTED_OBJ(_depacketizer);
     if (const auto& depacketizer = _depacketizer.ConstRef()) {
-        return depacketizer->GetCodecMimeType();
+        return depacketizer->GetMimeType();
     }
     return _invalidMime;
 }
 
-std::shared_ptr<RtpMediaFrame> ProducerTranslator::StreamInfo::
+std::shared_ptr<const RtpMediaFrame> ProducerTranslator::StreamInfo::
     Depacketize(const RtpPacket* packet) const
 {
     if (packet) {

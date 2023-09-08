@@ -48,9 +48,8 @@ public:
     void OnLanguageChanged(const std::string& producerId,
                            const std::optional<MediaLanguage>& from,
                            const std::optional<MediaLanguage>& to) final;
-    void OnMediaFrameProduced(const std::string& producerId,
-                              uint32_t mappedSsrc,
-                              const std::shared_ptr<RtpMediaFrame>& mediaFrame) final;
+    void OnMediaFrameProduced(const std::string& producerId, uint32_t mappedSsrc,
+                              const std::shared_ptr<const RtpMediaFrame>& mediaFrame) final;
 private:
     static void AddProducerStream(const std::shared_ptr<ProducerTranslator>& producerTranslator,
                                   const RtpStream* stream, uint32_t mappedSsrc);
@@ -537,7 +536,7 @@ void MediaTranslatorsManager::Impl::OnLanguageChanged(const std::string& produce
 
 void MediaTranslatorsManager::Impl::OnMediaFrameProduced(const std::string& producerId,
                                                          uint32_t mappedSsrc,
-                                                         const std::shared_ptr<RtpMediaFrame>& mediaFrame)
+                                                         const std::shared_ptr<const RtpMediaFrame>& mediaFrame)
 {
     if (mediaFrame) {
 #ifdef DEBUG_UNITED_PRODUCER_MEDIA

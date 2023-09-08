@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/RtpDepacketizerOpus.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
+#include "RTC/MediaTranslate/RtpAudioFrameConfig.hpp"
 #include "RTC/Codecs/Opus.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "MemoryBuffer.hpp"
@@ -26,9 +27,8 @@ private:
     Codecs::Opus::OpusHead _head;
 };
 
-RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& codecMimeType,
-                                         uint32_t sampleRate)
-    : RtpDepacketizer(codecMimeType)
+RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t sampleRate)
+    : RtpDepacketizer(mimeType)
     , _sampleRate(sampleRate)
     , _opusCodecData(std::make_shared<OpusHeadBuffer>(sampleRate))
 {
@@ -38,7 +38,7 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 {
 }
 
-std::shared_ptr<RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet)
+std::shared_ptr<const RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet)
 {
     if (packet && packet->GetPayload()) {
         bool stereo = false;
@@ -51,7 +51,8 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* p
                                                               _sampleRate);
         }
         config->SetCodecSpecificData(_opusCodecData);
-        if (auto frame = RtpMediaFrame::Create(GetCodecMimeType(), packet)) {
+        if (auto frame = RtpMediaFrame::Create(GetMimeType(), packet,
+                                               GetPayloadAllocator())) {
             frame->SetAudioConfig(config);
             return frame;
         }

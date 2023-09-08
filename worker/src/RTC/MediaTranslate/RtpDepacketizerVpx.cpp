@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/RtpDepacketizerVpx.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/RtpVideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/Codecs/VP8.hpp"
 #include "RTC/Codecs/VP9.hpp"
@@ -16,11 +17,11 @@ class RtpDepacketizerVpx::RtpAssembly
 public:
     RtpAssembly(const RtpCodecMimeType& mime,
                 const std::allocator<uint8_t>& payloadAllocator);
-    std::shared_ptr<RtpMediaFrame> AddPacket(const RtpPacket* packet);
+    std::shared_ptr<const RtpMediaFrame> AddPacket(const RtpPacket* packet);
 private:
     bool AddPayload(const RtpPacket* packet);
     bool ParseVideoConfig(const RtpPacket* packet);
-    std::shared_ptr<RtpMediaFrame> ResetFrame();
+    std::shared_ptr<const RtpMediaFrame> ResetFrame();
     void SetLastTimeStamp(uint32_t lastTimeStamp);
 private:
     const RtpCodecMimeType _mime;
@@ -31,8 +32,8 @@ private:
 };
 
 
-RtpDepacketizerVpx::RtpDepacketizerVpx(const RtpCodecMimeType& codecMimeType)
-    : RtpDepacketizer(codecMimeType)
+RtpDepacketizerVpx::RtpDepacketizerVpx(const RtpCodecMimeType& mimeType)
+    : RtpDepacketizer(mimeType)
 {
 }
 
@@ -40,12 +41,12 @@ RtpDepacketizerVpx::~RtpDepacketizerVpx()
 {
 }
 
-std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* packet)
+std::shared_ptr<const RtpMediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* packet)
 {
     if (packet && packet->GetPayload() && packet->GetPayloadLength()) {
         auto it = _assemblies.find(packet->GetSsrc());
         if (it == _assemblies.end()) {
-            auto assembly = std::make_unique<RtpAssembly>(GetCodecMimeType(), _payloadAllocator);
+            auto assembly = std::make_unique<RtpAssembly>(GetMimeType(), GetPayloadAllocator());
             it = _assemblies.insert({packet->GetSsrc(), std::move(assembly)}).first;
         }
         return it->second->AddPacket(packet);
@@ -60,7 +61,8 @@ RtpDepacketizerVpx::RtpAssembly::RtpAssembly(const RtpCodecMimeType& mime,
 {
 }
 
-std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(const RtpPacket* packet)
+std::shared_ptr<const RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::
+    AddPacket(const RtpPacket* packet)
 {
     if (packet && packet->GetPayload() && packet->GetPayloadLength()) {
         SetLastTimeStamp(packet->GetTimestamp());
@@ -127,9 +129,9 @@ bool RtpDepacketizerVpx::RtpAssembly::ParseVideoConfig(const RtpPacket* packet)
     return ok;
 }
 
-std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::ResetFrame()
+std::shared_ptr<const RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::ResetFrame()
 {
-    const auto finalPayload = std::move(_payload);
+    auto finalPayload = std::move(_payload);
     finalPayload->SetVideoConfig(std::move(_config));
     _payload = std::make_shared<RtpMediaFrame>(_mime);
     return finalPayload;

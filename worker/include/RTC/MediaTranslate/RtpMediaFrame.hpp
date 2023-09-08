@@ -1,8 +1,6 @@
 #pragma once
 
 #include "RTC/RtpDictionaries.hpp"
-#include "RTC/MediaTranslate/RtpAudioFrameConfig.hpp"
-#include "RTC/MediaTranslate/RtpVideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/RtpMediaPacketInfo.hpp"
 #include "MemoryBuffer.hpp"
 #include <memory>
@@ -12,6 +10,9 @@ namespace RTC
 {
 
 class RtpPacket;
+class RtpMediaFrameConfig;
+class RtpAudioFrameConfig;
+class RtpVideoFrameConfig;
 
 class RtpMediaFrame
 {

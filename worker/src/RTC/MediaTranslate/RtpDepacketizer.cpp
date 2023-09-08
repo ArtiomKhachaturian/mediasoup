@@ -7,10 +7,10 @@
 namespace RTC
 {
 
-RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& codecMimeType)
-    : _codecMimeType(codecMimeType)
+RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& mimeType)
+    : _mimeType(mimeType)
 {
-    MS_ASSERT(_codecMimeType.IsMediaCodec(), "invalid media codec");
+    MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
 }
 
 std::unique_ptr<RtpDepacketizer> RtpDepacketizer::create(const RtpCodecMimeType& mimeType,

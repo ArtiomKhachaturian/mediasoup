@@ -21,7 +21,7 @@ public:
                                    const std::optional<MediaLanguage>& from,
                                    const std::optional<MediaLanguage>& to) = 0;
     virtual void OnMediaFrameProduced(const std::string& producerId, uint32_t mappedSsrc,
-                                      const std::shared_ptr<RtpMediaFrame>& mediaFrame) = 0;
+                                      const std::shared_ptr<const RtpMediaFrame>& mediaFrame) = 0;
 };
 
 } // namespace RTC
