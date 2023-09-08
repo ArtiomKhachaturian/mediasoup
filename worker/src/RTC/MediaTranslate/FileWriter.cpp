@@ -55,7 +55,22 @@ void FileWriter::StartStream(bool restart)
 {
     OutputDevice::StartStream(restart);
     if (restart && _file) {
-        ::ftruncate(fileno(_file), 0ULL);
+        int error = ::ftruncate(fileno(_file), 0ULL);
+        if (0 == error) {
+            error = ::fseek(_file, 0L, SEEK_SET);
+            if (0 == error) {
+                const auto pos = ::ftell(_file);
+                if (0L != pos) {
+                    MS_ERROR("file position is not at beginning, actual position: %ld", pos);
+                }
+            }
+            else {
+                MS_ERROR("failed seek to beginning after file truncation, error code: %d", error);
+            }
+        }
+        else {
+            MS_ERROR("failed to truncate file, error code: %d", error);
+        }
     }
 }
 
