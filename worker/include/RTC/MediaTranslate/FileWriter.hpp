@@ -30,6 +30,7 @@ public:
     // impl. of OutputDevice
     void StartStream(bool restart) final;
     void Write(const std::shared_ptr<const MemoryBuffer>& buffer) final;
+    void EndStream(bool failure) final;
 protected:
     static FILE* FileOpen(std::string_view fileNameUtf8, int* error = nullptr);
 private:

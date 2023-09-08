@@ -45,6 +45,7 @@ private:
     MediaVoice GetConsumerVoice() const { return _consumerVoice.load(std::memory_order_relaxed); }
     std::optional<MediaLanguage> GetProducerLanguage() const;
     // impl. of OutputDevice
+    void StartStream(bool restart) final;
     void BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
                                 const RtpCodecMimeType& codecMimeType,
                                 uint16_t rtpSequenceNumber,
@@ -52,6 +53,7 @@ private:
                                 uint32_t rtpAbsSendtime) final;
     void EndWriteMediaPayload(uint32_t ssrc, bool ok) final;
     void Write(const std::shared_ptr<const MemoryBuffer>& buffer) final;
+    void EndStream(bool failure) final;
 private:
     const std::weak_ptr<Websocket> _websocketRef;
     const std::string _userAgent;
@@ -322,12 +324,22 @@ std::optional<MediaLanguage> TranslatorEndPoint::Impl::GetProducerLanguage() con
     return _producerLanguage.ConstRef();
 }
 
+void TranslatorEndPoint::Impl::StartStream(bool restart)
+{
+    OutputDevice::StartStream(restart);
+    if (IsConnected()) {
+        // TODO: send JSON command
+    }
+}
+
 void TranslatorEndPoint::Impl::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
                                                       const RtpCodecMimeType& codecMimeType,
                                                       uint16_t rtpSequenceNumber,
                                                       uint32_t rtpTimestamp,
                                                       uint32_t rtpAbsSendtime)
 {
+    OutputDevice::BeginWriteMediaPayload(ssrc, isKeyFrame, codecMimeType,
+                                         rtpSequenceNumber, rtpTimestamp, rtpAbsSendtime);
     if (IsConnected()) {
         // TODO: send JSON command
     }
@@ -348,6 +360,14 @@ void TranslatorEndPoint::Impl::Write(const std::shared_ptr<const MemoryBuffer>& 
                 MS_ERROR("failed write binary buffer into into translation service");
             }
         }
+    }
+}
+
+void TranslatorEndPoint::Impl::EndStream(bool failure)
+{
+    OutputDevice::EndStream(failure);
+    if (IsConnected()) {
+        // TODO: send JSON command
     }
 }
 

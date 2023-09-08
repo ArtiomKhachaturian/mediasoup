@@ -54,22 +54,25 @@ bool FileWriter::Flush()
 void FileWriter::StartStream(bool restart)
 {
     OutputDevice::StartStream(restart);
-    if (restart && _file) {
-        int error = ::ftruncate(fileno(_file), 0ULL);
-        if (0 == error) {
-            error = ::fseek(_file, 0L, SEEK_SET);
+    if (_file) {
+        MS_DEBUG_DEV(restart ? "media stream restarted" : "media stream started");
+        if (restart) {
+            int error = ::ftruncate(fileno(_file), 0ULL);
             if (0 == error) {
-                const auto pos = ::ftell(_file);
-                if (0L != pos) {
-                    MS_ERROR("file position is not at beginning, actual position: %ld", pos);
+                error = ::fseek(_file, 0L, SEEK_SET);
+                if (0 == error) {
+                    const auto pos = ::ftell(_file);
+                    if (0L != pos) {
+                        MS_ERROR("file position is not at beginning, actual position: %ld", pos);
+                    }
+                }
+                else {
+                    MS_ERROR("failed seek to beginning after file truncation, error code: %d", error);
                 }
             }
             else {
-                MS_ERROR("failed seek to beginning after file truncation, error code: %d", error);
+                MS_ERROR("failed to truncate file, error code: %d", error);
             }
-        }
-        else {
-            MS_ERROR("failed to truncate file, error code: %d", error);
         }
     }
 }
@@ -80,10 +83,17 @@ void FileWriter::Write(const std::shared_ptr<const MemoryBuffer>& buffer)
         const auto expected = buffer->GetSize();
         const auto actual = ::fwrite(buffer->GetData(), 1U, expected, _file);
         if (expected != actual) {
-            MS_ERROR("file write error, expected %lu but written only %lu bytes, error code: %d",
+            MS_ERROR("file write error, expected %lu but "
+                     "written only %lu bytes, error code: %d",
                      expected, actual, errno);
         }
     }
+}
+
+void FileWriter::EndStream(bool failure)
+{
+    OutputDevice::EndStream(failure);
+    MS_DEBUG_DEV(failure ? "media stream failed" : "media stream finished");
 }
 
 FILE* FileWriter::FileOpen(std::string_view fileNameUtf8, int* error)
