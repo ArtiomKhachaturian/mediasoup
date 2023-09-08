@@ -66,6 +66,9 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet,
         else {
             _timestamp = packet->GetTimestamp();
         }
+        if (packet->IsKeyFrame()) {
+            _isKeyFrame = true;
+        }
         _payloadSize += payload->GetSize();
         return true;
     }

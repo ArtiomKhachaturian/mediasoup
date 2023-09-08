@@ -32,6 +32,8 @@ public:
     uint8_t* GetData() { return _buffer.data(); }
     const uint8_t* GetData() const { return _buffer.data(); }
 private:
+    bool Insert(const std::vector<uint8_t>::iterator& where, const void* buf, size_t len);
+private:
     std::vector<uint8_t> _buffer;
 };
 

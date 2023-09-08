@@ -10,12 +10,7 @@ SimpleMemoryBuffer::SimpleMemoryBuffer(std::vector<uint8_t> buffer)
 
 bool SimpleMemoryBuffer::Append(const void* buf, size_t len)
 {
-    if (buf && len) {
-        const auto bytes = reinterpret_cast<const uint8_t*>(buf);
-        _buffer.insert(_buffer.end(), bytes, bytes + len);
-        return true;
-    }
-    return false;
+    return Insert(_buffer.end(), buf, len);
 }
 
 bool SimpleMemoryBuffer::Append(const MemoryBuffer& buffer)
@@ -25,12 +20,7 @@ bool SimpleMemoryBuffer::Append(const MemoryBuffer& buffer)
 
 bool SimpleMemoryBuffer::Prepend(const void* buf, size_t len)
 {
-    if (buf && len) {
-        const auto bytes = reinterpret_cast<const uint8_t*>(buf);
-        _buffer.insert(_buffer.begin(), bytes, bytes + len);
-        return true;
-    }
-    return false;
+    return Insert(_buffer.begin(), buf, len);
 }
 
 bool SimpleMemoryBuffer::Prepend(const MemoryBuffer& buffer)
@@ -63,6 +53,17 @@ std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Create(std::vector<uint8
         return std::make_shared<SimpleMemoryBuffer>(std::move(buffer));
     }
     return nullptr;
+}
+
+bool SimpleMemoryBuffer::Insert(const std::vector<uint8_t>::iterator& where,
+                                const void* buf, size_t len)
+{
+    if (buf && len) {
+        const auto bytes = reinterpret_cast<const uint8_t*>(buf);
+        _buffer.insert(where, bytes, bytes + len);
+        return true;
+    }
+    return false;
 }
 
 } // namespace RTC

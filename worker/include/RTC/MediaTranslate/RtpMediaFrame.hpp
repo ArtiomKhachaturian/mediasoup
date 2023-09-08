@@ -35,7 +35,6 @@ public:
     // common properties
     const RtpCodecMimeType& GetMimeType() const { return _mimeType; }
     bool IsAudio() const { return GetMimeType().IsAudioCodec(); }
-    void SetKeyFrame(bool keyFrame) { _isKeyFrame = keyFrame; }
     bool IsKeyFrame() const { return _isKeyFrame; }
     uint32_t GetTimestamp() const { return _timestamp; }
     uint32_t GetSsrc() const { return _ssrc; }
