@@ -641,7 +641,7 @@ EnqueueResult RtpWebMSerializer::BufferedWriter::EnqueueFrame(const std::shared_
     return result;
 }
 
-bool RtpWebMSerializer::BufferedWriter::WriteFrames(uint64_t timestamp,
+bool RtpWebMSerializer::BufferedWriter::WriteFrames(uint64_t mkvTimestamp,
                                                     RtpWebMSerializer* serializer)
 {
     bool ok = true;
@@ -654,7 +654,7 @@ bool RtpWebMSerializer::BufferedWriter::WriteFrames(uint64_t timestamp,
         }
         size_t addedCount = 0UL;
         for (const auto& mkvFrame : _mkvFrames) {
-            if (mkvFrame.GetMkvTimestamp() <= timestamp) {
+            if (mkvFrame.GetMkvTimestamp() <= mkvTimestamp) {
                 if (serializer) {
                     serializer->BeginWriteMediaPayload(mkvFrame.GetMediaFrame());
                 }
@@ -800,14 +800,11 @@ bool MkvFrame::WriteToSegment(mkvmuxer::Segment& segment) const
 {
     bool ok = false;
     if (IsValid()) {
-        for (const auto& packet : _mediaFrame->GetPackets()) {
-            // MKV makes deep copy of packet data
-            ok = _mvkFrame->Init(packet->GetData(), packet->GetSize());
+        const auto payload = _mediaFrame->GetPayload();
+        if (payload && !payload->IsEmpty()) {
+            ok = _mvkFrame->Init(payload->GetData(), payload->GetSize());
             if (ok) {
                 ok = segment.AddGenericFrame(_mvkFrame.get());
-            }
-            if (!ok) {
-                break;
             }
         }
     }

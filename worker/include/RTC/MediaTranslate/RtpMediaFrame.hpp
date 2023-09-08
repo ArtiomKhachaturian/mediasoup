@@ -29,6 +29,9 @@ public:
     bool IsEmpty() const { return _packetsInfo.empty(); }
     const std::vector<RtpMediaPacketInfo>& GetPacketsInfo() const;
     const std::vector<std::shared_ptr<const MemoryBuffer>> GetPackets() const;
+    // expensive operation, in difference from [GetPackets] returns continuous area of payload data
+    std::shared_ptr<const MemoryBuffer> GetPayload() const;
+    size_t GetPayloadSize() const { return _payloadSize; }
     // common properties
     const RtpCodecMimeType& GetMimeType() const { return _mimeType; }
     bool IsAudio() const { return GetMimeType().IsAudioCodec(); }
@@ -61,6 +64,7 @@ private:
     bool _isKeyFrame = false;
     uint32_t _ssrc = 0U;
     uint32_t _timestamp = 0U;
+    size_t _payloadSize = 0UL;
     std::vector<RtpMediaPacketInfo> _packetsInfo;
     std::vector<std::shared_ptr<const MemoryBuffer>> _packets;
     std::shared_ptr<const RtpMediaFrameConfig> _config;

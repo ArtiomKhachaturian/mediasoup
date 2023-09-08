@@ -4,6 +4,8 @@
 #include "RTC/MediaTranslate/RtpVideoFrameConfig.hpp"
 #include <absl/container/flat_hash_map.h>
 
+//#define USE_ASSEMBLE_MEDIA_FRAME
+
 namespace RTC
 {
 

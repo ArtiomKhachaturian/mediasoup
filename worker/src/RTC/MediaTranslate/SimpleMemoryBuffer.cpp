@@ -18,6 +18,11 @@ bool SimpleMemoryBuffer::Append(const void* buf, size_t len)
     return false;
 }
 
+bool SimpleMemoryBuffer::Append(const MemoryBuffer& buffer)
+{
+    return Append(buffer.GetData(), buffer.GetSize());
+}
+
 bool SimpleMemoryBuffer::Prepend(const void* buf, size_t len)
 {
     if (buf && len) {
@@ -26,6 +31,11 @@ bool SimpleMemoryBuffer::Prepend(const void* buf, size_t len)
         return true;
     }
     return false;
+}
+
+bool SimpleMemoryBuffer::Prepend(const MemoryBuffer& buffer)
+{
+    return Prepend(buffer.GetData(), buffer.GetSize());
 }
 
 std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Detach() const

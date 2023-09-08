@@ -18,13 +18,15 @@ public:
     void SetFrameRate(double frameRate); // optional
     double GetFrameRate() const { return _frameRate.load(std::memory_order_relaxed); }
     bool HasResolution() const { return GetWidth() > 0 && GetHeight() > 0; }
+    bool ParseVp8VideoConfig(const RtpPacket* packet);
+    bool ParseVp9VideoConfig(const RtpPacket* packet);
     // impl. of RtpMediaFrameConfig
     std::string ToString() const;
 private:
     std::atomic<int32_t> _width    = 0;
     std::atomic<int32_t> _height   = 0;
     std::atomic<double> _frameRate = 0.;
-    std::atomic<const char*> _colourSpace = nullptr;
+    //std::atomic<const char*> _colourSpace = nullptr;
 };
 
 } // namespace RTC

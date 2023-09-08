@@ -12,7 +12,9 @@ class SimpleMemoryBuffer : public MemoryBuffer
 public:
     SimpleMemoryBuffer(std::vector<uint8_t> buffer = {});
     bool Append(const void* buf, size_t len);
+    bool Append(const MemoryBuffer& buffer);
     bool Prepend(const void* buf, size_t len);
+    bool Prepend(const MemoryBuffer& buffer);
     void Reserve(size_t size) { _buffer.reserve(size); }
     void Resize(size_t size) { _buffer.resize(size); }
     std::vector<uint8_t> TakeData() { return std::move(_buffer); }
