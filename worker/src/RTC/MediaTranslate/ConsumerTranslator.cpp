@@ -51,6 +51,11 @@ void ConsumerTranslator::RemoveObserver(ConsumerObserver* observer)
     }
 }
 
+bool ConsumerTranslator::HasProducerInput() const
+{
+    return _endPoint->HasInput();
+}
+
 void ConsumerTranslator::SetProducerInput(const std::shared_ptr<ProducerInputMediaStreamer>& input)
 {
     _endPoint->SetInput(input);

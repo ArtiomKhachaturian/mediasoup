@@ -61,6 +61,8 @@ private:
 
 }
 
+// TODO: fix audio & video sync, see as in https://github.com/unity3d-jp/FrameCapturer/blob/5d3ba17e5ba12d62eaaa49c51f3336a4487fc8b2/Plugin/fccore/Encoder/WebM/fcWebMContext.cpp
+
 namespace RTC
 {
 

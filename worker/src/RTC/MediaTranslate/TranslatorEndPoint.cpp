@@ -24,6 +24,7 @@ public:
     void SetConsumerLanguage(MediaLanguage language);
     void SetConsumerVoice(MediaVoice voice);
     void SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
+    bool HasInput() const;
     void SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef);
     bool IsConnected() const { return _connected.load(std::memory_order_relaxed); }
     // impl. of WebsocketListener
@@ -107,6 +108,11 @@ void TranslatorEndPoint::SetConsumerVoice(MediaVoice voice)
 void TranslatorEndPoint::SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input)
 {
     _impl->SetInput(input);
+}
+
+bool TranslatorEndPoint::HasInput() const
+{
+    return _impl->HasInput();
 }
 
 void TranslatorEndPoint::SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef)
@@ -203,6 +209,12 @@ void TranslatorEndPoint::Impl::SetInput(const std::shared_ptr<ProducerInputMedia
             }
         }
     }
+}
+
+bool TranslatorEndPoint::Impl::HasInput() const
+{
+    LOCK_READ_PROTECTED_OBJ(_input);
+    return nullptr != _input.ConstRef();
 }
 
 void TranslatorEndPoint::Impl::SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef)

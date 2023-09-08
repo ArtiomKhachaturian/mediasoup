@@ -24,6 +24,7 @@ public:
     const std::string& GetProducerId() const { return _producerId; }
     void AddObserver(ConsumerObserver* observer);
     void RemoveObserver(ConsumerObserver* observer);
+    bool HasProducerInput() const;
     void SetProducerInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
     void SetProducerLanguage(const std::optional<MediaLanguage>& language);
     // impl. of TranslatorUnit

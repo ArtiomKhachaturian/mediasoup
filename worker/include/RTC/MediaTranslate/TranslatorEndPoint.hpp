@@ -29,6 +29,7 @@ public:
     void SetConsumerLanguage(MediaLanguage language);
     void SetConsumerVoice(MediaVoice voice);
     void SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
+    bool HasInput() const;
     void SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef);
 private:
     const std::shared_ptr<Websocket> _websocket;
