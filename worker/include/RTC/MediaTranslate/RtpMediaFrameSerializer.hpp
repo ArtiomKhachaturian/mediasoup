@@ -35,7 +35,7 @@ public:
                           RtpCodecMimeType::Subtype codec = RtpCodecMimeType::Subtype::UNSET,
                           const std::shared_ptr<const RtpVideoFrameConfig>& config = nullptr) = 0;
     virtual void RemoveMedia(uint32_t ssrc) = 0;
-    virtual void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame) = 0;
+    virtual void Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) = 0;
     virtual bool IsCompatible(const RtpCodecMimeType& mimeType) const = 0;
     virtual void SetLiveMode(bool /*liveMode*/ = true) {}
     // impl. of ProducerInputMediaStreamer
@@ -43,17 +43,12 @@ public:
     void RemoveOutputDevice(OutputDevice* outputDevice) final;
 protected:
     RtpMediaFrameSerializer() = default;
-    virtual void onFirstOutputDeviceWasAdded() {}
-    virtual void onLastOutputDeviceWillRemoved() {}
     bool HasDevices() const;
     void StartStream(bool restart) noexcept;
-    void BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
-                                const RtpCodecMimeType& mimeType,
-                                uint16_t rtpSequenceNumber,
-                                uint32_t rtpTimestamp,
-                                uint32_t rtpAbsSendtime) noexcept;
+    void BeginWriteMediaPayload(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) noexcept;
     void WritePayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept;
-    void EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept;
+    void EndWriteMediaPayload(const std::shared_ptr<const RtpMediaFrame>& mediaFrame,
+                              bool ok) noexcept;
     void EndStream(bool failure) noexcept;
 private:
     ProtectedObj<OutputDevicesSet> _outputDevices;

@@ -99,11 +99,10 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(const 
             }
             if (ok) {
                 if (packet->HasMarker()) {
-                    if (const auto payload = _payload.Take()) {
-                        std::shared_ptr<RtpVideoFrameConfig> videoConfig;
-                        const auto mark = _videoConfig ? RtpMediaFrame::ForceOn : RtpMediaFrame::Auto;
-                        return RtpMediaFrame::CreateVideo(packet, payload, _mime.GetSubtype(),
-                                                          std::move(_videoConfig), mark);
+                    if (const auto frame = RtpMediaFrame::Create(_mime, packet, _payload.Take())) {
+                        frame->SetKeyFrame(packet->IsKeyFrame() || _videoConfig);
+                        frame->SetVideoConfig(std::move(_videoConfig));
+                        return frame;
                     }
                     else {
                         const auto error = GetStreamInfoString(_mime, packet->GetSsrc());

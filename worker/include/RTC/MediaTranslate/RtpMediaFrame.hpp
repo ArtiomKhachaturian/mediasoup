@@ -3,6 +3,7 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/MediaTranslate/RtpAudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/RtpVideoFrameConfig.hpp"
+#include "RTC/MediaTranslate/RtpMediaPacketInfo.hpp"
 #include "MemoryBuffer.hpp"
 #include <memory>
 #include <vector>
@@ -14,66 +15,55 @@ class RtpPacket;
 
 class RtpMediaFrame
 {
-    class RtpAudioFrame;
-    class RtpVideoFrame;
 public:
-    enum KeyFrameMark {
-        Auto,
-        ForceOn,
-        ForceOff
-    };
-public:
-    RtpMediaFrame(const RtpCodecMimeType& mimeType,
-                  const std::shared_ptr<const MemoryBuffer>& payload,
-                  bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
-                  uint16_t sequenceNumber);
-    virtual ~RtpMediaFrame() = default;
-    static std::shared_ptr<RtpMediaFrame> CreateAudio(const RtpPacket* packet,
-                                                      RtpCodecMimeType::Subtype codecType,
-                                                      const std::shared_ptr<const RtpAudioFrameConfig>& audioConfig,
-                                                      KeyFrameMark keyFrameMark = KeyFrameMark::Auto,
-                                                      const std::allocator<uint8_t>& payloadAllocator = {});
-    static std::shared_ptr<RtpMediaFrame> CreateAudio(const RtpPacket* packet,
-                                                      const std::shared_ptr<const MemoryBuffer>& payload,
-                                                      RtpCodecMimeType::Subtype codecType,
-                                                      const std::shared_ptr<const RtpAudioFrameConfig>& audioConfig,
-                                                      KeyFrameMark keyFrameMark = KeyFrameMark::Auto);
-    static std::shared_ptr<RtpMediaFrame> CreateVideo(const RtpPacket* packet,
-                                                      RtpCodecMimeType::Subtype codecType,
-                                                      const std::shared_ptr<const RtpVideoFrameConfig>& videoConfig,
-                                                      KeyFrameMark keyFrameMark = KeyFrameMark::Auto,
-                                                      const std::allocator<uint8_t>& payloadAllocator = {});
-    static std::shared_ptr<RtpMediaFrame> CreateVideo(const RtpPacket* packet,
-                                                      const std::shared_ptr<const MemoryBuffer>& payload,
-                                                      RtpCodecMimeType::Subtype codecType,
-                                                      const std::shared_ptr<const RtpVideoFrameConfig>& videoConfig,
-                                                      KeyFrameMark keyFrameMark = KeyFrameMark::Auto);
-    // common
+    RtpMediaFrame(bool audio, RtpCodecMimeType::Subtype codecType);
+    RtpMediaFrame(const RtpCodecMimeType& mimeType);
+    ~RtpMediaFrame();
+    // packets management
+    // add-methods return false if input arguments is incorrect: null or empty packet/payload
+    bool AddPacket(const RtpPacket* packet, std::vector<uint8_t> payload);
+    bool AddPacket(const RtpPacket* packet, const uint8_t* data, size_t len,
+                   const std::allocator<uint8_t>& payloadAllocator = {});
+    bool AddPacket(const RtpPacket* packet, const std::allocator<uint8_t>& payloadAllocator = {});
+    bool AddPacket(const RtpPacket* packet, const std::shared_ptr<const MemoryBuffer>& payload);
+    bool IsEmpty() const { return _packetsInfo.empty(); }
+    const std::vector<RtpMediaPacketInfo>& GetPacketsInfo() const;
+    const std::vector<std::shared_ptr<const MemoryBuffer>> GetPackets() const;
+    // common properties
     const RtpCodecMimeType& GetMimeType() const { return _mimeType; }
     bool IsAudio() const { return GetMimeType().IsAudioCodec(); }
+    void SetKeyFrame(bool keyFrame) { _isKeyFrame = keyFrame; }
     bool IsKeyFrame() const { return _isKeyFrame; }
-    const std::shared_ptr<const MemoryBuffer>& GetPayload() const { return _payload; }
     uint32_t GetTimestamp() const { return _timestamp; }
     uint32_t GetSsrc() const { return _ssrc; }
-    uint16_t GetSequenceNumber() const { return _sequenceNumber; }
-    uint32_t GetAbsSendtime() const { return _absSendtime; }
-    void SetAbsSendtime(uint32_t absSendtime) { _absSendtime = absSendtime; }
     // audio configuration
-    virtual std::shared_ptr<const RtpAudioFrameConfig> GetAudioConfig() const { return nullptr; }
+    void SetAudioConfig(const std::shared_ptr<const RtpAudioFrameConfig>& config);
+    std::shared_ptr<const RtpAudioFrameConfig> GetAudioConfig() const;
     // video configuration
-    virtual std::shared_ptr<const RtpVideoFrameConfig> GetVideoConfig() const { return nullptr; }
-private:
-    static std::shared_ptr<const MemoryBuffer> CreatePayload(const RtpPacket* packet,
-                                                             const std::allocator<uint8_t>& payloadAllocator);
-    static bool IsKeyFrame(const RtpPacket* packet, KeyFrameMark keyFrameMark);
+    void SetVideoConfig(const std::shared_ptr<const RtpVideoFrameConfig>& config);
+    std::shared_ptr<const RtpVideoFrameConfig> GetVideoConfig() const;
+    // factory methods (for single-packet frames)
+    static std::shared_ptr<RtpMediaFrame> Create(const RtpCodecMimeType& mimeType,
+                                                 const RtpPacket* packet,
+                                                 std::vector<uint8_t> payload);
+    static std::shared_ptr<RtpMediaFrame> Create(const RtpCodecMimeType& mimeType,
+                                                 const RtpPacket* packet,
+                                                 const uint8_t* data, size_t len,
+                                                 const std::allocator<uint8_t>& payloadAllocator = {});
+    static std::shared_ptr<RtpMediaFrame> Create(const RtpCodecMimeType& mimeType,
+                                                 const RtpPacket* packet,
+                                                 const std::allocator<uint8_t>& payloadAllocator = {});
+    static std::shared_ptr<RtpMediaFrame> Create(const RtpCodecMimeType& mimeType,
+                                                 const RtpPacket* packet,
+                                                 const std::shared_ptr<const MemoryBuffer>& payload);
 private:
     const RtpCodecMimeType _mimeType;
-    const std::shared_ptr<const MemoryBuffer> _payload;
-    const bool _isKeyFrame;
-    const uint32_t _timestamp;
-    const uint32_t _ssrc;
-    const uint16_t _sequenceNumber;
-    uint32_t _absSendtime = 0U;
+    bool _isKeyFrame = false;
+    uint32_t _ssrc = 0U;
+    uint32_t _timestamp = 0U;
+    std::vector<RtpMediaPacketInfo> _packetsInfo;
+    std::vector<std::shared_ptr<const MemoryBuffer>> _packets;
+    std::shared_ptr<const RtpMediaFrameConfig> _config;
 };
 
 } // namespace RTC

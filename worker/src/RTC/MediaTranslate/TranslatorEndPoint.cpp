@@ -46,12 +46,11 @@ private:
     std::optional<MediaLanguage> GetProducerLanguage() const;
     // impl. of OutputDevice
     void StartStream(bool restart) noexcept final;
-    void BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
-                                const RtpCodecMimeType& mimeType,
-                                uint16_t rtpSequenceNumber,
-                                uint32_t rtpTimestamp,
-                                uint32_t rtpAbsSendtime) noexcept final;
-    void EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept final;
+    void BeginWriteMediaPayload(uint32_t ssrc,
+                                const std::vector<RtpMediaPacketInfo>& packets) noexcept final;
+    void EndWriteMediaPayload(uint32_t ssrc,
+                              const std::vector<RtpMediaPacketInfo>& packets,
+                              bool ok) noexcept final;
     void Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
     void EndStream(bool failure) noexcept final;
 private:
@@ -332,21 +331,20 @@ void TranslatorEndPoint::Impl::StartStream(bool restart) noexcept
     }
 }
 
-void TranslatorEndPoint::Impl::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
-                                                      const RtpCodecMimeType& mimeType,
-                                                      uint16_t rtpSequenceNumber,
-                                                      uint32_t rtpTimestamp,
-                                                      uint32_t rtpAbsSendtime) noexcept
+void TranslatorEndPoint::Impl::BeginWriteMediaPayload(uint32_t ssrc,
+                                                      const std::vector<RtpMediaPacketInfo>& packets) noexcept
 {
-    OutputDevice::BeginWriteMediaPayload(ssrc, isKeyFrame, mimeType,
-                                         rtpSequenceNumber, rtpTimestamp, rtpAbsSendtime);
+    OutputDevice::BeginWriteMediaPayload(ssrc, packets);
     if (IsConnected()) {
         // TODO: send JSON command
     }
 }
 
-void TranslatorEndPoint::Impl::EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept
+void TranslatorEndPoint::Impl::EndWriteMediaPayload(uint32_t ssrc,
+                                                    const std::vector<RtpMediaPacketInfo>& packets,
+                                                    bool ok) noexcept
 {
+    OutputDevice::EndWriteMediaPayload(ssrc, packets, ok);
     if (IsConnected()) {
         // TODO: send JSON command
     }

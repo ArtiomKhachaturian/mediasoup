@@ -455,10 +455,11 @@ void MediaTranslatorsManager::Impl::onStreamAdded(const std::string& producerId,
         bool trackAdded = false;
         switch (mime.GetType()) {
             case RtpCodecMimeType::Type::AUDIO:
-                trackAdded = serializer->AddAudio(mappedSsrc, clockRate, mime.GetSubtype());
+                /*trackAdded = serializer->AddAudio(mappedSsrc, clockRate, mime.GetSubtype());
                 if (trackAdded) {
                     SetTranslatorMediaInput(producerId, true);
-                }
+                }*/
+                trackAdded=true;
                 break;
             case RtpCodecMimeType::Type::VIDEO:
                 trackAdded = serializer->AddVideo(mappedSsrc, clockRate, mime.GetSubtype());
@@ -541,7 +542,7 @@ void MediaTranslatorsManager::Impl::OnMediaFrameProduced(const std::string& prod
 {
     if (mediaFrame) {
 #ifdef DEBUG_UNITED_PRODUCER_MEDIA
-        const auto serializer = FindSerializer(producerId, mediaFrame->GetCodecMimeType(),
+        const auto serializer = FindSerializer(producerId, mediaFrame->GetMimeType(),
                                                mappedSsrc);
 #else
         const auto serializer = FindSerializer(producerId);

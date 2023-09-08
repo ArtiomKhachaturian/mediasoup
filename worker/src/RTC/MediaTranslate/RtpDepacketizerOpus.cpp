@@ -51,7 +51,10 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* p
                                                               _sampleRate);
         }
         config->SetCodecSpecificData(_opusCodecData);
-        return RtpMediaFrame::CreateAudio(packet, GetCodecMimeType().GetSubtype(), config);
+        if (auto frame = RtpMediaFrame::Create(GetCodecMimeType(), packet)) {
+            frame->SetAudioConfig(config);
+            return frame;
+        }
     }
     return nullptr;
 }

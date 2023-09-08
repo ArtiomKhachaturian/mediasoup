@@ -24,28 +24,17 @@ std::string_view RtpMediaFrameSerializer::GetFileExtension(const RtpCodecMimeTyp
 
 void RtpMediaFrameSerializer::AddOutputDevice(OutputDevice* outputDevice)
 {
-    bool firstDeviceWasAdded = false;
     if (outputDevice) {
         LOCK_WRITE_PROTECTED_OBJ(_outputDevices);
         if (!_outputDevices->count(outputDevice)) {
             _outputDevices->insert(outputDevice);
-            firstDeviceWasAdded = 1UL == _outputDevices->size();
         }
-    }
-    if (firstDeviceWasAdded) {
-        onFirstOutputDeviceWasAdded();
     }
 }
 
 void RtpMediaFrameSerializer::RemoveOutputDevice(OutputDevice* outputDevice)
 {
     if (outputDevice) {
-        {
-            LOCK_READ_PROTECTED_OBJ(_outputDevices);
-            if (_outputDevices->count(outputDevice) && 1ULL == _outputDevices->size()) {
-                onLastOutputDeviceWillRemoved();
-            }
-        }
         LOCK_WRITE_PROTECTED_OBJ(_outputDevices);
         const auto it = _outputDevices->find(outputDevice);
         if (it != _outputDevices->end()) {
@@ -68,17 +57,17 @@ void RtpMediaFrameSerializer::StartStream(bool restart) noexcept
     }
 }
 
-void RtpMediaFrameSerializer::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
-                                                     const RtpCodecMimeType& codecMimeType,
-                                                     uint16_t rtpSequenceNumber,
-                                                     uint32_t rtpTimestamp,
-                                                     uint32_t rtpAbsSendtime) noexcept
+void RtpMediaFrameSerializer::BeginWriteMediaPayload(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) noexcept
 {
-    LOCK_READ_PROTECTED_OBJ(_outputDevices);
-    for (const auto outputDevice : _outputDevices.ConstRef()) {
-        outputDevice->BeginWriteMediaPayload(ssrc, isKeyFrame, codecMimeType,
-                                             rtpSequenceNumber, rtpTimestamp,
-                                             rtpAbsSendtime);
+    if (mediaFrame) {
+        const auto& packetsInfo = mediaFrame->GetPacketsInfo();
+        if (!packetsInfo.empty()) {
+            const auto ssrc = mediaFrame->GetSsrc();
+            LOCK_READ_PROTECTED_OBJ(_outputDevices);
+            for (const auto outputDevice : _outputDevices.ConstRef()) {
+                outputDevice->BeginWriteMediaPayload(ssrc, packetsInfo);
+            }
+        }
     }
 }
 
@@ -92,11 +81,18 @@ void RtpMediaFrameSerializer::WritePayload(const std::shared_ptr<const MemoryBuf
     }
 }
 
-void RtpMediaFrameSerializer::EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept
+void RtpMediaFrameSerializer::EndWriteMediaPayload(const std::shared_ptr<const RtpMediaFrame>& mediaFrame,
+                                                   bool ok) noexcept
 {
-    LOCK_READ_PROTECTED_OBJ(_outputDevices);
-    for (const auto outputDevice : _outputDevices.ConstRef()) {
-        outputDevice->EndWriteMediaPayload(ssrc, ok);
+    if (mediaFrame) {
+        const auto& packetsInfo = mediaFrame->GetPacketsInfo();
+        if (!packetsInfo.empty()) {
+            const auto ssrc = mediaFrame->GetSsrc();
+            LOCK_READ_PROTECTED_OBJ(_outputDevices);
+            for (const auto outputDevice : _outputDevices.ConstRef()) {
+                outputDevice->EndWriteMediaPayload(ssrc, packetsInfo, ok);
+            }
+        }
     }
 }
 
