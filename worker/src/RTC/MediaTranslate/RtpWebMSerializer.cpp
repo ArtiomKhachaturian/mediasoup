@@ -26,8 +26,6 @@ inline bool IsOpus(RtpCodecMimeType::Subtype codec) {
     switch (codec) {
         case RtpCodecMimeType::Subtype::OPUS:
         case RtpCodecMimeType::Subtype::MULTIOPUS:
-            // https://en.wikipedia.org/wiki/SILK
-        case RtpCodecMimeType::Subtype::SILK: // needs to be tested
             return true;
         default:
             break;
@@ -40,11 +38,18 @@ inline bool IsOpus(const RtpCodecMimeType& mime) {
 }
 
 inline static const char* GetCodecId(RtpCodecMimeType::Subtype codec) {
+    // EMBL header for H264 & H265 will be 'matroska' and 'webm' for other codec types
+    // https://www.matroska.org/technical/codec_specs.html
     switch (codec) {
         case RtpCodecMimeType::Subtype::VP8:
             return mkvmuxer::Tracks::kVp8CodecId;
         case RtpCodecMimeType::Subtype::VP9:
             return mkvmuxer::Tracks::kVp9CodecId;
+        case RtpCodecMimeType::Subtype::H264:
+        case RtpCodecMimeType::Subtype::H264_SVC:
+            return "V_MPEG4/ISO/AVC"; // matroska
+        case RtpCodecMimeType::Subtype::H265:
+            return "V_MPEGH/ISO/HEVC";
         default:
             if (IsOpus(codec)) {
                 return mkvmuxer::Tracks::kOpusCodecId;
@@ -106,6 +111,7 @@ public:
                           const std::shared_ptr<const RtpAudioFrameConfig>& config);
     void SetTrackSettings(int32_t number, const char* codec,
                           const std::shared_ptr<const RtpVideoFrameConfig>& config);
+    void SetTrackSettings(const TrackInfo* trackInfo);
     std::shared_ptr<MemoryBuffer> TakeWrittenData();
 private:
     static bool SetCodecSpecific(mkvmuxer::Track* track,
@@ -154,8 +160,6 @@ public:
     void SetLatestConfig(const std::shared_ptr<const RtpVideoFrameConfig>& config);
     const std::shared_ptr<const RtpAudioFrameConfig>& GetLatestAudioConfig() const;
     const std::shared_ptr<const RtpVideoFrameConfig>& GetLatestVideoConfig() const;
-private:
-    template<bool forAudio> void TestConsistency() const;
 private:
     const int32_t _number;
     const bool _audio;
@@ -307,15 +311,7 @@ void RtpWebMSerializer::InitWriter()
                     ok = writer->AddVideoTrack(number);
                 }
                 if (ok) {
-                    const auto codec = GetCodecId(it->second->GetCodec());
-                    if (it->second->IsAudio()) {
-                        writer->SetAudioSampleRate(number, it->second->GetClockRate(),
-                                                   IsOpus(it->second->GetCodec()));
-                        writer->SetTrackSettings(number, codec, it->second->GetLatestAudioConfig());
-                    }
-                    else {
-                        writer->SetTrackSettings(number, codec, it->second->GetLatestVideoConfig());
-                    }
+                    writer->SetTrackSettings(it->second.get());
                 }
                 else {
                     break;
@@ -560,6 +556,21 @@ void RtpWebMSerializer::BufferedWriter::SetTrackSettings(int32_t number,
             if (!SetCodecSpecific(track, config->GetCodecSpecificData())) {
                 MS_ERROR("failed to setup of MKV writer video codec data for track #%d", number);
             }
+        }
+    }
+}
+
+void RtpWebMSerializer::BufferedWriter::SetTrackSettings(const TrackInfo* trackInfo)
+{
+    if (trackInfo) {
+        const auto codec = GetCodecId(trackInfo->GetCodec());
+        if (trackInfo->IsAudio()) {
+            SetTrackSettings(trackInfo->GetNumber(), codec, trackInfo->GetLatestAudioConfig());
+            SetAudioSampleRate(trackInfo->GetNumber(), trackInfo->GetClockRate(),
+                               IsOpus(trackInfo->GetCodec()));
+        }
+        else {
+            SetTrackSettings(trackInfo->GetNumber(), codec, trackInfo->GetLatestVideoConfig());
         }
     }
 }
