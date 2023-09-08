@@ -31,7 +31,7 @@ public:
     void Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame) final;
     bool IsCompatible(const RtpCodecMimeType& mimeType) const final;
 private:
-    void InitWriter(bool restart);
+    void InitWriter();
     void DestroyWriter(bool failure = false);
     template<class TConfig>
     bool AddMedia(uint32_t ssrc, uint32_t clockRate, const RtpCodecMimeType& mime, 
@@ -43,6 +43,8 @@ private:
     bool _liveMode = true;
     // key - is packet SSRC
     absl::flat_hash_map<uint32_t, std::unique_ptr<TrackInfo>> _tracksInfo;
+    bool _pendingRestartMode = false;
+    bool _hasFailure = false;
 };
 
 } // namespace RTC

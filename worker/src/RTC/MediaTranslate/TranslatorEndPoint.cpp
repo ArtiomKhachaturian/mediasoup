@@ -45,15 +45,15 @@ private:
     MediaVoice GetConsumerVoice() const { return _consumerVoice.load(std::memory_order_relaxed); }
     std::optional<MediaLanguage> GetProducerLanguage() const;
     // impl. of OutputDevice
-    void StartStream(bool restart) final;
+    void StartStream(bool restart) noexcept final;
     void BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
                                 const RtpCodecMimeType& codecMimeType,
                                 uint16_t rtpSequenceNumber,
                                 uint32_t rtpTimestamp,
-                                uint32_t rtpAbsSendtime) final;
-    void EndWriteMediaPayload(uint32_t ssrc, bool ok) final;
-    void Write(const std::shared_ptr<const MemoryBuffer>& buffer) final;
-    void EndStream(bool failure) final;
+                                uint32_t rtpAbsSendtime) noexcept final;
+    void EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept final;
+    void Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
+    void EndStream(bool failure) noexcept final;
 private:
     const std::weak_ptr<Websocket> _websocketRef;
     const std::string _userAgent;
@@ -324,7 +324,7 @@ std::optional<MediaLanguage> TranslatorEndPoint::Impl::GetProducerLanguage() con
     return _producerLanguage.ConstRef();
 }
 
-void TranslatorEndPoint::Impl::StartStream(bool restart)
+void TranslatorEndPoint::Impl::StartStream(bool restart) noexcept
 {
     OutputDevice::StartStream(restart);
     if (IsConnected()) {
@@ -336,7 +336,7 @@ void TranslatorEndPoint::Impl::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyF
                                                       const RtpCodecMimeType& codecMimeType,
                                                       uint16_t rtpSequenceNumber,
                                                       uint32_t rtpTimestamp,
-                                                      uint32_t rtpAbsSendtime)
+                                                      uint32_t rtpAbsSendtime) noexcept
 {
     OutputDevice::BeginWriteMediaPayload(ssrc, isKeyFrame, codecMimeType,
                                          rtpSequenceNumber, rtpTimestamp, rtpAbsSendtime);
@@ -345,14 +345,14 @@ void TranslatorEndPoint::Impl::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyF
     }
 }
 
-void TranslatorEndPoint::Impl::EndWriteMediaPayload(uint32_t ssrc, bool ok)
+void TranslatorEndPoint::Impl::EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept
 {
     if (IsConnected()) {
         // TODO: send JSON command
     }
 }
 
-void TranslatorEndPoint::Impl::Write(const std::shared_ptr<const MemoryBuffer>& buffer)
+void TranslatorEndPoint::Impl::Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
     if (buffer && IsConnected()) {
         if (const auto websocket = _websocketRef.lock()) {
@@ -363,7 +363,7 @@ void TranslatorEndPoint::Impl::Write(const std::shared_ptr<const MemoryBuffer>& 
     }
 }
 
-void TranslatorEndPoint::Impl::EndStream(bool failure)
+void TranslatorEndPoint::Impl::EndStream(bool failure) noexcept
 {
     OutputDevice::EndStream(failure);
     if (IsConnected()) {

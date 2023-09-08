@@ -223,10 +223,10 @@ void RtpWebMSerializer::RemoveMedia(uint32_t ssrc)
         if (it != _tracksInfo.end()) {
             _tracksInfo.erase(it);
             if (_writer) {
-                const auto hasWroteMedia = _writer->HasWroteMedia();
+                _pendingRestartMode = _writer->HasWroteMedia();
                 DestroyWriter(false);
                 if (!_tracksInfo.empty()) {
-                    InitWriter(hasWroteMedia);
+                    InitWriter();
                 }
             }
         }
@@ -239,10 +239,15 @@ void RtpWebMSerializer::Push(const std::shared_ptr<RtpMediaFrame>& mediaFrame)
         if (const auto trackInfo = GetTrackInfo(mediaFrame)) {
             const auto mkvTimestamp = trackInfo->UpdateTimeStamp(mediaFrame->GetTimestamp());
             const auto trackNumber = trackInfo->GetNumber();
+            if (!_writer->HasWroteMedia()) {
+                StartStream(_pendingRestartMode);
+                _pendingRestartMode = false;
+            }
             if (!_writer->AddFrame(mediaFrame, mkvTimestamp, trackNumber, this)) {
                 const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
                 MS_ERROR("unable write frame to MKV data [%s] to track #%d",
                          frameInfo.c_str(), trackNumber);
+                DestroyWriter(true);
             }
         }
     }
@@ -279,53 +284,49 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::
     return nullptr;
 }
 
-void RtpWebMSerializer::InitWriter(bool restart)
+void RtpWebMSerializer::InitWriter()
 {
-    auto writer = std::make_unique<BufferedWriter>(_writingApp);
-    bool ok = writer->IsInitialized();
-    if (ok) {
-        for (auto it = _tracksInfo.begin(); it != _tracksInfo.end(); ++it) {
-            const auto number = it->second->GetNumber();
-            if (it->second->IsAudio()) {
-                ok = writer->AddAudioTrack(number);
-            }
-            else {
-                ok = writer->AddVideoTrack(number);
-            }
-            if (ok) {
-                const auto codec = GetCodecId(it->second->GetCodec());
-                if (it->second->IsAudio()) {
-                    writer->SetAudioSampleRate(number, it->second->GetClockRate(),
-                                               IsOpusAudioCodec(it->second->GetCodec()));
-                    writer->SetTrackSettings(number, codec, it->second->GetLatestAudioConfig());
-                }
-                else {
-                    writer->SetTrackSettings(number, codec, it->second->GetLatestVideoConfig());
-                }
-            }
-            else {
-                break;
-            }
-        }
+    if (!_hasFailure) {
+        auto writer = std::make_unique<BufferedWriter>(_writingApp);
+        bool ok = writer->IsInitialized();
         if (ok) {
             for (auto it = _tracksInfo.begin(); it != _tracksInfo.end(); ++it) {
-                it->second->ResetRtpTiming();
+                const auto number = it->second->GetNumber();
+                if (it->second->IsAudio()) {
+                    ok = writer->AddAudioTrack(number);
+                }
+                else {
+                    ok = writer->AddVideoTrack(number);
+                }
+                if (ok) {
+                    const auto codec = GetCodecId(it->second->GetCodec());
+                    if (it->second->IsAudio()) {
+                        writer->SetAudioSampleRate(number, it->second->GetClockRate(),
+                                                   IsOpusAudioCodec(it->second->GetCodec()));
+                        writer->SetTrackSettings(number, codec, it->second->GetLatestAudioConfig());
+                    }
+                    else {
+                        writer->SetTrackSettings(number, codec, it->second->GetLatestVideoConfig());
+                    }
+                }
+                else {
+                    break;
+                }
             }
-            _writer = std::move(writer);
-            _writer->SetLiveMode(_liveMode);
+            if (ok) {
+                for (auto it = _tracksInfo.begin(); it != _tracksInfo.end(); ++it) {
+                    it->second->ResetRtpTiming();
+                }
+                _writer = std::move(writer);
+                _writer->SetLiveMode(_liveMode);
+            }
+            else {
+                MS_ERROR("failed to recreate of MKV writer tracks");
+            }
         }
         else {
-            MS_ERROR("failed to recreate of MKV writer tracks");
+            MS_ERROR("failed to init of MKV writer segment");
         }
-    }
-    else {
-        MS_ERROR("failed to init of MKV writer segment");
-    }
-    if (ok) {
-        StartStream(restart);
-    }
-    else { // failure
-        EndStream(true);
     }
 }
 
@@ -336,8 +337,13 @@ void RtpWebMSerializer::DestroyWriter(bool failure)
         if (HasDevices()) {
             WritePayload(_writer->TakeWrittenData());
         }
+        if (_writer->HasWroteMedia()) {
+            EndStream(failure);
+        }
+        if (failure) {
+            _hasFailure = true;
+        }
         _writer.reset();
-        EndStream(failure);
     }
 }
 
@@ -347,15 +353,16 @@ bool RtpWebMSerializer::AddMedia(uint32_t ssrc, uint32_t clockRate,
                                  const std::shared_ptr<TConfig>& config)
 {
     bool registered = false;
-    if (ssrc && RtpCodecMimeType::Type::UNSET != mime.GetType()) {
+    if (!_hasFailure && ssrc && RtpCodecMimeType::Type::UNSET != mime.GetType()) {
         const auto it = _tracksInfo.find(ssrc);
         if (it == _tracksInfo.end()) {
             if (!_writer) {
-                InitWriter(false);
+                InitWriter();
             }
             else if(_writer->HasWroteMedia()) {
                 DestroyWriter(false);
-                InitWriter(true);
+                InitWriter();
+                _pendingRestartMode = true;
             }
             if (_writer) {
                 bool added = false;

@@ -46,15 +46,15 @@ protected:
     virtual void onFirstOutputDeviceWasAdded() {}
     virtual void onLastOutputDeviceWillRemoved() {}
     bool HasDevices() const;
-    void StartStream(bool restart);
+    void StartStream(bool restart) noexcept;
     void BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFrame,
                                 const RtpCodecMimeType& mimeType,
                                 uint16_t rtpSequenceNumber,
                                 uint32_t rtpTimestamp,
-                                uint32_t rtpAbsSendtime);
-    void WritePayload(const std::shared_ptr<const MemoryBuffer>& buffer);
-    void EndWriteMediaPayload(uint32_t ssrc, bool ok);
-    void EndStream(bool failure);
+                                uint32_t rtpAbsSendtime) noexcept;
+    void WritePayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept;
+    void EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept;
+    void EndStream(bool failure) noexcept;
 private:
     ProtectedObj<OutputDevicesSet> _outputDevices;
 };

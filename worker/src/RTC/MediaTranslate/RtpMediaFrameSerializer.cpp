@@ -60,7 +60,7 @@ bool RtpMediaFrameSerializer::HasDevices() const
     return !_outputDevices->empty();
 }
 
-void RtpMediaFrameSerializer::StartStream(bool restart)
+void RtpMediaFrameSerializer::StartStream(bool restart) noexcept
 {
     LOCK_READ_PROTECTED_OBJ(_outputDevices);
     for (const auto outputDevice : _outputDevices.ConstRef()) {
@@ -72,7 +72,7 @@ void RtpMediaFrameSerializer::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFr
                                                      const RtpCodecMimeType& codecMimeType,
                                                      uint16_t rtpSequenceNumber,
                                                      uint32_t rtpTimestamp,
-                                                     uint32_t rtpAbsSendtime)
+                                                     uint32_t rtpAbsSendtime) noexcept
 {
     LOCK_READ_PROTECTED_OBJ(_outputDevices);
     for (const auto outputDevice : _outputDevices.ConstRef()) {
@@ -82,7 +82,7 @@ void RtpMediaFrameSerializer::BeginWriteMediaPayload(uint32_t ssrc, bool isKeyFr
     }
 }
 
-void RtpMediaFrameSerializer::WritePayload(const std::shared_ptr<const MemoryBuffer>& buffer)
+void RtpMediaFrameSerializer::WritePayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
     if (buffer) {
         LOCK_READ_PROTECTED_OBJ(_outputDevices);
@@ -92,7 +92,7 @@ void RtpMediaFrameSerializer::WritePayload(const std::shared_ptr<const MemoryBuf
     }
 }
 
-void RtpMediaFrameSerializer::EndWriteMediaPayload(uint32_t ssrc, bool ok)
+void RtpMediaFrameSerializer::EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept
 {
     LOCK_READ_PROTECTED_OBJ(_outputDevices);
     for (const auto outputDevice : _outputDevices.ConstRef()) {
@@ -100,7 +100,7 @@ void RtpMediaFrameSerializer::EndWriteMediaPayload(uint32_t ssrc, bool ok)
     }
 }
 
-void RtpMediaFrameSerializer::EndStream(bool failure)
+void RtpMediaFrameSerializer::EndStream(bool failure) noexcept
 {
     LOCK_READ_PROTECTED_OBJ(_outputDevices);
     for (const auto outputDevice : _outputDevices.ConstRef()) {

@@ -51,7 +51,7 @@ bool FileWriter::Flush()
     return _file && 0 == ::fflush(_file);
 }
 
-void FileWriter::StartStream(bool restart)
+void FileWriter::StartStream(bool restart) noexcept
 {
     OutputDevice::StartStream(restart);
     if (_file) {
@@ -77,7 +77,7 @@ void FileWriter::StartStream(bool restart)
     }
 }
 
-void FileWriter::Write(const std::shared_ptr<const MemoryBuffer>& buffer)
+void FileWriter::Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
     if (_file && buffer && !buffer->IsEmpty()) {
         const auto expected = buffer->GetSize();
@@ -90,7 +90,7 @@ void FileWriter::Write(const std::shared_ptr<const MemoryBuffer>& buffer)
     }
 }
 
-void FileWriter::EndStream(bool failure)
+void FileWriter::EndStream(bool failure) noexcept
 {
     OutputDevice::EndStream(failure);
     MS_DEBUG_DEV(failure ? "media stream failed" : "media stream finished");
