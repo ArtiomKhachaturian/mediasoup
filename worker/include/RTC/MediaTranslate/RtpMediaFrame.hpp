@@ -17,6 +17,12 @@ class RtpMediaFrame
     class RtpAudioFrame;
     class RtpVideoFrame;
 public:
+    enum KeyFrameMark {
+        Auto,
+        ForceOn,
+        ForceOff
+    };
+public:
     RtpMediaFrame(const RtpCodecMimeType& codecMimeType,
                   const std::shared_ptr<const MemoryBuffer>& payload,
                   bool isKeyFrame, uint32_t timestamp, uint32_t ssrc,
@@ -25,19 +31,23 @@ public:
     static std::shared_ptr<RtpMediaFrame> CreateAudio(const RtpPacket* packet,
                                                       RtpCodecMimeType::Subtype codecType,
                                                       const std::shared_ptr<const RtpAudioFrameConfig>& audioConfig,
+                                                      KeyFrameMark keyFrameMark = KeyFrameMark::Auto,
                                                       const std::allocator<uint8_t>& payloadAllocator = {});
     static std::shared_ptr<RtpMediaFrame> CreateAudio(const RtpPacket* packet,
                                                       const std::shared_ptr<const MemoryBuffer>& payload,
                                                       RtpCodecMimeType::Subtype codecType,
-                                                      const std::shared_ptr<const RtpAudioFrameConfig>& audioConfig);
+                                                      const std::shared_ptr<const RtpAudioFrameConfig>& audioConfig,
+                                                      KeyFrameMark keyFrameMark = KeyFrameMark::Auto);
     static std::shared_ptr<RtpMediaFrame> CreateVideo(const RtpPacket* packet,
                                                       RtpCodecMimeType::Subtype codecType,
                                                       const std::shared_ptr<const RtpVideoFrameConfig>& videoConfig,
+                                                      KeyFrameMark keyFrameMark = KeyFrameMark::Auto,
                                                       const std::allocator<uint8_t>& payloadAllocator = {});
     static std::shared_ptr<RtpMediaFrame> CreateVideo(const RtpPacket* packet,
                                                       const std::shared_ptr<const MemoryBuffer>& payload,
                                                       RtpCodecMimeType::Subtype codecType,
-                                                      const std::shared_ptr<const RtpVideoFrameConfig>& videoConfig);
+                                                      const std::shared_ptr<const RtpVideoFrameConfig>& videoConfig,
+                                                      KeyFrameMark keyFrameMark = KeyFrameMark::Auto);
     // common
     bool IsAudio() const;
     const RtpCodecMimeType& GetCodecMimeType() const { return _codecMimeType; }
@@ -55,6 +65,7 @@ public:
 private:
     static std::shared_ptr<const MemoryBuffer> CreatePayload(const RtpPacket* packet,
                                                              const std::allocator<uint8_t>& payloadAllocator);
+    static bool IsKeyFrame(const RtpPacket* packet, KeyFrameMark keyFrameMark);
 private:
     const RtpCodecMimeType _codecMimeType;
     const std::shared_ptr<const MemoryBuffer> _payload;

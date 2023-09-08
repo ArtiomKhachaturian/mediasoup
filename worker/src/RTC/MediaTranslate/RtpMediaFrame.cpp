@@ -54,11 +54,12 @@ RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& codecMimeType,
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packet,
                                                           RtpCodecMimeType::Subtype codecType,
                                                           const std::shared_ptr<const RtpAudioFrameConfig>& audioConfig,
+                                                          KeyFrameMark keyFrameMark,
                                                           const std::allocator<uint8_t>& payloadAllocator)
 {
     if (packet) {
         const auto payload = CreatePayload(packet, payloadAllocator);
-        return CreateAudio(packet, payload, codecType, audioConfig);
+        return CreateAudio(packet, payload, codecType, audioConfig, keyFrameMark);
     }
     return nullptr;
 }
@@ -66,12 +67,14 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packe
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packet,
                                                           const std::shared_ptr<const MemoryBuffer>& payload,
                                                           RtpCodecMimeType::Subtype codecType,
-                                                          const std::shared_ptr<const RtpAudioFrameConfig>& audioConfig)
+                                                          const std::shared_ptr<const RtpAudioFrameConfig>& audioConfig,
+                                                          KeyFrameMark keyFrameMark)
 {
     if (packet && payload) {
         const RtpCodecMimeType codecMimeType(RtpCodecMimeType::Type::AUDIO, codecType);
         MS_ASSERT(codecMimeType.IsAudioCodec(), "is not audio codec");
-        return std::make_shared<RtpAudioFrame>(codecMimeType, payload, packet->IsKeyFrame(),
+        return std::make_shared<RtpAudioFrame>(codecMimeType, payload,
+                                               IsKeyFrame(packet, keyFrameMark),
                                                packet->GetTimestamp(), packet->GetSsrc(),
                                                packet->GetSequenceNumber(), audioConfig);
     }
@@ -81,11 +84,12 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateAudio(const RtpPacket* packe
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateVideo(const RtpPacket* packet,
                                                           RtpCodecMimeType::Subtype codecType,
                                                           const std::shared_ptr<const RtpVideoFrameConfig>& videoConfig,
+                                                          KeyFrameMark keyFrameMark,
                                                           const std::allocator<uint8_t>& payloadAllocator)
 {
     if (packet) {
         const auto payload = CreatePayload(packet, payloadAllocator);
-        return CreateVideo(packet, payload, codecType, videoConfig);
+        return CreateVideo(packet, payload, codecType, videoConfig, keyFrameMark);
     }
     return nullptr;
 }
@@ -93,12 +97,14 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateVideo(const RtpPacket* packe
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::CreateVideo(const RtpPacket* packet,
                                                           const std::shared_ptr<const MemoryBuffer>& payload,
                                                           RtpCodecMimeType::Subtype codecType,
-                                                          const std::shared_ptr<const RtpVideoFrameConfig>& videoConfig)
+                                                          const std::shared_ptr<const RtpVideoFrameConfig>& videoConfig,
+                                                          KeyFrameMark keyFrameMark)
 {
     if (packet && payload) {
         const RtpCodecMimeType codecMimeType(RtpCodecMimeType::Type::VIDEO, codecType);
         MS_ASSERT(codecMimeType.IsVideoCodec(), "is not video codec");
-        return std::make_shared<RtpVideoFrame>(codecMimeType, payload, packet->IsKeyFrame(),
+        return std::make_shared<RtpVideoFrame>(codecMimeType, payload,
+                                               IsKeyFrame(packet, keyFrameMark),
                                                packet->GetTimestamp(), packet->GetSsrc(),
                                                packet->GetSequenceNumber(), videoConfig);
     }
@@ -117,6 +123,19 @@ std::shared_ptr<const MemoryBuffer> RtpMediaFrame::CreatePayload(const RtpPacket
         return SimpleMemoryBuffer::Create(packet->GetPayload(), packet->GetPayloadLength(), payloadAllocator);
     }
     return nullptr;
+}
+
+bool RtpMediaFrame::IsKeyFrame(const RtpPacket* packet, KeyFrameMark keyFrameMark)
+{
+    switch (keyFrameMark) {
+    case ForceOn:
+            return true;
+        case ForceOff:
+            return false;
+        default:
+            break;
+    }
+    return packet->IsKeyFrame();
 }
 
 RtpMediaFrame::RtpAudioFrame::RtpAudioFrame(const RtpCodecMimeType& codecMimeType,

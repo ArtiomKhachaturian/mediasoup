@@ -24,6 +24,7 @@ private:
     std::atomic<int32_t> _width    = 0;
     std::atomic<int32_t> _height   = 0;
     std::atomic<double> _frameRate = 0.;
+    std::atomic<const char*> _colourSpace = nullptr;
 };
 
 } // namespace RTC

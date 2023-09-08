@@ -31,15 +31,14 @@ public:
     RtpAssembly(const RtpCodecMimeType& mime);
     std::shared_ptr<RtpMediaFrame> AddPacket(const RtpPacket* packet);
 private:
-    static bool ParseVp8VideoConfig(const RtpPacket* packet,
-                                    RtpVideoFrameConfig& videoConfig);
-    static bool ParseVp9VideoConfig(const RtpPacket* packet,
-                                    RtpVideoFrameConfig& videoConfig);
+    bool ParseVp8VideoConfig(const RtpPacket* packet) const;
+    bool ParseVp9VideoConfig(const RtpPacket* packet) const;
     bool AddPayload(const RtpPacket* packet);
 private:
     const RtpCodecMimeType _mime;
     SimpleMemoryBuffer _payload;
     uint32_t _lastTimeStamp = 0U;
+    std::shared_ptr<RtpVideoFrameConfig> _videoConfig;
 };
 
 
@@ -79,37 +78,38 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(const 
         }
         // Add payload
         if (AddPayload(packet)) {
-            std::shared_ptr<RtpVideoFrameConfig> videoConfig;
             bool ok = true;
             if (packet->IsKeyFrame()) {
-                videoConfig = std::make_shared<RtpVideoFrameConfig>();
+                _videoConfig = std::make_shared<RtpVideoFrameConfig>();
                 switch (_mime.GetSubtype()) {
                     case RtpCodecMimeType::Subtype::VP8:
-                        ok = ParseVp8VideoConfig(packet, *videoConfig);
+                        ok = ParseVp8VideoConfig(packet);
                         break;
                     case RtpCodecMimeType::Subtype::VP9:
-                        ok = ParseVp9VideoConfig(packet, *videoConfig);
+                        ok = ParseVp9VideoConfig(packet);
                         break;
                     default:
                         break;
+                }
+                if (!ok) {
+                    const auto error = GetStreamInfoString(_mime, packet->GetSsrc());
+                    MS_ERROR("failed to parse video config for stream [%s]", error.c_str());
+                    _videoConfig.reset();
                 }
             }
             if (ok) {
                 if (packet->HasMarker()) {
                     if (const auto payload = _payload.Take()) {
-                        return RtpMediaFrame::CreateVideo(packet, payload,
-                                                          _mime.GetSubtype(),
-                                                          videoConfig);
+                        std::shared_ptr<RtpVideoFrameConfig> videoConfig;
+                        const auto mark = _videoConfig ? RtpMediaFrame::ForceOn : RtpMediaFrame::Auto;
+                        return RtpMediaFrame::CreateVideo(packet, payload, _mime.GetSubtype(),
+                                                          std::move(_videoConfig), mark);
                     }
                     else {
                         const auto error = GetStreamInfoString(_mime, packet->GetSsrc());
                         MS_ERROR("failed to take assembled payload for stream [%s]", error.c_str());
                     }
                 }
-            }
-            else {
-                const auto error = GetStreamInfoString(_mime, packet->GetSsrc());
-                MS_ERROR("failed to parse video config for stream [%s]", error.c_str());
             }
         }
         else {
@@ -120,36 +120,37 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(const 
     return nullptr;
 }
 
-bool RtpDepacketizerVpx::RtpAssembly::ParseVp8VideoConfig(const RtpPacket* packet,
-                                                          RtpVideoFrameConfig& videoConfig)
+bool RtpDepacketizerVpx::RtpAssembly::ParseVp8VideoConfig(const RtpPacket* packet) const
 {
-    if (const auto pds = GetPayloadDescriptorSize(packet)) {
-        if (const auto payload = packet->GetPayload()) {
-            const auto offset = pds.value();
-            const auto len = packet->GetPayloadLength();
-            if (len >= offset + 10U) {
-                // Start code for VP8 key frame:
-                // Read comon 3 bytes
-                //   0 1 2 3 4 5 6 7
-                //  +-+-+-+-+-+-+-+-+
-                //  |Size0|H| VER |P|
-                //  +-+-+-+-+-+-+-+-+
-                //  |     Size1     |
-                //  +-+-+-+-+-+-+-+-+
-                //  |     Size2     |
-                //  +-+-+-+-+-+-+-+-+
-                // Keyframe header consists of a three-byte sync code
-                // followed by the width and height and associated scaling factors
-                if (payload[offset + 3U] == 0x9d &&
-                    payload[offset + 4U] == 0x01 &&
-                    payload[offset + 5U] == 0x2a) {
-                    const uint16_t hor = payload[offset + 7U] << 8 | payload[offset + 6U];
-                    const uint16_t ver = payload[offset + 9U] << 8 | payload[offset + 8U];
-                    videoConfig.SetWidth(hor & 0x3fff);
-                    //videoConfig._widthScale = hor >> 14;
-                    videoConfig.SetHeight(ver & 0x3fff);
-                    //videoConfig._heightScale = ver >> 14;
-                    return true;
+    if (_videoConfig) {
+        if (const auto pds = GetPayloadDescriptorSize(packet)) {
+            if (const auto payload = packet->GetPayload()) {
+                const auto offset = pds.value();
+                const auto len = packet->GetPayloadLength();
+                if (len >= offset + 10U) {
+                    // Start code for VP8 key frame:
+                    // Read comon 3 bytes
+                    //   0 1 2 3 4 5 6 7
+                    //  +-+-+-+-+-+-+-+-+
+                    //  |Size0|H| VER |P|
+                    //  +-+-+-+-+-+-+-+-+
+                    //  |     Size1     |
+                    //  +-+-+-+-+-+-+-+-+
+                    //  |     Size2     |
+                    //  +-+-+-+-+-+-+-+-+
+                    // Keyframe header consists of a three-byte sync code
+                    // followed by the width and height and associated scaling factors
+                    if (payload[offset + 3U] == 0x9d &&
+                        payload[offset + 4U] == 0x01 &&
+                        payload[offset + 5U] == 0x2a) {
+                        const uint16_t hor = payload[offset + 7U] << 8 | payload[offset + 6U];
+                        const uint16_t ver = payload[offset + 9U] << 8 | payload[offset + 8U];
+                        _videoConfig->SetWidth(hor & 0x3fff);
+                        //_videoConfig._widthScale = hor >> 14;
+                        _videoConfig->SetHeight(ver & 0x3fff);
+                        //_videoConfig._heightScale = ver >> 14;
+                        return true;
+                    }
                 }
             }
         }
@@ -157,18 +158,19 @@ bool RtpDepacketizerVpx::RtpAssembly::ParseVp8VideoConfig(const RtpPacket* packe
     return false;
 }
 
-bool RtpDepacketizerVpx::RtpAssembly::ParseVp9VideoConfig(const RtpPacket* packet,
-                                                          RtpVideoFrameConfig& videoConfig)
+bool RtpDepacketizerVpx::RtpAssembly::ParseVp9VideoConfig(const RtpPacket* packet) const
 {
-    if (const auto pds = GetPayloadDescriptorSize(packet)) {
-        if (const auto payload = packet->GetPayload()) {
-            //const auto offset = pds.value();
-            /*vp9_parser::Vp9HeaderParser parser;
-            if (parser.ParseUncompressedHeader(payload, packet->GetPayloadLength())) {
-                videoConfig._width = parser.width();
-                videoConfig._height = parser.height();
-                return true;
-            }*/
+    if (_videoConfig) {
+        if (const auto pds = GetPayloadDescriptorSize(packet)) {
+            if (const auto payload = packet->GetPayload()) {
+                //const auto offset = pds.value();
+                /*vp9_parser::Vp9HeaderParser parser;
+                 if (parser.ParseUncompressedHeader(payload, packet->GetPayloadLength())) {
+                 videoConfig._width = parser.width();
+                 videoConfig._height = parser.height();
+                 return true;
+                 }*/
+            }
         }
     }
     return false;
