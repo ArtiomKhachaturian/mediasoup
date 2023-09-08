@@ -325,7 +325,7 @@ bool MediaTranslatorsManager::Impl::UnRegister(const Producer* producer)
                     }
                 }
                 else {
-                    for (auto mappedSsrc : it->second->GetRegisteredSsrcs(true)) {
+                    for (auto mappedSsrc : it->second->GetAddedStreams()) {
                         if (_mapFromVideoSsrcProducerToAudio.erase(mappedSsrc)) {
                             break;
                         }
@@ -482,6 +482,7 @@ void MediaTranslatorsManager::Impl::onStreamAdded(const std::string& producerId,
                         auto fileWriter = std::make_unique<FileWriter>(fileName);
                         if (fileWriter->IsOpen()) {
                             serializer->AddOutputDevice(fileWriter.get());
+                            serializer->SetLiveMode(false);
                             _fileWriters[producerId] = std::move(fileWriter);
                         }
                     }

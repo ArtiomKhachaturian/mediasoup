@@ -15,8 +15,7 @@ class RtpWebMSerializer : public RtpMediaFrameSerializer
     class BufferedWriter;
     class TrackInfo;
 public:
-    // OPUS or VORBIS serializer
-    RtpWebMSerializer();
+    RtpWebMSerializer(const char* writingApp = "SpeakShiftSFU");
     ~RtpWebMSerializer() final;
     static bool IsSupported(const RtpCodecMimeType& mimeType);
     // impl. of RtpMediaFrameSerializer
@@ -39,6 +38,7 @@ private:
                   const std::shared_ptr<TConfig>& config);
     TrackInfo* GetTrackInfo(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) const;
 private:
+    const char* const _writingApp;
     std::unique_ptr<BufferedWriter> _writer;
     bool _liveMode = true;
     // key - is packet SSRC
