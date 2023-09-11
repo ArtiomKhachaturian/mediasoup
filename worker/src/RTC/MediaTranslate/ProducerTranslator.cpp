@@ -57,21 +57,12 @@ bool ProducerTranslator::IsAudio() const
 
 void ProducerTranslator::AddObserver(ProducerObserver* observer)
 {
-    if (observer) {
-        if (_observers.end() == std::find(_observers.begin(), _observers.end(), observer)) {
-            _observers.push_back(observer);
-        }
-    }
+    _observers.Add(observer);
 }
 
 void ProducerTranslator::RemoveObserver(ProducerObserver* observer)
 {
-    if (observer) {
-        const auto it = std::find(_observers.begin(), _observers.end(), observer);
-        if (it != _observers.end()) {
-            _observers.erase(it);
-        }
-    }
+    _observers.Remove(observer);
 }
 
 bool ProducerTranslator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
@@ -162,11 +153,7 @@ void ProducerTranslator::SetLanguage(const std::optional<MediaLanguage>& languag
 template <class Method, typename... Args>
 void ProducerTranslator::InvokeObserverMethod(const Method& method, Args&&... args) const
 {
-    if (method) {
-        for (const auto observer : _observers) {
-            ((*observer).*method)(GetId(), std::forward<Args>(args)...);
-        }
-    }
+    _observers.InvokeMethod(method, GetId(), std::forward<Args>(args)...);
 }
 
 void ProducerTranslator::OnPauseChanged(bool pause)

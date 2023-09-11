@@ -2,8 +2,8 @@
 
 #include "RTC/MediaTranslate/ConsumerTranslatorSettings.hpp"
 #include "RTC/MediaTranslate/ConsumerObserver.hpp"
+#include "RTC/Listeners.hpp"
 #include <memory>
-#include <list>
 
 namespace RTC
 {
@@ -45,7 +45,7 @@ private:
     Consumer* const _consumer;
     const std::string _producerId;
     const std::unique_ptr<TranslatorEndPoint> _endPoint;
-    std::list<ConsumerObserver*> _observers;
+    Listeners<ConsumerObserver*> _observers;
     // output language
     MediaLanguage _language = DefaultOutputMediaLanguage();
     // voice

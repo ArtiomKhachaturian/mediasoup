@@ -2,7 +2,7 @@
 
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/MediaTranslate/ProducerInputMediaStreamer.hpp"
-#include "ProtectedObj.hpp"
+#include "RTC/Listeners.hpp"
 #include <absl/container/flat_hash_set.h>
 #include <memory>
 #include <string>
@@ -18,7 +18,7 @@ class RtpVideoFrameConfig;
 
 class RtpMediaFrameSerializer : public ProducerInputMediaStreamer
 {
-    using OutputDevicesSet = absl::flat_hash_set<OutputDevice*>;
+    using OutputDevicesSet = absl::flat_hash_set<std::shared_ptr<OutputDevice>>;
 public:
     RtpMediaFrameSerializer(const RtpMediaFrameSerializer&) = delete;
     RtpMediaFrameSerializer(RtpMediaFrameSerializer&&) = delete;
@@ -51,7 +51,7 @@ protected:
                               bool ok) noexcept;
     void EndStream(bool failure) noexcept;
 private:
-    ProtectedObj<OutputDevicesSet> _outputDevices;
+    Listeners<OutputDevice*> _outputDevices;
 };
 
 } // namespace RTC

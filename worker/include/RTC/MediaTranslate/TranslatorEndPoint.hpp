@@ -34,6 +34,7 @@ public:
 private:
     const std::shared_ptr<Websocket> _websocket;
     const std::shared_ptr<Impl> _impl;
+    std::shared_ptr<ProducerInputMediaStreamer> _input;
 };
 
 } // namespace RTC

@@ -34,21 +34,12 @@ const std::string& ConsumerTranslator::GetId() const
 
 void ConsumerTranslator::AddObserver(ConsumerObserver* observer)
 {
-    if (observer) {
-        if (_observers.end() == std::find(_observers.begin(), _observers.end(), observer)) {
-            _observers.push_back(observer);
-        }
-    }
+    _observers.Add(observer);
 }
 
 void ConsumerTranslator::RemoveObserver(ConsumerObserver* observer)
 {
-    if (observer) {
-        const auto it = std::find(_observers.begin(), _observers.end(), observer);
-        if (it != _observers.end()) {
-            _observers.erase(it);
-        }
-    }
+    _observers.Remove(observer);
 }
 
 bool ConsumerTranslator::HasProducerInput() const
@@ -108,11 +99,7 @@ void ConsumerTranslator::OnPauseChanged(bool pause)
 template <class Method, typename... Args>
 void ConsumerTranslator::InvokeObserverMethod(const Method& method, Args&&... args) const
 {
-    if (method) {
-        for (const auto observer : _observers) {
-            ((*observer).*method)(GetId(), std::forward<Args>(args)...);
-        }
-    }
+    _observers.InvokeMethod(method, GetId(), std::forward<Args>(args)...);
 }
 
 } // namespace RTC

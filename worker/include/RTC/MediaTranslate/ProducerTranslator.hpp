@@ -4,9 +4,8 @@
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/MediaTranslate/ProducerTranslatorSettings.hpp"
 #include "RTC/MediaTranslate/ProducerObserver.hpp"
-#include "ProtectedObj.hpp"
+#include "RTC/Listeners.hpp"
 #include <absl/container/flat_hash_map.h>
-#include <list>
 
 namespace RTC
 {
@@ -47,7 +46,7 @@ protected:
     void OnPauseChanged(bool pause) final;
 private:
     Producer* const _producer;
-    std::list<ProducerObserver*> _observers;
+    Listeners<ProducerObserver*> _observers;
     // key is mapped media SSRC
     absl::flat_hash_map<uint32_t, std::unique_ptr<StreamInfo>> _streams;
     // input language

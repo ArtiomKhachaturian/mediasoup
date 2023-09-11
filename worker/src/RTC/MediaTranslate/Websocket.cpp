@@ -137,6 +137,8 @@ class Websocket::SocketImpl : public Socket
 {
     using Client = websocketpp::client<TConfig>;
     using MessagePtr = typename TConfig::message_type::ptr;
+    using HdlWriteGuard = typename ProtectedObj<websocketpp::connection_hdl>::GuardTraits::MutexWriteGuard;
+    using HdlReadGuard = typename ProtectedObj<websocketpp::connection_hdl>::GuardTraits::MutexReadGuard;
 public:
     ~SocketImpl() override { Close(); }
     // impl. of Socket
@@ -163,7 +165,7 @@ private:
     template<class Guard>
     void DropHdl(std::unique_ptr<Guard> droppedGuard);
     // return true if state changed
-    template<class Guard = MutexWriteGuard>
+    template<class Guard = HdlWriteGuard>
     bool SetOpened(bool opened, std::unique_ptr<Guard> droppedGuard = nullptr);
     bool IsOpened() const { return _opened.load(std::memory_order_relaxed); }
     static std::string ToText(const MessagePtr& message);
@@ -454,7 +456,7 @@ bool Websocket::SocketImpl<TConfig>::Open(const std::string& userAgent)
 template<class TConfig>
 void Websocket::SocketImpl<TConfig>::Close()
 {
-    auto droppedGuard = std::make_unique<MutexWriteGuard>(_hdl);
+    auto droppedGuard = std::make_unique<HdlWriteGuard>(_hdl.GetWriteGuard());
     if (!_hdl->expired()) {
         websocketpp::lib::error_code ec;
         _client.close(_hdl, _closeCode, websocketpp::close::status::get_string(_closeCode), ec);
@@ -543,7 +545,7 @@ void Websocket::SocketImpl<TConfig>::OnSocketInit(websocketpp::connection_hdl hd
 template<class TConfig>
 void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
 {
-    auto droppedGuard = std::make_unique<MutexWriteGuard>(_hdl);
+    auto droppedGuard = std::make_unique<HdlWriteGuard>(_hdl.GetWriteGuard());
     if (hdl.lock() == _hdl->lock()) {
         std::string error;
         if (const auto connection = _client.get_con_from_hdl(hdl)) {
@@ -563,7 +565,7 @@ void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
 template<class TConfig>
 void Websocket::SocketImpl<TConfig>::OnOpen(websocketpp::connection_hdl hdl)
 {
-    auto droppedGuard = std::make_unique<MutexReadGuard>(_hdl);
+    auto droppedGuard = std::make_unique<HdlReadGuard>(_hdl.GetReadGuard());
     if (hdl.lock() == _hdl->lock()) {
         // update state
         SetOpened(true, std::move(droppedGuard));
@@ -600,7 +602,7 @@ void Websocket::SocketImpl<TConfig>::OnMessage(websocketpp::connection_hdl hdl,
 template<class TConfig>
 void Websocket::SocketImpl<TConfig>::OnClose(websocketpp::connection_hdl hdl)
 {
-    auto droppedGuard = std::make_unique<MutexWriteGuard>(_hdl);
+    auto droppedGuard = std::make_unique<HdlWriteGuard>(_hdl.GetWriteGuard());
     if (hdl.lock() == _hdl->lock()) {
         // report about close & reset state
         DropHdl(std::move(droppedGuard));
