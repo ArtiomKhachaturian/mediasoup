@@ -36,10 +36,10 @@ public:
     uint64_t GetId() const;
     bool WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer);
     bool WriteText(const std::string& text);
-    void SetListener(const std::shared_ptr<WebsocketListener>& listener);
+    void AddListener(WebsocketListener* listener);
+    void RemoveListener(WebsocketListener* listener);
 private:
     const std::shared_ptr<const Config> _config;
-    std::shared_ptr<WebsocketListener> _listener;
     ProtectedUniquePtr<Socket> _socket;
 };
 

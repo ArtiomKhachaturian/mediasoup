@@ -75,6 +75,7 @@ common_sources = [
   'src/PayloadChannel/PayloadChannelRequest.cpp',
   'src/PayloadChannel/PayloadChannelSocket.cpp',
   'src/RTC/ActiveSpeakerObserver.cpp',
+  'src/RTC/AtomicCounter.cpp',
   'src/RTC/AudioLevelObserver.cpp',
   'src/RTC/Consumer.cpp',
   'src/RTC/DataConsumer.cpp',
