@@ -8,8 +8,8 @@
 #define PROTECTED_OBJ_NAME(prefix) PROTECTED_OBJ_JOIN(prefix, __LINE__)
 #define PROTECTED_OBJ_JOIN(symbol1, symbol2) DO_PROTECTED_OBJ_JOIN(symbol1, symbol2)
 #define DO_PROTECTED_OBJ_JOIN(symbol1, symbol2) symbol1##symbol2
-#define LOCK_READ_PROTECTED_OBJ(object) const auto&& PROTECTED_OBJ_NAME(rl)(object.GetReadGuard())
-#define LOCK_WRITE_PROTECTED_OBJ(object) const auto&& PROTECTED_OBJ_NAME(wl)(object.GetWriteGuard())
+#define LOCK_READ_PROTECTED_OBJ(object) const auto PROTECTED_OBJ_NAME(rl)(object.GetReadGuard())
+#define LOCK_WRITE_PROTECTED_OBJ(object) const auto PROTECTED_OBJ_NAME(wl)(object.GetWriteGuard())
 
 namespace RTC
 {
@@ -40,8 +40,8 @@ public:
     ProtectedObj& operator=(ProtectedObj&& tmp);
     template <typename U = T>
     ProtectedObj& operator=(U src);
-    auto&& GetWriteGuard() const { return typename GuardTraits::MutexWriteGuard(_mtx); }
-    auto&& GetReadGuard() const { return typename GuardTraits::MutexReadGuard(_mtx); }
+    auto GetWriteGuard() const { return typename GuardTraits::MutexWriteGuard(_mtx); }
+    auto GetReadGuard() const { return typename GuardTraits::MutexReadGuard(_mtx); }
     operator const T&() const { return ConstRef(); }
     operator T&() { return Ref(); }
     const T& ConstRef() const { return _obj; }

@@ -174,7 +174,7 @@ bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
 void TranslatorEndPoint::OpenSocket()
 {
     if (HasInput() && !IsConnected()) {
-        _socket->Open();
+        _socket->Open(_userAgent);
     }
 }
 

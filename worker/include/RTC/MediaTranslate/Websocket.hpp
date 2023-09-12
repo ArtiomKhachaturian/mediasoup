@@ -2,6 +2,7 @@
 
 #include "ProtectedObj.hpp"
 #include "RTC/MediaTranslate/WebsocketState.hpp"
+#include "RTC/Listeners.hpp"
 #include <string>
 #include <memory>
 #include <unordered_map>
@@ -20,6 +21,7 @@ class Websocket
     class SocketTls;
     class SocketNoTls;
     class SocketWrapper;
+    using SocketListeners = Listeners<WebsocketListener*>;
 public:
     Websocket(const std::string& uri,
               const std::string& user = std::string(),
@@ -40,6 +42,7 @@ public:
     void RemoveListener(WebsocketListener* listener);
 private:
     const std::shared_ptr<const Config> _config;
+    const std::shared_ptr<SocketListeners> _listeners;
     ProtectedUniquePtr<Socket> _socket;
 };
 

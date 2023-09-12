@@ -1,7 +1,6 @@
 #define MS_CLASS "Websocket"
 #include "RTC/MediaTranslate/Websocket.hpp"
 #include "RTC/MediaTranslate/WebsocketListener.hpp"
-#include "RTC/Listeners.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include <websocketpp/config/asio_client.hpp>
@@ -129,9 +128,8 @@ public:
     virtual void Close() = 0;
     virtual bool WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer) = 0;
     virtual bool WriteText(const std::string& text) = 0;
-    virtual void AddListener(WebsocketListener* listener) = 0;
-    virtual void RemoveListener(WebsocketListener* listener) = 0;
-    static std::shared_ptr<Socket> Create(uint64_t id, const std::shared_ptr<const Config>& config);
+    static std::shared_ptr<Socket> Create(uint64_t id, const std::shared_ptr<const Config>& config,
+                                          const std::shared_ptr<SocketListeners>& listeners);
 };
 
 template<class TConfig>
@@ -141,7 +139,6 @@ class Websocket::SocketImpl : public Socket
     using MessagePtr = typename TConfig::message_type::ptr;
     using HdlWriteGuard = typename ProtectedObj<websocketpp::connection_hdl>::GuardTraits::MutexWriteGuard;
     using HdlReadGuard = typename ProtectedObj<websocketpp::connection_hdl>::GuardTraits::MutexReadGuard;
-    using SocketListeners = Listeners<WebsocketListener*>;
 public:
     ~SocketImpl() override;
     // impl. of Socket
@@ -151,10 +148,9 @@ public:
     void Close() final;
     bool WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer) final;
     bool WriteText(const std::string& text) final;
-    void AddListener(WebsocketListener* listener) final;
-    void RemoveListener(WebsocketListener* listener) final;
 protected:
-    SocketImpl(uint64_t id, const std::shared_ptr<const Config>& config);
+    SocketImpl(uint64_t id, const std::shared_ptr<const Config>& config,
+               const std::shared_ptr<SocketListeners>& listeners);
     uint64_t GetId() const { return _id; }
     const std::shared_ptr<const Config>& GetConfig() const { return _config; }
     const Client& GetClient() const { return _client; }
@@ -179,13 +175,13 @@ private:
     static inline constexpr uint16_t _closeCode = websocketpp::close::status::going_away;
     const uint64_t _id;
     const std::shared_ptr<const Config> _config;
+    const std::shared_ptr<SocketListeners> _listeners;
     LogStreamBuf _debugStreamBuf;
     LogStreamBuf _errorStreamBuf;
     std::ostream _debugStream;
     std::ostream _errorStream;
     Client _client;
     ProtectedObj<websocketpp::connection_hdl> _hdl;
-    SocketListeners _listeners;
     std::atomic_bool _opened = false;
 };
 
@@ -193,7 +189,8 @@ class Websocket::SocketTls : public SocketImpl<websocketpp::config::asio_tls_cli
 {
     using SslContextPtr = websocketpp::lib::shared_ptr<asio::ssl::context>;
 public:
-    SocketTls(uint64_t id, const std::shared_ptr<const Config>& config);
+    SocketTls(uint64_t id, const std::shared_ptr<const Config>& config,
+              const std::shared_ptr<SocketListeners>& listeners);
 private:
     SslContextPtr OnTlsInit(websocketpp::connection_hdl);
 };
@@ -201,7 +198,8 @@ private:
 class Websocket::SocketNoTls : public SocketImpl<websocketpp::config::asio_client>
 {
 public:
-    SocketNoTls(uint64_t id, const std::shared_ptr<const Config>& config);
+    SocketNoTls(uint64_t id, const std::shared_ptr<const Config>& config,
+                const std::shared_ptr<SocketListeners>& listeners);
 };
 
 class Websocket::SocketWrapper : public Socket
@@ -209,7 +207,8 @@ class Websocket::SocketWrapper : public Socket
 public:
     SocketWrapper(std::shared_ptr<Socket> impl);
     ~SocketWrapper() final;
-    static std::unique_ptr<Socket> Create(uint64_t id, const std::shared_ptr<const Config>& config);
+    static std::unique_ptr<Socket> Create(uint64_t id, const std::shared_ptr<const Config>& config,
+                                          const std::shared_ptr<SocketListeners>& listeners);
     // impl. of Socket
     WebsocketState GetState() final;
     void Run() final;
@@ -217,8 +216,6 @@ public:
     void Close() final;
     bool WriteBinary(const std::shared_ptr<const MemoryBuffer>& buffer) final;
     bool WriteText(const std::string& text) final;
-    void AddListener(WebsocketListener* listener) final;
-    void RemoveListener(WebsocketListener* listener) final;
 private:
     std::shared_ptr<Socket> _impl;
     std::thread _asioThread;
@@ -238,6 +235,7 @@ Websocket::Websocket(const std::string& uri,
                                      std::move(tlsKeyStore),
                                      std::move(tlsPrivateKey),
                                      std::move(tlsPrivateKeyPassword)))
+    , _listeners(std::make_shared<SocketListeners>())
 {
 }
 
@@ -252,7 +250,7 @@ bool Websocket::Open(const std::string& userAgent)
     if (_config) {
         LOCK_WRITE_PROTECTED_OBJ(_socket);
         if (!_socket.ConstRef()) {
-            auto socket = SocketWrapper::Create(GetId(), _config);
+            auto socket = SocketWrapper::Create(GetId(), _config, _listeners);
             if (socket) {
                 result = socket->Open(userAgent);
                 if (result) {
@@ -313,22 +311,12 @@ bool Websocket::WriteText(const std::string& text)
 
 void Websocket::AddListener(WebsocketListener* listener)
 {
-    if (listener) {
-        LOCK_READ_PROTECTED_OBJ(_socket);
-        if (const auto& socket = _socket.ConstRef()) {
-            socket->AddListener(listener);
-        }
-    }
+    _listeners->Add(listener);
 }
 
 void Websocket::RemoveListener(WebsocketListener* listener)
 {
-    if (listener) {
-        LOCK_READ_PROTECTED_OBJ(_socket);
-        if (const auto& socket = _socket.ConstRef()) {
-            socket->RemoveListener(listener);
-        }
-    }
+    _listeners->Remove(listener);
 }
 
 Websocket::Config::Config(const std::shared_ptr<websocketpp::uri>& uri,
@@ -374,21 +362,24 @@ std::shared_ptr<const Websocket::Config> Websocket::Config::VerifyAndParse(const
 }
 
 std::shared_ptr<Websocket::Socket> Websocket::Socket::Create(uint64_t id,
-                                                             const std::shared_ptr<const Config>& config)
+                                                             const std::shared_ptr<const Config>& config,
+                                                             const std::shared_ptr<SocketListeners>& listeners)
 {
     if (config) {
         if (config->IsSecure()) {
-            return std::make_shared<SocketTls>(id, config);
+            return std::make_shared<SocketTls>(id, config, listeners);
         }
-        return std::make_shared<SocketNoTls>(id, config);
+        return std::make_shared<SocketNoTls>(id, config, listeners);
     }
     return nullptr;
 }
 
 template<class TConfig>
-Websocket::SocketImpl<TConfig>::SocketImpl(uint64_t id, const std::shared_ptr<const Config>& config)
+Websocket::SocketImpl<TConfig>::SocketImpl(uint64_t id, const std::shared_ptr<const Config>& config,
+                                           const std::shared_ptr<SocketListeners>& listeners)
     : _id(id)
     , _config(config)
+    , _listeners(listeners)
     , _debugStreamBuf(id, LogLevel::LOG_DEBUG)
     , _errorStreamBuf(id, LogLevel::LOG_ERROR)
     , _debugStream(&_debugStreamBuf)
@@ -412,12 +403,12 @@ Websocket::SocketImpl<TConfig>::~SocketImpl()
 {
     const auto inActiveState = WebsocketState::Disconnected != GetState();
     if (inActiveState) {
-        _listeners.BlockInvokes(true);
+        _listeners->BlockInvokes(true);
     }
     Close();
     if (inActiveState) {
-        _listeners.BlockInvokes(false);
-        _listeners.InvokeMethod(&WebsocketListener::OnStateChanged, GetId(), WebsocketState::Disconnected);
+        _listeners->BlockInvokes(false);
+        InvokeListenersMethod(&WebsocketListener::OnStateChanged, WebsocketState::Disconnected);
     }
 }
 
@@ -533,23 +524,11 @@ bool Websocket::SocketImpl<TConfig>::WriteText(const std::string& text)
 }
 
 template<class TConfig>
-void Websocket::SocketImpl<TConfig>::AddListener(WebsocketListener* listener)
-{
-    _listeners.Add(listener);
-}
-
-template<class TConfig>
-void Websocket::SocketImpl<TConfig>::RemoveListener(WebsocketListener* listener)
-{
-    _listeners.Remove(listener);
-}
-
-template<class TConfig>
 template <class Method, typename... Args>
 void Websocket::SocketImpl<TConfig>::InvokeListenersMethod(const Method& method,
                                                            Args&&... args) const
 {
-    _listeners.InvokeMethod(method, GetId(), std::forward<Args>(args)...);
+    _listeners->InvokeMethod(method, GetId(), std::forward<Args>(args)...);
 }
 
 template<class TConfig>
@@ -663,8 +642,9 @@ std::shared_ptr<MemoryBuffer> Websocket::SocketImpl<TConfig>::ToBinary(const Mes
     return nullptr;
 }
 
-Websocket::SocketTls::SocketTls(uint64_t id, const std::shared_ptr<const Config>& config)
-    : SocketImpl<websocketpp::config::asio_tls_client>(id, config)
+Websocket::SocketTls::SocketTls(uint64_t id, const std::shared_ptr<const Config>& config,
+                                const std::shared_ptr<SocketListeners>& listeners)
+    : SocketImpl<websocketpp::config::asio_tls_client>(id, config, listeners)
 {
     GetClient().set_tls_init_handler(bind(&SocketTls::OnTlsInit, this, _1));
 }
@@ -707,8 +687,9 @@ Websocket::SocketTls::SslContextPtr Websocket::SocketTls::OnTlsInit(websocketpp:
     return ctx;
 }
 
-Websocket::SocketNoTls::SocketNoTls(uint64_t id, const std::shared_ptr<const Config>& config)
-    : SocketImpl<websocketpp::config::asio_client>(id, config)
+Websocket::SocketNoTls::SocketNoTls(uint64_t id, const std::shared_ptr<const Config>& config,
+                                    const std::shared_ptr<SocketListeners>& listeners)
+    : SocketImpl<websocketpp::config::asio_client>(id, config, listeners)
 {
 }
 
@@ -726,9 +707,10 @@ Websocket::SocketWrapper::~SocketWrapper()
 }
 
 std::unique_ptr<Websocket::Socket> Websocket::SocketWrapper::Create(uint64_t id,
-                                                                    const std::shared_ptr<const Config>& config)
+                                                                    const std::shared_ptr<const Config>& config,
+                                                                    const std::shared_ptr<SocketListeners>& listeners)
 {
-    if (auto impl = Socket::Create(id, config)) {
+    if (auto impl = Socket::Create(id, config, listeners)) {
         return std::make_unique<SocketWrapper>(std::move(impl));
     }
     return nullptr;
@@ -782,24 +764,6 @@ bool Websocket::SocketWrapper::WriteText(const std::string& text)
         return impl->WriteText(text);
     }
     return false;
-}
-
-void Websocket::SocketWrapper::AddListener(WebsocketListener* listener)
-{
-    if (listener) {
-        if (const auto impl = std::atomic_load(&_impl)) {
-            impl->AddListener(listener);
-        }
-    }
-}
-
-void Websocket::SocketWrapper::RemoveListener(WebsocketListener* listener)
-{
-    if (listener) {
-        if (const auto impl = std::atomic_load(&_impl)) {
-            impl->RemoveListener(listener);
-        }
-    }
 }
 
 void WebsocketListener::OnStateChanged(uint64_t socketId, WebsocketState state)
