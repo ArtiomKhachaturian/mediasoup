@@ -3,7 +3,7 @@
 #include "RTC/AtomicCounter.hpp"
 #include "ProtectedObj.hpp"
 #include <atomic>
-#include <list>
+#include <vector>
 #include <memory>
 
 namespace RTC
@@ -13,6 +13,14 @@ template<class TListener>
 class Listeners
 {
     class Impl;
+private: // assertions
+    template<class T>
+    struct IsSharedPointer : std::false_type {};
+    template<class T>
+    struct IsSharedPointer<std::shared_ptr<T>> : std::true_type {};
+    template<class T>
+    using IsRawPointer = std::is_pointer<T>;
+    static_assert(IsRawPointer<TListener>::value || IsSharedPointer<TListener>::value);
 public:
     Listeners();
     Listeners(Listeners&& tmp) = delete;
@@ -40,7 +48,7 @@ class Listeners<TListener>::Impl
     template<class T>
     using ProtectedContainer = ProtectedObj<T, std::recursive_mutex>;
 public:
-    Impl() = default;
+    Impl();
     bool Add(const TListener& listener);
     bool Remove(const TListener& listener);
     void Clear();
@@ -49,7 +57,7 @@ public:
     template <class Method, typename... Args>
     void InvokeMethod(const Method& method, Args&&... args) const;
 private:
-    ProtectedContainer<std::list<TListener>> _listeners;
+    ProtectedContainer<std::vector<TListener>> _listeners;
 };
 
 template<class TListener>
@@ -135,6 +143,12 @@ void Listeners<TListener>::InvokeMethod(const Method& method, Args&&... args) co
 }
 
 template<class TListener>
+Listeners<TListener>::Impl::Impl()
+{
+    _listeners->reserve(1UL);
+}
+
+template<class TListener>
 bool Listeners<TListener>::Impl::Add(const TListener& listener)
 {
     LOCK_WRITE_PROTECTED_OBJ(_listeners);
@@ -184,8 +198,21 @@ template <class Method, typename... Args>
 void Listeners<TListener>::Impl::InvokeMethod(const Method& method, Args&&... args) const
 {
     LOCK_READ_PROTECTED_OBJ(_listeners);
-    for (const auto& listener : _listeners.ConstRef()) {
-        ((*listener).*method)(std::forward<Args>(args)...);
+    if (!_listeners->empty()) {
+        size_t i = 0UL;
+        do {
+            const size_t sizeBefore = _listeners->size();
+            if (i < sizeBefore) {
+                (_listeners->at(i)->*method)(std::forward<Args>(args)...);
+                if (_listeners->size() >= sizeBefore) {
+                    ++i;
+                }
+            }
+            else {
+                break;
+            }
+        }
+        while(true);
     }
 }
 
