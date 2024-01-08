@@ -122,24 +122,13 @@ namespace Channel
 		this->listener = listener;
 	}
 
-	void ChannelSocket::Send(json& jsonMessage)
+	void ChannelSocket::Send(const json& jsonMessage)
 	{
 		MS_TRACE_STD();
 
-		if (this->closed)
-			return;
-
-		std::string message = jsonMessage.dump();
-
-		if (message.length() > PayloadMaxLen)
-		{
-			MS_ERROR_STD("message too big");
-
-			return;
-		}
-
-		SendImpl(
-		  reinterpret_cast<const uint8_t*>(message.c_str()), static_cast<uint32_t>(message.length()));
+        if (!this->closed) {
+            Send(jsonMessage.dump());
+        }
 	}
 
 	void ChannelSocket::Send(const std::string& message)

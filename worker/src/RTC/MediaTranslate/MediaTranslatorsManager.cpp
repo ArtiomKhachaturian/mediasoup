@@ -107,11 +107,13 @@ void MediaTranslatorsManager::OnTransportProducerRtpPacketReceived(Transport* tr
                                                                    Producer* producer,
                                                                    RtpPacket* packet)
 {
-    _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
+    std::shared_ptr<ProducerTranslator> audioTranslator;
     if (packet) {
-        if (const auto producerTranslator = GetRegistered(producer)) {
-            producerTranslator->AddPacket(packet);
-        }
+        audioTranslator = GetRegistered(producer);
+    }
+    _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
+    if (audioTranslator) {
+        audioTranslator->AddPacket(packet);
     }
 }
 
