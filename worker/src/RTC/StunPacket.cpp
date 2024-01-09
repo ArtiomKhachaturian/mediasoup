@@ -11,7 +11,7 @@ namespace RTC
 {
 	/* Class variables. */
 
-	const uint8_t StunPacket::magicCookie[] = { 0x21, 0x12, 0xA4, 0x42 };
+	const uint8_t StunPacket::MagicCookie[] = { 0x21, 0x12, 0xA4, 0x42 };
 
 	/* Class methods. */
 
@@ -20,7 +20,9 @@ namespace RTC
 		MS_TRACE();
 
 		if (!StunPacket::IsStun(data, len))
+		{
 			return nullptr;
+		}
 
 		/*
 		  The message type field is decomposed further into the following
@@ -381,17 +383,29 @@ namespace RTC
 		}
 		MS_DUMP("  transactionId: %s", transactionId);
 		if (this->errorCode != 0u)
+		{
 			MS_DUMP("  errorCode: %" PRIu16, this->errorCode);
+		}
 		if (!this->username.empty())
+		{
 			MS_DUMP("  username: %s", this->username.c_str());
+		}
 		if (this->priority != 0u)
+		{
 			MS_DUMP("  priority: %" PRIu32, this->priority);
+		}
 		if (this->iceControlling != 0u)
+		{
 			MS_DUMP("  iceControlling: %" PRIu64, this->iceControlling);
+		}
 		if (this->iceControlled != 0u)
+		{
 			MS_DUMP("  iceControlled: %" PRIu64, this->iceControlled);
+		}
 		if (this->hasUseCandidate)
+		{
 			MS_DUMP("  useCandidate");
+		}
 		if (this->xorMappedAddress != nullptr)
 		{
 			int family;
@@ -414,7 +428,9 @@ namespace RTC
 			MS_DUMP("  messageIntegrity: %s", messageIntegrity);
 		}
 		if (this->hasFingerprint)
+		{
 			MS_DUMP("  has fingerprint");
+		}
 
 		MS_DUMP("</StunPacket>");
 	}
@@ -431,7 +447,9 @@ namespace RTC
 			{
 				// Both USERNAME and MESSAGE-INTEGRITY must be present.
 				if (!this->messageIntegrity || this->username.empty())
+				{
 					return Authentication::BAD_REQUEST;
+				}
 
 				// Check that USERNAME attribute begins with our local username plus ":".
 				const size_t localUsernameLen = localUsername.length();
@@ -459,8 +477,10 @@ namespace RTC
 		// If there is FINGERPRINT it must be discarded for MESSAGE-INTEGRITY calculation,
 		// so the header length field must be modified (and later restored).
 		if (this->hasFingerprint)
+		{
 			// Set the header length field: full size - header length (20) - FINGERPRINT length (8).
 			Utils::Byte::Set2Bytes(this->data, 2, static_cast<uint16_t>(this->size - 20 - 8));
+		}
 
 		// Calculate the HMAC-SHA1 of the message according to MESSAGE-INTEGRITY rules.
 		const uint8_t* computedMessageIntegrity = Utils::Crypto::GetHmacSha1(
@@ -470,13 +490,19 @@ namespace RTC
 
 		// Compare the computed HMAC-SHA1 with the MESSAGE-INTEGRITY in the packet.
 		if (std::memcmp(this->messageIntegrity, computedMessageIntegrity, 20) == 0)
+		{
 			result = Authentication::OK;
+		}
 		else
+		{
 			result = Authentication::UNAUTHORIZED;
+		}
 
 		// Restore the header length field.
 		if (this->hasFingerprint)
+		{
 			Utils::Byte::Set2Bytes(this->data, 2, static_cast<uint16_t>(this->size - 20));
+		}
 
 		return result;
 	}
@@ -549,16 +575,24 @@ namespace RTC
 		}
 
 		if (this->priority != 0u)
+		{
 			this->size += 4 + 4;
+		}
 
 		if (this->iceControlling != 0u)
+		{
 			this->size += 4 + 8;
+		}
 
 		if (this->iceControlled != 0u)
+		{
 			this->size += 4 + 8;
+		}
 
 		if (this->hasUseCandidate)
+		{
 			this->size += 4;
+		}
 
 		if (addXorMappedAddress)
 		{
@@ -590,13 +624,19 @@ namespace RTC
 		}
 
 		if (addErrorCode)
+		{
 			this->size += 4 + 4;
+		}
 
 		if (addMessageIntegrity)
+		{
 			this->size += 4 + 20;
+		}
 
 		if (addFingerprint)
+		{
 			this->size += 4 + 4;
+		}
 
 		// Merge class and method fields into type.
 		uint16_t typeField = (static_cast<uint16_t>(this->method) & 0x0f80) << 2;
@@ -611,7 +651,7 @@ namespace RTC
 		// Set length field.
 		Utils::Byte::Set2Bytes(buffer, 2, static_cast<uint16_t>(this->size) - 20);
 		// Set magic cookie.
-		std::memcpy(buffer + 4, StunPacket::magicCookie, 4);
+		std::memcpy(buffer + 4, StunPacket::MagicCookie, 4);
 		// Set TransactionId field.
 		std::memcpy(buffer + 8, this->transactionId, 12);
 		// Update the transaction ID pointer.
@@ -684,17 +724,17 @@ namespace RTC
 					  attrValue + 2,
 					  &(reinterpret_cast<const sockaddr_in*>(this->xorMappedAddress))->sin_port,
 					  2);
-					attrValue[2] ^= StunPacket::magicCookie[0];
-					attrValue[3] ^= StunPacket::magicCookie[1];
+					attrValue[2] ^= StunPacket::MagicCookie[0];
+					attrValue[3] ^= StunPacket::MagicCookie[1];
 					// Set address and XOR it.
 					std::memcpy(
 					  attrValue + 4,
 					  &(reinterpret_cast<const sockaddr_in*>(this->xorMappedAddress))->sin_addr.s_addr,
 					  4);
-					attrValue[4] ^= StunPacket::magicCookie[0];
-					attrValue[5] ^= StunPacket::magicCookie[1];
-					attrValue[6] ^= StunPacket::magicCookie[2];
-					attrValue[7] ^= StunPacket::magicCookie[3];
+					attrValue[4] ^= StunPacket::MagicCookie[0];
+					attrValue[5] ^= StunPacket::MagicCookie[1];
+					attrValue[6] ^= StunPacket::MagicCookie[2];
+					attrValue[7] ^= StunPacket::MagicCookie[3];
 
 					pos += 4 + 8;
 
@@ -712,17 +752,17 @@ namespace RTC
 					  attrValue + 2,
 					  &(reinterpret_cast<const sockaddr_in6*>(this->xorMappedAddress))->sin6_port,
 					  2);
-					attrValue[2] ^= StunPacket::magicCookie[0];
-					attrValue[3] ^= StunPacket::magicCookie[1];
+					attrValue[2] ^= StunPacket::MagicCookie[0];
+					attrValue[3] ^= StunPacket::MagicCookie[1];
 					// Set address and XOR it.
 					std::memcpy(
 					  attrValue + 4,
 					  &(reinterpret_cast<const sockaddr_in6*>(this->xorMappedAddress))->sin6_addr.s6_addr,
 					  16);
-					attrValue[4] ^= StunPacket::magicCookie[0];
-					attrValue[5] ^= StunPacket::magicCookie[1];
-					attrValue[6] ^= StunPacket::magicCookie[2];
-					attrValue[7] ^= StunPacket::magicCookie[3];
+					attrValue[4] ^= StunPacket::MagicCookie[0];
+					attrValue[5] ^= StunPacket::MagicCookie[1];
+					attrValue[6] ^= StunPacket::MagicCookie[2];
+					attrValue[7] ^= StunPacket::MagicCookie[3];
 					attrValue[8] ^= this->transactionId[0];
 					attrValue[9] ^= this->transactionId[1];
 					attrValue[10] ^= this->transactionId[2];
@@ -763,7 +803,9 @@ namespace RTC
 		{
 			// Ignore FINGERPRINT.
 			if (addFingerprint)
+			{
 				Utils::Byte::Set2Bytes(buffer, 2, static_cast<uint16_t>(this->size - 20 - 8));
+			}
 
 			// Calculate the HMAC-SHA1 of the packet according to MESSAGE-INTEGRITY rules.
 			const uint8_t* computedMessageIntegrity =
@@ -779,7 +821,9 @@ namespace RTC
 
 			// Restore length field.
 			if (addFingerprint)
+			{
 				Utils::Byte::Set2Bytes(buffer, 2, static_cast<uint16_t>(this->size - 20));
+			}
 		}
 		else
 		{

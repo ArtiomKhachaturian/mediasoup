@@ -29,9 +29,9 @@ void DepOpenSSL::ClassInit()
     }
 }
 
-
 void DepOpenSSL::ClassDestroy()
 {
+    MS_TRACE();
     if (initialized.exchange(false)) {
         ERR_free_strings();
         EVP_cleanup();

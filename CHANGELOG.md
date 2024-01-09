@@ -1,6 +1,141 @@
 # Changelog
 
 
+### 3.13.15
+
+* Add worker prebuild binary for Linux kernel 6 ([PR #1300](https://github.com/versatica/mediasoup/pull/1300)).
+
+
+### 3.13.14
+
+* Avoid modification of user input data ([PR #1285](https://github.com/versatica/mediasoup/pull/1285)).
+* `ListenInfo`: Add transport socket flags ([PR #1291](https://github.com/versatica/mediasoup/pull/1291)).
+* `ListenInfo`: Ignore given socket flags if not suitable for given IP family or transport ([PR #1294](https://github.com/versatica/mediasoup/pull/1294)).
+* Meson: Remove `-Db_pie=true -Db_staticpic=true` args ([PR #1293](https://github.com/versatica/mediasoup/pull/1293)).
+* Add RTCP Sender Report trace event ([PR #1267](https://github.com/versatica/mediasoup/pull/1267) by @GithubUser8080).
+
+
+### 3.13.13
+
+* worker: Do not use references for async callbacks ([PR #1274](https://github.com/versatica/mediasoup/pull/1274)).
+* liburing: Enable zero copy ([PR #1273](https://github.com/versatica/mediasoup/pull/1273)).
+* Fix build on musl based systems (such as Alpine Linux) ([PR #1279](https://github.com/versatica/mediasoup/pull/1279)).
+
+
+### 3.13.12
+
+* worker: Disable `RtcLogger` usage if not enabled ([PR #1264](https://github.com/versatica/mediasoup/pull/1264)).
+* npm installation: Don't require Python if valid worker prebuilt binary is fetched ([PR #1265](https://github.com/versatica/mediasoup/pull/1265)).
+* Update h264-profile-level-id NPM dependency to 1.1.0.
+
+
+### 3.13.11
+
+* liburing: Avoid extra memcpy on RTP ([PR #1258](https://github.com/versatica/mediasoup/pull/1258)).
+* libsrtp: Use our own fork with performance gain ([PR #1260](https://github.com/versatica/mediasoup/pull/1260)).
+* `DataConsumer`: Add `addSubchannel()` and `removeSubchannel()` methods ([PR #1263](https://github.com/versatica/mediasoup/pull/1263)).
+* Fix Rust `DataConsumer` ([PR #1262](https://github.com/versatica/mediasoup/pull/1262)).
+
+
+### 3.13.10
+
+* `tasks.py`: Always include `--no-user` in `pip install` commands to avoid the "can not combine --user and --target" error in Windows ([PR #1257](https://github.com/versatica/mediasoup/pull/1257)).
+
+
+### 3.13.9
+
+* Update worker liburing dependency to 2.4-2 ([PR #1254](https://github.com/versatica/mediasoup/pull/1254)).
+* liburing: Enable by default ([PR 1255](https://github.com/versatica/mediasoup/pull/1255)).
+
+
+### 3.13.8
+
+* liburing: Enable liburing usage for SCTP data delivery ([PR 1249](https://github.com/versatica/mediasoup/pull/1249)).
+* liburing: Disable by default ([PR 1253](https://github.com/versatica/mediasoup/pull/1253)).
+
+
+### 3.13.7
+
+* Update worker dependencies ([PR #1201](https://github.com/versatica/mediasoup/pull/1201)):
+  * abseil-cpp 20230802.0-2
+  * libuv 1.47.0-1
+  * OpenSSL 3.0.8-2
+  * usrsctp snapshot ebb18adac6501bad4501b1f6dccb67a1c85cc299
+* Enable `liburing` usage for Linux (kernel versions >= 6) ([PR #1218](https://github.com/versatica/mediasoup/pull/1218)).
+
+
+### 3.13.6
+
+* Replace make + Makefile with Python Invoke library + tasks.py (also fix installation under path with whitespaces) ([PR #1239](https://github.com/versatica/mediasoup/pull/1239)).
+
+
+### 3.13.5
+
+* Fix RTCP SDES packet size calculation ([PR #1236](https://github.com/versatica/mediasoup/pull/1236) based on PR [PR #1234](https://github.com/versatica/mediasoup/pull/1234) by @ybybwdwd).
+* RTCP Compound Packet: Use a single DLRR report to hold all ssrc info sub-blocks ([PR #1237](https://github.com/versatica/mediasoup/pull/1237)).
+
+
+### 3.13.4
+
+* Fix RTCP DLRR (Delay Since Last Receiver Report) block parsing ([PR #1234](https://github.com/versatica/mediasoup/pull/1234)).
+
+
+### 3.13.3
+
+* Node: Fix issue when 'pause'/'resume' events are not emitted ([PR #1231](https://github.com/versatica/mediasoup/pull/1231) by @douglaseel).
+
+
+### 3.13.2
+
+* FBS: `LayersChangeNotification` body must be optional (fixes a crash) ([PR #1227](https://github.com/versatica/mediasoup/pull/1227)).
+
+
+### 3.13.1
+
+* Node: Extract version from `package.json` using `require()` ([PR #1217](https://github.com/versatica/mediasoup/pull/1217) by @arcinston).
+
+
+### 3.13.0
+
+* Switch from JSON based messages to `flatbuffers` ([PR #1064](https://github.com/versatica/mediasoup/pull/1064)).
+* Add `ListenInfo` in all transports and send/recv buffer size options ([PR #1084](https://github.com/versatica/mediasoup/pull/1084)).
+* Add optional `rtcpListenInfo` in `PlainTransportOptions` ([PR #1099](https://github.com/versatica/mediasoup/pull/1099)).
+* Add pause/resume API in `DataProducer` and `DataConsumer` ([PR #1104](https://github.com/versatica/mediasoup/pull/1104)).
+* DataChannel subchannels feature ([PR #1152](https://github.com/versatica/mediasoup/pull/1152)).
+* `Worker`: Make DTLS fragment stay within MTU size range ([PR #1156](https://github.com/versatica/mediasoup/pull/1156), based on [PR #1143](https://github.com/versatica/mediasoup/pull/1143) by @vpnts-se).
+
+
+### 3.12.16
+
+* Fix `IceServer` crash when client uses ICE renomination ([PR #1182](https://github.com/versatica/mediasoup/pull/1182)).
+
+
+### 3.12.15
+
+* Fix NPM "postinstall" task in Windows ([PR #1187](https://github.com/versatica/mediasoup/pull/1187)).
+
+
+### 3.12.14
+
+* CI: Use Node.js version 20 ([PR #1177](https://github.com/versatica/mediasoup/pull/1177)).
+* Use given `PYTHON` environment variable (if given) when running `worker/scripts/getmake.py` ([PR #1186](https://github.com/versatica/mediasoup/pull/1186)).
+
+
+### 3.12.13
+
+* Bump up Meson from 1.1.0 to 1.2.1 (fixes Xcode 15 build issues) ([PR #1163](https://github.com/versatica/mediasoup/pull/1163) by @arcinston).
+
+
+### 3.12.12
+
+* Support C++20 ([PR #1150](https://github.com/versatica/mediasoup/pull/1150) by @o-u-p).
+
+
+### 3.12.11
+
+* Google Transport Feedback: Read Reference Time field as 24bits signed as per spec ([PR #1145](https://github.com/versatica/mediasoup/pull/1145)).
+
+
 ### 3.12.10
 
 * Node: Rename `WebRtcTransport.webRtcServerClosed()` to `listenServerClosed()` ([PR #1141](https://github.com/versatica/mediasoup/pull/1141) by @piranna).
