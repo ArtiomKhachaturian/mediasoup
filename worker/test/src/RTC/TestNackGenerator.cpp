@@ -62,6 +62,8 @@ public:
 	{
 		return this->isKeyFrame;
 	};
+    
+    size_t GetPayloadDescriptorSize() const override { return 0UL; }
 
 private:
 	bool isKeyFrame{ false };

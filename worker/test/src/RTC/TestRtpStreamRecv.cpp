@@ -135,7 +135,7 @@ SCENARIO("receive RTP packets and trigger NACK", "[rtp][rtpstream]")
 		FAIL("not a RTP packet");
 	}
 
-	RtpStream::Params params;
+    RtpStream::Params params(RTC::RtpCodecMimeType::Type::VIDEO, RTC::RtpCodecMimeType::Subtype::VP8);
 
 	params.ssrc      = packet->GetSsrc();
 	params.clockRate = 90000;

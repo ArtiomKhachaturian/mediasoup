@@ -91,12 +91,11 @@ SCENARIO("NACK and RTP packets retransmission", "[rtp][rtcp][nack]")
 		// Create a RtpStreamSend instance.
 		TestRtpStreamListener testRtpStreamListener;
 
-		RtpStream::Params params;
+		RtpStream::Params params(RTC::RtpCodecMimeType::Type::VIDEO, RTC::RtpCodecMimeType::Subtype::VP8);
 
 		params.ssrc          = 1111;
 		params.clockRate     = 90000;
 		params.useNack       = true;
-		params.mimeType.type = RTC::RtpCodecMimeType::Type::VIDEO;
 
 		std::string mid;
 		auto* stream = new RtpStreamSend(&testRtpStreamListener, params, mid);
@@ -156,12 +155,11 @@ SCENARIO("NACK and RTP packets retransmission", "[rtp][rtcp][nack]")
 		// Create a RtpStreamSend instance.
 		TestRtpStreamListener testRtpStreamListener;
 
-		RtpStream::Params params;
+		RtpStream::Params params(RTC::RtpCodecMimeType::Type::VIDEO, RTC::RtpCodecMimeType::Subtype::VP8);
 
 		params.ssrc          = 1111;
 		params.clockRate     = 90000;
 		params.useNack       = false;
-		params.mimeType.type = RTC::RtpCodecMimeType::Type::VIDEO;
 
 		std::string mid;
 		auto* stream = new RtpStreamSend(&testRtpStreamListener, params, mid);
@@ -209,12 +207,11 @@ SCENARIO("NACK and RTP packets retransmission", "[rtp][rtcp][nack]")
 		// Create a RtpStreamSend instance.
 		TestRtpStreamListener testRtpStreamListener;
 
-		RtpStream::Params params;
+		RtpStream::Params params(RTC::RtpCodecMimeType::Type::AUDIO, RTC::RtpCodecMimeType::Subtype::OPUS);
 
 		params.ssrc          = 1111;
 		params.clockRate     = 90000;
 		params.useNack       = false;
-		params.mimeType.type = RTC::RtpCodecMimeType::Type::AUDIO;
 
 		std::string mid;
 		auto* stream = new RtpStreamSend(&testRtpStreamListener, params, mid);
@@ -257,22 +254,20 @@ SCENARIO("NACK and RTP packets retransmission", "[rtp][rtcp][nack]")
 		TestRtpStreamListener testRtpStreamListener1;
 		TestRtpStreamListener testRtpStreamListener2;
 
-		RtpStream::Params params1;
+        RtpStream::Params params1(RTC::RtpCodecMimeType::Type::VIDEO, RTC::RtpCodecMimeType::Subtype::VP8);
 
 		params1.ssrc          = 1111;
 		params1.clockRate     = 90000;
 		params1.useNack       = true;
-		params1.mimeType.type = RTC::RtpCodecMimeType::Type::VIDEO;
 
 		std::string mid;
 		auto* stream1 = new RtpStreamSend(&testRtpStreamListener1, params1, mid);
 
-		RtpStream::Params params2;
+        RtpStream::Params params2(RTC::RtpCodecMimeType::Type::VIDEO, RTC::RtpCodecMimeType::Subtype::VP8);
 
 		params2.ssrc          = 2222;
 		params2.clockRate     = 90000;
 		params2.useNack       = true;
-		params2.mimeType.type = RTC::RtpCodecMimeType::Type::VIDEO;
 
 		auto* stream2 = new RtpStreamSend(&testRtpStreamListener2, params2, mid);
 
@@ -332,12 +327,11 @@ SCENARIO("NACK and RTP packets retransmission", "[rtp][rtcp][nack]")
 		// Create a RtpStreamSend instance.
 		TestRtpStreamListener testRtpStreamListener;
 
-		RtpStream::Params params1;
+        RtpStream::Params params1(RTC::RtpCodecMimeType::Type::VIDEO, RTC::RtpCodecMimeType::Subtype::VP8);
 
 		params1.ssrc          = 1111;
 		params1.clockRate     = clockRate;
 		params1.useNack       = true;
-		params1.mimeType.type = RTC::RtpCodecMimeType::Type::VIDEO;
 
 		std::string mid;
 		auto* stream = new RtpStreamSend(&testRtpStreamListener, params1, mid);
@@ -388,12 +382,11 @@ SCENARIO("NACK and RTP packets retransmission", "[rtp][rtcp][nack]")
 		// Create a RtpStreamSend instance.
 		TestRtpStreamListener testRtpStreamListener;
 
-		RtpStream::Params params1;
+        RtpStream::Params params1(RTC::RtpCodecMimeType::Type::VIDEO, RTC::RtpCodecMimeType::Subtype::VP8);
 
 		params1.ssrc          = 1111;
 		params1.clockRate     = clockRate;
 		params1.useNack       = true;
-		params1.mimeType.type = RTC::RtpCodecMimeType::Type::VIDEO;
 
 		std::string mid;
 		auto* stream = new RtpStreamSend(&testRtpStreamListener, params1, mid);
@@ -442,12 +435,11 @@ SCENARIO("NACK and RTP packets retransmission", "[rtp][rtcp][nack]")
 		// Create a RtpStreamSend instance.
 		TestRtpStreamListener testRtpStreamListener;
 
-		RtpStream::Params params1;
+        RtpStream::Params params1(RTC::RtpCodecMimeType::Type::VIDEO, RTC::RtpCodecMimeType::Subtype::VP8);
 
 		params1.ssrc          = 1111;
 		params1.clockRate     = 90000;
 		params1.useNack       = true;
-		params1.mimeType.type = RTC::RtpCodecMimeType::Type::VIDEO;
 
 		std::string mid;
 		auto* stream = new RtpStreamSend(&testRtpStreamListener, params1, mid);
