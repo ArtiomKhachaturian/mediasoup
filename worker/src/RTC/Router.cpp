@@ -913,14 +913,14 @@ namespace RTC
 		}
 	}
 
-	inline void Router::OnTransportDataProducerMessageReceived(
+    void Router::OnTransportDataProducerMessageReceived(
 	  RTC::Transport* /*transport*/,
 	  RTC::DataProducer* dataProducer,
 	  const uint8_t* msg,
 	  size_t len,
 	  uint32_t ppid,
-	  std::vector<uint16_t>& subchannels,
-	  std::optional<uint16_t> requiredSubchannel)
+	  const std::vector<uint16_t>& subchannels,
+	  const std::optional<uint16_t>& requiredSubchannel)
 	{
 		MS_TRACE();
 
@@ -947,8 +947,8 @@ namespace RTC
 		}
 	}
 
-	inline void Router::OnTransportNewDataConsumer(
-	  RTC::Transport* /*transport*/, RTC::DataConsumer* dataConsumer, std::string& dataProducerId)
+    void Router::OnTransportNewDataConsumer(
+	  RTC::Transport* /*transport*/, RTC::DataConsumer* dataConsumer, const std::string& dataProducerId)
 	{
 		MS_TRACE();
 

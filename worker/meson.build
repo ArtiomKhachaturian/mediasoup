@@ -240,6 +240,13 @@ openssl_proj = subproject(
   ],
 )
 
+nlohmann_json_proj = subproject(
+  'nlohmann_json',
+  default_options: [
+    'warning_level=0',
+  ],
+)
+
 libuv_proj = subproject(
   'libuv',
   default_options: [
@@ -321,6 +328,7 @@ dependencies = [
   libuv_proj.get_variable('libuv_dep'),
   libsrtp2_proj.get_variable('libsrtp2_dep'),
   usrsctp_proj.get_variable('usrsctp_dep'),
+  nlohmann_json_proj.get_variable('nlohmann_json_dep'),
   flatbuffers_proj.get_variable('flatbuffers_dep'),
   dependency('asio'),
   dependency('websocketpp'),  

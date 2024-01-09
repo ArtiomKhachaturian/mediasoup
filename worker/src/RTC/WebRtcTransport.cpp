@@ -211,7 +211,7 @@ namespace RTC
 	WebRtcTransport::WebRtcTransport(
 	  RTC::Shared* shared,
 	  const std::string& id,
-	  RTC::Transport::Listener* listener,
+	  RTC::TransportListener* listener,
 	  WebRtcTransportListener* webRtcTransportListener,
 	  const std::vector<RTC::IceCandidate>& iceCandidates,
 	  const FBS::WebRtcTransport::WebRtcTransportOptions* options)

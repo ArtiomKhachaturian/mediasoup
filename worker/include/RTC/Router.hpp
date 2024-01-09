@@ -102,8 +102,8 @@ namespace RTC
 		  const uint8_t* msg,
 		  size_t len,
 		  uint32_t ppid,
-		  std::vector<uint16_t>& subchannels,
-		  std::optional<uint16_t> requiredSubchannel) override;
+		  const std::vector<uint16_t>& subchannels,
+          const std::optional<uint16_t>& requiredSubchannel) override;
 		void OnTransportNewDataConsumer(
 		  RTC::Transport* transport, RTC::DataConsumer* dataConsumer, const std::string& dataProducerId) override;
 		void OnTransportDataConsumerClosed(RTC::Transport* transport, RTC::DataConsumer* dataConsumer) override;

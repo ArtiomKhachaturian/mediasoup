@@ -36,3 +36,4 @@
 /.cache
 # Packaged module.
 *.tgz
+worker/fbs/FBS
