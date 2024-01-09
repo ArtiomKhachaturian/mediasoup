@@ -38,7 +38,7 @@ public:
     uint32_t GetMappedSsrc() const { return _mappedSsrc; }
     void SetSsrc(uint32_t ssrc) { _ssrc = ssrc; }
     MimeChangeStatus SetMime(const RtpCodecMimeType& mime);
-    const RtpCodecMimeType& GetMime() const;
+    std::optional<RtpCodecMimeType> GetMime() const;
     void DepacketizeAndSerialize(const RtpPacket* packet) const;
     // impl. of ProducerInputMediaStreamer
     uint32_t GetSsrc() const final { return _ssrc.load(std::memory_order_relaxed); }
@@ -60,7 +60,6 @@ private:
     void EndWriteMediaPayload(uint32_t ssrc, bool ok) final;
     void Write(const std::shared_ptr<const MemoryBuffer>& buffer) final;
 private:
-    static inline const RtpCodecMimeType _invalidMime;
     const uint32_t _sampleRate;
     const uint32_t _mappedSsrc;
     std::atomic<uint32_t> _ssrc;
@@ -138,7 +137,7 @@ bool ProducerTranslator::RegisterStream(const RtpStream* stream, uint32_t mapped
                     onProducerStreamRegistered(streamInfo, mappedSsrc, false);
                     streamInfo->SetSsrc(stream->GetSsrc());
                 }
-                const auto& oldMime = streamInfo->GetMime();
+                const auto oldMime = streamInfo->GetMime();
                 if (oldMime != mime) {
                     ok = MimeChangeStatus::Failed != streamInfo->SetMime(mime);
                     if (!ok) {
@@ -238,10 +237,11 @@ void ProducerTranslator::onProducerStreamRegistered(const std::shared_ptr<Stream
                                                     uint32_t mappedSsrc, bool registered)
 {
     if (streamInfo) {
-        MS_ASSERT(streamInfo->GetMime(), "invalid mime");
-        InvokeObserverMethod(&ProducerObserver::onProducerStreamRegistered,
-                             streamInfo->GetMime().IsAudioCodec(), streamInfo->GetSsrc(),
-                             mappedSsrc, registered);
+        if (const auto mime = streamInfo->GetMime()) {
+            InvokeObserverMethod(&ProducerObserver::onProducerStreamRegistered,
+                                 mime->IsAudioCodec(), streamInfo->GetSsrc(),
+                                 mappedSsrc, registered);
+        }
     }
 }
 
@@ -265,43 +265,41 @@ ProducerTranslator::StreamInfo::~StreamInfo()
 MimeChangeStatus ProducerTranslator::StreamInfo::SetMime(const RtpCodecMimeType& mime)
 {
     MimeChangeStatus status = MimeChangeStatus::Failed;
-    if (mime) {
-        LOCK_WRITE_PROTECTED_OBJ(_depacketizer);
-        if (_depacketizer->get() && mime == _depacketizer->get()->GetCodecMimeType()) {
-            status = MimeChangeStatus::NotChanged;
-        }
-        else {
-            if (auto serializer = RtpMediaFrameSerializer::create(mime)) {
-                if (auto depacketizer = RtpDepacketizer::create(mime, _sampleRate)) {
-                    LOCK_WRITE_PROTECTED_OBJ(_serializer);
-                    _serializer = std::move(serializer);
-                    _depacketizer = std::move(depacketizer);
-                    status = MimeChangeStatus::Changed;
-                }
+    LOCK_WRITE_PROTECTED_OBJ(_depacketizer);
+    if (_depacketizer->get() && mime == _depacketizer->get()->GetCodecMimeType()) {
+        status = MimeChangeStatus::NotChanged;
+    }
+    else {
+        if (auto serializer = RtpMediaFrameSerializer::create(mime)) {
+            if (auto depacketizer = RtpDepacketizer::create(mime, _sampleRate)) {
+                LOCK_WRITE_PROTECTED_OBJ(_serializer);
+                _serializer = std::move(serializer);
+                _depacketizer = std::move(depacketizer);
+                status = MimeChangeStatus::Changed;
             }
         }
-        if (MimeChangeStatus::Changed == status) {
+    }
+    if (MimeChangeStatus::Changed == status) {
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-            if (EnsureFileWriter(mime)) {
-                SetLiveMode(false);
-            }
+        if (EnsureFileWriter(mime)) {
+            SetLiveMode(false);
+        }
 #endif
-            LOCK_READ_PROTECTED_OBJ(_outputDevices);
-            if (!_outputDevices->empty()) {
-                SetOutputDevice(this);
-            }
+        LOCK_READ_PROTECTED_OBJ(_outputDevices);
+        if (!_outputDevices->empty()) {
+            SetOutputDevice(this);
         }
     }
     return status;
 }
 
-const RtpCodecMimeType& ProducerTranslator::StreamInfo::GetMime() const
+std::optional<RtpCodecMimeType> ProducerTranslator::StreamInfo::GetMime() const
 {
     LOCK_READ_PROTECTED_OBJ(_depacketizer);
     if (const auto& depacketizer = _depacketizer.ConstRef()) {
         return depacketizer->GetCodecMimeType();
     }
-    return _invalidMime;
+    return std::nullopt;
 }
 
 void ProducerTranslator::StreamInfo::DepacketizeAndSerialize(const RtpPacket* packet) const
@@ -367,24 +365,22 @@ bool ProducerTranslator::StreamInfo::EnsureFileWriter(const RTC::RtpCodecMimeTyp
     if (auto fileWriter = _fileWriter.Take()) {
         RemoveOutputDevice(fileWriter.get());
     }
-    if (mime) {
-        const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
-        if (depacketizerPath && std::strlen(depacketizerPath)) {
-            const auto& type = MimeTypeToString(mime);
-            if (!type.empty()) {
-                const auto extension = GetFileExtension(mime);
-                if (!extension.empty()) {
-                    std::string fileName = type + std::to_string(GetMappedSsrc()) + "." + std::string(extension);
-                    fileName = std::string(depacketizerPath) + "/" + fileName;
-                    auto fileWriter = std::make_unique<FileWriter>(fileName);
-                    if (fileWriter->IsOpen()) {
-                        if (AddOutputDevice(fileWriter.get())) {
-                            _fileWriter = std::move(fileWriter);
-                        }
-                        else {
-                            fileWriter->Close();
-                            ::remove(fileName.c_str()); // from stdio.h
-                        }
+    const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
+    if (depacketizerPath && std::strlen(depacketizerPath)) {
+        const auto& type = MimeTypeToString(mime);
+        if (!type.empty()) {
+            const auto extension = GetFileExtension(mime);
+            if (!extension.empty()) {
+                std::string fileName = type + std::to_string(GetMappedSsrc()) + "." + std::string(extension);
+                fileName = std::string(depacketizerPath) + "/" + fileName;
+                auto fileWriter = std::make_unique<FileWriter>(fileName);
+                if (fileWriter->IsOpen()) {
+                    if (AddOutputDevice(fileWriter.get())) {
+                        _fileWriter = std::move(fileWriter);
+                    }
+                    else {
+                        fileWriter->Close();
+                        ::remove(fileName.c_str()); // from stdio.h
                     }
                 }
             }

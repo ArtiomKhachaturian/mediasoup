@@ -1087,12 +1087,11 @@ namespace RTC
 		  mediaCodec.payloadType);
 
 		// Set stream params.
-		RTC::RtpStream::Params params;
+		RTC::RtpStream::Params params(mediaCodec.mimeType);
 
 		params.encodingIdx    = encodingIdx;
 		params.ssrc           = ssrc;
 		params.payloadType    = mediaCodec.payloadType;
-		params.mimeType       = mediaCodec.mimeType;
 		params.clockRate      = mediaCodec.clockRate;
 		params.rid            = encoding.rid;
 		params.cname          = this->rtpParameters.rtcp.cname;

@@ -47,8 +47,7 @@ std::string GetStreamInfoString(const RtpCodecMimeType& mime,
         if (mappedSsrc) {
             ssrcInfo += ", mapped SSRC = " + std::to_string(mappedSsrc);
         }
-        const std::string mimeString = mime.IsValid() ? mime.ToString() : "invalid mime";
-        return mimeString + ssrcInfo;
+        return mime.ToString() + ssrcInfo;
     }
     return std::string();
 }

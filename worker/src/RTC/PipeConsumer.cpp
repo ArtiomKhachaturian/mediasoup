@@ -594,12 +594,11 @@ namespace RTC
 			  rtp, "[ssrc:%" PRIu32 ", payloadType:%" PRIu8 "]", encoding.ssrc, mediaCodec->payloadType);
 
 			// Set stream params.
-			RTC::RtpStream::Params params;
+			RTC::RtpStream::Params params(mediaCodec->mimeType);
 
 			params.encodingIdx    = idx;
 			params.ssrc           = encoding.ssrc;
 			params.payloadType    = mediaCodec->payloadType;
-			params.mimeType       = mediaCodec->mimeType;
 			params.clockRate      = mediaCodec->clockRate;
 			params.cname          = this->rtpParameters.rtcp.cname;
 			params.spatialLayers  = encoding.spatialLayers;

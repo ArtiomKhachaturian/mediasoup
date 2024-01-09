@@ -11,12 +11,9 @@ namespace RTC
 	/* Instance methods. */
 
 	RtpCodecParameters::RtpCodecParameters(const FBS::RtpParameters::RtpCodecParameters* data)
+        : mimeType(data->mimeType()->str()) // Set MIME field, this may throw
 	{
 		MS_TRACE();
-
-		// Set MIME field.
-		// This may throw.
-		this->mimeType.SetMimeType(data->mimeType()->str());
 
 		// payloadType.
 		this->payloadType = data->payloadType();

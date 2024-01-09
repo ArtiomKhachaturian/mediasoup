@@ -56,7 +56,7 @@ namespace RTC
 		MS_TRACE();
 
 		const uint64_t nowMs = DepLibUV::GetTimeMs();
-		const auto mediaKind = this->params.mimeType.type == RTC::RtpCodecMimeType::Type::AUDIO
+		const auto mediaKind = this->params.mimeType.GetType() == RTC::RtpCodecMimeType::Type::AUDIO
 		                         ? FBS::RtpParameters::MediaKind::AUDIO
 		                         : FBS::RtpParameters::MediaKind::VIDEO;
 
@@ -100,18 +100,13 @@ namespace RTC
 		}
 
 		// Set RTX stream params.
-		RTC::RtxStream::Params params;
+		RTC::RtxStream::Params params(GetMimeType().GetType(), RTC::RtpCodecMimeType::Subtype::RTX);
 
 		params.ssrc             = ssrc;
 		params.payloadType      = payloadType;
-		params.mimeType.type    = GetMimeType().type;
-		params.mimeType.subtype = RTC::RtpCodecMimeType::Subtype::RTX;
 		params.clockRate        = GetClockRate();
 		params.rrid             = GetRid();
 		params.cname            = GetCname();
-
-		// Tell the RtpCodecMimeType to update its string based on current type and subtype.
-		params.mimeType.UpdateMimeType();
 
 		this->rtxStream = new RTC::RtxStream(params);
 	}
@@ -351,6 +346,16 @@ namespace RTC
 		this->maxSeq  = seq;
 		this->badSeq  = RtpSeqMod + 1; // So seq == badSeq is false.
 	}
+
+    RtpStream::Params::Params(const RTC::RtpCodecMimeType& initialMimeType)
+        : mimeType(initialMimeType)
+    {
+    }
+
+    RtpStream::Params::Params(RTC::RtpCodecMimeType::Type type, RTC::RtpCodecMimeType::Subtype subtype)
+        : mimeType(type, subtype)
+    {
+    }
 
 	flatbuffers::Offset<FBS::RtpStream::Params> RtpStream::Params::FillBuffer(
 	  flatbuffers::FlatBufferBuilder& builder) const

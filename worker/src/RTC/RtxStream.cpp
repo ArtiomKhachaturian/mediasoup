@@ -241,6 +241,16 @@ namespace RTC
 		this->badSeq  = RtpSeqMod + 1; // So seq == badSeq is false.
 	}
 
+    RtxStream::Params::Params(const RTC::RtpCodecMimeType& initialMimeType)
+        : mimeType(initialMimeType)
+    {
+    }
+
+    RtxStream::Params::Params(RTC::RtpCodecMimeType::Type type, RTC::RtpCodecMimeType::Subtype subtype)
+        : mimeType(type, subtype)
+    {
+    }
+
 	flatbuffers::Offset<FBS::RtxStream::Params> RtxStream::Params::FillBuffer(
 	  flatbuffers::FlatBufferBuilder& builder) const
 	{

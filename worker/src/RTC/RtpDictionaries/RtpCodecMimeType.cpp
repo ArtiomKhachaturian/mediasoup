@@ -87,6 +87,11 @@ namespace RTC
         this->subtype = subtype;
     }
 
+    RtpCodecMimeType::RtpCodecMimeType(const std::string& mimeType)
+    {
+        SetMimeType(mimeType);
+    }
+
 	void RtpCodecMimeType::SetMimeType(const std::string& mimeType)
 	{
 		MS_TRACE();

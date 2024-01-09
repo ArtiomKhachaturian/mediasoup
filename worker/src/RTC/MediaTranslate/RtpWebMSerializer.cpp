@@ -75,7 +75,7 @@ private:
 class RtpWebMSerializer::TrackInfo
 {
 public:
-    TrackInfo(mkvmuxer::Track* track, bool audio, RtpCodecMimeType::Subtype codec = RtpCodecMimeType::Subtype::UNSET);
+    TrackInfo(mkvmuxer::Track* track, bool audio, RtpCodecMimeType::Subtype codec);
     uint64_t GetNumber() const { return _track->number(); }
     mkvmuxer::Track* GetTrack() const { return _track; }
     bool IsAudio() const { return _audio; }
@@ -87,7 +87,7 @@ public:
     void SetLastRtpTimeStamp(const std::shared_ptr<const RtpMediaFrame>& mediaFrame);
     uint64_t GetTimeStampNano(uint32_t sampleRate) const;
 private:
-    bool SetCodec(RtpCodecMimeType::Subtype codec);
+    bool SetCodec(RtpCodecMimeType::Subtype codec, bool force = false);
     bool SetCodec(const RtpCodecMimeType& mime) { return SetCodec(mime.GetSubtype()); }
     bool SetCodecPrivate(const std::shared_ptr<const RtpMediaFrame>& mediaFrame);
 private:
@@ -180,7 +180,8 @@ RtpWebMSerializer::TrackInfo* RtpWebMSerializer::GetTrackInfo(const std::shared_
             auto& hasError = mediaFrame->IsAudio() ? _hasAudioTrackCreationError : _hasVideoTrackCreationError;
             if (!hasError) {
                 if (const auto track = CreateMediaTrack(mediaFrame)) {
-                    sharedTrackInfo = std::make_unique<TrackInfo>(track, mediaFrame->IsAudio());
+                    sharedTrackInfo = std::make_unique<TrackInfo>(track, mediaFrame->IsAudio(),
+                                                                  mediaFrame->GetCodecMimeType().GetSubtype());
                     /*if (_videoTrackInfo || (_audioTrackInfo && !_videoTrackInfo)) {
                         if (!_segment.CuesTrack(track->number())) {
                             const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
@@ -280,9 +281,8 @@ RtpWebMSerializer::TrackInfo::TrackInfo(mkvmuxer::Track* track, bool audio,
                                         RtpCodecMimeType::Subtype codec)
     : _track(track)
     , _audio(audio)
-    , _codec(RtpCodecMimeType::Subtype::UNSET)
 {
-    SetCodec(codec);
+    SetCodec(codec, true);
 }
 
 bool RtpWebMSerializer::TrackInfo::IsAccepted(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) const
@@ -335,9 +335,9 @@ void RtpWebMSerializer::TrackInfo::SetLastRtpTimeStamp(const std::shared_ptr<con
     }
 }
 
-bool RtpWebMSerializer::TrackInfo::SetCodec(RtpCodecMimeType::Subtype codec)
+bool RtpWebMSerializer::TrackInfo::SetCodec(RtpCodecMimeType::Subtype codec, bool force)
 {
-    if (codec != _codec) {
+    if (force || codec != _codec) {
         if (const auto codecId = GetCodecId(codec)) {
             _codec = codec;
             _track->set_codec_id(codecId);

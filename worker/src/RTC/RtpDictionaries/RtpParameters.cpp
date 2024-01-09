@@ -255,7 +255,7 @@ namespace RTC
 
 			payloadTypes.insert(codec.payloadType);
 
-			switch (codec.mimeType.subtype)
+			switch (codec.mimeType.GetSubtype())
 			{
 				// A RTX codec must have 'apt' parameter pointing to a non RTX codec.
 				case RTC::RtpCodecMimeType::Subtype::RTX:
@@ -270,15 +270,15 @@ namespace RTC
 
 						if (static_cast<int32_t>(codec.payloadType) == apt)
 						{
-							if (codec.mimeType.subtype == RTC::RtpCodecMimeType::Subtype::RTX)
+							if (codec.mimeType.GetSubtype() == RTC::RtpCodecMimeType::Subtype::RTX)
 							{
 								MS_THROW_TYPE_ERROR("apt in RTX codec points to a RTX codec");
 							}
-							else if (codec.mimeType.subtype == RTC::RtpCodecMimeType::Subtype::ULPFEC)
+							else if (codec.mimeType.GetSubtype() == RTC::RtpCodecMimeType::Subtype::ULPFEC)
 							{
 								MS_THROW_TYPE_ERROR("apt in RTX codec points to a ULPFEC codec");
 							}
-							else if (codec.mimeType.subtype == RTC::RtpCodecMimeType::Subtype::FLEXFEC)
+							else if (codec.mimeType.GetSubtype() == RTC::RtpCodecMimeType::Subtype::FLEXFEC)
 							{
 								MS_THROW_TYPE_ERROR("apt in RTX codec points to a FLEXFEC codec");
 							}

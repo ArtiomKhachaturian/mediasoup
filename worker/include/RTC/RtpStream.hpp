@@ -37,6 +37,9 @@ namespace RTC
 	public:
 		struct Params
 		{
+            Params(const RTC::RtpCodecMimeType& mimeType);
+            Params(RTC::RtpCodecMimeType::Type type, RTC::RtpCodecMimeType::Subtype subtype);
+            
 			flatbuffers::Offset<FBS::RtpStream::Params> FillBuffer(
 			  flatbuffers::FlatBufferBuilder& builder) const;
 

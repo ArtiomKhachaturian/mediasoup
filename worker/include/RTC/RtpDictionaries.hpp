@@ -67,9 +67,13 @@ namespace RTC
 		static absl::flat_hash_map<Subtype, std::string> subtype2String;
 
 	public:
-		RtpCodecMimeType() = default;
+		RtpCodecMimeType() = delete;
+        
+        RtpCodecMimeType(const RtpCodecMimeType& other) = default;
         
         RtpCodecMimeType(Type type, Subtype subtype);
+        
+        RtpCodecMimeType(const std::string& mimeType);
 
         bool operator==(const RtpCodecMimeType& other) const
         {
@@ -163,7 +167,7 @@ namespace RTC
 	class RtpCodecParameters
 	{
 	public:
-		RtpCodecParameters() = default;
+		RtpCodecParameters() = delete;
 		explicit RtpCodecParameters(const FBS::RtpParameters::RtpCodecParameters* data);
 
 		flatbuffers::Offset<FBS::RtpParameters::RtpCodecParameters> FillBuffer(
