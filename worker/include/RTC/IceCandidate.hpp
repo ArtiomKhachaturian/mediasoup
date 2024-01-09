@@ -2,23 +2,18 @@
 #define MS_RTC_ICE_CANDIDATE_HPP
 
 #include "common.hpp"
+#include "FBS/webRtcTransport.h"
 #include "RTC/TcpServer.hpp"
+#include "RTC/TransportTuple.hpp"
 #include "RTC/UdpSocket.hpp"
-#include <nlohmann/json.hpp>
+#include <flatbuffers/flatbuffers.h>
 #include <string>
-
-using json = nlohmann::json;
 
 namespace RTC
 {
 	class IceCandidate
 	{
-	public:
-		enum class Protocol
-		{
-			UDP = 1,
-			TCP
-		};
+		using Protocol = TransportTuple::Protocol;
 
 	public:
 		enum class CandidateType
@@ -33,33 +28,40 @@ namespace RTC
 		};
 
 	public:
+		static CandidateType CandidateTypeFromFbs(FBS::WebRtcTransport::IceCandidateType type);
+		static FBS::WebRtcTransport::IceCandidateType CandidateTypeToFbs(CandidateType type);
+		static TcpCandidateType TcpCandidateTypeFromFbs(FBS::WebRtcTransport::IceCandidateTcpType type);
+		static FBS::WebRtcTransport::IceCandidateTcpType TcpCandidateTypeToFbs(TcpCandidateType type);
+
+	public:
 		IceCandidate(RTC::UdpSocket* udpSocket, uint32_t priority)
 		  : foundation("udpcandidate"), priority(priority), ip(udpSocket->GetLocalIp()),
-		    protocol(Protocol::UDP), port(udpSocket->GetLocalPort()), type(CandidateType::HOST)
+		    protocol(Protocol::UDP), port(udpSocket->GetLocalPort())
 		{
 		}
 
 		IceCandidate(RTC::UdpSocket* udpSocket, uint32_t priority, std::string& announcedIp)
 		  : foundation("udpcandidate"), priority(priority), ip(announcedIp), protocol(Protocol::UDP),
-		    port(udpSocket->GetLocalPort()), type(CandidateType::HOST)
+		    port(udpSocket->GetLocalPort())
 		{
 		}
 
 		IceCandidate(RTC::TcpServer* tcpServer, uint32_t priority)
 		  : foundation("tcpcandidate"), priority(priority), ip(tcpServer->GetLocalIp()),
-		    protocol(Protocol::TCP), port(tcpServer->GetLocalPort()), type(CandidateType::HOST),
-		    tcpType(TcpCandidateType::PASSIVE)
+		    protocol(Protocol::TCP), port(tcpServer->GetLocalPort())
+
 		{
 		}
 
 		IceCandidate(RTC::TcpServer* tcpServer, uint32_t priority, std::string& announcedIp)
 		  : foundation("tcpcandidate"), priority(priority), ip(announcedIp), protocol(Protocol::TCP),
-		    port(tcpServer->GetLocalPort()), type(CandidateType::HOST),
-		    tcpType(TcpCandidateType::PASSIVE)
+		    port(tcpServer->GetLocalPort())
+
 		{
 		}
 
-		void FillJson(json& jsonObject) const;
+		flatbuffers::Offset<FBS::WebRtcTransport::IceCandidate> FillBuffer(
+		  flatbuffers::FlatBufferBuilder& builder) const;
 
 	private:
 		// Others.

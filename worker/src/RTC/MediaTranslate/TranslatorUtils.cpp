@@ -37,8 +37,7 @@ std::string GetMediaFrameInfoString(const std::shared_ptr<const RtpMediaFrame>& 
 std::string GetStreamInfoString(const RtpCodecMimeType& mime, uint32_t mappedSsrc)
 {
     if (mappedSsrc) {
-        const std::string mimeString = mime.IsValid() ? mime.ToString() : "invalid mime";
-        return mimeString + ", mapped SSRC = " + std::to_string(mappedSsrc);
+        return mime.ToString() + ", mapped SSRC = " + std::to_string(mappedSsrc);
     }
     return std::string();
 }

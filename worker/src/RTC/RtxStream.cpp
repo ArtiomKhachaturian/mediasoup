@@ -27,12 +27,15 @@ namespace RTC
 		MS_TRACE();
 	}
 
-	void RtxStream::FillJson(json& jsonObject) const
+	flatbuffers::Offset<FBS::RtxStream::RtxDump> RtxStream::FillBuffer(
+	  flatbuffers::FlatBufferBuilder& builder) const
 	{
 		MS_TRACE();
 
 		// Add params.
-		this->params.FillJson(jsonObject["params"]);
+		auto params = this->params.FillBuffer(builder);
+
+		return FBS::RtxStream::CreateRtxDump(builder, params);
 	}
 
 	bool RtxStream::ReceivePacket(RTC::RtpPacket* packet)
@@ -91,9 +94,13 @@ namespace RTC
 		auto expected = GetExpectedPackets();
 
 		if (expected > this->packetsCount)
+		{
 			this->packetsLost = expected - this->packetsCount;
+		}
 		else
+		{
 			this->packetsLost = 0u;
+		}
 
 		// Calculate Fraction Lost.
 		const uint32_t expectedInterval = expected - this->expectedPrior;
@@ -107,9 +114,13 @@ namespace RTC
 		const int32_t lostInterval = expectedInterval - receivedInterval;
 
 		if (expectedInterval == 0 || lostInterval <= 0)
+		{
 			this->fractionLost = 0;
+		}
 		else
+		{
 			this->fractionLost = std::round((static_cast<double>(lostInterval << 8) / expectedInterval));
+		}
 
 		this->reportedPacketLost += (this->packetsLost - prevPacketsLost);
 
@@ -230,18 +241,28 @@ namespace RTC
 		this->badSeq  = RtpSeqMod + 1; // So seq == badSeq is false.
 	}
 
-	void RtxStream::Params::FillJson(json& jsonObject) const
+    RtxStream::Params::Params(const RTC::RtpCodecMimeType& initialMimeType)
+        : mimeType(initialMimeType)
+    {
+    }
+
+    RtxStream::Params::Params(RTC::RtpCodecMimeType::Type type, RTC::RtpCodecMimeType::Subtype subtype)
+        : mimeType(type, subtype)
+    {
+    }
+
+	flatbuffers::Offset<FBS::RtxStream::Params> RtxStream::Params::FillBuffer(
+	  flatbuffers::FlatBufferBuilder& builder) const
 	{
 		MS_TRACE();
 
-		jsonObject["ssrc"]        = this->ssrc;
-		jsonObject["payloadType"] = this->payloadType;
-		jsonObject["mimeType"]    = this->mimeType.ToString();
-		jsonObject["clockRate"]   = this->clockRate;
-
-		if (!this->rrid.empty())
-			jsonObject["rrid"] = this->rrid;
-
-		jsonObject["cname"] = this->cname;
+		return FBS::RtxStream::CreateParamsDirect(
+		  builder,
+		  this->ssrc,
+		  this->payloadType,
+		  this->mimeType.ToString().c_str(),
+		  this->clockRate,
+		  this->rrid.c_str(),
+		  this->cname.c_str());
 	}
 } // namespace RTC

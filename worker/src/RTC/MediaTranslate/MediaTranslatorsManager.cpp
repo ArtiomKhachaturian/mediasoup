@@ -146,6 +146,18 @@ void MediaTranslatorsManager::OnTransportConsumerProducerClosed(Transport* trans
     _router->OnTransportConsumerProducerClosed(transport, consumer);
 }
 
+void MediaTranslatorsManager::OnTransportDataProducerPaused(Transport* transport,
+                                                            DataProducer* dataProducer)
+{
+    _router->OnTransportDataProducerPaused(transport, dataProducer);
+}
+
+void MediaTranslatorsManager::OnTransportDataProducerResumed(Transport* transport,
+                                                             DataProducer* dataProducer)
+{
+    _router->OnTransportDataProducerResumed(transport, dataProducer);
+}
+
 void MediaTranslatorsManager::OnTransportConsumerKeyFrameRequested(Transport* transport,
                                                                    Consumer* consumer,
                                                                    uint32_t mappedSsrc)
@@ -167,11 +179,13 @@ void MediaTranslatorsManager::OnTransportDataProducerClosed(Transport* transport
 
 void MediaTranslatorsManager::OnTransportDataProducerMessageReceived(Transport* transport,
                                                                      DataProducer* dataProducer,
-                                                                     uint32_t ppid,
                                                                      const uint8_t* msg,
-                                                                     size_t len)
+                                                                     size_t len,
+                                                                     uint32_t ppid,
+                                                                     const std::vector<uint16_t>& subchannels,
+                                                                     const std::optional<uint16_t>& requiredSubchannel)
 {
-    _router->OnTransportDataProducerMessageReceived(transport, dataProducer, ppid, msg, len);
+    _router->OnTransportDataProducerMessageReceived(transport, dataProducer, msg, len, ppid, subchannels, requiredSubchannel);
 }
 
 void MediaTranslatorsManager::OnTransportNewDataConsumer(Transport* transport,

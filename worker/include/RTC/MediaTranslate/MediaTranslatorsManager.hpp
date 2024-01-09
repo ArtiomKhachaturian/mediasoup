@@ -59,12 +59,19 @@ public:
                                 const std::string& producerId) final;
     void OnTransportConsumerClosed(Transport* transport, Consumer* consumer) final;
     void OnTransportConsumerProducerClosed(Transport* transport, Consumer* consumer) final;
+    void OnTransportDataProducerPaused(Transport* transport, DataProducer* dataProducer) final;
+    void OnTransportDataProducerResumed(Transport* transport, DataProducer* dataProducer) final;
     void OnTransportConsumerKeyFrameRequested(Transport* transport, Consumer* consumer,
                                               uint32_t mappedSsrc) final;
     void OnTransportNewDataProducer(Transport* transport, DataProducer* dataProducer) final;
     void OnTransportDataProducerClosed(Transport* transport, DataProducer* dataProducer) final;
-    void OnTransportDataProducerMessageReceived(Transport* transport, DataProducer* dataProducer,
-                                                uint32_t ppid, const uint8_t* msg, size_t len) final;
+    void OnTransportDataProducerMessageReceived(Transport* transport,
+                                                DataProducer* dataProducer,
+                                                const uint8_t* msg,
+                                                size_t len,
+                                                uint32_t ppid,
+                                                const std::vector<uint16_t>& subchannels,
+                                                const std::optional<uint16_t>& requiredSubchannel) final;
     void OnTransportNewDataConsumer(Transport* transport, DataConsumer* dataConsumer,
                                     const std::string& dataProducerId);
     void OnTransportDataConsumerClosed(Transport* transport, DataConsumer* dataConsumer) final;

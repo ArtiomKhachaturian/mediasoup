@@ -3,12 +3,11 @@
 
 #include "common.hpp"
 #include "Utils.hpp"
+#include "FBS/transport.h"
 #include "RTC/TcpConnection.hpp"
 #include "RTC/UdpSocket.hpp"
-#include <nlohmann/json.hpp>
+#include <flatbuffers/flatbuffers.h>
 #include <string>
-
-using json = nlohmann::json;
 
 namespace RTC
 {
@@ -23,6 +22,9 @@ namespace RTC
 			UDP = 1,
 			TCP
 		};
+
+		static Protocol ProtocolFromFbs(FBS::Transport::Protocol protocol);
+		static FBS::Transport::Protocol ProtocolToFbs(Protocol protocol);
 
 	public:
 		TransportTuple(RTC::UdpSocket* udpSocket, const struct sockaddr* udpRemoteAddr)
@@ -43,27 +45,37 @@ namespace RTC
 		    protocol(tuple->protocol)
 		{
 			if (protocol == TransportTuple::Protocol::UDP)
+			{
 				StoreUdpRemoteAddress();
+			}
 		}
 
 	public:
 		void Close()
 		{
 			if (this->protocol == Protocol::UDP)
+			{
 				this->udpSocket->Close();
+			}
 			else
+			{
 				this->tcpConnection->Close();
+			}
 		}
 
 		bool IsClosed()
 		{
 			if (this->protocol == Protocol::UDP)
+			{
 				return this->udpSocket->IsClosed();
+			}
 			else
+			{
 				return this->tcpConnection->IsClosed();
+			}
 		}
 
-		void FillJson(json& jsonObject) const;
+		flatbuffers::Offset<FBS::Transport::Tuple> FillBuffer(flatbuffers::FlatBufferBuilder& builder) const;
 
 		void Dump() const;
 
@@ -88,9 +100,13 @@ namespace RTC
 		void Send(const uint8_t* data, size_t len, RTC::TransportTuple::onSendCallback* cb = nullptr)
 		{
 			if (this->protocol == Protocol::UDP)
+			{
 				this->udpSocket->Send(data, len, this->udpRemoteAddr, cb);
+			}
 			else
+			{
 				this->tcpConnection->Send(data, len, cb);
+			}
 		}
 
 		Protocol GetProtocol() const
@@ -101,33 +117,49 @@ namespace RTC
 		const struct sockaddr* GetLocalAddress() const
 		{
 			if (this->protocol == Protocol::UDP)
+			{
 				return this->udpSocket->GetLocalAddress();
+			}
 			else
+			{
 				return this->tcpConnection->GetLocalAddress();
+			}
 		}
 
 		const struct sockaddr* GetRemoteAddress() const
 		{
 			if (this->protocol == Protocol::UDP)
+			{
 				return (const struct sockaddr*)this->udpRemoteAddr;
+			}
 			else
+			{
 				return this->tcpConnection->GetPeerAddress();
+			}
 		}
 
 		size_t GetRecvBytes() const
 		{
 			if (this->protocol == Protocol::UDP)
+			{
 				return this->udpSocket->GetRecvBytes();
+			}
 			else
+			{
 				return this->tcpConnection->GetRecvBytes();
+			}
 		}
 
 		size_t GetSentBytes() const
 		{
 			if (this->protocol == Protocol::UDP)
+			{
 				return this->udpSocket->GetSentBytes();
+			}
 			else
+			{
 				return this->tcpConnection->GetSentBytes();
+			}
 		}
 
 	private:
@@ -158,7 +190,7 @@ namespace RTC
 			{
 				case AF_INET:
 				{
-					auto* remoteSockAddrIn = reinterpret_cast<const struct sockaddr_in*>(remoteSockAddr);
+					const auto* remoteSockAddrIn = reinterpret_cast<const struct sockaddr_in*>(remoteSockAddr);
 
 					const uint64_t address = ntohl(remoteSockAddrIn->sin_addr.s_addr);
 					const uint64_t port    = (ntohs(remoteSockAddrIn->sin_port));
@@ -172,8 +204,10 @@ namespace RTC
 
 				case AF_INET6:
 				{
-					auto* remoteSockAddrIn6 = reinterpret_cast<const struct sockaddr_in6*>(remoteSockAddr);
-					auto* a = reinterpret_cast<const uint32_t*>(std::addressof(remoteSockAddrIn6->sin6_addr));
+					const auto* remoteSockAddrIn6 =
+					  reinterpret_cast<const struct sockaddr_in6*>(remoteSockAddr);
+					const auto* a =
+					  reinterpret_cast<const uint32_t*>(std::addressof(remoteSockAddrIn6->sin6_addr));
 
 					const auto address1 = a[0] ^ a[1] ^ a[2] ^ a[3];
 					const auto address2 = a[0];
@@ -211,7 +245,9 @@ namespace RTC
 		RTC::TcpConnection* tcpConnection{ nullptr };
 		std::string localAnnouncedIp;
 		// Others.
-		struct sockaddr_storage udpRemoteAddrStorage;
+		struct sockaddr_storage udpRemoteAddrStorage
+		{
+		};
 		Protocol protocol;
 	};
 } // namespace RTC

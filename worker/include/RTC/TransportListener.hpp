@@ -21,38 +21,63 @@ public:
 	virtual ~TransportListener() = default;
 
 public:
-	virtual void OnTransportNewProducer(Transport* transport, Producer* producer) = 0;
-	virtual void OnTransportProducerClosed(Transport* transport, Producer* producer) = 0;
-	virtual void OnTransportProducerPaused(Transport* transport, Producer* producer) = 0;
-	virtual void OnTransportProducerResumed(Transport* transport, Producer* producer) = 0;
-	virtual void OnTransportProducerNewRtpStream(Transport* transport, Producer* producer,
-                                                 RtpStreamRecv* rtpStream, uint32_t mappedSsrc) = 0;
-	virtual void OnTransportProducerRtpStreamScore(Transport* transport, Producer* producer,
-                                                   RtpStreamRecv* rtpStream,
-                                                   uint8_t score, uint8_t previousScore) = 0;
-	virtual void OnTransportProducerRtcpSenderReport(Transport* transport, Producer* producer,
-                                                     RtpStreamRecv* rtpStream, bool first) = 0;
-	virtual void OnTransportProducerRtpPacketReceived(Transport* transport, Producer* producer,
-                                                      RtpPacket* packet) = 0;
-	virtual void OnTransportNeedWorstRemoteFractionLost(Transport* transport, Producer* producer,
-                                                        uint32_t mappedSsrc,
-                                                        uint8_t& worstRemoteFractionLost) = 0;
-	virtual void OnTransportNewConsumer(Transport* transport, Consumer* consumer,
-                                        const std::string& producerId) = 0;
-	virtual void OnTransportConsumerClosed(Transport* transport, Consumer* consumer) = 0;
-	virtual void OnTransportConsumerProducerClosed(Transport* transport, Consumer* consumer) = 0;
-	virtual void OnTransportConsumerKeyFrameRequested(Transport* transport, Consumer* consumer,
-                                                      uint32_t mappedSsrc) = 0;
-	virtual void OnTransportNewDataProducer(Transport* transport, DataProducer* dataProducer) = 0;
-	virtual void OnTransportDataProducerClosed(Transport* transport, DataProducer* dataProducer) = 0;
-	virtual void OnTransportDataProducerMessageReceived(Transport* transport, DataProducer* dataProducer,
-                                                        uint32_t ppid, const uint8_t* msg, size_t len) = 0;
-	virtual void OnTransportNewDataConsumer(Transport* transport, DataConsumer* dataConsumer,
-                                            const std::string& dataProducerId) = 0;
-	virtual void OnTransportDataConsumerClosed(Transport* transport, DataConsumer* dataConsumer) = 0;
-	virtual void OnTransportDataConsumerDataProducerClosed(Transport* transport,
-                                                           DataConsumer* dataConsumer) = 0;
-	virtual void OnTransportListenServerClosed(Transport* transport) = 0;
+    virtual void OnTransportNewProducer(RTC::Transport* transport, RTC::Producer* producer) = 0;
+    virtual void OnTransportProducerClosed(RTC::Transport* transport, RTC::Producer* producer) = 0;
+    virtual void OnTransportProducerPaused(RTC::Transport* transport, RTC::Producer* producer) = 0;
+    virtual void OnTransportProducerResumed(RTC::Transport* transport, RTC::Producer* producer) = 0;
+    virtual void OnTransportProducerNewRtpStream(
+      RTC::Transport* transport,
+      RTC::Producer* producer,
+      RTC::RtpStreamRecv* rtpStream,
+      uint32_t mappedSsrc) = 0;
+    virtual void OnTransportProducerRtpStreamScore(
+      RTC::Transport* transport,
+      RTC::Producer* producer,
+      RTC::RtpStreamRecv* rtpStream,
+      uint8_t score,
+      uint8_t previousScore) = 0;
+    virtual void OnTransportProducerRtcpSenderReport(
+      RTC::Transport* transport,
+      RTC::Producer* producer,
+      RTC::RtpStreamRecv* rtpStream,
+      bool first) = 0;
+    virtual void OnTransportProducerRtpPacketReceived(
+      RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
+    virtual void OnTransportNeedWorstRemoteFractionLost(
+      RTC::Transport* transport,
+      RTC::Producer* producer,
+      uint32_t mappedSsrc,
+      uint8_t& worstRemoteFractionLost) = 0;
+    virtual void OnTransportNewConsumer(
+      RTC::Transport* transport, RTC::Consumer* consumer, const std::string& producerId) = 0;
+    virtual void OnTransportConsumerClosed(RTC::Transport* transport, RTC::Consumer* consumer) = 0;
+    virtual void OnTransportConsumerProducerClosed(
+      RTC::Transport* transport, RTC::Consumer* consumer) = 0;
+    virtual void OnTransportDataProducerPaused(
+      RTC::Transport* transport, RTC::DataProducer* dataProducer) = 0;
+    virtual void OnTransportDataProducerResumed(
+      RTC::Transport* transport, RTC::DataProducer* dataProducer) = 0;
+    virtual void OnTransportConsumerKeyFrameRequested(
+      RTC::Transport* transport, RTC::Consumer* consumer, uint32_t mappedSsrc) = 0;
+    virtual void OnTransportNewDataProducer(
+      RTC::Transport* transport, RTC::DataProducer* dataProducer) = 0;
+    virtual void OnTransportDataProducerClosed(
+      RTC::Transport* transport, RTC::DataProducer* dataProducer) = 0;
+    virtual void OnTransportDataProducerMessageReceived(
+      RTC::Transport* transport,
+      RTC::DataProducer* dataProducer,
+      const uint8_t* msg,
+      size_t len,
+      uint32_t ppid,
+      const std::vector<uint16_t>& subchannels,
+      const std::optional<uint16_t>& requiredSubchannel) = 0;
+    virtual void OnTransportNewDataConsumer(
+      RTC::Transport* transport, RTC::DataConsumer* dataConsumer, const std::string& dataProducerId) = 0;
+    virtual void OnTransportDataConsumerClosed(
+      RTC::Transport* transport, RTC::DataConsumer* dataConsumer) = 0;
+    virtual void OnTransportDataConsumerDataProducerClosed(
+      RTC::Transport* transport, RTC::DataConsumer* dataConsumer)         = 0;
+    virtual void OnTransportListenServerClosed(RTC::Transport* transport) = 0;
 };
 
 

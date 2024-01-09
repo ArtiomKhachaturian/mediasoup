@@ -130,7 +130,7 @@ std::shared_ptr<const RtpVideoFrameConfig> RtpMediaFrame::GetVideoConfig() const
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,
                                                      const RtpPacket* packet, std::vector<uint8_t> payload)
 {
-    if (packet && mimeType && !payload.empty()) {
+    if (packet && !payload.empty()) {
         auto frame = std::make_shared<RtpMediaFrame>(mimeType);
         if (frame->AddPacket(packet, std::move(payload))) {
             return frame;
@@ -144,7 +144,7 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mim
                                                      const uint8_t* data, size_t len,
                                                      const std::allocator<uint8_t>& payloadAllocator)
 {
-    if (packet && data && len && mimeType) {
+    if (packet && data && len) {
         auto frame = std::make_shared<RtpMediaFrame>(mimeType);
         if (frame->AddPacket(packet, data, len, payloadAllocator)) {
             return frame;
@@ -157,7 +157,7 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mim
                                                      const RtpPacket* packet,
                                                      const std::allocator<uint8_t>& payloadAllocator)
 {
-    if (packet && mimeType) {
+    if (packet) {
         auto frame = std::make_shared<RtpMediaFrame>(mimeType);
         if (frame->AddPacket(packet, payloadAllocator)) {
             return frame;
@@ -170,7 +170,7 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mim
                                                      const RtpPacket* packet,
                                                      const std::shared_ptr<const MemoryBuffer>& payload)
 {
-    if (packet && payload && mimeType) {
+    if (packet && payload) {
         auto frame = std::make_shared<RtpMediaFrame>(mimeType);
         if (frame->AddPacket(packet, payload)) {
             return frame;

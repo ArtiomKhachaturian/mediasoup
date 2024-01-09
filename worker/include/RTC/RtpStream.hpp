@@ -3,6 +3,7 @@
 
 #include "common.hpp"
 #include "DepLibUV.hpp"
+#include "FBS/rtpStream.h"
 #include "RTC/RTCP/FeedbackPsFir.hpp"
 #include "RTC/RTCP/FeedbackPsPli.hpp"
 #include "RTC/RTCP/FeedbackRtpNack.hpp"
@@ -15,12 +16,9 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/RtxStream.hpp"
-#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 #include <memory>
-
-using json = nlohmann::json;
 
 namespace RTC
 {
@@ -39,7 +37,11 @@ namespace RTC
 	public:
 		struct Params
 		{
-			void FillJson(json& jsonObject) const;
+            Params(const RTC::RtpCodecMimeType& mimeType);
+            Params(RTC::RtpCodecMimeType::Type type, RTC::RtpCodecMimeType::Subtype subtype);
+            
+			flatbuffers::Offset<FBS::RtpStream::Params> FillBuffer(
+			  flatbuffers::FlatBufferBuilder& builder) const;
 
 			size_t encodingIdx{ 0u };
 			uint32_t ssrc{ 0u };
@@ -60,11 +62,12 @@ namespace RTC
 		};
 
 	public:
-		RtpStream(RTC::RtpStream::Listener* listener, RTC::RtpStream::Params& params, uint8_t initialScore);
+		RtpStream(RTC::RtpStream::Listener* listener, const RTC::RtpStream::Params& params, uint8_t initialScore);
 		virtual ~RtpStream();
 
-		void FillJson(json& jsonObject) const;
-		virtual void FillJsonStats(json& jsonObject);
+		flatbuffers::Offset<FBS::RtpStream::Dump> FillBuffer(flatbuffers::FlatBufferBuilder& builder) const;
+		virtual flatbuffers::Offset<FBS::RtpStream::Stats> FillBufferStats(
+		  flatbuffers::FlatBufferBuilder& builder);
 		uint32_t GetEncodingIdx() const
 		{
 			return this->params.encodingIdx;

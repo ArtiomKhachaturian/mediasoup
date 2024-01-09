@@ -7,4 +7,3 @@ source_hash = b94997df68856753b72f0d7a3703b7d484d4745c567f3584ef97c96c25a5798e
 
 [provide]
 nlohmann_json = nlohmann_json_dep
-

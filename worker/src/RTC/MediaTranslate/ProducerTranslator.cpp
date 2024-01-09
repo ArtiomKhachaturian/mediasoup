@@ -29,13 +29,12 @@ public:
     uint32_t GetClockRate() const { return _clockRate; }
     uint32_t GetMappedSsrc() const { return _mappedSsrc; }
     MimeChangeStatus SetMime(const RtpCodecMimeType& mime);
-    const RtpCodecMimeType& GetMime() const;
+    std::optional<RtpCodecMimeType> GetMime() const;
     std::string_view GetFileExtension() const;
     void SetSerializerOutputDevice(OutputDevice* outputDevice, bool set);
     // impl. of RtpPacketsCollector
     void AddPacket(const RtpPacket* packet) final;
 private:
-    static inline const RtpCodecMimeType _invalidMime;
     const uint32_t _clockRate;
     const uint32_t _mappedSsrc;
     ProtectedUniquePtr<RtpDepacketizer> _depacketizer;
@@ -113,10 +112,11 @@ bool ProducerTranslator::RemoveStream(uint32_t mappedSsrc)
     if (mappedSsrc) {
         const auto it = _streams.find(mappedSsrc);
         if (it != _streams.end()) {
-            const RtpCodecMimeType mime(it->second->GetMime());
+            const auto mime = it->second->GetMime();
+            MS_ASSERT(mime.has_value(), "wrong stream without MIME info");
             it->second->SetSerializerOutputDevice(this, false);
             _streams.erase(it);
-            InvokeObserverMethod(&ProducerObserver::onStreamRemoved, mappedSsrc, mime);
+            InvokeObserverMethod(&ProducerObserver::onStreamRemoved, mappedSsrc, mime.value());
             return true;
         }
     }
@@ -238,34 +238,29 @@ ProducerTranslator::StreamInfo::~StreamInfo()
 MimeChangeStatus ProducerTranslator::StreamInfo::SetMime(const RtpCodecMimeType& mime)
 {
     MimeChangeStatus status = MimeChangeStatus::Failed;
-    if (mime) {
-        LOCK_WRITE_PROTECTED_OBJ(_depacketizer);
-        if (_depacketizer->get() && mime == _depacketizer->get()->GetMimeType()) {
-            status = MimeChangeStatus::NotChanged;
-        }
-        else {
-            if (auto depacketizer = RtpDepacketizer::create(mime, GetClockRate())) {
-                if (auto serializer = RtpMediaFrameSerializer::create(mime)) {
-                    bool ok = false;
-                    switch (mime.GetType()) {
-                        case RtpCodecMimeType::Type::AUDIO:
-                            ok = serializer->AddAudio(GetMappedSsrc(), GetClockRate());
-                            break;
-                        case RtpCodecMimeType::Type::VIDEO:
-                            ok = serializer->AddVideo(GetMappedSsrc(), GetClockRate());
-                            break;
-                        default:
-                            break;
-                    }
-                    if (ok) {
-                        LOCK_WRITE_PROTECTED_OBJ(_serializer);
-                        _depacketizer = std::move(depacketizer);
-                        _serializer = std::move(serializer);
-                        status = MimeChangeStatus::Changed;
-                    }
-                    else {
-                        // TODO: log error
-                    }
+    LOCK_WRITE_PROTECTED_OBJ(_depacketizer);
+    if (_depacketizer->get() && mime == _depacketizer->get()->GetMimeType()) {
+        status = MimeChangeStatus::NotChanged;
+    }
+    else {
+        if (auto depacketizer = RtpDepacketizer::create(mime, GetClockRate())) {
+            if (auto serializer = RtpMediaFrameSerializer::create(mime)) {
+                bool ok = false;
+                switch (mime.GetType()) {
+                    case RtpCodecMimeType::Type::AUDIO:
+                        ok = serializer->AddAudio(GetMappedSsrc(), GetClockRate(), mime.GetSubtype());
+                        break;
+                    case RtpCodecMimeType::Type::VIDEO:
+                        ok = serializer->AddVideo(GetMappedSsrc(), GetClockRate(), mime.GetSubtype());
+                        break;
+                    default:
+                        break;
+                }
+                if (ok) {
+                    LOCK_WRITE_PROTECTED_OBJ(_serializer);
+                    _depacketizer = std::move(depacketizer);
+                    _serializer = std::move(serializer);
+                    status = MimeChangeStatus::Changed;
                 }
                 else {
                     // TODO: log error
@@ -275,24 +270,29 @@ MimeChangeStatus ProducerTranslator::StreamInfo::SetMime(const RtpCodecMimeType&
                 // TODO: log error
             }
         }
+        else {
+            // TODO: log error
+        }
     }
     return status;
 }
 
-const RtpCodecMimeType& ProducerTranslator::StreamInfo::GetMime() const
+std::optional<RtpCodecMimeType> ProducerTranslator::StreamInfo::GetMime() const
 {
     LOCK_READ_PROTECTED_OBJ(_depacketizer);
     if (const auto& depacketizer = _depacketizer.ConstRef()) {
         return depacketizer->GetMimeType();
     }
-    return _invalidMime;
+    return std::nullopt;
 }
 
 std::string_view ProducerTranslator::StreamInfo::GetFileExtension() const
 {
     LOCK_READ_PROTECTED_OBJ(_serializer);
     if (const auto& serializer = _serializer.ConstRef()) {
-        return serializer->GetFileExtension(GetMime());
+        if (const auto mime = GetMime()) {
+            return serializer->GetFileExtension(mime.value());
+        }
     }
     return std::string_view();
 }

@@ -153,7 +153,7 @@ public:
     // return true if changed
     bool SetCodec(RtpCodecMimeType::Subtype codec);
     bool SetCodec(const RtpCodecMimeType& mime) { return SetCodec(mime.GetSubtype()); }
-    RtpCodecMimeType::Subtype GetCodec() const { return _codec; }
+    const std::optional<RtpCodecMimeType::Subtype>& GetCodec() const { return _codec; }
     void ResetRtpTiming();
     uint64_t UpdateTimeStamp(uint32_t lastRtpTimestamp);
     void SetLatestConfig(const std::shared_ptr<const RtpAudioFrameConfig>& config);
@@ -164,7 +164,7 @@ private:
     const int32_t _number;
     const bool _audio;
     const uint32_t _clockRate;
-    RtpCodecMimeType::Subtype _codec;
+    std::optional<RtpCodecMimeType::Subtype> _codec;
     uint32_t _lastRtpTimestamp = 0ULL;
     uint64_t _granule = 0ULL;
     std::shared_ptr<const RtpAudioFrameConfig> _latestAudioConfig;
@@ -208,7 +208,7 @@ bool RtpWebMSerializer::AddAudio(uint32_t ssrc, uint32_t clockRate,
 {
     if (ssrc) {
         const RtpCodecMimeType mime(RtpCodecMimeType::Type::AUDIO, codec);
-        if(RtpCodecMimeType::Subtype::UNSET == codec || mime.IsAudioCodec()) {
+        if(mime.IsAudioCodec()) {
             return AddMedia(ssrc, clockRate, mime, config);
         }
     }
@@ -221,7 +221,7 @@ bool RtpWebMSerializer::AddVideo(uint32_t ssrc, uint32_t clockRate,
 {
     if (ssrc) {
         const RtpCodecMimeType mime(RtpCodecMimeType::Type::VIDEO, codec);
-        if(RtpCodecMimeType::Subtype::UNSET == codec || mime.IsVideoCodec()) {
+        if(mime.IsVideoCodec()) {
             return AddMedia(ssrc, clockRate, mime, config);
         }
     }
@@ -357,7 +357,7 @@ bool RtpWebMSerializer::AddMedia(uint32_t ssrc, uint32_t clockRate,
                                  const std::shared_ptr<TConfig>& config)
 {
     bool registered = false;
-    if (!_hasFailure && ssrc && RtpCodecMimeType::Type::UNSET != mime.GetType()) {
+    if (!_hasFailure && ssrc) {
         const auto it = _tracksInfo.find(ssrc);
         if (it == _tracksInfo.end()) {
             if (!_writer) {
@@ -563,14 +563,17 @@ void RtpWebMSerializer::BufferedWriter::SetTrackSettings(int32_t number,
 void RtpWebMSerializer::BufferedWriter::SetTrackSettings(const TrackInfo* trackInfo)
 {
     if (trackInfo) {
-        const auto codec = GetCodecId(trackInfo->GetCodec());
-        if (trackInfo->IsAudio()) {
-            SetTrackSettings(trackInfo->GetNumber(), codec, trackInfo->GetLatestAudioConfig());
-            SetAudioSampleRate(trackInfo->GetNumber(), trackInfo->GetClockRate(),
-                               IsOpus(trackInfo->GetCodec()));
-        }
-        else {
-            SetTrackSettings(trackInfo->GetNumber(), codec, trackInfo->GetLatestVideoConfig());
+        if (const auto& codec = trackInfo->GetCodec()) {
+            if (const auto codecId = GetCodecId(codec.value())) {
+                if (trackInfo->IsAudio()) {
+                    SetTrackSettings(trackInfo->GetNumber(), codecId, trackInfo->GetLatestAudioConfig());
+                    SetAudioSampleRate(trackInfo->GetNumber(), trackInfo->GetClockRate(),
+                                       IsOpus(codec.value()));
+                }
+                else {
+                    SetTrackSettings(trackInfo->GetNumber(), codecId, trackInfo->GetLatestVideoConfig());
+                }
+            }
         }
     }
 }
@@ -714,7 +717,6 @@ RtpWebMSerializer::TrackInfo::TrackInfo(int32_t number, bool audio, uint32_t clo
     : _number(number)
     , _audio(audio)
     , _clockRate(clockRate)
-    , _codec(RtpCodecMimeType::Subtype::UNSET)
 {
     MS_ASSERT(_clockRate, "sample rate must be greater than zero");
 }

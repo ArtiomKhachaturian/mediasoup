@@ -10,8 +10,7 @@ project(
 )
 
 cpp_args = [
-  host_machine.endian() == 'little' ? '-DMS_LITTLE_ENDIAN' : '-DMS_BIG_ENDIAN',
-  '-DASIO_STANDALONE'
+  host_machine.endian() == 'little' ? '-DMS_LITTLE_ENDIAN' : '-DMS_BIG_ENDIAN', '-DASIO_STANDALONE'
 ]
 
 if host_machine.system() == 'windows'
@@ -45,6 +44,18 @@ if get_option('ms_rtc_logger_rtp')
   ]
 endif
 
+cpp = meson.get_compiler('cpp')
+
+# This is a workaround to define FLATBUFFERS_LOCALE_INDEPENDENT=0 outside
+# flatbuffers project, which is needed in case the current arch doesn't support
+# strtoll_l or strtoull_l (such as musl in Alpine Linux). Problem is that
+# flatbuffers build system not only defines it for its own usage but also relies
+# on it in its include/flatbuffers/util.h file, and if such a file is included
+# by mediasoup source files (and it is included) build fails with "error:
+# 'strtoull_l' was not declared in this scope".
+# See issue: https://github.com/versatica/mediasoup/issues/1223
+add_project_arguments('-DFLATBUFFERS_LOCALE_INDEPENDENT=@0@'.format(cpp.has_function('strtoull_l')), language: 'cpp')
+
 common_sources = [
   'src/lib.cpp',
   'src/DepLibSRTP.cpp',
@@ -61,19 +72,16 @@ common_sources = [
   'src/Utils/File.cpp',
   'src/Utils/IP.cpp',
   'src/Utils/String.cpp',
-  'src/handles/SignalsHandler.cpp',
-  'src/handles/TcpConnectionHandler.cpp',
-  'src/handles/TcpServerHandler.cpp',
-  'src/handles/Timer.cpp',
-  'src/handles/UdpSocketHandler.cpp',
-  'src/handles/UnixStreamSocket.cpp',
+  'src/handles/SignalHandle.cpp',
+  'src/handles/TcpConnectionHandle.cpp',
+  'src/handles/TcpServerHandle.cpp',
+  'src/handles/TimerHandle.cpp',
+  'src/handles/UdpSocketHandle.cpp',
+  'src/handles/UnixStreamSocketHandle.cpp',
   'src/Channel/ChannelNotifier.cpp',
   'src/Channel/ChannelRequest.cpp',
+  'src/Channel/ChannelNotification.cpp',
   'src/Channel/ChannelSocket.cpp',
-  'src/PayloadChannel/PayloadChannelNotification.cpp',
-  'src/PayloadChannel/PayloadChannelNotifier.cpp',
-  'src/PayloadChannel/PayloadChannelRequest.cpp',
-  'src/PayloadChannel/PayloadChannelSocket.cpp',
   'src/RTC/ActiveSpeakerObserver.cpp',
   'src/RTC/AtomicCounter.cpp',
   'src/RTC/AudioLevelObserver.cpp',
@@ -128,7 +136,6 @@ common_sources = [
   'src/RTC/Codecs/VP8.cpp',
   'src/RTC/Codecs/VP9.cpp',
   'src/RTC/Codecs/Opus.cpp',
-  'src/RTC/RtpDictionaries/Media.cpp',
   'src/RTC/RtpDictionaries/Parameters.cpp',
   'src/RTC/RtpDictionaries/RtcpFeedback.cpp',
   'src/RTC/RtpDictionaries/RtcpParameters.cpp',
@@ -167,8 +174,11 @@ common_sources = [
   'src/RTC/RTCP/XR.cpp',
   'src/RTC/RTCP/XrDelaySinceLastRr.cpp',
   'src/RTC/RTCP/XrReceiverReferenceTime.cpp',
+  'src/RTC/MediaTranslate/ConsumerTranslator.cpp',
   'src/RTC/MediaTranslate/FileWriter.cpp',
+  'src/RTC/MediaTranslate/MediaLanguageAndVoice.cpp',
   'src/RTC/MediaTranslate/MediaTranslatorsManager.cpp',
+  'src/RTC/MediaTranslate/ProducerTranslator.cpp',
   'src/RTC/MediaTranslate/RtpDepacketizer.cpp',
   'src/RTC/MediaTranslate/RtpDepacketizerOpus.cpp',
   'src/RTC/MediaTranslate/RtpDepacketizerVpx.cpp',
@@ -176,12 +186,9 @@ common_sources = [
   'src/RTC/MediaTranslate/RtpMediaFrameSerializer.cpp',
   'src/RTC/MediaTranslate/RtpWebMSerializer.cpp',
   'src/RTC/MediaTranslate/SimpleMemoryBuffer.cpp',
-  'src/RTC/MediaTranslate/Websocket.cpp',
-  'src/RTC/MediaTranslate/TranslatorUtils.cpp',
-  'src/RTC/MediaTranslate/ConsumerTranslator.cpp',
-  'src/RTC/MediaTranslate/ProducerTranslator.cpp',
-  'src/RTC/MediaTranslate/MediaLanguageAndVoice.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint.cpp',
+  'src/RTC/MediaTranslate/TranslatorUtils.cpp',
+  'src/RTC/MediaTranslate/Websocket.cpp',
 ]
 
 libwebm_sources = [
@@ -226,8 +233,6 @@ libwebm_sources = [
   'external/libwebm/webm_parser/src/void_parser.cc',
   'external/libwebm/webm_parser/src/webm_parser.cc',
 ]
-
-cpp = meson.get_compiler('cpp')
 
 openssl_proj = subproject(
   'openssl',
@@ -274,6 +279,7 @@ abseil_cpp_proj = subproject(
   'abseil-cpp',
   default_options: [
     'warning_level=0',
+    'cpp_std=c++17',
   ],
 )
 
@@ -284,7 +290,18 @@ catch2_proj = subproject(
   ],
 )
 
-libwebrtc_include_directories = include_directories('include')
+flatbuffers_proj = subproject(
+  'flatbuffers',
+  default_options: [
+    'warning_level=0',
+  ],
+)
+
+# flatbuffers schemas subdirectory.
+subdir('fbs')
+
+# Add current build directory so libwebrtc has access to FBS folder.
+libwebrtc_include_directories = include_directories('include', 'fbs')
 subdir('deps/libwebrtc')
 
 libwebm_include_dir = declare_dependency(include_directories: include_directories('external/libwebm'))
@@ -306,16 +323,17 @@ libwebm_dep = declare_dependency(
   link_with: libwebm,
 )
 
-
 dependencies = [
   abseil_cpp_proj.get_variable('absl_container_dep'),
   openssl_proj.get_variable('openssl_dep'),
-  nlohmann_json_proj.get_variable('nlohmann_json_dep'),
   libuv_proj.get_variable('libuv_dep'),
   libsrtp2_proj.get_variable('libsrtp2_dep'),
   usrsctp_proj.get_variable('usrsctp_dep'),
+  nlohmann_json_proj.get_variable('nlohmann_json_dep'),
+  flatbuffers_proj.get_variable('flatbuffers_dep'),
   dependency('asio'),
-  dependency('websocketpp'),
+  dependency('websocketpp'),  
+  flatbuffers_generator_dep,
   libwebrtc_dep,
   libwebm_dep,
 ]
@@ -327,6 +345,7 @@ link_whole = [
   libuv_proj.get_variable('libuv'),
   libsrtp2_proj.get_variable('libsrtp2'),
   usrsctp_proj.get_variable('usrsctp'),
+  flatbuffers_proj.get_variable('flatbuffers_lib'),
   libwebrtc,
 ]
 
@@ -344,6 +363,28 @@ if host_machine.system() == 'windows'
   link_whole += [
     wingetopt_proj.get_variable('wingetopt_lib'),
   ]
+endif
+
+if host_machine.system() == 'linux' and not get_option('ms_disable_liburing')
+  kernel_version = run_command('uname', '-r', check: true).stdout().strip()
+
+  # Enable liburing for kernel versions greather than or equal to 6.
+  if kernel_version[0].to_int() >= 6
+    liburing_proj = subproject('liburing', default_options: ['default_library=static'], required: true)
+
+    dependencies += [
+      liburing_proj.get_variable('uring'),
+    ]
+    link_whole += [
+      liburing_proj.get_variable('liburing')
+    ]
+    common_sources += [
+      'src/DepLibUring.cpp',
+    ]
+    cpp_args += [
+      '-DMS_LIBURING_SUPPORTED',
+    ]
+  endif
 endif
 
 libmediasoup_worker = library(
@@ -371,50 +412,48 @@ executable(
 )
 
 test_sources = [
-    'test/src/tests.cpp',
-    'test/src/PayloadChannel/TestPayloadChannelNotification.cpp',
-    'test/src/PayloadChannel/TestPayloadChannelRequest.cpp',
-    'test/src/RTC/TestKeyFrameRequestManager.cpp',
-    'test/src/RTC/TestNackGenerator.cpp',
-    'test/src/RTC/TestRateCalculator.cpp',
-    'test/src/RTC/TestRtpPacket.cpp',
-    'test/src/RTC/TestRtpPacketH264Svc.cpp',
-    'test/src/RTC/TestRtpRetransmissionBuffer.cpp',
-    'test/src/RTC/TestRtpStreamSend.cpp',
-    'test/src/RTC/TestRtpStreamRecv.cpp',
-    'test/src/RTC/TestSeqManager.cpp',
-    'test/src/RTC/TestTrendCalculator.cpp',
-    'test/src/RTC/TestRtpEncodingParameters.cpp',
-    'test/src/RTC/Codecs/TestVP8.cpp',
-    'test/src/RTC/Codecs/TestVP9.cpp',
-    'test/src/RTC/Codecs/TestH264.cpp',
-    'test/src/RTC/Codecs/TestH264_SVC.cpp',
-    'test/src/RTC/RTCP/TestFeedbackPsAfb.cpp',
-    'test/src/RTC/RTCP/TestFeedbackPsFir.cpp',
-    'test/src/RTC/RTCP/TestFeedbackPsLei.cpp',
-    'test/src/RTC/RTCP/TestFeedbackPsPli.cpp',
-    'test/src/RTC/RTCP/TestFeedbackPsRemb.cpp',
-    'test/src/RTC/RTCP/TestFeedbackPsRpsi.cpp',
-    'test/src/RTC/RTCP/TestFeedbackPsSli.cpp',
-    'test/src/RTC/RTCP/TestFeedbackPsTst.cpp',
-    'test/src/RTC/RTCP/TestFeedbackPsVbcm.cpp',
-    'test/src/RTC/RTCP/TestFeedbackRtpEcn.cpp',
-    'test/src/RTC/RTCP/TestFeedbackRtpNack.cpp',
-    'test/src/RTC/RTCP/TestFeedbackRtpSrReq.cpp',
-    'test/src/RTC/RTCP/TestFeedbackRtpTllei.cpp',
-    'test/src/RTC/RTCP/TestFeedbackRtpTmmb.cpp',
-    'test/src/RTC/RTCP/TestFeedbackRtpTransport.cpp',
-    'test/src/RTC/RTCP/TestBye.cpp',
-    'test/src/RTC/RTCP/TestReceiverReport.cpp',
-    'test/src/RTC/RTCP/TestSdes.cpp',
-    'test/src/RTC/RTCP/TestSenderReport.cpp',
-    'test/src/RTC/RTCP/TestPacket.cpp',
-    'test/src/RTC/RTCP/TestXr.cpp',
-    'test/src/Utils/TestBits.cpp',
-    'test/src/Utils/TestIP.cpp',
-    'test/src/Utils/TestJson.cpp',
-    'test/src/Utils/TestString.cpp',
-    'test/src/Utils/TestTime.cpp',
+  'test/src/tests.cpp',
+  'test/src/RTC/TestKeyFrameRequestManager.cpp',
+  'test/src/RTC/TestNackGenerator.cpp',
+  'test/src/RTC/TestRateCalculator.cpp',
+  'test/src/RTC/TestRtpPacket.cpp',
+  'test/src/RTC/TestRtpPacketH264Svc.cpp',
+  'test/src/RTC/TestRtpRetransmissionBuffer.cpp',
+  'test/src/RTC/TestRtpStreamSend.cpp',
+  'test/src/RTC/TestRtpStreamRecv.cpp',
+  'test/src/RTC/TestSeqManager.cpp',
+  'test/src/RTC/TestTrendCalculator.cpp',
+  'test/src/RTC/TestRtpEncodingParameters.cpp',
+  'test/src/RTC/Codecs/TestVP8.cpp',
+  'test/src/RTC/Codecs/TestVP9.cpp',
+  'test/src/RTC/Codecs/TestH264.cpp',
+  'test/src/RTC/Codecs/TestH264_SVC.cpp',
+  'test/src/RTC/RTCP/TestFeedbackPsAfb.cpp',
+  'test/src/RTC/RTCP/TestFeedbackPsFir.cpp',
+  'test/src/RTC/RTCP/TestFeedbackPsLei.cpp',
+  'test/src/RTC/RTCP/TestFeedbackPsPli.cpp',
+  'test/src/RTC/RTCP/TestFeedbackPsRemb.cpp',
+  'test/src/RTC/RTCP/TestFeedbackPsRpsi.cpp',
+  'test/src/RTC/RTCP/TestFeedbackPsSli.cpp',
+  'test/src/RTC/RTCP/TestFeedbackPsTst.cpp',
+  'test/src/RTC/RTCP/TestFeedbackPsVbcm.cpp',
+  'test/src/RTC/RTCP/TestFeedbackRtpEcn.cpp',
+  'test/src/RTC/RTCP/TestFeedbackRtpNack.cpp',
+  'test/src/RTC/RTCP/TestFeedbackRtpSrReq.cpp',
+  'test/src/RTC/RTCP/TestFeedbackRtpTllei.cpp',
+  'test/src/RTC/RTCP/TestFeedbackRtpTmmb.cpp',
+  'test/src/RTC/RTCP/TestFeedbackRtpTransport.cpp',
+  'test/src/RTC/RTCP/TestBye.cpp',
+  'test/src/RTC/RTCP/TestReceiverReport.cpp',
+  'test/src/RTC/RTCP/TestSdes.cpp',
+  'test/src/RTC/RTCP/TestSenderReport.cpp',
+  'test/src/RTC/RTCP/TestPacket.cpp',
+  'test/src/RTC/RTCP/TestXr.cpp',
+  'test/src/Utils/TestBits.cpp',
+  'test/src/Utils/TestByte.cpp',
+  'test/src/Utils/TestIP.cpp',
+  'test/src/Utils/TestString.cpp',
+  'test/src/Utils/TestTime.cpp',
 ]
 
 mediasoup_worker_test = executable(
@@ -423,7 +462,7 @@ mediasoup_worker_test = executable(
   install: true,
   install_tag: 'mediasoup-worker-test',
   dependencies: dependencies + [
-    catch2_proj.get_variable('catch2_dep'), 
+    catch2_proj.get_variable('catch2_dep'),
   ],
   sources: common_sources + test_sources,
   include_directories: include_directories(
@@ -448,7 +487,7 @@ mediasoup_worker_test_asan = executable(
   install: true,
   install_tag: 'mediasoup-worker-test-asan',
   dependencies: dependencies + [
-    catch2_proj.get_variable('catch2_dep'), 
+    catch2_proj.get_variable('catch2_dep'),
   ],
   sources: common_sources + test_sources,
   include_directories: include_directories(
