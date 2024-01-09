@@ -553,6 +553,7 @@ void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
         else {
             error = "unknown error";
         }
+        _client.stop();
         // report error & reset state
         DropHdl(std::move(droppedGuard));
         InvokeListenersMethod(&WebsocketListener::OnFailed,
