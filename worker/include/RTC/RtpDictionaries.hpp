@@ -226,8 +226,7 @@ namespace RTC
 	{
 	public:
 		RtpHeaderExtensionParameters() = default;
-		explicit RtpHeaderExtensionParameters(
-		  const FBS::RtpParameters::RtpHeaderExtensionParameters* const data);
+		explicit RtpHeaderExtensionParameters(const FBS::RtpParameters::RtpHeaderExtensionParameters* data);
 
 		flatbuffers::Offset<FBS::RtpParameters::RtpHeaderExtensionParameters> FillBuffer(
 		  flatbuffers::FlatBufferBuilder& builder) const;
