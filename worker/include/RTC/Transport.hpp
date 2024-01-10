@@ -32,6 +32,8 @@
 #include <string>
 #include <vector>
 
+#define MEDIA_TRANSLATIONS_TEST
+
 namespace RTC
 {
     class TransportListener;

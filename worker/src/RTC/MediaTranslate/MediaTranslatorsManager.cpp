@@ -332,6 +332,7 @@ bool MediaTranslatorsManager::Register(Consumer* consumer, const std::string& pr
             else {
                 audioConsumer = it->second;
             }
+            audioConsumer->UpdateConsumerLanguageAndVoice();
             audioConsumer->SetProducerLanguage(audioProducer->GetLanguage());
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
             if (!_alreadyHasTranslationPointConnection) {

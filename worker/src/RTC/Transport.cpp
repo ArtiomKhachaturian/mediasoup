@@ -644,7 +644,11 @@ namespace RTC
 				// This may throw if a Producer with same id already exists.
 				try
 				{
+#ifdef MEDIA_TRANSLATIONS_TEST
+                    producer->SetLanguage(FBS::TranslationPack::Language::English);
+#else
                     producer->SetLanguage(body->producerSourceLanguage());
+#endif
 					this->listener->OnTransportNewProducer(this, producer);
 				}
 				catch (const MediaSoupError& error)
@@ -833,8 +837,13 @@ namespace RTC
 				// This may throw if no Producer is found.
 				try
 				{
+#ifdef MEDIA_TRANSLATIONS_TEST
+                    consumer->SetLanguage(FBS::TranslationPack::Language::Russian);
+                    consumer->SetVoice(FBS::TranslationPack::Voice::TestIrina);
+#else
                     consumer->SetLanguage(body->consumerTargetLanguage());
                     consumer->SetVoice(body->consumerTargetVoice());
+#endif
 					this->listener->OnTransportNewConsumer(this, consumer, producerId);
 				}
 				catch (const MediaSoupError& error)
