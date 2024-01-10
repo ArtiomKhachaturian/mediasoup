@@ -19,23 +19,8 @@ TranslatorEndPoint::TranslatorEndPoint(const std::string& serviceUri,
 
 TranslatorEndPoint::~TranslatorEndPoint()
 {
-    Close();
     SetInput(nullptr);
     _socket->RemoveListener(this);
-}
-
-void TranslatorEndPoint::Open()
-{
-    if (!_wantsToOpen.exchange(true)) {
-        OpenSocket();
-    }
-}
-
-void TranslatorEndPoint::Close()
-{
-    if (_wantsToOpen.exchange(false)) {
-        _socket->Close();
-    }
 }
 
 void TranslatorEndPoint::SetProducerLanguage(const std::optional<FBS::TranslationPack::Language>& language)
@@ -92,8 +77,7 @@ void TranslatorEndPoint::SetInput(const std::shared_ptr<ProducerInputMediaStream
     }
     if (changed) {
         if (input) {
-            const auto maybeOpen = IsWantsToOpen() != IsConnected();
-            if (maybeOpen) {
+            if (!IsConnected()) {
                 OpenSocket();
             }
         }
@@ -115,7 +99,7 @@ void TranslatorEndPoint::SetOutput(const std::weak_ptr<RtpPacketsCollector>& out
     _outputRef = outputRef;
 }
 
-std::string_view TranslatorEndPoint::LanguageToString(const std::optional<FBS::TranslationPack::Language>& language)
+std::string_view TranslatorEndPoint::LanguageToId(const std::optional<FBS::TranslationPack::Language>& language)
 {
     if (language.has_value()) {
         switch (language.value()) {
@@ -146,7 +130,7 @@ std::string_view TranslatorEndPoint::LanguageToString(const std::optional<FBS::T
     return "auto";
 }
 
-std::string_view TranslatorEndPoint::VoiceToString(FBS::TranslationPack::Voice voice)
+std::string_view TranslatorEndPoint::VoiceToId(FBS::TranslationPack::Voice voice)
 {
     switch (voice) {
         case FBS::TranslationPack::Voice::Abdul:
@@ -171,9 +155,9 @@ nlohmann::json TranslatorEndPoint::TargetLanguageCmd(FBS::TranslationPack::Langu
                                                      const std::optional<FBS::TranslationPack::Language>& languageFrom)
 {
     nlohmann::json cmd = {{
-        "from",    LanguageToString(languageFrom),
-        "to",      LanguageToString(languageTo),
-        "voiceID", VoiceToString(voice)
+        "from",    LanguageToId(languageFrom),
+        "to",      LanguageToId(languageTo),
+        "voiceID", VoiceToId(voice)
     }};
     nlohmann::json data = {
         "type", "set_target_language",
@@ -245,7 +229,7 @@ void TranslatorEndPoint::UpdateTranslationChanges()
         if (IsConnected()) {
             SendTranslationChanges();
         }
-        else if(IsWantsToOpen()) {
+        else {
             OpenSocket();
         }
     }

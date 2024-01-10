@@ -25,8 +25,6 @@ public:
                        const std::string& servicePassword = std::string(),
                        const std::string& userAgent = std::string());
     ~TranslatorEndPoint();
-    void Open();
-    void Close();
     void SetProducerLanguage(const std::optional<FBS::TranslationPack::Language>& language);
     void SetConsumerLanguageAndVoice(const std::optional<FBS::TranslationPack::Language>& language,
                                      const std::optional<FBS::TranslationPack::Voice>& voice);
@@ -34,13 +32,12 @@ public:
     bool HasInput() const;
     void SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef);
 private:
-    static std::string_view LanguageToString(const std::optional<FBS::TranslationPack::Language>& language);
-    static std::string_view VoiceToString(FBS::TranslationPack::Voice voice);
+    static std::string_view LanguageToId(const std::optional<FBS::TranslationPack::Language>& language);
+    static std::string_view VoiceToId(FBS::TranslationPack::Voice voice);
     static nlohmann::json TargetLanguageCmd(FBS::TranslationPack::Language languageTo,
                                             FBS::TranslationPack::Voice voice,
                                             const std::optional<FBS::TranslationPack::Language>& languageFrom = std::nullopt);
     bool IsConnected() const { return _connected.load(std::memory_order_relaxed); }
-    bool IsWantsToOpen() const { return _wantsToOpen.load(std::memory_order_relaxed); }
     bool HasValidTranslationSettings() const;
     std::optional<FBS::TranslationPack::Language> GetConsumerLanguage() const;
     std::optional<FBS::TranslationPack::Voice> GetConsumerVoice() const;
@@ -68,7 +65,6 @@ private:
 private:
     const std::string _userAgent;
     const std::unique_ptr<Websocket> _socket;
-    std::atomic_bool _wantsToOpen = false;
     std::atomic_bool _connected = false;
     ProtectedOptional<FBS::TranslationPack::Language> _consumerLanguage;
     ProtectedOptional<FBS::TranslationPack::Voice> _consumerVoice;

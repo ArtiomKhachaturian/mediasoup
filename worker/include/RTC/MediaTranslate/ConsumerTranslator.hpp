@@ -33,8 +33,6 @@ public:
     // impl. of ConsumerTranslatorSettings
     std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
     std::optional<FBS::TranslationPack::Voice> GetVoice() const final;
-    void SetEnabled(bool enabled) final;
-    bool IsEnabled() const final { return _enabled; }
 protected:
     void OnPauseChanged(bool pause) final;
 private:
@@ -45,7 +43,6 @@ private:
     const std::string _producerId;
     const std::unique_ptr<TranslatorEndPoint> _endPoint;
     Listeners<ConsumerObserver*> _observers;
-    bool _enabled = true;
 };
 
 } // namespace RTC

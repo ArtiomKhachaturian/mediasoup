@@ -18,9 +18,6 @@ ConsumerTranslator::ConsumerTranslator(const Consumer* consumer,
 {
     MS_ASSERT(_consumer, "consumer must not be null");
     MS_ASSERT(!_producerId.empty(), "producer ID must not be empty");
-    if (IsEnabled()) {
-        _endPoint->Open();
-    }
 }
 
 ConsumerTranslator::~ConsumerTranslator()
@@ -70,20 +67,6 @@ std::optional<FBS::TranslationPack::Language> ConsumerTranslator::GetLanguage() 
 std::optional<FBS::TranslationPack::Voice> ConsumerTranslator::GetVoice() const
 {
     return _consumer->GetVoice();
-}
-
-void ConsumerTranslator::SetEnabled(bool enabled)
-{
-    if (enabled != _enabled) {
-        _enabled = enabled;
-        InvokeObserverMethod(&ConsumerObserver::OnConsumerEnabledChanged, enabled);
-        if (enabled) {
-            _endPoint->Open();
-        }
-        else {
-            _endPoint->Close();
-        }
-    }
 }
 
 void ConsumerTranslator::OnPauseChanged(bool pause)
