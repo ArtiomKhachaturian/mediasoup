@@ -81,6 +81,9 @@ namespace Channel
 		{ FBS::Request::Method::RTPOBSERVER_RESUME,                             "rtpObserver.resume"                         },
 		{ FBS::Request::Method::RTPOBSERVER_ADD_PRODUCER,                       "rtpObserver.addProducer"                    },
 		{ FBS::Request::Method::RTPOBSERVER_REMOVE_PRODUCER,                    "rtpObserver.removeProducer"                 },
+        { FBS::Request::Method::PRODUCER_LANGUAGE_CHANGED,                      "producer.languageChanged"                   },
+        { FBS::Request::Method::CONSUMER_LANGUAGE_CHANGED,                      "consumer.languageChanged"                   },
+        { FBS::Request::Method::CONSUMER_VOICE_CHANGED,                         "consumer.voiceChanged"                      },
 	};
 	// clang-format on
 
