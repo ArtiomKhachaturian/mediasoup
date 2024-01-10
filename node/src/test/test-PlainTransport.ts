@@ -1,6 +1,5 @@
 import * as os from 'node:os';
-// @ts-ignore
-import * as pickPort from 'pick-port';
+import { pickPort } from 'pick-port';
 import * as mediasoup from '../';
 import * as utils from '../utils';
 
@@ -49,8 +48,14 @@ beforeEach(async () => {
 	ctx.router = await ctx.worker.createRouter({ mediaCodecs: ctx.mediaCodecs });
 });
 
-afterEach(() => {
+afterEach(async () => {
 	ctx.worker?.close();
+
+	if (ctx.worker?.subprocessClosed === false) {
+		await new Promise<void>(
+			resolve => ctx.worker?.on('subprocessclose', resolve),
+		);
+	}
 });
 
 test('router.createPlainTransport() succeeds', async () => {
@@ -114,8 +119,16 @@ test('router.createPlainTransport() succeeds', async () => {
 
 	expect(typeof anotherTransport).toBe('object');
 
-	const rtpPort = await pickPort({ ip: '127.0.0.1', reserveTimeout: 0 });
-	const rtcpPort = await pickPort({ ip: '127.0.0.1', reserveTimeout: 0 });
+	const rtpPort = await pickPort({
+		type: 'udp',
+		ip: '127.0.0.1',
+		reserveTimeout: 0,
+	});
+	const rtcpPort = await pickPort({
+		type: 'udp',
+		ip: '127.0.0.1',
+		reserveTimeout: 0,
+	});
 	const transport2 = await ctx.router!.createPlainTransport({
 		listenInfo: { protocol: 'udp', ip: '127.0.0.1', port: rtpPort },
 		rtcpListenInfo: { protocol: 'udp', ip: '127.0.0.1', port: rtcpPort },
@@ -293,7 +306,11 @@ test('router.createPlainTransport() with non bindable IP rejects with Error', as
 if (!IS_WINDOWS) {
 	test('two transports binding to the same IP:port with udpReusePort flag succeed', async () => {
 		const multicastIp = '224.0.0.1';
-		const port = await pickPort({ ip: multicastIp, reserveTimeout: 0 });
+		const port = await pickPort({
+			type: 'udp',
+			ip: multicastIp,
+			reserveTimeout: 0,
+		});
 
 		await expect(
 			ctx.router!.createPlainTransport({
@@ -321,7 +338,11 @@ if (!IS_WINDOWS) {
 
 	test('two transports binding to the same IP:port without udpReusePort flag fail', async () => {
 		const multicastIp = '224.0.0.1';
-		const port = await pickPort({ ip: multicastIp, reserveTimeout: 0 });
+		const port = await pickPort({
+			type: 'udp',
+			ip: multicastIp,
+			reserveTimeout: 0,
+		});
 
 		await expect(
 			ctx.router!.createPlainTransport({
@@ -470,7 +491,11 @@ test('PlainTransport methods reject if closed', async () => {
 }, 2000);
 
 test('router.createPlainTransport() with fixed port succeeds', async () => {
-	const port = await pickPort({ ip: '127.0.0.1', reserveTimeout: 0 });
+	const port = await pickPort({
+		type: 'udp',
+		ip: '127.0.0.1',
+		reserveTimeout: 0,
+	});
 	const plainTransport = await ctx.router!.createPlainTransport({
 		listenInfo: { protocol: 'udp', ip: '127.0.0.1', port },
 	});

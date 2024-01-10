@@ -2261,6 +2261,7 @@ namespace RTC
 				auto* consumer = it->second;
 				auto bweType   = this->tccClient->GetBweType();
 
+				// NOLINTNEXTLINE(bugprone-too-small-loop-variable)
 				for (uint8_t i{ 1u }; i <= (baseAllocation ? 1u : priority); ++i)
 				{
 					uint32_t usedBitrate{ 0u };
