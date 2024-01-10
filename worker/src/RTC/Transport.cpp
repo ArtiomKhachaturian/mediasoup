@@ -1414,6 +1414,45 @@ namespace RTC
 
 				break;
 			}
+            
+            case Channel::ChannelRequest::Method::PRODUCER_LANGUAGE_CHANGED:
+            {
+                const auto* body = request->data->body_as<FBS::Producer::LanguageChangesRequest>();
+                
+                RTC::Producer* producer = GetProducerById(body->producerId()->c_str());
+                
+                producer->SetLanguage(body->sourceLanguage());
+                
+                request->Accept();
+                
+                break;
+            }
+                
+            case Channel::ChannelRequest::Method::CONSUMER_LANGUAGE_CHANGED:
+            {
+                const auto* body = request->data->body_as<FBS::Consumer::LanguageChangesRequest>();
+                
+                RTC::Consumer* consumer = GetConsumerById(body->consumerId()->c_str());
+                
+                consumer->SetLanguage(body->targetLanguage());
+                
+                request->Accept();
+                
+                break;
+            }
+                
+            case Channel::ChannelRequest::Method::CONSUMER_VOICE_CHANGED:
+            {
+                const auto* body = request->data->body_as<FBS::Consumer::VoiceChangesRequest>();
+                
+                RTC::Consumer* consumer = GetConsumerById(body->consumerId()->c_str());
+                
+                consumer->SetVoice(body->targetVoice());
+                
+                request->Accept();
+                
+                break;
+            }
 
 			default:
 			{

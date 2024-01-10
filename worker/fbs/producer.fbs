@@ -2,6 +2,7 @@ include "common.fbs";
 include "rtpPacket.fbs";
 include "rtpParameters.fbs";
 include "rtpStream.fbs";
+include "translationPack.fbs";
 
 namespace FBS.Producer;
 
@@ -98,3 +99,7 @@ table TraceNotification {
     info: TraceInfo;
 }
 
+table LanguageChangesRequest {
+    producer_id: string (required);
+    source_language: FBS.TranslationPack.Language = null;
+}

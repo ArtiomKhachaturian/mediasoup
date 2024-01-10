@@ -78,6 +78,9 @@ enum Method: uint8 {
     RTPOBSERVER_RESUME,
     RTPOBSERVER_ADD_PRODUCER,
     RTPOBSERVER_REMOVE_PRODUCER,
+    PRODUCER_LANGUAGE_CHANGED,
+    CONSUMER_LANGUAGE_CHANGED,
+    CONSUMER_VOICE_CHANGED
 }
 
 union Body {
@@ -120,6 +123,9 @@ union Body {
     DataConsumer_RemoveSubchannelRequest: FBS.DataConsumer.RemoveSubchannelRequest,
     RtpObserver_AddProducerRequest: FBS.RtpObserver.AddProducerRequest,
     RtpObserver_RemoveProducerRequest: FBS.RtpObserver.RemoveProducerRequest,
+    Producer_LanguageChangedRequest: FBS.Producer.LanguageChangesRequest,
+    Consumer_LanguageChangedRequest: FBS.Consumer.LanguageChangesRequest,
+    Consumer_VoiceChangedRequest: FBS.Consumer.VoiceChangesRequest,
 }
 
 table Request {
