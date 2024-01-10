@@ -1,0 +1,21 @@
+namespace FBS.TranslationPack;
+
+enum Language: uint8 {
+	English,
+    Italian,
+    Spain,
+    Thai,
+    French,
+    German,
+    Russian,
+    Arabic,
+    Farsi
+}
+
+enum Voice: uint8 {
+	Abdul,
+    JesusRodriguez,
+    TestIrina,
+    Serena,
+    Ryan
+}

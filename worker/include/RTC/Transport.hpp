@@ -152,6 +152,7 @@ namespace RTC
 
 		/* Pure virtual methods inherited from RTC::Producer::Listener. */
 	public:
+        void OnProducerLanguageChanged(RTC::Producer* producer) override;
 		void OnProducerReceiveData(RTC::Producer* /*producer*/, size_t len) override
 		{
 			this->DataReceived(len);
@@ -178,6 +179,8 @@ namespace RTC
 
 		/* Pure virtual methods inherited from RTC::Consumer::Listener. */
 	public:
+        void OnConsumerLanguageChanged(RTC::Consumer* consumer) override;
+        void OnConsumerVoiceChanged(RTC::Consumer* consumer) override;
 		void OnConsumerSendRtpPacket(RTC::Consumer* consumer, RTC::RtpPacket* packet) override;
 		void OnConsumerRetransmitRtpPacket(RTC::Consumer* consumer, RTC::RtpPacket* packet) override;
 		void OnConsumerKeyFrameRequested(RTC::Consumer* consumer, uint32_t mappedSsrc) override;

@@ -24,6 +24,7 @@ flatbuffers_schemas = [
   'sctpAssociation.fbs',
   'sctpParameters.fbs',
   'srtpParameters.fbs',
+  'translationPack.fbs',
   'transport.fbs',
   'webRtcServer.fbs',
   'webRtcTransport.fbs',

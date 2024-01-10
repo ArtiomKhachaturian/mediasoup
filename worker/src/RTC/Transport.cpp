@@ -618,7 +618,6 @@ namespace RTC
 			{
 				const auto* body = request->data->body_as<FBS::Transport::ProduceRequest>();
 				auto producerId  = body->producerId()->str();
-
 				if (this->mapProducers.find(producerId) != this->mapProducers.end())
 				{
 					MS_THROW_ERROR("a Producer with same producerId already exists");
@@ -645,6 +644,7 @@ namespace RTC
 				// This may throw if a Producer with same id already exists.
 				try
 				{
+                    producer->SetLanguage(body->producerSourceLanguage());
 					this->listener->OnTransportNewProducer(this, producer);
 				}
 				catch (const MediaSoupError& error)
@@ -833,6 +833,8 @@ namespace RTC
 				// This may throw if no Producer is found.
 				try
 				{
+                    consumer->SetLanguage(body->consumerTargetLanguage());
+                    consumer->SetVoice(body->consumerTargetVoice());
 					this->listener->OnTransportNewConsumer(this, consumer, producerId);
 				}
 				catch (const MediaSoupError& error)
@@ -2383,6 +2385,12 @@ namespace RTC
 		  notification);
 	}
 
+    void Transport::OnProducerLanguageChanged(RTC::Producer* producer)
+    {
+        MS_TRACE();
+        this->listener->OnTransportProducerLanguageChanged(this, producer);
+    }
+
 	inline void Transport::OnProducerPaused(RTC::Producer* producer)
 	{
 		MS_TRACE();
@@ -2443,6 +2451,18 @@ namespace RTC
 		this->listener->OnTransportNeedWorstRemoteFractionLost(
 		  this, producer, mappedSsrc, worstRemoteFractionLost);
 	}
+
+    void Transport::OnConsumerLanguageChanged(RTC::Consumer* consumer)
+    {
+        MS_TRACE();
+        this->listener->OnTransportConsumerLanguageChanged(this, consumer);
+    }
+    
+    void Transport::OnConsumerVoiceChanged(RTC::Consumer* consumer)
+    {
+        MS_TRACE();
+        this->listener->OnTransportConsumerVoiceChanged(this, consumer);
+    }
 
 	inline void Transport::OnConsumerSendRtpPacket(RTC::Consumer* consumer, RTC::RtpPacket* packet)
 	{

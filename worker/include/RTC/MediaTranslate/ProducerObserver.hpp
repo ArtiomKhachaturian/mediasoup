@@ -7,7 +7,6 @@ namespace RTC
 {
 
 class RtpCodecMimeType;
-enum class MediaLanguage;
 
 class ProducerObserver
 {
@@ -21,9 +20,6 @@ public:
                                  uint32_t /*mappedSsrc*/,
                                  const RtpCodecMimeType& /*mime*/) {}
     virtual void OnPauseChanged(const std::string& /*producerId*/, bool /*pause*/) {}
-    virtual void OnLanguageChanged(const std::string& /*producerId*/,
-                                   const std::optional<MediaLanguage>& /*from*/,
-                                   const std::optional<MediaLanguage>& /*to*/) {}
 };
 
 } // namespace RTC

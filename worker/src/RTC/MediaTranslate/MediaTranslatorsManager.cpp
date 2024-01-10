@@ -37,7 +37,7 @@ MediaTranslatorsManager::~MediaTranslatorsManager()
 {
 }
 
-std::shared_ptr<ProducerTranslatorSettings> MediaTranslatorsManager::GetTranslatorSettings(const Producer* producer) const
+std::shared_ptr<TranslatorUnit> MediaTranslatorsManager::GetTranslatorSettings(const Producer* producer) const
 {
     return GetRegistered(producer);
 }
@@ -51,6 +51,15 @@ void MediaTranslatorsManager::OnTransportNewProducer(Transport* transport, Produ
 {
     _router->OnTransportNewProducer(transport, producer);
     Register(producer);
+}
+
+void MediaTranslatorsManager::OnTransportProducerLanguageChanged(RTC::Transport* transport,
+                                                                 RTC::Producer* producer)
+{
+    _router->OnTransportProducerLanguageChanged(transport, producer);
+    for (const auto& associated : GetAssociated(producer)) {
+        associated->SetProducerLanguage(producer->GetLanguage());
+    }
 }
 
 void MediaTranslatorsManager::OnTransportProducerClosed(Transport* transport, Producer* producer)
@@ -131,6 +140,24 @@ void MediaTranslatorsManager::OnTransportNewConsumer(Transport* transport, Consu
 {
     _router->OnTransportNewConsumer(transport, consumer, producerId);
     Register(consumer, producerId);
+}
+
+void MediaTranslatorsManager::OnTransportConsumerLanguageChanged(RTC::Transport* transport,
+                                                                 RTC::Consumer* consumer)
+{
+    _router->OnTransportConsumerLanguageChanged(transport, consumer);
+    if (const auto registered = GetRegistered(consumer)) {
+        registered->UpdateConsumerLanguageAndVoice();
+    }
+}
+
+void MediaTranslatorsManager::OnTransportConsumerVoiceChanged(RTC::Transport* transport,
+                                                              RTC::Consumer* consumer)
+{
+    _router->OnTransportConsumerVoiceChanged(transport, consumer);
+    if (const auto registered = GetRegistered(consumer)) {
+        registered->UpdateConsumerLanguageAndVoice();
+    }
 }
 
 void MediaTranslatorsManager::OnTransportConsumerClosed(Transport* transport,
@@ -359,6 +386,15 @@ MediaTranslatorsManager::ConsumerTranslatorsList MediaTranslatorsManager::
     return consumers;
 }
 
+MediaTranslatorsManager::ConsumerTranslatorsList MediaTranslatorsManager::
+    GetAssociated(const Producer* producer) const
+{
+    if (producer) {
+        return GetAssociated(producer->id);
+    }
+    return {};
+}
+
 bool MediaTranslatorsManager::UnRegister(const Consumer* consumer)
 {
     if (consumer && !consumer->id.empty()) {
@@ -405,15 +441,6 @@ void MediaTranslatorsManager::onStreamAdded(const std::string& producerId,
     }
 }
 #endif
-
-void MediaTranslatorsManager::OnLanguageChanged(const std::string& producerId,
-                                                const std::optional<MediaLanguage>& /*from*/,
-                                                const std::optional<MediaLanguage>& to)
-{
-    for (const auto& associated : GetAssociated(producerId)) {
-        associated->SetProducerLanguage(to);
-    }
-}
 
 void TranslatorUnit::Pause(bool pause)
 {

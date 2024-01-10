@@ -59,6 +59,7 @@ namespace RTC
 		/* Pure virtual methods inherited from RTC::Transport::Listener. */
 	public:
 		void OnTransportNewProducer(RTC::Transport* transport, RTC::Producer* producer) override;
+        void OnTransportProducerLanguageChanged(RTC::Transport* transport, RTC::Producer* producer) override;
 		void OnTransportProducerClosed(RTC::Transport* transport, RTC::Producer* producer) override;
 		void OnTransportProducerPaused(RTC::Transport* transport, RTC::Producer* producer) override;
 		void OnTransportProducerResumed(RTC::Transport* transport, RTC::Producer* producer) override;
@@ -87,6 +88,8 @@ namespace RTC
 		  uint8_t& worstRemoteFractionLost) override;
 		void OnTransportNewConsumer(
 		  RTC::Transport* transport, RTC::Consumer* consumer, const std::string& producerId) override;
+        void OnTransportConsumerLanguageChanged(RTC::Transport* transport, RTC::Consumer* consumer) override;
+        void OnTransportConsumerVoiceChanged(RTC::Transport* transport, RTC::Consumer* consumer) override;
 		void OnTransportConsumerClosed(RTC::Transport* transport, RTC::Consumer* consumer) override;
 		void OnTransportConsumerProducerClosed(RTC::Transport* transport, RTC::Consumer* consumer) override;
 		void OnTransportConsumerKeyFrameRequested(

@@ -440,6 +440,24 @@ namespace RTC
 		this->shared->channelNotifier->Emit(this->id, FBS::Notification::Event::CONSUMER_PRODUCER_RESUME);
 	}
 
+    void Consumer::SetLanguage(const std::optional<FBS::TranslationPack::Language>& language)
+    {
+        MS_TRACE();
+        if (IsTranslationRequired() && this->language != language) {
+            this->language = language;
+            this->listener->OnConsumerLanguageChanged(this);
+        }
+    }
+
+    void Consumer::SetVoice(const std::optional<FBS::TranslationPack::Voice>& voice)
+    {
+        MS_TRACE();
+        if (IsTranslationRequired() && this->voice != voice) {
+            this->voice = voice;
+            this->listener->OnConsumerVoiceChanged(this);
+        }
+    }
+
 	void Consumer::ProducerRtpStreamScores(const std::vector<uint8_t>* scores)
 	{
 		MS_TRACE();

@@ -15,7 +15,7 @@ class ProducerInputMediaStreamer;
 class ConsumerTranslator : public ConsumerTranslatorSettings
 {
 public:
-    ConsumerTranslator(Consumer* consumer,
+    ConsumerTranslator(const Consumer* consumer,
                        const std::string& producerId,
                        const std::string& serviceUri,
                        const std::string& serviceUser = std::string(),
@@ -26,14 +26,13 @@ public:
     void RemoveObserver(ConsumerObserver* observer);
     bool HasProducerInput() const;
     void SetProducerInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
-    void SetProducerLanguage(const std::optional<MediaLanguage>& language);
+    void SetProducerLanguage(const std::optional<FBS::TranslationPack::Language>& language);
+    void UpdateConsumerLanguageAndVoice();
     // impl. of TranslatorUnit
     const std::string& GetId() const final;
     // impl. of ConsumerTranslatorSettings
-    void SetLanguage(MediaLanguage language) final;
-    MediaLanguage GetLanguage() const final { return _language; }
-    void SetVoice(MediaVoice voice) final;
-    MediaVoice GetVoice() const final { return _voice; }
+    std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
+    std::optional<FBS::TranslationPack::Voice> GetVoice() const final;
     void SetEnabled(bool enabled) final;
     bool IsEnabled() const final { return _enabled; }
 protected:
@@ -42,14 +41,10 @@ private:
     template <class Method, typename... Args>
     void InvokeObserverMethod(const Method& method, Args&&... args) const;
 private:
-    Consumer* const _consumer;
+    const Consumer* const _consumer;
     const std::string _producerId;
     const std::unique_ptr<TranslatorEndPoint> _endPoint;
     Listeners<ConsumerObserver*> _observers;
-    // output language
-    MediaLanguage _language = DefaultOutputMediaLanguage();
-    // voice
-    MediaVoice _voice = DefaultMediaVoice();
     bool _enabled = true;
 };
 

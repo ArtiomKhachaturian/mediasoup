@@ -7,7 +7,7 @@
 namespace RTC
 {
 
-ConsumerTranslator::ConsumerTranslator(Consumer* consumer,
+ConsumerTranslator::ConsumerTranslator(const Consumer* consumer,
                                        const std::string& producerId,
                                        const std::string& serviceUri,
                                        const std::string& serviceUser,
@@ -52,29 +52,24 @@ void ConsumerTranslator::SetProducerInput(const std::shared_ptr<ProducerInputMed
     _endPoint->SetInput(input);
 }
 
-void ConsumerTranslator::SetProducerLanguage(const std::optional<MediaLanguage>& language)
+void ConsumerTranslator::SetProducerLanguage(const std::optional<FBS::TranslationPack::Language>& language)
 {
     _endPoint->SetProducerLanguage(language);
 }
 
-void ConsumerTranslator::SetLanguage(MediaLanguage language)
+void ConsumerTranslator::UpdateConsumerLanguageAndVoice()
 {
-    if (language != _language) {
-        const auto from = _language;
-        _language = language;
-        InvokeObserverMethod(&ConsumerObserver::OnConsumerLanguageChanged, from, language);
-        _endPoint->SetConsumerLanguage(language);
-    }
+    _endPoint->SetConsumerLanguageAndVoice(GetLanguage(), GetVoice());
 }
 
-void ConsumerTranslator::SetVoice(MediaVoice voice)
+std::optional<FBS::TranslationPack::Language> ConsumerTranslator::GetLanguage() const
 {
-    if (voice != _voice) {
-        const auto from = _voice;
-        _voice = voice;
-        InvokeObserverMethod(&ConsumerObserver::OnConsumerVoiceChanged, from, voice);
-        _endPoint->SetConsumerVoice(voice);
-    }
+    return _consumer->GetLanguage();
+}
+
+std::optional<FBS::TranslationPack::Voice> ConsumerTranslator::GetVoice() const
+{
+    return _consumer->GetVoice();
 }
 
 void ConsumerTranslator::SetEnabled(bool enabled)

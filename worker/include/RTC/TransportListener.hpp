@@ -22,6 +22,7 @@ public:
 
 public:
     virtual void OnTransportNewProducer(RTC::Transport* transport, RTC::Producer* producer) = 0;
+    virtual void OnTransportProducerLanguageChanged(RTC::Transport* transport, RTC::Producer* producer) = 0;
     virtual void OnTransportProducerClosed(RTC::Transport* transport, RTC::Producer* producer) = 0;
     virtual void OnTransportProducerPaused(RTC::Transport* transport, RTC::Producer* producer) = 0;
     virtual void OnTransportProducerResumed(RTC::Transport* transport, RTC::Producer* producer) = 0;
@@ -50,6 +51,8 @@ public:
       uint8_t& worstRemoteFractionLost) = 0;
     virtual void OnTransportNewConsumer(
       RTC::Transport* transport, RTC::Consumer* consumer, const std::string& producerId) = 0;
+    virtual void OnTransportConsumerLanguageChanged(RTC::Transport* transport, RTC::Consumer* consumer) = 0;
+    virtual void OnTransportConsumerVoiceChanged(RTC::Transport* transport, RTC::Consumer* consumer) = 0;
     virtual void OnTransportConsumerClosed(RTC::Transport* transport, RTC::Consumer* consumer) = 0;
     virtual void OnTransportConsumerProducerClosed(
       RTC::Transport* transport, RTC::Consumer* consumer) = 0;

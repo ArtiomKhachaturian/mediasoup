@@ -6,6 +6,7 @@
 namespace RTC
 {
 
+// MIME helpers
 class RtpStream;
 class RtpMediaFrame;
 

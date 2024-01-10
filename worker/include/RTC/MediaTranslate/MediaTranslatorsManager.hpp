@@ -13,7 +13,7 @@
 namespace RTC
 {
 
-class ProducerTranslatorSettings;
+class TranslatorUnit;
 class ConsumerTranslatorSettings;
 class RtpStream;
 class ProducerTranslator;
@@ -35,11 +35,12 @@ public:
                             const std::string& servicePassword = std::string());
     ~MediaTranslatorsManager();
     // producers API
-    std::shared_ptr<ProducerTranslatorSettings> GetTranslatorSettings(const Producer* producer) const;
+    std::shared_ptr<TranslatorUnit> GetTranslatorSettings(const Producer* producer) const;
     // consumers API
     std::shared_ptr<ConsumerTranslatorSettings> GetTranslatorSettings(const Consumer* consumer) const;
     // impl. of TransportListener
     void OnTransportNewProducer(Transport* transport, Producer* producer) final;
+    void OnTransportProducerLanguageChanged(RTC::Transport* transport, RTC::Producer* producer) final;
     void OnTransportProducerClosed(Transport* transport, Producer* producer) final;
     void OnTransportProducerPaused(Transport* transport, Producer* producer) final;
     void OnTransportProducerResumed(Transport* transport, Producer* producer) final;
@@ -57,6 +58,8 @@ public:
                                                 uint8_t& worstRemoteFractionLost) final;
     void OnTransportNewConsumer(Transport* transport, Consumer* consumer,
                                 const std::string& producerId) final;
+    void OnTransportConsumerLanguageChanged(RTC::Transport* transport, RTC::Consumer* consumer) final;
+    void OnTransportConsumerVoiceChanged(RTC::Transport* transport, RTC::Consumer* consumer) final;
     void OnTransportConsumerClosed(Transport* transport, Consumer* consumer) final;
     void OnTransportConsumerProducerClosed(Transport* transport, Consumer* consumer) final;
     void OnTransportDataProducerPaused(Transport* transport, DataProducer* dataProducer) final;
@@ -92,15 +95,13 @@ private:
     std::shared_ptr<ConsumerTranslator> GetRegisteredConsumer(const std::string& id) const;
     ConsumerTranslatorsList GetAssociated(const std::shared_ptr<ProducerTranslator>& producer) const;
     ConsumerTranslatorsList GetAssociated(const std::string& producerId) const;
+    ConsumerTranslatorsList GetAssociated(const Producer* producer) const;
     bool UnRegister(const Consumer* consumer);
     // impl. of ProducerObserver
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     void onStreamAdded(const std::string& producerId, uint32_t mappedSsrc,
                        const RtpCodecMimeType& /*mime*/, uint32_t /*clockRate*/) final;
 #endif
-    void OnLanguageChanged(const std::string& producerId,
-                           const std::optional<MediaLanguage>& from,
-                           const std::optional<MediaLanguage>& to) final;
 private:
     TransportListener* const _router;
     const std::string _serviceUri;

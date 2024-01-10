@@ -41,7 +41,7 @@ private:
     ProtectedSharedPtr<RtpMediaFrameSerializer> _serializer;
 };
 
-ProducerTranslator::ProducerTranslator(Producer* producer)
+ProducerTranslator::ProducerTranslator(const Producer* producer)
     : _producer(producer)
 {
     MS_ASSERT(_producer, "producer must not be null");
@@ -158,13 +158,9 @@ void ProducerTranslator::AddPacket(const RtpPacket* packet)
     }
 }
 
-void ProducerTranslator::SetLanguage(const std::optional<MediaLanguage>& language)
+std::optional<FBS::TranslationPack::Language> ProducerTranslator::GetLanguage() const
 {
-    if (language != _language) {
-        const auto from = _language;
-        _language = language;
-        InvokeObserverMethod(&ProducerObserver::OnLanguageChanged, from, language);
-    }
+    return _producer->GetLanguage();
 }
 
 void ProducerTranslator::AddOutputDevice(OutputDevice* outputDevice)

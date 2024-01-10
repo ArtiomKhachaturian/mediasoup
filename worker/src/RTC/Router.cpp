@@ -511,6 +511,11 @@ namespace RTC
 		this->mapProducerRtpObservers[producer];
 	}
 
+    void Router::OnTransportProducerLanguageChanged(RTC::Transport* /*transport*/, RTC::Producer* /*producer*/)
+    {
+        MS_TRACE();
+    }
+
 	inline void Router::OnTransportProducerClosed(RTC::Transport* /*transport*/, RTC::Producer* producer)
 	{
 		MS_TRACE();
@@ -767,6 +772,16 @@ namespace RTC
 		// Provide the Consumer with the scores of all streams in the Producer.
 		consumer->ProducerRtpStreamScores(producer->GetRtpStreamScores());
 	}
+
+    void Router::OnTransportConsumerLanguageChanged(RTC::Transport* /*transport*/, RTC::Consumer* /*consumer*/)
+    {
+        MS_TRACE();
+    }
+    
+    void Router::OnTransportConsumerVoiceChanged(RTC::Transport* /*transport*/, RTC::Consumer* /*consumer*/)
+    {
+        MS_TRACE();
+    }
 
 	inline void Router::OnTransportConsumerClosed(RTC::Transport* /*transport*/, RTC::Consumer* consumer)
 	{

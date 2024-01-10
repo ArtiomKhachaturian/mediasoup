@@ -33,6 +33,8 @@ namespace RTC
 			virtual ~Listener() = default;
 
 		public:
+            virtual void OnConsumerLanguageChanged(RTC::Consumer* consumer) = 0;
+            virtual void OnConsumerVoiceChanged(RTC::Consumer* consumer) = 0;
 			virtual void OnConsumerSendRtpPacket(RTC::Consumer* consumer, RTC::RtpPacket* packet) = 0;
 			virtual void OnConsumerRetransmitRtpPacket(RTC::Consumer* consumer, RTC::RtpPacket* packet) = 0;
 			virtual void OnConsumerKeyFrameRequested(RTC::Consumer* consumer, uint32_t mappedSsrc) = 0;
@@ -134,6 +136,10 @@ namespace RTC
 		}
 		void ProducerPaused();
 		void ProducerResumed();
+        const std::optional<FBS::TranslationPack::Language>& GetLanguage() const { return language; }
+        void SetLanguage(const std::optional<FBS::TranslationPack::Language>& language);
+        const std::optional<FBS::TranslationPack::Voice>& GetVoice() const { return voice; }
+        void SetVoice(const std::optional<FBS::TranslationPack::Voice>& voice);
         virtual bool IsTranslationRequired() const { return false; }
 		virtual void ProducerRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc)    = 0;
 		virtual void ProducerNewRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc) = 0;
@@ -192,6 +198,10 @@ namespace RTC
 		RTC::Media::Kind kind;
 		RTC::RtpParameters rtpParameters;
 		RTC::RtpParameters::Type type;
+        // both language & voice should be defined explictly for translation service,
+        // otherwise translation is not available
+        std::optional<FBS::TranslationPack::Language> language;
+        std::optional<FBS::TranslationPack::Voice> voice;
 		std::vector<RTC::RtpEncodingParameters> consumableRtpEncodings;
 		struct RTC::RtpHeaderExtensionIds rtpHeaderExtensionIds;
 		const std::vector<uint8_t>* producerRtpStreamScores{ nullptr };

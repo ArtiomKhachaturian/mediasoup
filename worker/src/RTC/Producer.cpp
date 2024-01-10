@@ -29,7 +29,7 @@ namespace RTC
 
 	Producer::Producer(
 	  RTC::Shared* shared,
-	  const std::string& id,
+	  const std::string& id,    
 	  RTC::Producer::Listener* listener,
 	  const FBS::Transport::ProduceRequest* data)
 	  : id(id), shared(shared), listener(listener), kind(RTC::Media::Kind(data->kind()))
@@ -834,6 +834,15 @@ namespace RTC
 
 		this->keyFrameRequestManager->KeyFrameNeeded(ssrc);
 	}
+
+    void Producer::SetLanguage(const std::optional<FBS::TranslationPack::Language>& language)
+    {
+        MS_TRACE();
+        if (this->language != language) {
+            this->language = language;
+            this->listener->OnProducerLanguageChanged(this);
+        }
+    }
 
 	RTC::RtpStreamRecv* Producer::GetRtpStream(RTC::RtpPacket* packet)
 	{

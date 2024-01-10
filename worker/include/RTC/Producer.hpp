@@ -2,6 +2,7 @@
 #define MS_RTC_PRODUCER_HPP
 
 #include "common.hpp"
+#include "FBS/translationPack.h"
 #include "Channel/ChannelRequest.hpp"
 #include "Channel/ChannelSocket.hpp"
 #include "RTC/KeyFrameRequestManager.hpp"
@@ -16,6 +17,7 @@
 #include "RTC/Shared.hpp"
 #include <string>
 #include <vector>
+#include <optional>
 
 namespace RTC
 {
@@ -32,6 +34,7 @@ namespace RTC
 			virtual ~Listener() = default;
 
 		public:
+            virtual void OnProducerLanguageChanged(RTC::Producer* producer) = 0;
 			virtual void OnProducerReceiveData(RTC::Producer* producer, size_t len)                  = 0;
 			virtual void OnProducerReceiveRtpPacket(RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
 			virtual void OnProducerPaused(RTC::Producer* producer)                                   = 0;
@@ -139,6 +142,8 @@ namespace RTC
 		void ReceiveRtcpXrDelaySinceLastRr(RTC::RTCP::DelaySinceLastRr::SsrcInfo* ssrcInfo);
 		bool GetRtcp(RTC::RTCP::CompoundPacket* packet, uint64_t nowMs);
 		void RequestKeyFrame(uint32_t mappedSsrc);
+        const std::optional<FBS::TranslationPack::Language>& GetLanguage() const { return language; }
+        void SetLanguage(const std::optional<FBS::TranslationPack::Language>& language);
 		/* Methods inherited from Channel::ChannelSocket::RequestHandler. */
 	public:
 		void HandleRequest(Channel::ChannelRequest* request) override;
@@ -183,6 +188,8 @@ namespace RTC
 		// Passed by argument.
 		RTC::Shared* shared{ nullptr };
 		RTC::Producer::Listener* listener{ nullptr };
+        // any source language if not defined explicitly
+        std::optional<FBS::TranslationPack::Language> language;
 		// Allocated by this.
 		absl::flat_hash_map<uint32_t, RTC::RtpStreamRecv*> mapSsrcRtpStream;
 		RTC::KeyFrameRequestManager* keyFrameRequestManager{ nullptr };
