@@ -444,9 +444,10 @@ def tidy(ctx):
     mediasoup_tidy_files = os.getenv('MEDIASOUP_TIDY_FILES') or '';
     mediasoup_clang_tidy_dir = os.getenv('MEDIASOUP_CLANG_TIDY_DIR');
 
+    # MEDIASOUP_CLANG_TIDY_DIR env variable is mandatory.
+    # NOTE: sys.exit(text) exists the program with status code 1.
     if not mediasoup_clang_tidy_dir:
-        print('missing MEDIASOUP_CLANG_TIDY_DIR env varialbe');
-        return;
+        sys.exit('missing MEDIASOUP_CLANG_TIDY_DIR env variable');
 
     if mediasoup_tidy_checks:
         mediasoup_tidy_checks = '-*,' + mediasoup_tidy_checks;
@@ -456,7 +457,7 @@ def tidy(ctx):
 
     with ctx.cd(f'"{WORKER_DIR}"'):
         ctx.run(
-            f'"{PYTHON}" "{mediasoup_clang_tidy_dir}/run-clang-tidy" -clang-tidy-binary="{mediasoup_clang_tidy_dir}/clang-tidy" -clang-apply-replacements-binary="{mediasoup_clang_tidy_dir}/clang-apply-replacements" -p=./ -j={NUM_CORES} -fix -checks={mediasoup_tidy_checks} {mediasoup_tidy_files}',
+            f'"{PYTHON}" "{mediasoup_clang_tidy_dir}/run-clang-tidy" -clang-tidy-binary="{mediasoup_clang_tidy_dir}/clang-tidy" -clang-apply-replacements-binary="{mediasoup_clang_tidy_dir}/clang-apply-replacements" -p="{BUILD_DIR}" -j={NUM_CORES} -fix -checks={mediasoup_tidy_checks} {mediasoup_tidy_files}',
             echo=True,
             pty=PTY_SUPPORTED,
             shell=SHELL

@@ -11,6 +11,7 @@ Checks: "*,\
   -cert-*,\
   -clang-analyzer-optin.osx.*,\
   -clang-analyzer-osx.*,\
+  -concurrency-mt-unsafe,\
   -cppcoreguidelines-avoid-c-arrays,\
   -cppcoreguidelines-avoid-do-while,\
   -cppcoreguidelines-avoid-goto,\
@@ -50,6 +51,7 @@ Checks: "*,\
   -llvm-else-after-return,\
   -llvmlibc-*,\
   -misc-confusable-identifiers,\
+  -misc-include-cleaner,\
   -misc-non-private-member-variables-in-classes,\
   -misc-use-anonymous-namespace,\
   -modernize-avoid-c-arrays,\
