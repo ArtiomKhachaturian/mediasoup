@@ -35,7 +35,7 @@ public:
                           RtpCodecMimeType::Subtype codec,
                           const std::shared_ptr<const RtpVideoFrameConfig>& config = nullptr) = 0;
     virtual void RemoveMedia(uint32_t ssrc) = 0;
-    virtual void Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) = 0;
+    virtual bool Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) = 0;
     virtual bool IsCompatible(const RtpCodecMimeType& mimeType) const = 0;
     virtual void SetLiveMode(bool /*liveMode*/ = true) {}
     // impl. of ProducerInputMediaStreamer

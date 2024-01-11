@@ -1,23 +1,18 @@
 #define MS_CLASS "RTC::ConsumerTranslator"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
-#include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
 #include "RTC/Consumer.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
 
-ConsumerTranslator::ConsumerTranslator(const Consumer* consumer,
-                                       const std::string& producerId,
-                                       const std::string& serviceUri,
-                                       const std::string& serviceUser,
-                                       const std::string& servicePassword)
+ConsumerTranslator::ConsumerTranslator(Consumer* consumer)
     : _consumer(consumer)
-    , _producerId(producerId)
-    , _endPoint(std::make_unique<TranslatorEndPoint>(serviceUri, serviceUser, servicePassword))
 {
     MS_ASSERT(_consumer, "consumer must not be null");
-    MS_ASSERT(!_producerId.empty(), "producer ID must not be empty");
+    if (consumer->IsPaused()) {
+        Pause();
+    }
 }
 
 ConsumerTranslator::~ConsumerTranslator()
@@ -37,26 +32,6 @@ void ConsumerTranslator::AddObserver(ConsumerObserver* observer)
 void ConsumerTranslator::RemoveObserver(ConsumerObserver* observer)
 {
     _observers.Remove(observer);
-}
-
-bool ConsumerTranslator::HasProducerInput() const
-{
-    return _endPoint->HasInput();
-}
-
-void ConsumerTranslator::SetProducerInput(const std::shared_ptr<ProducerInputMediaStreamer>& input)
-{
-    _endPoint->SetInput(input);
-}
-
-void ConsumerTranslator::SetProducerLanguage(const std::optional<FBS::TranslationPack::Language>& language)
-{
-    _endPoint->SetProducerLanguage(language);
-}
-
-void ConsumerTranslator::UpdateConsumerLanguageAndVoice()
-{
-    _endPoint->SetConsumerLanguageAndVoice(GetLanguage(), GetVoice());
 }
 
 std::optional<FBS::TranslationPack::Language> ConsumerTranslator::GetLanguage() const

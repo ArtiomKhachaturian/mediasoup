@@ -679,15 +679,17 @@ namespace RTC
 
 			for (auto* consumer : consumers)
 			{
-				// Update MID RTP extension value.
-				const auto& mid = consumer->GetRtpParameters().mid;
-
-				if (!mid.empty())
-				{
-					packet->UpdateMid(mid);
-				}
-
-				consumer->SendRtpPacket(packet, sharedPacket);
+                if (!packet->ConsumerIsRejected(consumer)) {
+                    // Update MID RTP extension value.
+                    const auto& mid = consumer->GetRtpParameters().mid;
+                    
+                    if (!mid.empty())
+                    {
+                        packet->UpdateMid(mid);
+                    }
+                    
+                    consumer->SendRtpPacket(packet, sharedPacket);
+                }
 			}
 
 #ifdef MS_LIBURING_SUPPORTED

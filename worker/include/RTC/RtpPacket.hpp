@@ -10,12 +10,14 @@
 #endif
 #include <flatbuffers/flatbuffers.h>
 #include <absl/container/flat_hash_map.h>
+#include <absl/container/flat_hash_set.h>
 #include <array>
 #include <string>
 #include <vector>
 
 namespace RTC
 {
+    class Consumer;
 	// Max MTU size.
 	constexpr size_t MtuSize{ 1500u };
 	// MID header extension max length (just used when setting/updating MID
@@ -147,6 +149,10 @@ namespace RTC
 	public:
 		~RtpPacket();
 
+        void AddRejectedConsumer(Consumer* consumer);
+        void RemoveRejectedConsumer(Consumer* consumer);
+        bool ConsumerIsRejected(Consumer* consumer) const;
+        
 		void Dump() const;
 		flatbuffers::Offset<FBS::RtpPacket::Dump> FillBuffer(flatbuffers::FlatBufferBuilder& builder) const;
 
@@ -686,6 +692,7 @@ namespace RTC
 		// Buffer where this packet is allocated, can be `nullptr` if packet was
 		// parsed from externally provided buffer.
 		uint8_t* buffer{ nullptr };
+        absl::flat_hash_set<Consumer*> rejectedConsumers;
 	};
 } // namespace RTC
 

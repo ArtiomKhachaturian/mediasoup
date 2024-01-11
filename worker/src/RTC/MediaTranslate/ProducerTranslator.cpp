@@ -33,7 +33,7 @@ public:
     std::string_view GetFileExtension() const;
     void SetSerializerOutputDevice(OutputDevice* outputDevice, bool set);
     // impl. of RtpPacketsCollector
-    void AddPacket(const RtpPacket* packet) final;
+    bool AddPacket(const RtpPacket* packet) final;
 private:
     const uint32_t _clockRate;
     const uint32_t _mappedSsrc;
@@ -45,6 +45,9 @@ ProducerTranslator::ProducerTranslator(const Producer* producer)
     : _producer(producer)
 {
     MS_ASSERT(_producer, "producer must not be null");
+    if (_producer->IsPaused()) {
+        Pause();
+    }
 }
 
 ProducerTranslator::~ProducerTranslator()
@@ -148,14 +151,15 @@ const std::string& ProducerTranslator::GetId() const
     return _producer->id;
 }
 
-void ProducerTranslator::AddPacket(const RtpPacket* packet)
+bool ProducerTranslator::AddPacket(const RtpPacket* packet)
 {
     if (packet && !IsPaused()) {
         const auto it = _streams.find(packet->GetSsrc());
         if (it != _streams.end()) {
-            it->second->AddPacket(packet);
+            return it->second->AddPacket(packet);
         }
     }
+    return false;
 }
 
 std::optional<FBS::TranslationPack::Language> ProducerTranslator::GetLanguage() const
@@ -308,7 +312,7 @@ void ProducerTranslator::StreamInfo::SetSerializerOutputDevice(OutputDevice* out
     }
 }
 
-void ProducerTranslator::StreamInfo::AddPacket(const RtpPacket* packet)
+bool ProducerTranslator::StreamInfo::AddPacket(const RtpPacket* packet)
 {
     if (packet) {
         MS_ASSERT(packet->GetSsrc() == GetMappedSsrc(), "invalid SSRC mapping");
@@ -317,11 +321,12 @@ void ProducerTranslator::StreamInfo::AddPacket(const RtpPacket* packet)
             if (const auto frame = depacketizer->AddPacket(packet)) {
                 LOCK_READ_PROTECTED_OBJ(_serializer);
                 if (const auto& serializer = _serializer.ConstRef()) {
-                    serializer->Push(frame);
+                    return serializer->Push(frame);
                 }
             }
         }
     }
+    return false;
 }
 
 } // namespace RTC

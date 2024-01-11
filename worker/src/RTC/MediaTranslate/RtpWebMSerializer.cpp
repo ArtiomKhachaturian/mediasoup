@@ -245,7 +245,7 @@ void RtpWebMSerializer::RemoveMedia(uint32_t ssrc)
     }
 }
 
-void RtpWebMSerializer::Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame)
+bool RtpWebMSerializer::Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame)
 {
     if (mediaFrame && _writer && HasDevices()) {
         if (const auto trackInfo = GetTrackInfo(mediaFrame)) {
@@ -255,14 +255,17 @@ void RtpWebMSerializer::Push(const std::shared_ptr<const RtpMediaFrame>& mediaFr
                 StartStream(_pendingRestartMode);
                 _pendingRestartMode = false;
             }
-            if (!_writer->AddFrame(mediaFrame, mkvTimestamp, trackNumber, this)) {
+            const auto added = _writer->AddFrame(mediaFrame, mkvTimestamp, trackNumber, this);
+            if (!added) {
                 const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
                 MS_ERROR("unable write frame to MKV data [%s] to track #%d",
                          frameInfo.c_str(), trackNumber);
                 DestroyWriter(true);
             }
+            return added;
         }
     }
+    return false;
 }
 
 bool RtpWebMSerializer::IsCompatible(const RtpCodecMimeType& mimeType) const

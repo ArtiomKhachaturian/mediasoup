@@ -28,7 +28,7 @@ public:
                   RtpCodecMimeType::Subtype codec,
                   const std::shared_ptr<const RtpVideoFrameConfig>& config) final;
     void RemoveMedia(uint32_t ssrc) final;
-    void Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) final;
+    bool Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) final;
     bool IsCompatible(const RtpCodecMimeType& mimeType) const final;
 private:
     void InitWriter();

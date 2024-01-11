@@ -161,6 +161,25 @@ namespace RTC
 		delete[] this->buffer;
 	}
 
+    void RtpPacket::AddRejectedConsumer(Consumer* consumer)
+    {
+        if (consumer) {
+            rejectedConsumers.insert(consumer);
+        }
+    }
+    
+    void RtpPacket::RemoveRejectedConsumer(Consumer* consumer)
+    {
+        if (consumer) {
+            rejectedConsumers.erase(consumer);
+        }
+    }
+    
+    bool RtpPacket::ConsumerIsRejected(Consumer* consumer) const
+    {
+        return consumer && rejectedConsumers.count(consumer) > 0UL;
+    }
+
 	void RtpPacket::Dump() const
 	{
 		MS_TRACE();

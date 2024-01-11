@@ -31,13 +31,13 @@ public:
     void SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
     bool HasInput() const;
     void SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef);
+    bool IsConnected() const { return _connected.load(std::memory_order_relaxed); }
 private:
     static std::string_view LanguageToId(const std::optional<FBS::TranslationPack::Language>& language);
     static std::string_view VoiceToId(FBS::TranslationPack::Voice voice);
     static nlohmann::json TargetLanguageCmd(FBS::TranslationPack::Language languageTo,
                                             FBS::TranslationPack::Voice voice,
                                             const std::optional<FBS::TranslationPack::Language>& languageFrom = std::nullopt);
-    bool IsConnected() const { return _connected.load(std::memory_order_relaxed); }
     bool HasValidTranslationSettings() const;
     std::optional<FBS::TranslationPack::Language> GetConsumerLanguage() const;
     std::optional<FBS::TranslationPack::Voice> GetConsumerVoice() const;

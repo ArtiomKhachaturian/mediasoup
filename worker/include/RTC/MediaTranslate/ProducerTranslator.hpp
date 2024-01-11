@@ -39,7 +39,7 @@ public:
     // impl. of TranslatorUnit
     const std::string& GetId() const final;
     // impl. of RtpPacketsCollector
-    void AddPacket(const RtpPacket* packet) final;
+    bool AddPacket(const RtpPacket* packet) final;
     // impl. of TranslatorUnit
     std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
     // impl. of ProducerInputMediaStreamer
