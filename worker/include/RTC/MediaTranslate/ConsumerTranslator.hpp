@@ -13,7 +13,7 @@ class Consumer;
 class ConsumerTranslator : public ConsumerTranslatorSettings
 {
 public:
-    ConsumerTranslator(Consumer* consumer);
+    ConsumerTranslator(const Consumer* consumer);
     ~ConsumerTranslator() final;
     void AddObserver(ConsumerObserver* observer);
     void RemoveObserver(ConsumerObserver* observer);
@@ -28,7 +28,7 @@ private:
     template <class Method, typename... Args>
     void InvokeObserverMethod(const Method& method, Args&&... args) const;
 private:
-    Consumer* const _consumer;
+    const Consumer* const _consumer;
     Listeners<ConsumerObserver*> _observers;
 };
 

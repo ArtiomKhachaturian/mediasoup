@@ -21,6 +21,9 @@ public:
 	virtual ~TransportListener() = default;
 
 public:
+    virtual void OnTransportConnected(RTC::Transport* transport) = 0;
+    virtual void OnTransportDisconnected(RTC::Transport* transport) = 0;
+    virtual void OnTransportDestroyed(RTC::Transport* transport) = 0;
     virtual void OnTransportNewProducer(RTC::Transport* transport, RTC::Producer* producer) = 0;
     virtual void OnTransportProducerLanguageChanged(RTC::Transport* transport, RTC::Producer* producer) = 0;
     virtual void OnTransportProducerClosed(RTC::Transport* transport, RTC::Producer* producer) = 0;

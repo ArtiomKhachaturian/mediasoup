@@ -6,7 +6,7 @@
 namespace RTC
 {
 
-ConsumerTranslator::ConsumerTranslator(Consumer* consumer)
+ConsumerTranslator::ConsumerTranslator(const Consumer* consumer)
     : _consumer(consumer)
 {
     MS_ASSERT(_consumer, "consumer must not be null");

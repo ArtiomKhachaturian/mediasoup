@@ -3,6 +3,9 @@
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
+#ifdef WRITE_PRODUCER_RECV_TO_FILE
+#include "RTC/MediaTranslate/FileWriter.hpp"
+#endif
 #include "RTC/RtpStream.hpp"
 #include "RTC/Producer.hpp"
 #include "Logger.hpp"
@@ -33,7 +36,7 @@ public:
     std::string_view GetFileExtension() const;
     void SetSerializerOutputDevice(OutputDevice* outputDevice, bool set);
     // impl. of RtpPacketsCollector
-    bool AddPacket(const RtpPacket* packet) final;
+    bool AddPacket(RtpPacket* packet) final;
 private:
     const uint32_t _clockRate;
     const uint32_t _mappedSsrc;
@@ -41,7 +44,7 @@ private:
     ProtectedSharedPtr<RtpMediaFrameSerializer> _serializer;
 };
 
-ProducerTranslator::ProducerTranslator(const Producer* producer)
+ProducerTranslator::ProducerTranslator(Producer* producer)
     : _producer(producer)
 {
     MS_ASSERT(_producer, "producer must not be null");
@@ -97,6 +100,24 @@ bool ProducerTranslator::AddStream(const RtpCodecMimeType& mime, uint32_t clockR
                 }
                 InvokeObserverMethod(&ProducerObserver::onStreamAdded, mappedSsrc,
                                      mime, clockRate);
+#ifdef WRITE_PRODUCER_RECV_TO_FILE
+                const auto it = _fileWriters.find(mappedSsrc);
+                if (it == _fileWriters.end()) {
+                    const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
+                    if (depacketizerPath && std::strlen(depacketizerPath)) {
+                        const auto extension = GetFileExtension(mappedSsrc);
+                        if (!extension.empty()) {
+                            std::string fileName = GetId() + "." + std::string(extension);
+                            fileName = std::string(depacketizerPath) + "/" + fileName;
+                            auto fileWriter = std::make_unique<FileWriter>(fileName);
+                            if (fileWriter->IsOpen()) {
+                                AddOutputDevice(fileWriter.get());
+                                _fileWriters[mappedSsrc] = std::move(fileWriter);
+                            }
+                        }
+                    }
+                }
+#endif
             }
             else {
                 const auto desc = GetStreamInfoString(mime, mappedSsrc);
@@ -104,7 +125,7 @@ bool ProducerTranslator::AddStream(const RtpCodecMimeType& mime, uint32_t clockR
             }
         }
         else {
-            ok = false; // already registered
+            ok = true; // already registered
         }
     }
     return ok;
@@ -120,6 +141,13 @@ bool ProducerTranslator::RemoveStream(uint32_t mappedSsrc)
             it->second->SetSerializerOutputDevice(this, false);
             _streams.erase(it);
             InvokeObserverMethod(&ProducerObserver::onStreamRemoved, mappedSsrc, mime.value());
+#ifdef WRITE_PRODUCER_RECV_TO_FILE
+            const auto it = _fileWriters.find(mappedSsrc);
+            if (it != _fileWriters.end()) {
+                RemoveOutputDevice(it->second.get());
+                _fileWriters.erase(it);
+            }
+#endif
             return true;
         }
     }
@@ -151,7 +179,7 @@ const std::string& ProducerTranslator::GetId() const
     return _producer->id;
 }
 
-bool ProducerTranslator::AddPacket(const RtpPacket* packet)
+bool ProducerTranslator::AddPacket(RtpPacket* packet)
 {
     if (packet && !IsPaused()) {
         const auto it = _streams.find(packet->GetSsrc());
@@ -312,7 +340,7 @@ void ProducerTranslator::StreamInfo::SetSerializerOutputDevice(OutputDevice* out
     }
 }
 
-bool ProducerTranslator::StreamInfo::AddPacket(const RtpPacket* packet)
+bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
 {
     if (packet) {
         MS_ASSERT(packet->GetSsrc() == GetMappedSsrc(), "invalid SSRC mapping");

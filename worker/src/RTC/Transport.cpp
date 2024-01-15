@@ -1497,6 +1497,8 @@ namespace RTC
 		MS_TRACE();
 
 		this->destroying = true;
+        
+        this->listener->OnTransportDestroyed(this);
 	}
 
 	void Transport::Connected()
@@ -1547,6 +1549,7 @@ namespace RTC
 			this->senderBwe->TransportConnected();
 		}
 #endif
+        this->listener->OnTransportConnected(this);
 	}
 
 	void Transport::Disconnected()
@@ -1591,6 +1594,7 @@ namespace RTC
 			this->senderBwe->TransportDisconnected();
 		}
 #endif
+        this->listener->OnTransportDisconnected(this);
 	}
 
 	void Transport::ReceiveRtpPacket(RTC::RtpPacket* packet)

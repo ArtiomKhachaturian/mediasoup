@@ -5,8 +5,8 @@
 #include "absl/container/flat_hash_map.h"
 #include <string>
 #include <list>
+#include <atomic>
 
-#define WRITE_PRODUCER_RECV_TO_FILE
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC
@@ -22,6 +22,9 @@ public:
                             const std::string& servicePassword = std::string());
     ~MediaTranslatorsManager();
     // impl. of TransportListener
+    void OnTransportConnected(RTC::Transport* transport) final;
+    void OnTransportDisconnected(RTC::Transport* transport) final;
+    void OnTransportDestroyed(RTC::Transport* /*transport*/) final {}
     void OnTransportNewProducer(Transport* transport, Producer* producer) final;
     void OnTransportProducerLanguageChanged(RTC::Transport* transport, RTC::Producer* producer) final;
     void OnTransportProducerClosed(Transport* transport, Producer* producer) final;
@@ -65,12 +68,15 @@ public:
                                                    DataConsumer* dataConsumer) final;
     void OnTransportListenServerClosed(Transport* transport) final;
 private:
+    bool SendRtpPacket(RTC::Producer* producer, RtpPacket* packet);
+private:
     TransportListener* const _router;
     const std::string _serviceUri;
     const std::string _serviceUser;
     const std::string _servicePassword;
     // key is audio producer ID
     absl::flat_hash_map<std::string, std::unique_ptr<Translator>> _translators;
+    std::atomic<RTC::Transport*> _connectedTransport;
 };
 
 } // namespace RTC

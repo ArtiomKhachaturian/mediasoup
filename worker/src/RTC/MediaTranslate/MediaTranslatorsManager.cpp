@@ -8,9 +8,6 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/ProducerObserver.hpp"
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-#include "RTC/MediaTranslate/FileWriter.hpp"
-#endif
 #include "RTC/RtpPacket.hpp"
 #include "RTC/Producer.hpp"
 #include "RTC/Consumer.hpp"
@@ -24,10 +21,12 @@
 namespace RTC
 {
 
-class MediaTranslatorsManager::Translator : private ProducerObserver
+class MediaTranslatorsManager::Translator : private ProducerObserver,
+                                            private RtpPacketsCollector
 {
 public:
-    Translator(const Producer* producer,
+    Translator(MediaTranslatorsManager* manager,
+               Producer* producer,
                const std::string& serviceUri,
                const std::string& serviceUser,
                const std::string& servicePassword);
@@ -38,24 +37,16 @@ public:
     void UpdateConsumerLanguageAndVoice(Consumer* consumer);
     void UpdateProducerLanguage();
     void AddNewRtpStream(RtpStreamRecv* rtpStream, uint32_t mappedSsrc);
-    void AddPacket(RtpPacket* packet);
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
+    void DispatchProducerPacket(RtpPacket* packet);
 private:
-    // impl. of ProducerObserver
-    void onStreamAdded(const std::string& /*producerId*/, uint32_t mappedSsrc,
-                       const RtpCodecMimeType& /*mime*/, uint32_t /*clockRate*/) final;
-    void onStreamRemoved(const std::string& /*producerId*/, uint32_t mappedSsrc,
-                         const RtpCodecMimeType& /*mime*/) final;
-#endif
+    // impl. of RtpPacketsCollector
+    bool AddPacket(RtpPacket* packet) final;
 private:
+    MediaTranslatorsManager* const _manager;
     const std::shared_ptr<ProducerTranslator> _producer;
     const std::string& _serviceUri;
     const std::string& _serviceUser;
     const std::string& _servicePassword;
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-    // key is mapped SSRC
-    absl::flat_hash_map<uint32_t, std::unique_ptr<FileWriter>> _fileWriters;
-#endif
     absl::flat_hash_map<Consumer*, std::unique_ptr<ConsumerTranslator>> _consumers;
     // key is consumer instance, simple model - each consumer has own channer for translation
     // TODO: revise this logic for better resources consumption if more than 1 consumers has the same language and voice
@@ -70,6 +61,7 @@ MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
     , _serviceUri(serviceUri)
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
+    , _connectedTransport(nullptr)
 {
     MS_ASSERT(nullptr != _router, "router must be non-null");
 }
@@ -78,13 +70,25 @@ MediaTranslatorsManager::~MediaTranslatorsManager()
 {
 }
 
+void MediaTranslatorsManager::OnTransportConnected(RTC::Transport* transport)
+{
+    _router->OnTransportConnected(transport);
+    _connectedTransport.store(transport);
+}
+
+void MediaTranslatorsManager::OnTransportDisconnected(RTC::Transport* transport)
+{
+    _connectedTransport.compare_exchange_strong(transport, nullptr);
+    _router->OnTransportDisconnected(transport);
+}
+
 void MediaTranslatorsManager::OnTransportNewProducer(Transport* transport, Producer* producer)
 {
     _router->OnTransportNewProducer(transport, producer);
     if (producer && Media::Kind::AUDIO == producer->GetKind() && !producer->id.empty()) {
         const auto it = _translators.find(producer->id);
         if (it == _translators.end()) {
-            auto translator = std::make_unique<Translator>(producer,
+            auto translator = std::make_unique<Translator>(this, producer,
                                                            _serviceUri,
                                                            _serviceUser,
                                                            _servicePassword);
@@ -182,7 +186,7 @@ void MediaTranslatorsManager::OnTransportProducerRtpPacketReceived(Transport* tr
     if (producer && packet) {
         const auto it = _translators.find(producer->id);
         if (it != _translators.end()) {
-            it->second->AddPacket(packet);
+            it->second->DispatchProducerPacket(packet);
         }
     }
     _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
@@ -307,6 +311,17 @@ void MediaTranslatorsManager::OnTransportListenServerClosed(Transport* transport
     _router->OnTransportListenServerClosed(transport);
 }
 
+bool MediaTranslatorsManager::SendRtpPacket(RTC::Producer* producer, RtpPacket* packet)
+{
+    if (producer && packet) {
+        if (const auto transport = _connectedTransport.load()) {
+            _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
+            return true;
+        }
+    }
+    return false;
+}
+
 void TranslatorUnit::Pause(bool pause)
 {
     if (pause != _paused.exchange(pause)) {
@@ -314,11 +329,13 @@ void TranslatorUnit::Pause(bool pause)
     }
 }
 
-MediaTranslatorsManager::Translator::Translator(const Producer* producer,
+MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager,
+                                                Producer* producer,
                                                 const std::string& serviceUri,
                                                 const std::string& serviceUser,
                                                 const std::string& servicePassword)
-    : _producer(std::make_shared<ProducerTranslator>(producer))
+    : _manager(manager)
+    , _producer(std::make_shared<ProducerTranslator>(producer))
     , _serviceUri(serviceUri)
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
@@ -334,41 +351,10 @@ MediaTranslatorsManager::Translator::~Translator()
     }
 }
 
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-void MediaTranslatorsManager::Translator::onStreamAdded(const std::string& /*producerId*/,
-                                                        uint32_t mappedSsrc,
-                                                        const RtpCodecMimeType& /*mime*/,
-                                                        uint32_t /*clockRate*/)
+bool MediaTranslatorsManager::Translator::AddPacket(RtpPacket* packet)
 {
-    const auto it = _fileWriters.find(mappedSsrc);
-    if (it == _fileWriters.end()) {
-        const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
-        if (depacketizerPath && std::strlen(depacketizerPath)) {
-            const auto extension = _producer->GetFileExtension(mappedSsrc);
-            if (!extension.empty()) {
-                std::string fileName = _producer->GetId() + "." + std::string(extension);
-                fileName = std::string(depacketizerPath) + "/" + fileName;
-                auto fileWriter = std::make_unique<FileWriter>(fileName);
-                if (fileWriter->IsOpen()) {
-                    _producer->AddOutputDevice(fileWriter.get());
-                    _fileWriters[mappedSsrc] = std::move(fileWriter);
-                }
-            }
-        }
-    }
+    return packet && _manager->SendRtpPacket(_producer->GetProducer(), packet);
 }
-
-void MediaTranslatorsManager::Translator::onStreamRemoved(const std::string& /*producerId*/,
-                                                          uint32_t mappedSsrc,
-                                                          const RtpCodecMimeType& /*mime*/)
-{
-    const auto it = _fileWriters.find(mappedSsrc);
-    if (it != _fileWriters.end()) {
-        _producer->RemoveOutputDevice(it->second.get());
-        _fileWriters.erase(it);
-    }
-}
-#endif
 
 void MediaTranslatorsManager::Translator::Pause(bool pause)
 {
@@ -449,7 +435,7 @@ void MediaTranslatorsManager::Translator::AddNewRtpStream(RtpStreamRecv* rtpStre
     }
 }
 
-void MediaTranslatorsManager::Translator::AddPacket(RtpPacket* packet)
+void MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* packet)
 {
     if (_producer->AddPacket(packet)) {
         for (auto it = _endPoints.begin(); it != _endPoints.end(); ++it) {
