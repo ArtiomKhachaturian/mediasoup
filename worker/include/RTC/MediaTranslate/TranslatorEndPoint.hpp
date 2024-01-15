@@ -13,7 +13,6 @@ namespace RTC
 
 class ProducerInputMediaStreamer;
 class ConsumerTranslatorSettings;
-class RtpPacketsCollector;
 class Websocket;
 
 class TranslatorEndPoint : private WebsocketListener, private OutputDevice
@@ -28,9 +27,9 @@ public:
     void SetProducerLanguage(const std::optional<FBS::TranslationPack::Language>& language);
     void SetConsumerLanguageAndVoice(const std::optional<FBS::TranslationPack::Language>& language,
                                      const std::optional<FBS::TranslationPack::Voice>& voice);
-    void SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input);
+    void SetInput(ProducerInputMediaStreamer* input);
     bool HasInput() const;
-    void SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef);
+    void SetOutput(OutputDevice* output);
     bool IsConnected() const { return _connected.load(std::memory_order_relaxed); }
 private:
     static std::string_view LanguageToId(const std::optional<FBS::TranslationPack::Language>& language);
@@ -44,7 +43,7 @@ private:
     std::optional<FBS::TranslationPack::Language> GetProducerLanguage() const;
     void SetConnected(bool connected);
     void ConnectToMediaInput(bool connect);
-    void ConnectToMediaInput(const std::shared_ptr<ProducerInputMediaStreamer>& input, bool connect);
+    void ConnectToMediaInput(ProducerInputMediaStreamer* input, bool connect);
     void UpdateTranslationChanges();
     bool SendTranslationChanges();
     bool WriteJson(const nlohmann::json& data) const;
@@ -69,8 +68,8 @@ private:
     ProtectedOptional<FBS::TranslationPack::Language> _consumerLanguage;
     ProtectedOptional<FBS::TranslationPack::Voice> _consumerVoice;
     ProtectedOptional<FBS::TranslationPack::Language> _producerLanguage;
-    ProtectedSharedPtr<ProducerInputMediaStreamer> _input;
-    ProtectedWeakPtr<RtpPacketsCollector> _outputRef;
+    ProtectedObj<ProducerInputMediaStreamer*> _input;
+    ProtectedObj<OutputDevice*> _output;
 };
 
 } // namespace RTC

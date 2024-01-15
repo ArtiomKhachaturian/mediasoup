@@ -61,7 +61,7 @@ void TranslatorEndPoint::SetConsumerLanguageAndVoice(const std::optional<FBS::Tr
     }
 }
 
-void TranslatorEndPoint::SetInput(const std::shared_ptr<ProducerInputMediaStreamer>& input)
+void TranslatorEndPoint::SetInput(ProducerInputMediaStreamer* input)
 {
     bool changed = false;
     {
@@ -90,13 +90,13 @@ void TranslatorEndPoint::SetInput(const std::shared_ptr<ProducerInputMediaStream
 bool TranslatorEndPoint::HasInput() const
 {
     LOCK_READ_PROTECTED_OBJ(_input);
-    return nullptr != _input->get();
+    return nullptr != _input.ConstRef();
 }
 
-void TranslatorEndPoint::SetOutput(const std::weak_ptr<RtpPacketsCollector>& outputRef)
+void TranslatorEndPoint::SetOutput(OutputDevice* output)
 {
-    LOCK_WRITE_PROTECTED_OBJ(_outputRef);
-    _outputRef = outputRef;
+    LOCK_WRITE_PROTECTED_OBJ(_output);
+    _output = output;
 }
 
 std::string_view TranslatorEndPoint::LanguageToId(const std::optional<FBS::TranslationPack::Language>& language)
@@ -209,8 +209,7 @@ void TranslatorEndPoint::ConnectToMediaInput(bool connect)
     ConnectToMediaInput(_input.ConstRef(), connect);
 }
 
-void TranslatorEndPoint::ConnectToMediaInput(const std::shared_ptr<ProducerInputMediaStreamer>& input,
-                                             bool connect)
+void TranslatorEndPoint::ConnectToMediaInput(ProducerInputMediaStreamer* input, bool connect)
 {
     if (input) {
         if (connect) {
@@ -330,8 +329,15 @@ void TranslatorEndPoint::OnTextMessageReceived(uint64_t socketId, std::string me
 {
 }
 
-void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message)
+void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t /*socketId*/,
+                                                const std::shared_ptr<MemoryBuffer>& message)
 {
+    if (message) {
+        LOCK_READ_PROTECTED_OBJ(_output);
+        if (const auto& output = _output.ConstRef()) {
+            output->Write(message);
+        }
+    }
 }
 
 } // namespace RTC

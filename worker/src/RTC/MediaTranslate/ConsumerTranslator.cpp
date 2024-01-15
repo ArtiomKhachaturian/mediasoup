@@ -6,10 +6,13 @@
 namespace RTC
 {
 
-ConsumerTranslator::ConsumerTranslator(const Consumer* consumer)
+ConsumerTranslator::ConsumerTranslator(const Consumer* consumer,
+                                       RtpPacketsCollector* packetsCollector)
     : _consumer(consumer)
+    , _packetsCollector(packetsCollector)
 {
     MS_ASSERT(_consumer, "consumer must not be null");
+    MS_ASSERT(_packetsCollector, "RTP packets collector must not be null");
     if (consumer->IsPaused()) {
         Pause();
     }
@@ -42,6 +45,13 @@ std::optional<FBS::TranslationPack::Language> ConsumerTranslator::GetLanguage() 
 std::optional<FBS::TranslationPack::Voice> ConsumerTranslator::GetVoice() const
 {
     return _consumer->GetVoice();
+}
+
+void ConsumerTranslator::Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
+{
+    if (buffer) {
+        
+    }
 }
 
 void ConsumerTranslator::OnPauseChanged(bool pause)

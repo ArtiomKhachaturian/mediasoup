@@ -43,7 +43,7 @@ private:
     bool AddPacket(RtpPacket* packet) final;
 private:
     MediaTranslatorsManager* const _manager;
-    const std::shared_ptr<ProducerTranslator> _producer;
+    const std::unique_ptr<ProducerTranslator> _producer;
     const std::string& _serviceUri;
     const std::string& _serviceUser;
     const std::string& _servicePassword;
@@ -335,7 +335,7 @@ MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager
                                                 const std::string& serviceUser,
                                                 const std::string& servicePassword)
     : _manager(manager)
-    , _producer(std::make_shared<ProducerTranslator>(producer))
+    , _producer(std::make_unique<ProducerTranslator>(producer))
     , _serviceUri(serviceUri)
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
@@ -371,8 +371,20 @@ void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer)
     if (consumer) {
         const auto it = _consumers.find(consumer);
         if (it == _consumers.end()) {
-            _consumers[consumer] = std::make_unique<ConsumerTranslator>(consumer);
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+            if (!_consumers.empty()) {
+                return;
+            }
+#endif
+            auto consumerTranslator = std::make_unique<ConsumerTranslator>(consumer,
+                                                                           static_cast<RtpPacketsCollector*>(this));
+#ifdef NO_TRANSLATION_SERVICE
+            _producer->AddOutputDevice(consumerTranslator.get());
+#endif
+            _consumers[consumer] = std::move(consumerTranslator);
+#ifndef NO_TRANSLATION_SERVICE
             UpdateConsumerLanguageAndVoice(consumer);
+#endif
         }
     }
 }
@@ -382,11 +394,16 @@ bool MediaTranslatorsManager::Translator::RemoveConsumer(Consumer* consumer)
     if (consumer) {
         const auto it = _consumers.find(consumer);
         if (it != _consumers.end()) {
+#ifdef NO_TRANSLATION_SERVICE
+            _producer->RemoveOutputDevice(it->second.get());
+#else
             const auto ite = _endPoints.find(consumer);
             if (ite != _endPoints.end()) {
                 ite->second->SetInput(nullptr);
+                ite->second->SetOutput(nullptr);
                 _endPoints.erase(ite);
             }
+#endif
             _consumers.erase(it);
             return true;
         }
@@ -401,16 +418,12 @@ void MediaTranslatorsManager::Translator::UpdateConsumerLanguageAndVoice(Consume
         if (it != _consumers.end()) {
             auto ite = _endPoints.find(consumer);
             if (ite == _endPoints.end()) {
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-                if (!_endPoints.empty()) {
-                    return;
-                }
-#endif
                 const auto endPoint = std::make_shared<TranslatorEndPoint>(_serviceUri,
                                                                            _serviceUser,
                                                                            _servicePassword);
                 endPoint->SetProducerLanguage(_producer->GetLanguage());
-                endPoint->SetInput(_producer);
+                endPoint->SetInput(_producer.get());
+                endPoint->SetOutput(it->second.get());
                 ite = _endPoints.insert({consumer, endPoint}).first;
             }
             ite->second->SetConsumerLanguageAndVoice(it->second->GetLanguage(), it->second->GetVoice());

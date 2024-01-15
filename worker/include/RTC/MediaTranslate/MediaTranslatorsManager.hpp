@@ -8,6 +8,7 @@
 #include <atomic>
 
 #define SINGLE_TRANSLATION_POINT_CONNECTION
+#define NO_TRANSLATION_SERVICE
 
 namespace RTC
 {
