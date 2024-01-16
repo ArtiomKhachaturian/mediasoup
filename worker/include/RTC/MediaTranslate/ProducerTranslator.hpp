@@ -16,6 +16,7 @@
 namespace RTC
 {
 
+class RtpMediaFrameSerializer;
 class ProducerObserver;
 class RtpStream;
 class Producer;
@@ -30,7 +31,7 @@ class ProducerTranslator : public TranslatorUnit,
 {
     class StreamInfo;
 public:
-    ProducerTranslator(Producer* producer);
+    ProducerTranslator(Producer* producer, std::unique_ptr<RtpMediaFrameSerializer> serializer);
     ~ProducerTranslator() final;
     Producer* GetProducer() const { return _producer; }
     bool IsAudio() const;
@@ -67,6 +68,7 @@ private:
     void EndStream(bool failure) noexcept final;
 private:
     Producer* const _producer;
+    const std::unique_ptr<RtpMediaFrameSerializer> _serializer;
     Listeners<ProducerObserver*> _observers;
     Listeners<OutputDevice*> _outputDevices;
     // key is mapped media SSRC

@@ -4,7 +4,8 @@
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
-#include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
+#include "RTC/MediaTranslate/RtpWebMSerializer.hpp"
+#include "RTC/MediaTranslate/RtpWebMDeserializer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/ProducerObserver.hpp"
@@ -335,7 +336,7 @@ MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager
                                                 const std::string& serviceUser,
                                                 const std::string& servicePassword)
     : _manager(manager)
-    , _producer(std::make_unique<ProducerTranslator>(producer))
+    , _producer(std::make_unique<ProducerTranslator>(producer, std::make_unique<RtpWebMSerializer>()))
     , _serviceUri(serviceUri)
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
@@ -377,7 +378,8 @@ void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer)
             }
 #endif
             auto consumerTranslator = std::make_unique<ConsumerTranslator>(consumer,
-                                                                           static_cast<RtpPacketsCollector*>(this));
+                                                                           static_cast<RtpPacketsCollector*>(this),
+                                                                           std::make_unique<RtpWebMDeserializer>());
 #ifdef NO_TRANSLATION_SERVICE
             _producer->AddOutputDevice(consumerTranslator.get());
 #endif

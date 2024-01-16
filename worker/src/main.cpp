@@ -5,6 +5,7 @@
 #include "lib.hpp"
 #include <cstdlib> // std::_Exit()
 #include <string>
+#include <unistd.h>
 
 static constexpr int ConsumerChannelFd{ 3 };
 static constexpr int ProducerChannelFd{ 4 };
@@ -13,6 +14,7 @@ static constexpr int PayloadProducerChannelFd{ 6 };
 
 int main(int argc, char* argv[])
 {
+    sleep(10);
 	// Ensure we are called by our Node library.
 	if (!std::getenv("MEDIASOUP_VERSION"))
 	{

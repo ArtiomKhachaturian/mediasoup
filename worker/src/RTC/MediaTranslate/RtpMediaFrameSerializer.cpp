@@ -1,5 +1,5 @@
 #define MS_CLASS "RTC::RtpMediaFrameSerializer"
-#include "RTC/MediaTranslate/RtpWebMSerializer.hpp"
+#include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/OutputDevice.hpp"
@@ -8,14 +8,6 @@
 
 namespace RTC
 {
-
-std::shared_ptr<RtpMediaFrameSerializer> RtpMediaFrameSerializer::create(const RtpCodecMimeType& mimeType)
-{
-    if (RtpWebMSerializer::IsSupported(mimeType)) {
-        return std::make_shared<RtpWebMSerializer>();
-    }
-    return nullptr;
-}
 
 std::string_view RtpMediaFrameSerializer::GetFileExtension(const RtpCodecMimeType& mimeType) const
 {

@@ -27,7 +27,7 @@ inline constexpr uint64_t ValueToNano(T value) {
 inline bool IsOpus(RtpCodecMimeType::Subtype codec) {
     switch (codec) {
         case RtpCodecMimeType::Subtype::OPUS:
-        case RtpCodecMimeType::Subtype::MULTIOPUS:
+        //case RtpCodecMimeType::Subtype::MULTIOPUS:
             return true;
         default:
             break;
@@ -37,32 +37,6 @@ inline bool IsOpus(RtpCodecMimeType::Subtype codec) {
 
 inline bool IsOpus(const RtpCodecMimeType& mime) {
     return IsOpus(mime.GetSubtype());
-}
-
-inline static const char* GetCodecId(RtpCodecMimeType::Subtype codec) {
-    // EMBL header for H264 & H265 will be 'matroska' and 'webm' for other codec types
-    // https://www.matroska.org/technical/codec_specs.html
-    switch (codec) {
-        case RtpCodecMimeType::Subtype::VP8:
-            return mkvmuxer::Tracks::kVp8CodecId;
-        case RtpCodecMimeType::Subtype::VP9:
-            return mkvmuxer::Tracks::kVp9CodecId;
-        case RtpCodecMimeType::Subtype::H264:
-        case RtpCodecMimeType::Subtype::H264_SVC:
-            return "V_MPEG4/ISO/AVC"; // matroska
-        case RtpCodecMimeType::Subtype::H265:
-            return "V_MPEGH/ISO/HEVC";
-        default:
-            if (IsOpus(codec)) {
-                return mkvmuxer::Tracks::kOpusCodecId;
-            }
-            break;
-    }
-    return nullptr;
-}
-
-inline static const char* GetCodecId(const RtpCodecMimeType& mime) {
-    return GetCodecId(mime.GetSubtype());
 }
 
 class MkvFrame
@@ -184,6 +158,34 @@ RtpWebMSerializer::~RtpWebMSerializer()
 bool RtpWebMSerializer::IsSupported(const RtpCodecMimeType& mimeType)
 {
     return nullptr != GetCodecId(mimeType);
+}
+
+const char* RtpWebMSerializer::GetCodecId(RtpCodecMimeType::Subtype codec)
+{
+    // EMBL header for H264 & H265 will be 'matroska' and 'webm' for other codec types
+    // https://www.matroska.org/technical/codec_specs.html
+    switch (codec) {
+        case RtpCodecMimeType::Subtype::VP8:
+            return mkvmuxer::Tracks::kVp8CodecId;
+        case RtpCodecMimeType::Subtype::VP9:
+            return mkvmuxer::Tracks::kVp9CodecId;
+        case RtpCodecMimeType::Subtype::H264:
+        case RtpCodecMimeType::Subtype::H264_SVC:
+            return "V_MPEG4/ISO/AVC"; // matroska
+        case RtpCodecMimeType::Subtype::H265:
+            return "V_MPEGH/ISO/HEVC";
+        default:
+            if (IsOpus(codec)) {
+                return mkvmuxer::Tracks::kOpusCodecId;
+            }
+            break;
+    }
+    return nullptr;
+}
+
+const char* RtpWebMSerializer::GetCodecId(const RtpCodecMimeType& mime)
+{
+    return GetCodecId(mime.GetSubtype());
 }
 
 void RtpWebMSerializer::SetLiveMode(bool liveMode)

@@ -6,17 +6,23 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/Listeners.hpp"
 #include <memory>
+#include <optional>
 
 namespace RTC
 {
 
 class Consumer;
 class RtpPacketsCollector;
+class RtpMediaFrameDeserializer;
 
 class ConsumerTranslator : public ConsumerTranslatorSettings, public OutputDevice
 {
+    // 1st is MIME, 2nd - track number
+    using DeserializedMediaInfo = std::pair<RtpCodecMimeType, size_t>;
 public:
-    ConsumerTranslator(const Consumer* consumer, RtpPacketsCollector* packetsCollector);
+    ConsumerTranslator(const Consumer* consumer,
+                       RtpPacketsCollector* packetsCollector,
+                       std::unique_ptr<RtpMediaFrameDeserializer> deserializer);
     ~ConsumerTranslator() final;
     void AddObserver(ConsumerObserver* observer);
     void RemoveObserver(ConsumerObserver* observer);
@@ -30,12 +36,15 @@ public:
 protected:
     void OnPauseChanged(bool pause) final;
 private:
+    bool IsAudio() const;
     template <class Method, typename... Args>
     void InvokeObserverMethod(const Method& method, Args&&... args) const;
 private:
     const Consumer* const _consumer;
     RtpPacketsCollector* const _packetsCollector;
+    const std::unique_ptr<RtpMediaFrameDeserializer> _deserializer;
     Listeners<ConsumerObserver*> _observers;
+    std::optional<DeserializedMediaInfo> _deserializedMediaInfo;
 };
 
 } // namespace RTC

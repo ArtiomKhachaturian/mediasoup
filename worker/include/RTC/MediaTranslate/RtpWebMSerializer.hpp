@@ -18,6 +18,8 @@ public:
     RtpWebMSerializer(const char* writingApp = "SpeakShiftSFU");
     ~RtpWebMSerializer() final;
     static bool IsSupported(const RtpCodecMimeType& mimeType);
+    static const char* GetCodecId(RtpCodecMimeType::Subtype codec);
+    static const char* GetCodecId(const RtpCodecMimeType& mime);
     // impl. of RtpMediaFrameSerializer
     void SetLiveMode(bool liveMode) final;
     std::string_view GetFileExtension(const RtpCodecMimeType& mimeType) const final;

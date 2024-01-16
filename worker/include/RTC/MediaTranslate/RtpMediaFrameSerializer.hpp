@@ -18,11 +18,9 @@ class RtpVideoFrameConfig;
 
 class RtpMediaFrameSerializer : public ProducerInputMediaStreamer
 {
-    using OutputDevicesSet = absl::flat_hash_set<std::shared_ptr<OutputDevice>>;
 public:
     RtpMediaFrameSerializer(const RtpMediaFrameSerializer&) = delete;
     RtpMediaFrameSerializer(RtpMediaFrameSerializer&&) = delete;
-    static std::shared_ptr<RtpMediaFrameSerializer> create(const RtpCodecMimeType& mimeType);
     virtual ~RtpMediaFrameSerializer() = default;
     virtual std::string_view GetFileExtension(const RtpCodecMimeType& mimeType) const;
     // both 'RegisterAudio' & 'RegisterVideo' maybe called before and after 1st invoke of 'Push',

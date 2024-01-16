@@ -27,27 +27,29 @@ namespace RTC
 class ProducerTranslator::StreamInfo : public RtpPacketsCollector
 {
 public:
-    StreamInfo(uint32_t clockRate, uint32_t mappedSsrc);
+    StreamInfo(uint32_t clockRate, uint32_t mappedSsrc, RtpMediaFrameSerializer* serializer);
     ~StreamInfo();
     uint32_t GetClockRate() const { return _clockRate; }
     uint32_t GetMappedSsrc() const { return _mappedSsrc; }
     MimeChangeStatus SetMime(const RtpCodecMimeType& mime);
     std::optional<RtpCodecMimeType> GetMime() const;
     std::string_view GetFileExtension() const;
-    void SetSerializerOutputDevice(OutputDevice* outputDevice, bool set);
     // impl. of RtpPacketsCollector
     bool AddPacket(RtpPacket* packet) final;
 private:
     const uint32_t _clockRate;
     const uint32_t _mappedSsrc;
+    RtpMediaFrameSerializer* const _serializer;
     ProtectedUniquePtr<RtpDepacketizer> _depacketizer;
-    ProtectedSharedPtr<RtpMediaFrameSerializer> _serializer;
 };
 
-ProducerTranslator::ProducerTranslator(Producer* producer)
+ProducerTranslator::ProducerTranslator(Producer* producer,
+                                       std::unique_ptr<RtpMediaFrameSerializer> serializer)
     : _producer(producer)
+    , _serializer(std::move(serializer))
 {
     MS_ASSERT(_producer, "producer must not be null");
+    MS_ASSERT(_serializer, "media frame serializer must not be null");
     if (_producer->IsPaused()) {
         Pause();
     }
@@ -91,37 +93,40 @@ bool ProducerTranslator::AddStream(const RtpCodecMimeType& mime, uint32_t clockR
         MS_ASSERT(clockRate, "clock rate must be greater than zero");
         const auto it = _streams.find(mappedSsrc);
         if (it == _streams.end()) {
-            auto streamInfo = std::make_unique<StreamInfo>(clockRate, mappedSsrc);
-            ok = MimeChangeStatus::Changed == streamInfo->SetMime(mime);
-            if (ok) {
-                _streams[mappedSsrc] = std::move(streamInfo);
-                if (!_outputDevices.IsEmpty()) {
-                    streamInfo->SetSerializerOutputDevice(this, true);
-                }
-                InvokeObserverMethod(&ProducerObserver::onStreamAdded, mappedSsrc,
-                                     mime, clockRate);
+            if (_serializer->IsCompatible(mime)) {
+                auto streamInfo = std::make_unique<StreamInfo>(clockRate, mappedSsrc, _serializer.get());
+                ok = MimeChangeStatus::Changed == streamInfo->SetMime(mime);
+                if (ok) {
+                    _streams[mappedSsrc] = std::move(streamInfo);
+                    InvokeObserverMethod(&ProducerObserver::onStreamAdded, mappedSsrc,
+                                         mime, clockRate);
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-                const auto it = _fileWriters.find(mappedSsrc);
-                if (it == _fileWriters.end()) {
-                    const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
-                    if (depacketizerPath && std::strlen(depacketizerPath)) {
-                        const auto extension = GetFileExtension(mappedSsrc);
-                        if (!extension.empty()) {
-                            std::string fileName = GetId() + "." + std::string(extension);
-                            fileName = std::string(depacketizerPath) + "/" + fileName;
-                            auto fileWriter = std::make_unique<FileWriter>(fileName);
-                            if (fileWriter->IsOpen()) {
-                                AddOutputDevice(fileWriter.get());
-                                _fileWriters[mappedSsrc] = std::move(fileWriter);
+                    const auto it = _fileWriters.find(mappedSsrc);
+                    if (it == _fileWriters.end()) {
+                        const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
+                        if (depacketizerPath && std::strlen(depacketizerPath)) {
+                            const auto extension = GetFileExtension(mappedSsrc);
+                            if (!extension.empty()) {
+                                std::string fileName = GetId() + "." + std::string(extension);
+                                fileName = std::string(depacketizerPath) + "/" + fileName;
+                                auto fileWriter = std::make_unique<FileWriter>(fileName);
+                                if (fileWriter->IsOpen()) {
+                                    AddOutputDevice(fileWriter.get());
+                                    _fileWriters[mappedSsrc] = std::move(fileWriter);
+                                }
                             }
                         }
                     }
-                }
 #endif
+                }
+                else {
+                    const auto desc = GetStreamInfoString(mime, mappedSsrc);
+                    MS_ERROR("not found depacketizer for stream [%s]", desc.c_str());
+                }
             }
             else {
                 const auto desc = GetStreamInfoString(mime, mappedSsrc);
-                MS_ERROR("not found depacketizer or serializer for stream [%s]", desc.c_str());
+                MS_ERROR("stream [%s] is not compatible with target serializer", desc.c_str());
             }
         }
         else {
@@ -138,7 +143,6 @@ bool ProducerTranslator::RemoveStream(uint32_t mappedSsrc)
         if (it != _streams.end()) {
             const auto mime = it->second->GetMime();
             MS_ASSERT(mime.has_value(), "wrong stream without MIME info");
-            it->second->SetSerializerOutputDevice(this, false);
             _streams.erase(it);
             InvokeObserverMethod(&ProducerObserver::onStreamRemoved, mappedSsrc, mime.value());
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
@@ -199,9 +203,7 @@ void ProducerTranslator::AddOutputDevice(OutputDevice* outputDevice)
 {
     if (outputDevice && outputDevice != this && _outputDevices.Add(outputDevice) &&
         1UL == _outputDevices.GetSize()) {
-        for (auto it = _streams.begin(); it != _streams.end(); ++it) {
-            it->second->SetSerializerOutputDevice(this, true);
-        }
+        _serializer->AddOutputDevice(this);
     }
 }
 
@@ -209,9 +211,7 @@ void ProducerTranslator::RemoveOutputDevice(OutputDevice* outputDevice)
 {
     if (outputDevice && outputDevice != this && _outputDevices.Remove(outputDevice) &&
         _outputDevices.IsEmpty()) {
-        for (auto it = _streams.begin(); it != _streams.end(); ++it) {
-            it->second->SetSerializerOutputDevice(this, false);
-        }
+        _serializer->RemoveOutputDevice(this);
     }
 }
 
@@ -253,9 +253,11 @@ void ProducerTranslator::EndStream(bool failure) noexcept
     _outputDevices.InvokeMethod(&OutputDevice::EndStream, failure);
 }
 
-ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint32_t mappedSsrc)
+ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint32_t mappedSsrc,
+                                           RtpMediaFrameSerializer* serializer)
     : _clockRate(clockRate)
     , _mappedSsrc(mappedSsrc)
+    , _serializer(serializer)
 {
 }
 
@@ -272,27 +274,20 @@ MimeChangeStatus ProducerTranslator::StreamInfo::SetMime(const RtpCodecMimeType&
     }
     else {
         if (auto depacketizer = RtpDepacketizer::create(mime, GetClockRate())) {
-            if (auto serializer = RtpMediaFrameSerializer::create(mime)) {
-                bool ok = false;
-                switch (mime.GetType()) {
-                    case RtpCodecMimeType::Type::AUDIO:
-                        ok = serializer->AddAudio(GetMappedSsrc(), GetClockRate(), mime.GetSubtype());
-                        break;
-                    case RtpCodecMimeType::Type::VIDEO:
-                        ok = serializer->AddVideo(GetMappedSsrc(), GetClockRate(), mime.GetSubtype());
-                        break;
-                    default:
-                        break;
-                }
-                if (ok) {
-                    LOCK_WRITE_PROTECTED_OBJ(_serializer);
-                    _depacketizer = std::move(depacketizer);
-                    _serializer = std::move(serializer);
-                    status = MimeChangeStatus::Changed;
-                }
-                else {
-                    // TODO: log error
-                }
+            bool ok = false;
+            switch (mime.GetType()) {
+                case RtpCodecMimeType::Type::AUDIO:
+                    ok = _serializer->AddAudio(GetMappedSsrc(), GetClockRate(), mime.GetSubtype());
+                    break;
+                case RtpCodecMimeType::Type::VIDEO:
+                    ok = _serializer->AddVideo(GetMappedSsrc(), GetClockRate(), mime.GetSubtype());
+                    break;
+                default:
+                    break;
+            }
+            if (ok) {
+                _depacketizer = std::move(depacketizer);
+                status = MimeChangeStatus::Changed;
             }
             else {
                 // TODO: log error
@@ -316,28 +311,10 @@ std::optional<RtpCodecMimeType> ProducerTranslator::StreamInfo::GetMime() const
 
 std::string_view ProducerTranslator::StreamInfo::GetFileExtension() const
 {
-    LOCK_READ_PROTECTED_OBJ(_serializer);
-    if (const auto& serializer = _serializer.ConstRef()) {
-        if (const auto mime = GetMime()) {
-            return serializer->GetFileExtension(mime.value());
-        }
+    if (const auto mime = GetMime()) {
+        return _serializer->GetFileExtension(mime.value());
     }
     return std::string_view();
-}
-
-void ProducerTranslator::StreamInfo::SetSerializerOutputDevice(OutputDevice* outputDevice, bool set)
-{
-    if (outputDevice) {
-        LOCK_READ_PROTECTED_OBJ(_serializer);
-        if (const auto& serializer = _serializer.ConstRef()) {
-            if (set) {
-                serializer->AddOutputDevice(outputDevice);
-            }
-            else {
-                serializer->RemoveOutputDevice(outputDevice);
-            }
-        }
-    }
 }
 
 bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
@@ -347,10 +324,7 @@ bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
         LOCK_READ_PROTECTED_OBJ(_depacketizer);
         if (const auto& depacketizer = _depacketizer.ConstRef()) {
             if (const auto frame = depacketizer->AddPacket(packet)) {
-                LOCK_READ_PROTECTED_OBJ(_serializer);
-                if (const auto& serializer = _serializer.ConstRef()) {
-                    return serializer->Push(frame);
-                }
+                return _serializer->Push(frame);
             }
         }
     }
