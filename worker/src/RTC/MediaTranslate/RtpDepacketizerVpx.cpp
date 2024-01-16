@@ -2,7 +2,7 @@
 #include "RTC/MediaTranslate/RtpDepacketizerVpx.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
-#include "RTC/MediaTranslate/RtpVideoFrameConfig.hpp"
+#include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/Codecs/VP8.hpp"
 #include "RTC/Codecs/VP9.hpp"
@@ -28,7 +28,7 @@ private:
     const std::allocator<uint8_t>& _payloadAllocator;
     uint32_t _lastTimeStamp = 0U;
     std::shared_ptr<RtpMediaFrame> _payload;
-    std::shared_ptr<RtpVideoFrameConfig> _config;
+    std::shared_ptr<VideoFrameConfig> _config;
 };
 
 
@@ -88,7 +88,7 @@ std::shared_ptr<const RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::
 
 bool RtpDepacketizerVpx::RtpAssembly::AddPayload(const RtpPacket* packet)
 {
-    if (const auto pds = RtpVideoFrameConfig::GetPayloadDescriptorSize(packet)) {
+    if (const auto pds = RtpMediaFrame::GetPayloadDescriptorSize(packet)) {
         if (const auto payload = packet->GetPayload()) {
             const auto len = packet->GetPayloadLength();
             if (len > pds.value()) {
@@ -107,13 +107,13 @@ bool RtpDepacketizerVpx::RtpAssembly::ParseVideoConfig(const RtpPacket* packet)
     bool ok = false;
     if (packet) {
         if (packet->IsKeyFrame()) {
-            _config = std::make_shared<RtpVideoFrameConfig>();
+            _config = std::make_shared<VideoFrameConfig>();
             switch (_mime.GetSubtype()) {
                 case RtpCodecMimeType::Subtype::VP8:
-                    ok = _config->ParseVp8VideoConfig(packet);
+                    ok = RtpMediaFrame::ParseVp8VideoConfig(packet, _config);
                     break;
                 case RtpCodecMimeType::Subtype::VP9:
-                    ok = _config->ParseVp9VideoConfig(packet);
+                    ok = RtpMediaFrame::ParseVp9VideoConfig(packet, _config);
                     break;
                 default:
                     break;

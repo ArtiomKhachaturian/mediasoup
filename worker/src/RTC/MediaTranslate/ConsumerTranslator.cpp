@@ -66,7 +66,7 @@ void ConsumerTranslator::Write(const std::shared_ptr<const MemoryBuffer>& buffer
             }
         }
         else { // parse frames
-            
+            _deserializer->ReadNextFrame(_deserializedMediaInfo->second);
         }
     }
 }

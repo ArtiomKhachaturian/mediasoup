@@ -3,8 +3,8 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
-#include "RTC/MediaTranslate/RtpAudioFrameConfig.hpp"
-#include "RTC/MediaTranslate/RtpVideoFrameConfig.hpp"
+#include "RTC/MediaTranslate/AudioFrameConfig.hpp"
+#include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
 #include <mkvmuxer/mkvmuxer.h>
@@ -82,9 +82,9 @@ public:
     bool AddVideoTrack(int32_t number);
     void SetAudioSampleRate(int32_t number, uint32_t sampleRate, bool opusCodec);
     void SetTrackSettings(int32_t number, const char* codec,
-                          const std::shared_ptr<const RtpAudioFrameConfig>& config);
+                          const std::shared_ptr<const AudioFrameConfig>& config);
     void SetTrackSettings(int32_t number, const char* codec,
-                          const std::shared_ptr<const RtpVideoFrameConfig>& config);
+                          const std::shared_ptr<const VideoFrameConfig>& config);
     void SetTrackSettings(const TrackInfo* trackInfo);
     std::shared_ptr<MemoryBuffer> TakeWrittenData();
 private:
@@ -130,10 +130,10 @@ public:
     const std::optional<RtpCodecMimeType::Subtype>& GetCodec() const { return _codec; }
     void ResetRtpTiming();
     uint64_t UpdateTimeStamp(uint32_t lastRtpTimestamp);
-    void SetLatestConfig(const std::shared_ptr<const RtpAudioFrameConfig>& config);
-    void SetLatestConfig(const std::shared_ptr<const RtpVideoFrameConfig>& config);
-    const std::shared_ptr<const RtpAudioFrameConfig>& GetLatestAudioConfig() const;
-    const std::shared_ptr<const RtpVideoFrameConfig>& GetLatestVideoConfig() const;
+    void SetLatestConfig(const std::shared_ptr<const AudioFrameConfig>& config);
+    void SetLatestConfig(const std::shared_ptr<const VideoFrameConfig>& config);
+    const std::shared_ptr<const AudioFrameConfig>& GetLatestAudioConfig() const;
+    const std::shared_ptr<const VideoFrameConfig>& GetLatestVideoConfig() const;
 private:
     const int32_t _number;
     const bool _audio;
@@ -141,8 +141,8 @@ private:
     std::optional<RtpCodecMimeType::Subtype> _codec;
     uint32_t _lastRtpTimestamp = 0ULL;
     uint64_t _granule = 0ULL;
-    std::shared_ptr<const RtpAudioFrameConfig> _latestAudioConfig;
-    std::shared_ptr<const RtpVideoFrameConfig> _latestVideoConfig;
+    std::shared_ptr<const AudioFrameConfig> _latestAudioConfig;
+    std::shared_ptr<const VideoFrameConfig> _latestVideoConfig;
 };
 
 RtpWebMSerializer::RtpWebMSerializer(const char* writingApp)
@@ -206,7 +206,7 @@ std::string_view RtpWebMSerializer::GetFileExtension(const RtpCodecMimeType&) co
 
 bool RtpWebMSerializer::AddAudio(uint32_t ssrc, uint32_t clockRate,
                                  RtpCodecMimeType::Subtype codec,
-                                 const std::shared_ptr<const RtpAudioFrameConfig>& config)
+                                 const std::shared_ptr<const AudioFrameConfig>& config)
 {
     if (ssrc) {
         const RtpCodecMimeType mime(RtpCodecMimeType::Type::AUDIO, codec);
@@ -219,7 +219,7 @@ bool RtpWebMSerializer::AddAudio(uint32_t ssrc, uint32_t clockRate,
 
 bool RtpWebMSerializer::AddVideo(uint32_t ssrc, uint32_t clockRate,
                                  RtpCodecMimeType::Subtype codec,
-                                 const std::shared_ptr<const RtpVideoFrameConfig>& config)
+                                 const std::shared_ptr<const VideoFrameConfig>& config)
 {
     if (ssrc) {
         const RtpCodecMimeType mime(RtpCodecMimeType::Type::VIDEO, codec);
@@ -527,7 +527,7 @@ void RtpWebMSerializer::BufferedWriter::SetAudioSampleRate(int32_t number,
 
 void RtpWebMSerializer::BufferedWriter::SetTrackSettings(int32_t number,
                                                          const char* codec,
-                                                         const std::shared_ptr<const RtpAudioFrameConfig>& config)
+                                                         const std::shared_ptr<const AudioFrameConfig>& config)
 {
     if (const auto track = static_cast<mkvmuxer::AudioTrack*>(GetTrack(number))) {
         track->set_codec_id(codec);
@@ -543,7 +543,7 @@ void RtpWebMSerializer::BufferedWriter::SetTrackSettings(int32_t number,
 
 void RtpWebMSerializer::BufferedWriter::SetTrackSettings(int32_t number,
                                                          const char* codec,
-                                                         const std::shared_ptr<const RtpVideoFrameConfig>& config)
+                                                         const std::shared_ptr<const VideoFrameConfig>& config)
 {
     if (const auto track = static_cast<mkvmuxer::VideoTrack*>(GetTrack(number))) {
         track->set_codec_id(codec);
@@ -757,7 +757,7 @@ uint64_t RtpWebMSerializer::TrackInfo::UpdateTimeStamp(uint32_t lastRtpTimestamp
     return ValueToNano(_granule) / GetClockRate();
 }
 
-void RtpWebMSerializer::TrackInfo::SetLatestConfig(const std::shared_ptr<const RtpAudioFrameConfig>& config)
+void RtpWebMSerializer::TrackInfo::SetLatestConfig(const std::shared_ptr<const AudioFrameConfig>& config)
 {
     if (config) {
         MS_ASSERT(IsAudio(), "set incorrect config for audio track");
@@ -765,7 +765,7 @@ void RtpWebMSerializer::TrackInfo::SetLatestConfig(const std::shared_ptr<const R
     }
 }
 
-void RtpWebMSerializer::TrackInfo::SetLatestConfig(const std::shared_ptr<const RtpVideoFrameConfig>& config)
+void RtpWebMSerializer::TrackInfo::SetLatestConfig(const std::shared_ptr<const VideoFrameConfig>& config)
 {
     if (config) {
         MS_ASSERT(!IsAudio(), "set incorrect config for video track");
@@ -773,13 +773,13 @@ void RtpWebMSerializer::TrackInfo::SetLatestConfig(const std::shared_ptr<const R
     }
 }
 
-const std::shared_ptr<const RtpAudioFrameConfig>& RtpWebMSerializer::TrackInfo::GetLatestAudioConfig() const
+const std::shared_ptr<const AudioFrameConfig>& RtpWebMSerializer::TrackInfo::GetLatestAudioConfig() const
 {
     MS_ASSERT(IsAudio(), "get incorrect config for audio track");
     return _latestAudioConfig;
 }
 
-const std::shared_ptr<const RtpVideoFrameConfig>& RtpWebMSerializer::TrackInfo::GetLatestVideoConfig() const
+const std::shared_ptr<const VideoFrameConfig>& RtpWebMSerializer::TrackInfo::GetLatestVideoConfig() const
 {
     MS_ASSERT(!IsAudio(), "get incorrect config for video track");
     return _latestVideoConfig;

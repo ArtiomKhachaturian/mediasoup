@@ -1,16 +1,16 @@
 #pragma once
 
-#include "RTC/MediaTranslate/RtpMediaFrameConfig.hpp"
+#include "RTC/MediaTranslate/MediaFrameConfig.hpp"
 
 namespace RTC
 {
 
 class MemoryBuffer;
 
-class RtpVideoFrameConfig : public RtpMediaFrameConfig
+class VideoFrameConfig : public MediaFrameConfig
 {
 public:
-    RtpVideoFrameConfig() = default;
+    VideoFrameConfig() = default;
     void SetWidth(int32_t width);
     int32_t GetWidth() const { return _width.load(std::memory_order_relaxed); }
     void SetHeight(int32_t height);
@@ -18,8 +18,6 @@ public:
     void SetFrameRate(double frameRate); // optional
     double GetFrameRate() const { return _frameRate.load(std::memory_order_relaxed); }
     bool HasResolution() const { return GetWidth() > 0 && GetHeight() > 0; }
-    bool ParseVp8VideoConfig(const RtpPacket* packet);
-    bool ParseVp9VideoConfig(const RtpPacket* packet);
     // impl. of RtpMediaFrameConfig
     std::string ToString() const;
 private:

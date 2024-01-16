@@ -1,6 +1,6 @@
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
-#include "RTC/MediaTranslate/RtpAudioFrameConfig.hpp"
-#include "RTC/MediaTranslate/RtpVideoFrameConfig.hpp"
+#include "RTC/MediaTranslate/AudioFrameConfig.hpp"
+#include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/RtpStream.hpp"
 

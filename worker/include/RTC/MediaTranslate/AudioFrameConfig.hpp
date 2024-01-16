@@ -1,16 +1,16 @@
 #pragma once
 
-#include "RTC/MediaTranslate/RtpMediaFrameConfig.hpp"
+#include "RTC/MediaTranslate/MediaFrameConfig.hpp"
 
 namespace RTC
 {
 
 class MemoryBuffer;
 
-class RtpAudioFrameConfig : public RtpMediaFrameConfig
+class AudioFrameConfig : public MediaFrameConfig
 {
 public:
-    RtpAudioFrameConfig() = default;
+    AudioFrameConfig() = default;
     void SetChannelCount(uint8_t channelCount);
     uint8_t GetChannelCount() const { return _channelCount.load(std::memory_order_relaxed); }
     void SetBitsPerSample(uint8_t bitsPerSample);

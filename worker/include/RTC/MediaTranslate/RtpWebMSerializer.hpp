@@ -25,10 +25,10 @@ public:
     std::string_view GetFileExtension(const RtpCodecMimeType& mimeType) const final;
     bool AddAudio(uint32_t ssrc, uint32_t clockRate,
                   RtpCodecMimeType::Subtype codec,
-                  const std::shared_ptr<const RtpAudioFrameConfig>& config) final;
+                  const std::shared_ptr<const AudioFrameConfig>& config) final;
     bool AddVideo(uint32_t ssrc, uint32_t clockRate,
                   RtpCodecMimeType::Subtype codec,
-                  const std::shared_ptr<const RtpVideoFrameConfig>& config) final;
+                  const std::shared_ptr<const VideoFrameConfig>& config) final;
     void RemoveMedia(uint32_t ssrc) final;
     bool Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) final;
     bool IsCompatible(const RtpCodecMimeType& mimeType) const final;

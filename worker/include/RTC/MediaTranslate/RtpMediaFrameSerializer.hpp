@@ -13,8 +13,8 @@ namespace RTC
 class RtpMediaFrame;
 class OutputDevice;
 class MemoryBuffer;
-class RtpAudioFrameConfig;
-class RtpVideoFrameConfig;
+class AudioFrameConfig;
+class VideoFrameConfig;
 
 class RtpMediaFrameSerializer : public ProducerInputMediaStreamer
 {
@@ -28,10 +28,10 @@ public:
     // restart event via 'OutputDevice::StartStream' (with restart=true)
     virtual bool AddAudio(uint32_t ssrc, uint32_t clockRate,
                           RtpCodecMimeType::Subtype codec,
-                          const std::shared_ptr<const RtpAudioFrameConfig>& config = nullptr) = 0;
+                          const std::shared_ptr<const AudioFrameConfig>& config = nullptr) = 0;
     virtual bool AddVideo(uint32_t ssrc, uint32_t clockRate,
                           RtpCodecMimeType::Subtype codec,
-                          const std::shared_ptr<const RtpVideoFrameConfig>& config = nullptr) = 0;
+                          const std::shared_ptr<const VideoFrameConfig>& config = nullptr) = 0;
     virtual void RemoveMedia(uint32_t ssrc) = 0;
     virtual bool Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) = 0;
     virtual bool IsCompatible(const RtpCodecMimeType& mimeType) const = 0;

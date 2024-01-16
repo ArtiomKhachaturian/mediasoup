@@ -2,7 +2,7 @@
 #include "RTC/MediaTranslate/RtpDepacketizerOpus.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
-#include "RTC/MediaTranslate/RtpAudioFrameConfig.hpp"
+#include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/Codecs/Opus.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "MemoryBuffer.hpp"
@@ -43,7 +43,7 @@ std::shared_ptr<const RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPac
     if (packet && packet->GetPayload()) {
         bool stereo = false;
         Codecs::Opus::ParseTOC(packet->GetPayload()[0], nullptr, nullptr, nullptr, &stereo);
-        auto config = std::make_shared<RtpAudioFrameConfig>();
+        auto config = std::make_shared<AudioFrameConfig>();
         config->SetChannelCount(stereo ? 2U : 1U);
         config->SetBitsPerSample(16U);
         if (_opusCodecData->GetChannelCount() != config->GetChannelCount()) {
