@@ -7,7 +7,7 @@
 #include <memory>
 #include <optional>
 
-#define USE_TEST_FILE
+//#define USE_TEST_FILE
 
 #ifdef USE_TEST_FILE
 namespace mkvparser {

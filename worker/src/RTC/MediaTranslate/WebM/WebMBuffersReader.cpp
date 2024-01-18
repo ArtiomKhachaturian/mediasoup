@@ -28,7 +28,7 @@ bool WebMBuffersReader::AddBuffer(const std::shared_ptr<const MemoryBuffer>& buf
 
 int WebMBuffersReader::Read(long long pos, long len, unsigned char* buf)
 {
-    if (len >= 0 && pos + len < _bufferSize) {
+    if (len >= 0 && pos + len <= _bufferSize) {
         std::memcpy(buf, _buffer.data() + pos, len);
         return 0;
     }
@@ -39,8 +39,8 @@ int WebMBuffersReader::Length(long long* total, long long* available)
 {
     if (total) {
         // https://chromium.googlesource.com/webm/webmlive/+/v2/client_encoder/webm_buffer_parser.cc#99
-        //*total = -1; // // total file size is unknown
-        *total = _bufferSize; // std::numeric_limits<long long>::max();
+        *total = -1; // // total file size is unknown
+        //*total = _bufferSize; // std::numeric_limits<long long>::max();
     }
     if (available) {
         *available = _bufferSize;

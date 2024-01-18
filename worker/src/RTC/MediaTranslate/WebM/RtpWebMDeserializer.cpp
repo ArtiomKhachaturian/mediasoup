@@ -157,14 +157,16 @@ bool RtpWebMDeserializer::WebMStream::ParseSegment()
     if (!_segment && _ebmlHeader) {
         mkvparser::Segment* segment = nullptr;
         long long pos = 0LL;
-        if (0L == mkvparser::Segment::CreateInstance(_reader, pos, segment) &&
-            0L == segment->Load()) {
-            if (const auto tracks = segment->GetTracks()) {
-                if (const auto tracksCount = tracks->GetTracksCount()) {
-                    std::swap(_segment, segment);
-                    for (size_t i = 0UL; i < tracksCount; ++i) {
-                        if (auto trackInfo = TrackInfo::Create(tracks, i)) {
-                            _tracks[i] = std::move(trackInfo);
+        if (0L == mkvparser::Segment::CreateInstance(_reader, pos, segment)) {
+            const auto loadResult = segment->Load();
+            if (0 == loadResult || mkvparser::E_BUFFER_NOT_FULL == loadResult) {
+                if (const auto tracks = segment->GetTracks()) {
+                    if (const auto tracksCount = tracks->GetTracksCount()) {
+                        std::swap(_segment, segment);
+                        for (size_t i = 0UL; i < tracksCount; ++i) {
+                            if (auto trackInfo = TrackInfo::Create(tracks, i)) {
+                                _tracks[i] = std::move(trackInfo);
+                            }
                         }
                     }
                 }
