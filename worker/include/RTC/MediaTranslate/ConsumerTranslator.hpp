@@ -8,12 +8,21 @@
 #include <memory>
 #include <optional>
 
+#define USE_TEST_FILE
+
+#ifdef USE_TEST_FILE
+namespace mkvparser {
+class MkvReader;
+}
+#endif
+
 namespace RTC
 {
 
 class Consumer;
 class RtpPacketsCollector;
 class RtpMediaFrameDeserializer;
+class WebMBuffersReader;
 
 class ConsumerTranslator : public ConsumerTranslatorSettings, public OutputDevice
 {
@@ -21,8 +30,7 @@ class ConsumerTranslator : public ConsumerTranslatorSettings, public OutputDevic
     using DeserializedMediaInfo = std::pair<RtpCodecMimeType, size_t>;
 public:
     ConsumerTranslator(const Consumer* consumer,
-                       RtpPacketsCollector* packetsCollector,
-                       std::unique_ptr<RtpMediaFrameDeserializer> deserializer);
+                       RtpPacketsCollector* packetsCollector);
     ~ConsumerTranslator() final;
     void AddObserver(ConsumerObserver* observer);
     void RemoveObserver(ConsumerObserver* observer);
@@ -42,7 +50,12 @@ private:
 private:
     const Consumer* const _consumer;
     RtpPacketsCollector* const _packetsCollector;
-    const std::unique_ptr<RtpMediaFrameDeserializer> _deserializer;
+#ifdef USE_TEST_FILE
+    std::unique_ptr<mkvparser::MkvReader> _deserializerSource;
+#else
+    std::unique_ptr<WebMBuffersReader> _deserializerSource;
+#endif
+    std::unique_ptr<RtpMediaFrameDeserializer> _deserializer;
     Listeners<ConsumerObserver*> _observers;
     std::optional<DeserializedMediaInfo> _deserializedMediaInfo;
 };

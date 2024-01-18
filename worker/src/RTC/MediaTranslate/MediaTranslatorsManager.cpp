@@ -4,8 +4,7 @@
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
-#include "RTC/MediaTranslate/RtpWebMSerializer.hpp"
-#include "RTC/MediaTranslate/RtpWebMDeserializer.hpp"
+#include "RTC/MediaTranslate/WebM/RtpWebMSerializer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/ProducerObserver.hpp"
@@ -378,8 +377,7 @@ void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer)
             }
 #endif
             auto consumerTranslator = std::make_unique<ConsumerTranslator>(consumer,
-                                                                           static_cast<RtpPacketsCollector*>(this),
-                                                                           std::make_unique<RtpWebMDeserializer>());
+                                                                           static_cast<RtpPacketsCollector*>(this));
 #ifdef NO_TRANSLATION_SERVICE
             _producer->AddOutputDevice(consumerTranslator.get());
 #endif

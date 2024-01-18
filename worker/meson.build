@@ -185,11 +185,12 @@ common_sources = [
   'src/RTC/MediaTranslate/RtpMediaFrame.cpp',
   'src/RTC/MediaTranslate/RtpMediaFrameDeserializer.cpp',
   'src/RTC/MediaTranslate/RtpMediaFrameSerializer.cpp',
-  'src/RTC/MediaTranslate/RtpWebMDeserializer.cpp',
-  'src/RTC/MediaTranslate/RtpWebMSerializer.cpp',
   'src/RTC/MediaTranslate/SimpleMemoryBuffer.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint.cpp',
   'src/RTC/MediaTranslate/TranslatorUtils.cpp',
+  'src/RTC/MediaTranslate/WebM/RtpWebMDeserializer.cpp',
+  'src/RTC/MediaTranslate/WebM/RtpWebMSerializer.cpp',
+  'src/RTC/MediaTranslate/WebM/WebMBuffersReader.cpp',
   'src/RTC/MediaTranslate/Websocket.cpp',
 ]
 

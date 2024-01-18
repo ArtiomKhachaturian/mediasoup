@@ -1,22 +1,35 @@
 #define MS_CLASS "RTC::ConsumerTranslator"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrameDeserializer.hpp"
+#include "RTC/MediaTranslate/WebM/WebMBuffersReader.hpp"
+#include "RTC/MediaTranslate/WebM/RtpWebMDeserializer.hpp"
 #include "RTC/Consumer.hpp"
 #include "Logger.hpp"
+#ifdef USE_TEST_FILE
+#include <mkvparser/mkvreader.h>
+#endif
 
 namespace RTC
 {
 
 ConsumerTranslator::ConsumerTranslator(const Consumer* consumer,
-                                       RtpPacketsCollector* packetsCollector,
-                                       std::unique_ptr<RtpMediaFrameDeserializer> deserializer)
+                                       RtpPacketsCollector* packetsCollector)
     : _consumer(consumer)
     , _packetsCollector(packetsCollector)
-    , _deserializer(std::move(deserializer))
 {
     MS_ASSERT(_consumer, "consumer must not be null");
     MS_ASSERT(_packetsCollector, "RTP packets collector must not be null");
-    MS_ASSERT(_deserializer, "packets deserializer must not be null");
+#ifdef USE_TEST_FILE
+    auto deserializerSource = std::make_unique<mkvparser::MkvReader>();
+    if (0 == deserializerSource->Open("/Users/user/Downloads/big-buck-bunny_trailer.webm")) {
+        _deserializerSource = std::move(deserializerSource);
+    }
+#else
+    _deserializerSource = std::make_unique<WebMBuffersReader>();
+#endif
+    if (_deserializerSource) {
+        _deserializer = std::make_unique<RtpWebMDeserializer>(_deserializerSource.get());
+    }
     if (consumer->IsPaused()) {
         Pause();
     }
@@ -53,20 +66,28 @@ std::optional<FBS::TranslationPack::Voice> ConsumerTranslator::GetVoice() const
 
 void ConsumerTranslator::Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
-    if (buffer && _deserializer->AddBuffer(buffer)) {
-        if (!_deserializedMediaInfo) {
-            if (const auto tracksCount = _deserializer->GetTracksCount()) {
-                for (size_t i = 0UL; i < tracksCount; ++i) {
-                    auto mime = _deserializer->GetTrackMimeType(i);
-                    if (mime.has_value() && mime->IsAudioCodec() == IsAudio()) {
-                        _deserializedMediaInfo = std::make_pair(std::move(mime.value()), i);
-                        break;
+    if (buffer && _deserializer) {
+#ifndef USE_TEST_FILE
+        if (!_deserializerSource->AddBuffer(buffer)) {
+            return;
+        }
+#endif
+        if (_deserializer->Update()) {
+            if (!_deserializedMediaInfo) {
+                if (const auto tracksCount = _deserializer->GetTracksCount()) {
+                    for (size_t i = 0UL; i < tracksCount; ++i) {
+                        auto mime = _deserializer->GetTrackMimeType(i);
+                        if (mime.has_value() && mime->IsAudioCodec() == IsAudio()) {
+                            _deserializedMediaInfo = std::make_pair(std::move(mime.value()), i);
+                            break;
+                        }
                     }
                 }
             }
-        }
-        else { // parse frames
-            _deserializer->ReadNextFrame(_deserializedMediaInfo->second);
+            // parse frames
+            if (const auto frame = _deserializer->ReadNextFrame(_deserializedMediaInfo->second)) {
+                
+            }
         }
     }
 }

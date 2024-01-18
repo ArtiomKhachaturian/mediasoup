@@ -1,10 +1,8 @@
 #define MS_CLASS "RTC::RtpWebMDeserializer"
-
-#include "RTC/MediaTranslate/RtpWebMDeserializer.hpp"
-#include "RTC/MediaTranslate/RtpWebMSerializer.hpp"
+#include "RTC/MediaTranslate/WebM/RtpWebMDeserializer.hpp"
+#include "RTC/MediaTranslate/WebM/RtpWebMSerializer.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
-#include "MemoryBuffer.hpp"
 #include "Logger.hpp"
 #include <array>
 #include <mkvparser/mkvreader.h>
@@ -23,21 +21,6 @@ struct TrackInfo
 
 namespace RTC
 {
-
-class RtpWebMDeserializer::MemoryReader : public mkvparser::IMkvReader
-{
-public:
-    MemoryReader() = default;
-    bool AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer);
-    // impl. of mkvparser::IMkvReader
-    int Read(long long pos, long len, unsigned char* buf) final;
-    int Length(long long* total, long long* available) final;
-
-private:
-    static inline constexpr size_t _maxBufferSize = 1024UL * 1024UL * 16UL; // 16 Mb
-    std::array<uint8_t, _maxBufferSize> _buffer;
-    size_t _bufferSize = 0UL;
-};
 
 class RtpWebMDeserializer::WebMStream
 {
@@ -62,9 +45,8 @@ private:
     absl::flat_hash_map<size_t, std::unique_ptr<TrackInfo>> _tracks;
 };
 
-RtpWebMDeserializer::RtpWebMDeserializer()
-    : _reader(std::make_unique<MemoryReader>())
-    , _stream(std::make_unique<WebMStream>(_reader.get()))
+RtpWebMDeserializer::RtpWebMDeserializer(mkvparser::IMkvReader* reader)
+    : _stream(std::make_unique<WebMStream>(reader))
 {
 }
 
@@ -72,9 +54,12 @@ RtpWebMDeserializer::~RtpWebMDeserializer()
 {
 }
 
-bool RtpWebMDeserializer::AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer)
+bool RtpWebMDeserializer::Update()
 {
-    return _reader->AddBuffer(buffer) && ParseLatestIncomingBuffer();
+    if (_ok) {
+        _ok = _stream->ParseEBMLHeader() && _stream->ParseSegment();
+    }
+    return _ok;
 }
 
 size_t RtpWebMDeserializer::GetTracksCount() const
@@ -90,54 +75,6 @@ std::optional<RtpCodecMimeType> RtpWebMDeserializer::GetTrackMimeType(size_t tra
 std::shared_ptr<const MediaFrame> RtpWebMDeserializer::ReadNextFrame(size_t trackIndex)
 {
     return _ok ? _stream->ReadNextFrame(trackIndex) : nullptr;
-}
-
-bool RtpWebMDeserializer::ParseLatestIncomingBuffer()
-{
-    if (_ok) {
-        _ok = _stream->ParseEBMLHeader() && _stream->ParseSegment();
-    }
-    return _ok;
-}
-
-bool RtpWebMDeserializer::MemoryReader::AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer)
-{
-    if (buffer && !buffer->IsEmpty()) {
-        const auto size = buffer->GetSize();
-        MS_ASSERT(size <= _maxBufferSize, "data buffer is too big for WebM decoding");
-        uint8_t* target = nullptr;
-        if (size + _bufferSize >= _maxBufferSize) {
-            target = _buffer.data();
-            _bufferSize = 0UL;
-        }
-        else {
-            target = _buffer.data() + _bufferSize;
-        }
-        std::memcpy(target, buffer->GetData(), size);
-        _bufferSize += size;
-        return true;
-    }
-    return false;
-}
-
-int RtpWebMDeserializer::MemoryReader::Read(long long pos, long len, unsigned char* buf)
-{
-    if (len >= 0 && pos + len < _bufferSize) {
-        std::memcpy(buf, _buffer.data() + pos, len);
-        return 0;
-    }
-    return -1;
-}
-
-int RtpWebMDeserializer::MemoryReader::Length(long long* total, long long* available)
-{
-    if (total) {
-        *total = _bufferSize; // std::numeric_limits<long long>::max();
-    }
-    if (available) {
-        *available = _bufferSize;
-    }
-    return 0;
 }
 
 bool RtpWebMDeserializer::WebMStream::ParseEBMLHeader()
@@ -267,6 +204,7 @@ std::unique_ptr<TrackInfo> RtpWebMDeserializer::WebMStream::GetTrackInfo(const m
 RtpWebMDeserializer::WebMStream::WebMStream(mkvparser::IMkvReader* reader)
     : _reader(reader)
 {
+    MS_ASSERT(_reader, "MKV reader must not be null");
 }
 
 RtpWebMDeserializer::WebMStream::~WebMStream()

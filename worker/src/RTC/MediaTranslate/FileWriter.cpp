@@ -18,7 +18,7 @@ FileWriter::FileWriter(FILE* file)
 }
 
 FileWriter::FileWriter(std::string_view fileNameUtf8, int* error)
-    : FileWriter(FileOpen(std::move(fileNameUtf8), error))
+    : FileWriter(OpenFile(std::move(fileNameUtf8), error))
 {
 }
 
@@ -96,7 +96,7 @@ void FileWriter::EndStream(bool failure) noexcept
     MS_DEBUG_DEV(failure ? "media stream failed" : "media stream finished");
 }
 
-FILE* FileWriter::FileOpen(std::string_view fileNameUtf8, int* error)
+FILE* FileWriter::OpenFile(std::string_view fileNameUtf8, int* error)
 {
 #if defined(_WIN32)
     std::string fileName(fileNameUtf8);
