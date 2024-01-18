@@ -21,7 +21,7 @@ ConsumerTranslator::ConsumerTranslator(const Consumer* consumer,
     MS_ASSERT(_packetsCollector, "RTP packets collector must not be null");
 #ifdef USE_TEST_FILE
     auto deserializerSource = std::make_unique<mkvparser::MkvReader>();
-    if (0 == deserializerSource->Open("/Users/user/Downloads/big-buck-bunny_trailer.webm")) {
+    if (0 == deserializerSource->Open("/Users/user/Downloads/1b0cefc4-abdb-48d0-9c50-f5050755be94.webm")) {
         _deserializerSource = std::move(deserializerSource);
     }
 #else
@@ -75,17 +75,18 @@ void ConsumerTranslator::Write(const std::shared_ptr<const MemoryBuffer>& buffer
         if (_deserializer->Update()) {
             if (!_deserializedMediaInfo) {
                 if (const auto tracksCount = _deserializer->GetTracksCount()) {
-                    for (size_t i = 0UL; i < tracksCount; ++i) {
-                        auto mime = _deserializer->GetTrackMimeType(i);
+                    for (size_t trackIndex = 0UL; trackIndex < tracksCount; ++trackIndex) {
+                        auto mime = _deserializer->GetTrackMimeType(trackIndex);
                         if (mime.has_value() && mime->IsAudioCodec() == IsAudio()) {
-                            _deserializedMediaInfo = std::make_pair(std::move(mime.value()), i);
+                            _deserializedMediaInfo = std::make_pair(mime.value(), trackIndex);
                             break;
                         }
                     }
                 }
             }
             // parse frames
-            if (const auto frame = _deserializer->ReadNextFrame(_deserializedMediaInfo->second)) {
+            const auto frames = _deserializer->ReadNextFrames(_deserializedMediaInfo->second);
+            if (!frames.empty()) {
                 
             }
         }

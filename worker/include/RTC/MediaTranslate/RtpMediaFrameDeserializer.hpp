@@ -1,6 +1,7 @@
 #pragma once
 #include "RTC/RtpDictionaries.hpp"
 #include <memory>
+#include <vector>
 #include <optional>
 
 namespace RTC
@@ -19,7 +20,7 @@ public:
     // tracks info maybe actual after 1st calling of 'Update'
     virtual size_t GetTracksCount() const = 0; // all tracks, including subtitles
     virtual std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const = 0;
-    virtual std::shared_ptr<const MediaFrame> ReadNextFrame(size_t trackIndex) = 0;
+    virtual std::vector<std::shared_ptr<const MediaFrame>> ReadNextFrames(size_t trackIndex) = 0;
 protected:
     RtpMediaFrameDeserializer() = default;
 };

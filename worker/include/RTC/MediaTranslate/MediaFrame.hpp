@@ -31,6 +31,7 @@ public:
     bool IsAudio() const { return GetMimeType().IsAudioCodec(); }
     void SetKeyFrame(bool keyFrame);
     bool IsKeyFrame() const { return _keyFrame; }
+    void SetMediaConfig(const std::shared_ptr<const MediaFrameConfig>& config);
     // audio configuration
     void SetAudioConfig(const std::shared_ptr<const AudioFrameConfig>& config);
     std::shared_ptr<const AudioFrameConfig> GetAudioConfig() const;

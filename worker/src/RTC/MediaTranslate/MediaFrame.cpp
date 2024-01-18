@@ -67,10 +67,15 @@ void MediaFrame::SetKeyFrame(bool keyFrame)
     _keyFrame = keyFrame;
 }
 
+void MediaFrame::SetMediaConfig(const std::shared_ptr<const MediaFrameConfig>& config)
+{
+    _config = config;
+}
+
 void MediaFrame::SetAudioConfig(const std::shared_ptr<const AudioFrameConfig>& config)
 {
     MS_ASSERT(IsAudio(), "set incorrect config for audio track");
-    _config = config;
+    SetMediaConfig(config);
 }
 
 std::shared_ptr<const AudioFrameConfig> MediaFrame::GetAudioConfig() const
@@ -81,7 +86,7 @@ std::shared_ptr<const AudioFrameConfig> MediaFrame::GetAudioConfig() const
 void MediaFrame::SetVideoConfig(const std::shared_ptr<const VideoFrameConfig>& config)
 {
     MS_ASSERT(!IsAudio(), "set incorrect config for video track");
-    _config = config;
+    SetMediaConfig(config);
 }
 
 std::shared_ptr<const VideoFrameConfig> MediaFrame::GetVideoConfig() const
