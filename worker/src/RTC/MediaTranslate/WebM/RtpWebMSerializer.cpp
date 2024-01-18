@@ -129,7 +129,7 @@ public:
     bool SetCodec(const RtpCodecMimeType& mime) { return SetCodec(mime.GetSubtype()); }
     const std::optional<RtpCodecMimeType::Subtype>& GetCodec() const { return _codec; }
     void ResetRtpTiming();
-    uint64_t UpdateTimeStamp(uint32_t lastRtpTimestamp);
+    uint64_t UpdateTimeStamp(uint32_t rtpTimestamp);
     void SetLatestConfig(const std::shared_ptr<const AudioFrameConfig>& config);
     void SetLatestConfig(const std::shared_ptr<const VideoFrameConfig>& config);
     const std::shared_ptr<const AudioFrameConfig>& GetLatestAudioConfig() const;
@@ -746,13 +746,13 @@ void RtpWebMSerializer::TrackInfo::ResetRtpTiming()
     _granule = 0ULL;
 }
 
-uint64_t RtpWebMSerializer::TrackInfo::UpdateTimeStamp(uint32_t lastRtpTimestamp)
+uint64_t RtpWebMSerializer::TrackInfo::UpdateTimeStamp(uint32_t rtpTimestamp)
 {
-    if (lastRtpTimestamp > _lastRtpTimestamp) {
+    if (rtpTimestamp > _lastRtpTimestamp) {
         if (_lastRtpTimestamp) {
-            _granule += lastRtpTimestamp - _lastRtpTimestamp;
+            _granule += rtpTimestamp - _lastRtpTimestamp;
         }
-        _lastRtpTimestamp = lastRtpTimestamp;
+        _lastRtpTimestamp = rtpTimestamp;
     }
     return ValueToNano(_granule) / GetClockRate();
 }

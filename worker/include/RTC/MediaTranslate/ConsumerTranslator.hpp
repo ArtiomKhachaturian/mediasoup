@@ -3,7 +3,6 @@
 #include "RTC/MediaTranslate/ConsumerTranslatorSettings.hpp"
 #include "RTC/MediaTranslate/ConsumerObserver.hpp"
 #include "RTC/MediaTranslate/OutputDevice.hpp"
-#include "RTC/RtpDictionaries.hpp"
 #include "RTC/Listeners.hpp"
 #include <memory>
 #include <optional>
@@ -26,8 +25,6 @@ class WebMBuffersReader;
 
 class ConsumerTranslator : public ConsumerTranslatorSettings, public OutputDevice
 {
-    // 1st is MIME, 2nd - track number
-    using DeserializedMediaInfo = std::pair<RtpCodecMimeType, size_t>;
 public:
     ConsumerTranslator(const Consumer* consumer,
                        RtpPacketsCollector* packetsCollector);
@@ -57,7 +54,7 @@ private:
 #endif
     std::unique_ptr<RtpMediaFrameDeserializer> _deserializer;
     Listeners<ConsumerObserver*> _observers;
-    std::optional<DeserializedMediaInfo> _deserializedMediaInfo;
+    std::optional<size_t> _deserializedMediaTrackIndex;
 };
 
 } // namespace RTC

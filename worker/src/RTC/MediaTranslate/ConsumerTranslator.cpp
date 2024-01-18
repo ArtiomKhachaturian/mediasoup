@@ -23,13 +23,12 @@ ConsumerTranslator::ConsumerTranslator(const Consumer* consumer,
     auto deserializerSource = std::make_unique<mkvparser::MkvReader>();
     if (0 == deserializerSource->Open("/Users/user/Downloads/1b0cefc4-abdb-48d0-9c50-f5050755be94.webm")) {
         _deserializerSource = std::move(deserializerSource);
+        _deserializer = std::make_unique<RtpWebMDeserializer>(_deserializerSource.get());
     }
 #else
     _deserializerSource = std::make_unique<WebMBuffersReader>();
+    _deserializer = std::make_unique<RtpWebMDeserializer>(_deserializerSource.get());
 #endif
-    if (_deserializerSource) {
-        _deserializer = std::make_unique<RtpWebMDeserializer>(_deserializerSource.get());
-    }
     if (consumer->IsPaused()) {
         Pause();
     }
@@ -72,20 +71,22 @@ void ConsumerTranslator::Write(const std::shared_ptr<const MemoryBuffer>& buffer
             return;
         }
 #endif
-        if (_deserializer->Update()) {
-            if (!_deserializedMediaInfo) {
+        if (!_deserializedMediaTrackIndex.has_value()) {
+            if (_deserializer->Start()) {
                 if (const auto tracksCount = _deserializer->GetTracksCount()) {
                     for (size_t trackIndex = 0UL; trackIndex < tracksCount; ++trackIndex) {
-                        auto mime = _deserializer->GetTrackMimeType(trackIndex);
+                        const auto mime = _deserializer->GetTrackMimeType(trackIndex);
                         if (mime.has_value() && mime->IsAudioCodec() == IsAudio()) {
-                            _deserializedMediaInfo = std::make_pair(mime.value(), trackIndex);
+                            _deserializedMediaTrackIndex = trackIndex;
                             break;
                         }
                     }
                 }
             }
+        }
+        if (_deserializedMediaTrackIndex.has_value()) {
             // parse frames
-            const auto frames = _deserializer->ReadNextFrames(_deserializedMediaInfo->second);
+            const auto frames = _deserializer->ReadNextFrames(_deserializedMediaTrackIndex.value());
             if (!frames.empty()) {
                 
             }

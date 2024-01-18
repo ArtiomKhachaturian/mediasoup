@@ -23,7 +23,6 @@ public:
     bool AddPacket(const RtpPacket* packet, const std::allocator<uint8_t>& payloadAllocator = {});
     bool AddPacket(const RtpPacket* packet, const std::shared_ptr<const MemoryBuffer>& payload);
     const std::vector<RtpMediaPacketInfo>& GetPacketsInfo() const;
-    uint32_t GetTimestamp() const { return _timestamp; }
     uint32_t GetSsrc() const { return _ssrc; }
     // factory methods (for single-packet frames)
     static std::shared_ptr<RtpMediaFrame> Create(const RtpCodecMimeType& mimeType,
@@ -45,7 +44,6 @@ public:
     static bool ParseVp9VideoConfig(const RtpPacket* packet, const std::shared_ptr<VideoFrameConfig>& applyTo);
 private:
     uint32_t _ssrc = 0U;
-    uint32_t _timestamp = 0U;
     std::vector<RtpMediaPacketInfo> _packetsInfo;
 };
 

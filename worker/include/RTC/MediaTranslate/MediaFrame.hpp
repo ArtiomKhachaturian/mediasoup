@@ -31,6 +31,8 @@ public:
     bool IsAudio() const { return GetMimeType().IsAudioCodec(); }
     void SetKeyFrame(bool keyFrame);
     bool IsKeyFrame() const { return _keyFrame; }
+    void SeTimestamp(uint32_t timestamp) { _timestamp = timestamp; }
+    uint32_t GetTimestamp() const { return _timestamp; }
     void SetMediaConfig(const std::shared_ptr<const MediaFrameConfig>& config);
     // audio configuration
     void SetAudioConfig(const std::shared_ptr<const AudioFrameConfig>& config);
@@ -41,6 +43,7 @@ public:
 private:
 	const RtpCodecMimeType _mimeType;
     bool _keyFrame = false;
+    uint32_t _timestamp = 0U; // RTP time
     std::vector<std::shared_ptr<const MemoryBuffer>> _payloads;
     size_t _payloadSize = 0UL;
     std::shared_ptr<const MediaFrameConfig> _config;

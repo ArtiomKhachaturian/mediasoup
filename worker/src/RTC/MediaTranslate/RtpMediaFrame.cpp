@@ -58,11 +58,11 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet,
         RtpMediaPacketInfo packetInfo;
         packetInfo._sequenceNumber = packet->GetSequenceNumber();
         _packetsInfo.push_back(std::move(packetInfo));
-        if (_timestamp > packet->GetTimestamp()) {
-            MS_WARN_DEV("time stamp of new packet is less than previous, SSRC = %du", _ssrc);
+        if (GetTimestamp() > packet->GetTimestamp()) {
+            MS_WARN_TAG(rtp, "time stamp of new packet is less than previous, SSRC = %du", _ssrc);
         }
         else {
-            _timestamp = packet->GetTimestamp();
+            SeTimestamp(packet->GetTimestamp());
         }
         if (packet->IsKeyFrame()) {
             SetKeyFrame(true);
