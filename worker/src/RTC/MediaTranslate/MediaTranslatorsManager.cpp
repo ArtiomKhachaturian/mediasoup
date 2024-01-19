@@ -4,7 +4,7 @@
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
-#include "RTC/MediaTranslate/WebM/RtpWebMSerializer.hpp"
+#include "RTC/MediaTranslate/WebM/WebMSerializer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/ProducerObserver.hpp"
@@ -335,7 +335,7 @@ MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager
                                                 const std::string& serviceUser,
                                                 const std::string& servicePassword)
     : _manager(manager)
-    , _producer(std::make_unique<ProducerTranslator>(producer, std::make_unique<RtpWebMSerializer>()))
+    , _producer(std::make_unique<ProducerTranslator>(producer, std::make_unique<WebMSerializer>()))
     , _serviceUri(serviceUri)
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)

@@ -1,8 +1,8 @@
 #define MS_CLASS "RTC::ConsumerTranslator"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
-#include "RTC/MediaTranslate/RtpMediaFrameDeserializer.hpp"
+#include "RTC/MediaTranslate/MediaFrameDeserializer.hpp"
 #include "RTC/MediaTranslate/WebM/WebMBuffersReader.hpp"
-#include "RTC/MediaTranslate/WebM/RtpWebMDeserializer.hpp"
+#include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
 #include "RTC/Consumer.hpp"
 #include "Logger.hpp"
 #ifdef USE_TEST_FILE
@@ -23,11 +23,11 @@ ConsumerTranslator::ConsumerTranslator(const Consumer* consumer,
     auto deserializerSource = std::make_unique<mkvparser::MkvReader>();
     if (0 == deserializerSource->Open("/Users/user/Downloads/1b0cefc4-abdb-48d0-9c50-f5050755be94.webm")) {
         _deserializerSource = std::move(deserializerSource);
-        _deserializer = std::make_unique<RtpWebMDeserializer>(_deserializerSource.get());
+        _deserializer = std::make_unique<WebMDeserializer>(_deserializerSource.get());
     }
 #else
     _deserializerSource = std::make_unique<WebMBuffersReader>();
-    _deserializer = std::make_unique<RtpWebMDeserializer>(_deserializerSource.get());
+    _deserializer = std::make_unique<WebMDeserializer>(_deserializerSource.get());
 #endif
     if (consumer->IsPaused()) {
         Pause();

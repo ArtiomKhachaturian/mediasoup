@@ -1,6 +1,6 @@
-#define MS_CLASS "RTC::RtpWebMDeserializer"
-#include "RTC/MediaTranslate/WebM/RtpWebMDeserializer.hpp"
-#include "RTC/MediaTranslate/WebM/RtpWebMSerializer.hpp"
+#define MS_CLASS "RTC::WebMDeserializer"
+#include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
+#include "RTC/MediaTranslate/WebM/WebMSerializer.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
@@ -20,7 +20,7 @@ inline constexpr T ValueFromNano(unsigned long long nano) {
 namespace RTC
 {
 
-class RtpWebMDeserializer::WebMStream
+class WebMDeserializer::WebMStream
 {
 public:
     WebMStream(mkvparser::IMkvReader* reader);
@@ -39,7 +39,7 @@ private:
     absl::flat_hash_map<size_t, std::unique_ptr<TrackInfo>> _tracks;
 };
 
-class RtpWebMDeserializer::TrackInfo
+class WebMDeserializer::TrackInfo
 {
 public:
     TrackInfo(RtpCodecMimeType::Type type,
@@ -67,17 +67,17 @@ private:
     uint32_t _initialTimestamp = 0U;
 };
 
-RtpWebMDeserializer::RtpWebMDeserializer(mkvparser::IMkvReader* reader)
+WebMDeserializer::WebMDeserializer(mkvparser::IMkvReader* reader)
     : _reader(reader)
 {
     MS_ASSERT(_reader, "MKV reader must not be null");
 }
 
-RtpWebMDeserializer::~RtpWebMDeserializer()
+WebMDeserializer::~WebMDeserializer()
 {
 }
 
-bool RtpWebMDeserializer::Start()
+bool WebMDeserializer::Start()
 {
     if (!_stream && _reader) {
         auto stream = std::make_unique<WebMStream>(_reader);
@@ -88,17 +88,17 @@ bool RtpWebMDeserializer::Start()
     return nullptr != _stream;
 }
 
-void RtpWebMDeserializer::Stop()
+void WebMDeserializer::Stop()
 {
     _stream.reset();
 }
 
-size_t RtpWebMDeserializer::GetTracksCount() const
+size_t WebMDeserializer::GetTracksCount() const
 {
     return _stream ? _stream->GetTracksCount() : 0UL;
 }
 
-std::optional<RtpCodecMimeType> RtpWebMDeserializer::GetTrackMimeType(size_t trackIndex) const
+std::optional<RtpCodecMimeType> WebMDeserializer::GetTrackMimeType(size_t trackIndex) const
 {
     if (_stream) {
         return _stream->GetTrackMimeType(trackIndex);
@@ -106,7 +106,7 @@ std::optional<RtpCodecMimeType> RtpWebMDeserializer::GetTrackMimeType(size_t tra
     return std::nullopt;
 }
 
-std::vector<std::shared_ptr<const MediaFrame>> RtpWebMDeserializer::ReadNextFrames(size_t trackIndex)
+std::vector<std::shared_ptr<const MediaFrame>> WebMDeserializer::ReadNextFrames(size_t trackIndex)
 {
     if (_stream) {
         return _stream->ReadNextFrames(trackIndex);
@@ -114,33 +114,33 @@ std::vector<std::shared_ptr<const MediaFrame>> RtpWebMDeserializer::ReadNextFram
     return {};
 }
 
-void RtpWebMDeserializer::SetClockRate(size_t trackIndex, uint32_t clockRate)
+void WebMDeserializer::SetClockRate(size_t trackIndex, uint32_t clockRate)
 {
-    RtpMediaFrameDeserializer::SetClockRate(trackIndex, clockRate);
+    MediaFrameDeserializer::SetClockRate(trackIndex, clockRate);
     if (_stream) {
         _stream->SetClockRate(trackIndex, clockRate);
     }
 }
 
-void RtpWebMDeserializer::SetInitialTimestamp(size_t trackIndex, uint32_t initialTimestamp)
+void WebMDeserializer::SetInitialTimestamp(size_t trackIndex, uint32_t initialTimestamp)
 {
-    RtpMediaFrameDeserializer::SetInitialTimestamp(trackIndex, initialTimestamp);
+    MediaFrameDeserializer::SetInitialTimestamp(trackIndex, initialTimestamp);
     if (_stream) {
         _stream->SetInitialTimestamp(trackIndex, initialTimestamp);
     }
 }
 
-RtpWebMDeserializer::WebMStream::WebMStream(mkvparser::IMkvReader* reader)
+WebMDeserializer::WebMStream::WebMStream(mkvparser::IMkvReader* reader)
     : _reader(reader)
 {
 }
 
-RtpWebMDeserializer::WebMStream::~WebMStream()
+WebMDeserializer::WebMStream::~WebMStream()
 {
     delete _segment;
 }
 
-bool RtpWebMDeserializer::WebMStream::ParseEBMLHeader()
+bool WebMDeserializer::WebMStream::ParseEBMLHeader()
 {
     if (!_ebmlHeader) {
         auto ebmlHeader = std::make_unique<mkvparser::EBMLHeader>();
@@ -152,7 +152,7 @@ bool RtpWebMDeserializer::WebMStream::ParseEBMLHeader()
     return nullptr != _ebmlHeader;
 }
 
-bool RtpWebMDeserializer::WebMStream::ParseSegment()
+bool WebMDeserializer::WebMStream::ParseSegment()
 {
     if (!_segment && _ebmlHeader) {
         mkvparser::Segment* segment = nullptr;
@@ -177,7 +177,7 @@ bool RtpWebMDeserializer::WebMStream::ParseSegment()
     return nullptr != _segment;
 }
 
-std::optional<RtpCodecMimeType> RtpWebMDeserializer::WebMStream::GetTrackMimeType(size_t trackIndex) const
+std::optional<RtpCodecMimeType> WebMDeserializer::WebMStream::GetTrackMimeType(size_t trackIndex) const
 {
     const auto it = _tracks.find(trackIndex);
     if (it != _tracks.end()) {
@@ -186,7 +186,7 @@ std::optional<RtpCodecMimeType> RtpWebMDeserializer::WebMStream::GetTrackMimeTyp
     return std::nullopt;
 }
 
-std::vector<std::shared_ptr<const MediaFrame>> RtpWebMDeserializer::WebMStream::ReadNextFrames(size_t trackIndex)
+std::vector<std::shared_ptr<const MediaFrame>> WebMDeserializer::WebMStream::ReadNextFrames(size_t trackIndex)
 {
     if (_segment) {
         const auto it = _tracks.find(trackIndex);
@@ -217,7 +217,7 @@ std::vector<std::shared_ptr<const MediaFrame>> RtpWebMDeserializer::WebMStream::
     return {};
 }
 
-void RtpWebMDeserializer::WebMStream::SetClockRate(size_t trackIndex, uint32_t clockRate)
+void WebMDeserializer::WebMStream::SetClockRate(size_t trackIndex, uint32_t clockRate)
 {
     const auto it = _tracks.find(trackIndex);
     if (it != _tracks.end()) {
@@ -225,7 +225,7 @@ void RtpWebMDeserializer::WebMStream::SetClockRate(size_t trackIndex, uint32_t c
     }
 }
 
-void RtpWebMDeserializer::WebMStream::SetInitialTimestamp(size_t trackIndex, uint32_t initialTimestamp)
+void WebMDeserializer::WebMStream::SetInitialTimestamp(size_t trackIndex, uint32_t initialTimestamp)
 {
     const auto it = _tracks.find(trackIndex);
     if (it != _tracks.end()) {
@@ -233,7 +233,7 @@ void RtpWebMDeserializer::WebMStream::SetInitialTimestamp(size_t trackIndex, uin
     }
 }
 
-RtpWebMDeserializer::TrackInfo::TrackInfo(RtpCodecMimeType::Type type,
+WebMDeserializer::TrackInfo::TrackInfo(RtpCodecMimeType::Type type,
                                           RtpCodecMimeType::Subtype subType,
                                           std::shared_ptr<MediaFrameConfig> config,
                                           const mkvparser::Track* track)
@@ -246,7 +246,7 @@ RtpWebMDeserializer::TrackInfo::TrackInfo(RtpCodecMimeType::Type type,
     }
 }
 
-const mkvparser::Block* RtpWebMDeserializer::TrackInfo::GetNextBlock()
+const mkvparser::Block* WebMDeserializer::TrackInfo::GetNextBlock()
 {
     const mkvparser::BlockEntry* blockEntry = nullptr;
     if (!_currentBlockEntry) {
@@ -264,7 +264,7 @@ const mkvparser::Block* RtpWebMDeserializer::TrackInfo::GetNextBlock()
     return nullptr;
 }
 
-uint32_t RtpWebMDeserializer::TrackInfo::GetCurrentTimestamp() const
+uint32_t WebMDeserializer::TrackInfo::GetCurrentTimestamp() const
 {
     if (GetClockRate() && _currentBlockEntry) {
         return GetCurrentTimestamp(_currentBlockEntry->GetBlock());
@@ -272,7 +272,7 @@ uint32_t RtpWebMDeserializer::TrackInfo::GetCurrentTimestamp() const
     return 0U;
 }
 
-uint32_t RtpWebMDeserializer::TrackInfo::GetCurrentTimestamp(const mkvparser::Block* block) const
+uint32_t WebMDeserializer::TrackInfo::GetCurrentTimestamp(const mkvparser::Block* block) const
 {
     if (block && GetClockRate()) {
         if (const auto cluster = GetCurrentCluster()) {
@@ -283,23 +283,23 @@ uint32_t RtpWebMDeserializer::TrackInfo::GetCurrentTimestamp(const mkvparser::Bl
     return 0U;
 }
 
-void RtpWebMDeserializer::TrackInfo::SetClockRate(uint32_t clockRate)
+void WebMDeserializer::TrackInfo::SetClockRate(uint32_t clockRate)
 {
     MS_ASSERT(clockRate > 0U, "clock rate must be greater than zero");
     _clockRate = clockRate;
 }
 
-void RtpWebMDeserializer::TrackInfo::SetInitialTimestamp(uint32_t initialTimestamp)
+void WebMDeserializer::TrackInfo::SetInitialTimestamp(uint32_t initialTimestamp)
 {
     _initialTimestamp = initialTimestamp;
 }
 
-const mkvparser::Cluster* RtpWebMDeserializer::TrackInfo::GetCurrentCluster() const
+const mkvparser::Cluster* WebMDeserializer::TrackInfo::GetCurrentCluster() const
 {
     return _currentBlockEntry ? _currentBlockEntry->GetCluster() : nullptr;
 }
 
-std::unique_ptr<RtpWebMDeserializer::TrackInfo> RtpWebMDeserializer::TrackInfo::
+std::unique_ptr<WebMDeserializer::TrackInfo> WebMDeserializer::TrackInfo::
     Create(const mkvparser::Tracks* tracks, size_t trackIndex)
 {
     if (tracks) {
@@ -320,7 +320,7 @@ std::unique_ptr<RtpWebMDeserializer::TrackInfo> RtpWebMDeserializer::TrackInfo::
                 std::optional<RtpCodecMimeType::Subtype> subtype;
                 for (auto it = RtpCodecMimeType::subtype2String.begin();
                      it != RtpCodecMimeType::subtype2String.end(); ++it) {
-                    const auto codecId = RtpWebMSerializer::GetCodecId(it->first);
+                    const auto codecId = WebMSerializer::GetCodecId(it->first);
                     if (codecId && 0 == std::strcmp(track->GetCodecId(), codecId)) {
                         subtype = it->first;
                         break;

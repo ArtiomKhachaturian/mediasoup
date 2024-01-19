@@ -9,12 +9,12 @@ namespace RTC
 
 class MediaFrame;
 
-class RtpMediaFrameDeserializer
+class MediaFrameDeserializer
 {
 public:
-    RtpMediaFrameDeserializer(const RtpMediaFrameDeserializer&) = delete;
-    RtpMediaFrameDeserializer(RtpMediaFrameDeserializer&&) = delete;
-    virtual ~RtpMediaFrameDeserializer() = default;
+    MediaFrameDeserializer(const MediaFrameDeserializer&) = delete;
+    MediaFrameDeserializer(MediaFrameDeserializer&&) = delete;
+    virtual ~MediaFrameDeserializer() = default;
     // prepare instance for deserialization, allocate of all needed resources
     virtual bool Start() = 0;
     // cleanup all resources before destroy or restart
@@ -26,7 +26,7 @@ public:
     virtual void SetClockRate(size_t /*trackIndex*/, uint32_t /*clockRate*/) {}
     virtual void SetInitialTimestamp(size_t /*trackIndex*/, uint32_t /*initialTimestamp*/) {}
 protected:
-    RtpMediaFrameDeserializer() = default;
+    MediaFrameDeserializer() = default;
 };
 
 } // namespace RTC

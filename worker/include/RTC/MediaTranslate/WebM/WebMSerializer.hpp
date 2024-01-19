@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
+#include "RTC/MediaTranslate/MediaFrameSerializer.hpp"
 #include <absl/container/flat_hash_map.h>
 
 namespace RTC
@@ -9,13 +9,13 @@ namespace RTC
 class RtpCodecMimeType;
 
 // https://www.webmproject.org/docs/container/#muxer-guidelines
-class RtpWebMSerializer : public RtpMediaFrameSerializer
+class WebMSerializer : public MediaFrameSerializer
 {
     class BufferedWriter;
     class TrackInfo;
 public:
-    RtpWebMSerializer(const char* writingApp = "SpeakShiftSFU");
-    ~RtpWebMSerializer() final;
+    WebMSerializer(const char* writingApp = "SpeakShiftSFU");
+    ~WebMSerializer() final;
     static bool IsSupported(const RtpCodecMimeType& mimeType);
     static const char* GetCodecId(RtpCodecMimeType::Subtype codec);
     static const char* GetCodecId(const RtpCodecMimeType& mime);

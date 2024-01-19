@@ -1,5 +1,5 @@
 #pragma once
-#include "RTC/MediaTranslate/RtpMediaFrameDeserializer.hpp"
+#include "RTC/MediaTranslate/MediaFrameDeserializer.hpp"
 
 namespace mkvparser {
 class IMkvReader;
@@ -8,13 +8,13 @@ class IMkvReader;
 namespace RTC
 {
 
-class RtpWebMDeserializer : public RtpMediaFrameDeserializer
+class WebMDeserializer : public MediaFrameDeserializer
 {
     class WebMStream;
     class TrackInfo;
 public:
-    RtpWebMDeserializer(mkvparser::IMkvReader* reader);
-    ~RtpWebMDeserializer() final;
+    WebMDeserializer(mkvparser::IMkvReader* reader);
+    ~WebMDeserializer() final;
     // impl. of RtpMediaFrameDeserializer
     bool Start() final;
     void Stop() final;

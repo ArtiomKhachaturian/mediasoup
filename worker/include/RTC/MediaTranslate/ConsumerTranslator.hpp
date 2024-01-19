@@ -20,7 +20,7 @@ namespace RTC
 
 class Consumer;
 class RtpPacketsCollector;
-class RtpMediaFrameDeserializer;
+class MediaFrameDeserializer;
 class WebMBuffersReader;
 
 class ConsumerTranslator : public ConsumerTranslatorSettings,
@@ -52,7 +52,7 @@ private:
 #else
     std::unique_ptr<WebMBuffersReader> _deserializerSource;
 #endif
-    std::unique_ptr<RtpMediaFrameDeserializer> _deserializer;
+    std::unique_ptr<MediaFrameDeserializer> _deserializer;
     Listeners<ConsumerObserver*> _observers;
     std::optional<size_t> _deserializedMediaTrackIndex;
 };

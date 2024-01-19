@@ -14,12 +14,12 @@ class MemoryBuffer;
 class AudioFrameConfig;
 class VideoFrameConfig;
 
-class RtpMediaFrameSerializer : public MediaSource
+class MediaFrameSerializer : public MediaSource
 {
 public:
-    RtpMediaFrameSerializer(const RtpMediaFrameSerializer&) = delete;
-    RtpMediaFrameSerializer(RtpMediaFrameSerializer&&) = delete;
-    virtual ~RtpMediaFrameSerializer() = default;
+    MediaFrameSerializer(const MediaFrameSerializer&) = delete;
+    MediaFrameSerializer(MediaFrameSerializer&&) = delete;
+    virtual ~MediaFrameSerializer() = default;
     virtual std::string_view GetFileExtension(const RtpCodecMimeType& mimeType) const;
     // both 'RegisterAudio' & 'RegisterVideo' maybe called before and after 1st invoke of 'Push',
     // implementation should try to re-create media container if needed and send
@@ -35,7 +35,7 @@ public:
     virtual bool IsCompatible(const RtpCodecMimeType& mimeType) const = 0;
     virtual void SetLiveMode(bool /*liveMode*/ = true) {}
 protected:
-    RtpMediaFrameSerializer() = default;
+    MediaFrameSerializer() = default;
 };
 
 } // namespace RTC

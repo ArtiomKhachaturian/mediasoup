@@ -1,7 +1,7 @@
 #define MS_CLASS "RTC::ProducerTranslator"
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
-#include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
+#include "RTC/MediaTranslate/MediaFrameSerializer.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
@@ -28,7 +28,7 @@ namespace RTC
 class ProducerTranslator::StreamInfo : public RtpPacketsCollector
 {
 public:
-    StreamInfo(uint32_t clockRate, uint32_t mappedSsrc, RtpMediaFrameSerializer* serializer);
+    StreamInfo(uint32_t clockRate, uint32_t mappedSsrc, MediaFrameSerializer* serializer);
     ~StreamInfo();
     uint32_t GetClockRate() const { return _clockRate; }
     uint32_t GetMappedSsrc() const { return _mappedSsrc; }
@@ -40,12 +40,12 @@ public:
 private:
     const uint32_t _clockRate;
     const uint32_t _mappedSsrc;
-    RtpMediaFrameSerializer* const _serializer;
+    MediaFrameSerializer* const _serializer;
     std::unique_ptr<RtpDepacketizer> _depacketizer;
 };
 
 ProducerTranslator::ProducerTranslator(Producer* producer,
-                                       std::unique_ptr<RtpMediaFrameSerializer> serializer)
+                                       std::unique_ptr<MediaFrameSerializer> serializer)
     : _producer(producer)
     , _serializer(std::move(serializer))
 {
@@ -254,7 +254,7 @@ void ProducerTranslator::EndStream(bool failure) noexcept
 }
 
 ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint32_t mappedSsrc,
-                                           RtpMediaFrameSerializer* serializer)
+                                           MediaFrameSerializer* serializer)
     : _clockRate(clockRate)
     , _mappedSsrc(mappedSsrc)
     , _serializer(serializer)
