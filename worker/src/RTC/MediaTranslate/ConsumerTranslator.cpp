@@ -63,7 +63,7 @@ std::optional<FBS::TranslationPack::Voice> ConsumerTranslator::GetVoice() const
     return _consumer->GetVoice();
 }
 
-void ConsumerTranslator::Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
+void ConsumerTranslator::WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
     if (buffer && _deserializer) {
 #ifndef USE_TEST_FILE

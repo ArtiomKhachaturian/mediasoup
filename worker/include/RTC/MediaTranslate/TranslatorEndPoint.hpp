@@ -50,12 +50,9 @@ private:
     void OpenSocket();
     // impl. of MediaSink
     void StartStream(bool restart) noexcept final;
-    void BeginWriteMediaPayload(uint32_t ssrc,
-                                const std::vector<RtpMediaPacketInfo>& packets) noexcept final;
-    void EndWriteMediaPayload(uint32_t ssrc,
-                              const std::vector<RtpMediaPacketInfo>& packets,
-                              bool ok) noexcept final;
-    void Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
+    void BeginWriteMediaPayload(uint32_t ssrc) noexcept final;
+    void EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept final;
+    void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
     void EndStream(bool failure) noexcept final;
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;

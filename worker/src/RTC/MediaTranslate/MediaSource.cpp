@@ -1,6 +1,5 @@
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
-#include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 
 namespace RTC
 {
@@ -24,43 +23,21 @@ void MediaSource::StartMediaSinksStream(bool restart) noexcept
     _sinks.InvokeMethod(&MediaSink::StartStream, restart);
 }
 
-void MediaSource::BeginWriteMediaSinksPayload(uint32_t ssrc,
-                                              const std::vector<RtpMediaPacketInfo>& packets) noexcept
+void MediaSource::BeginWriteMediaSinksPayload(uint32_t ssrc) noexcept
 {
-    if (!packets.empty()) {
-        _sinks.InvokeMethod(&MediaSink::BeginWriteMediaPayload, ssrc, packets);
-    }
+    _sinks.InvokeMethod(&MediaSink::BeginWriteMediaPayload, ssrc);
 }
 
-void MediaSource::BeginWriteMediaSinksPayload(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) noexcept
-{
-    if (mediaFrame) {
-        BeginWriteMediaSinksPayload(mediaFrame->GetSsrc(), mediaFrame->GetPacketsInfo());
-    }
-}
-
-void MediaSource::WritePayloadToMediaSinks(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
+void MediaSource::WriteMediaSinksPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
     if (buffer) {
-        _sinks.InvokeMethod(&MediaSink::Write, buffer);
+        _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, buffer);
     }
 }
 
-void MediaSource::EndWriteMediaSinksPayload(uint32_t ssrc,
-                                            const std::vector<RtpMediaPacketInfo>& packets,
-                                            bool ok) noexcept
+void MediaSource::EndWriteMediaSinksPayload(uint32_t ssrc, bool ok) noexcept
 {
-    if (!packets.empty()) {
-        _sinks.InvokeMethod(&MediaSink::EndWriteMediaPayload, ssrc, packets, ok);
-    }
-}
-
-void MediaSource::EndWriteMediaSinksPayload(const std::shared_ptr<const RtpMediaFrame>& mediaFrame,
-                                            bool ok) noexcept
-{
-    if (mediaFrame) {
-        EndWriteMediaSinksPayload(mediaFrame->GetSsrc(), mediaFrame->GetPacketsInfo(), ok);
-    }
+    _sinks.InvokeMethod(&MediaSink::EndWriteMediaPayload, ssrc, ok);
 }
 
 void MediaSource::EndMediaSinksStream(bool failure) noexcept

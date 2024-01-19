@@ -18,7 +18,6 @@ RtpMediaFrame::RtpMediaFrame(bool audio, RtpCodecMimeType::Subtype codecType)
 RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& mimeType)
     : MediaFrame(mimeType)
 {
-    _packetsInfo.reserve(mimeType.IsAudioCodec() ? 1UL : 4UL);
 }
 
 RtpMediaFrame::~RtpMediaFrame()
@@ -49,17 +48,8 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet,
                               const std::shared_ptr<const MemoryBuffer>& payload)
 {
     if (packet && AddPayload(payload)) {
-        if (_packetsInfo.empty()) {
-            _ssrc = packet->GetSsrc();
-        }
-        else {
-            MS_ASSERT(_ssrc == packet->GetSsrc(), "packet from different media source");
-        }
-        RtpMediaPacketInfo packetInfo;
-        packetInfo._sequenceNumber = packet->GetSequenceNumber();
-        _packetsInfo.push_back(std::move(packetInfo));
         if (GetTimestamp() > packet->GetTimestamp()) {
-            MS_WARN_TAG(rtp, "time stamp of new packet is less than previous, SSRC = %du", _ssrc);
+            MS_WARN_TAG(rtp, "time stamp of new packet is less than previous, SSRC = %du", packet->GetSsrc());
         }
         else {
             SeTimestamp(packet->GetTimestamp());
@@ -70,11 +60,6 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet,
         return true;
     }
     return false;
-}
-
-const std::vector<RtpMediaPacketInfo>& RtpMediaFrame::GetPacketsInfo() const
-{
-    return _packetsInfo;
 }
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,

@@ -1,7 +1,7 @@
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
-#include "RTC/MediaTranslate/RtpMediaFrame.hpp"
+#include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/RtpStream.hpp"
 
 namespace {
@@ -13,10 +13,11 @@ const std::string g_emptyString;
 namespace RTC
 {
 
-std::string GetMediaFrameInfoString(const std::shared_ptr<const RtpMediaFrame>& mediaFrame)
+std::string GetMediaFrameInfoString(const std::shared_ptr<const MediaFrame>& mediaFrame,
+                                    uint32_t mappedSsrc)
 {
     if (mediaFrame) {
-        auto streamInfo = GetStreamInfoString(mediaFrame->GetMimeType(), mediaFrame->GetSsrc());
+        auto streamInfo = GetStreamInfoString(mediaFrame->GetMimeType(), mappedSsrc);
         if (!streamInfo.empty()) {
             std::string configInfo;
             if (const auto config = mediaFrame->GetAudioConfig()) {

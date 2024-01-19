@@ -29,7 +29,7 @@ public:
     bool Flush();
     // impl. of MediaSink
     void StartStream(bool restart) noexcept final;
-    void Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
+    void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
     void EndStream(bool failure) noexcept final;
 protected:
     static FILE* OpenFile(std::string_view fileNameUtf8, int* error = nullptr);

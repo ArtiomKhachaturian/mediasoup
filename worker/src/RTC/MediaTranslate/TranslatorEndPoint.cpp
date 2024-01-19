@@ -276,26 +276,23 @@ void TranslatorEndPoint::StartStream(bool restart) noexcept
     }
 }
 
-void TranslatorEndPoint::BeginWriteMediaPayload(uint32_t ssrc,
-                                                const std::vector<RtpMediaPacketInfo>& packets) noexcept
+void TranslatorEndPoint::BeginWriteMediaPayload(uint32_t ssrc) noexcept
 {
-    MediaSink::BeginWriteMediaPayload(ssrc, packets);
+    MediaSink::BeginWriteMediaPayload(ssrc);
     if (IsConnected()) {
         // TODO: send JSON command
     }
 }
 
-void TranslatorEndPoint::EndWriteMediaPayload(uint32_t ssrc,
-                                              const std::vector<RtpMediaPacketInfo>& packets,
-                                              bool ok) noexcept
+void TranslatorEndPoint::EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept
 {
-    MediaSink::EndWriteMediaPayload(ssrc, packets, ok);
+    MediaSink::EndWriteMediaPayload(ssrc, ok);
     if (IsConnected()) {
         // TODO: send JSON command
     }
 }
 
-void TranslatorEndPoint::Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
+void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
     if (buffer && IsConnected()) {
         _socket->WriteBinary(buffer);
@@ -335,7 +332,7 @@ void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t /*socketId*/,
     if (message) {
         LOCK_READ_PROTECTED_OBJ(_output);
         if (const auto& output = _output.ConstRef()) {
-            output->Write(message);
+            output->WriteMediaPayload(message);
         }
     }
 }

@@ -77,7 +77,7 @@ void FileWriter::StartStream(bool restart) noexcept
     }
 }
 
-void FileWriter::Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
+void FileWriter::WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
     if (_file && buffer && !buffer->IsEmpty()) {
         const auto expected = buffer->GetSize();

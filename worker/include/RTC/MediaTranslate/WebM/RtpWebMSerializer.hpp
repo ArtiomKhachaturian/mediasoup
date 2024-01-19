@@ -6,7 +6,6 @@
 namespace RTC
 {
 
-class RtpMediaFrame;
 class RtpCodecMimeType;
 
 // https://www.webmproject.org/docs/container/#muxer-guidelines
@@ -30,7 +29,7 @@ public:
                   RtpCodecMimeType::Subtype codec,
                   const std::shared_ptr<const VideoFrameConfig>& config) final;
     void RemoveMedia(uint32_t ssrc) final;
-    bool Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) final;
+    bool Push(uint32_t ssrc, const std::shared_ptr<const MediaFrame>& mediaFrame) final;
     bool IsCompatible(const RtpCodecMimeType& mimeType) const final;
 private:
     void InitWriter();
@@ -38,7 +37,7 @@ private:
     template<class TConfig>
     bool AddMedia(uint32_t ssrc, uint32_t clockRate, const RtpCodecMimeType& mime, 
                   const std::shared_ptr<TConfig>& config);
-    TrackInfo* GetTrackInfo(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) const;
+    TrackInfo* GetTrackInfo(uint32_t ssrc, const std::shared_ptr<const MediaFrame>& mediaFrame) const;
 private:
     const char* const _writingApp;
     std::unique_ptr<BufferedWriter> _writer;

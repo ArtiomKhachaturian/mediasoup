@@ -3,6 +3,7 @@
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrameSerializer.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
+#include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
 #endif
@@ -40,7 +41,7 @@ private:
     const uint32_t _clockRate;
     const uint32_t _mappedSsrc;
     RtpMediaFrameSerializer* const _serializer;
-    ProtectedUniquePtr<RtpDepacketizer> _depacketizer;
+    std::unique_ptr<RtpDepacketizer> _depacketizer;
 };
 
 ProducerTranslator::ProducerTranslator(Producer* producer,
@@ -232,21 +233,19 @@ void ProducerTranslator::StartStream(bool restart) noexcept
     StartMediaSinksStream(restart);
 }
 
-void ProducerTranslator::BeginWriteMediaPayload(uint32_t ssrc,
-                                                const std::vector<RtpMediaPacketInfo>& packets) noexcept
+void ProducerTranslator::BeginWriteMediaPayload(uint32_t ssrc) noexcept
 {
-    BeginWriteMediaSinksPayload(ssrc, packets);
+    BeginWriteMediaSinksPayload(ssrc);
 }
 
-void ProducerTranslator::Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
+void ProducerTranslator::WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
-    WritePayloadToMediaSinks(buffer);
+    WriteMediaSinksPayload(buffer);
 }
 
-void ProducerTranslator::EndWriteMediaPayload(uint32_t ssrc, const std::vector<RtpMediaPacketInfo>& packets,
-                                              bool ok) noexcept
+void ProducerTranslator::EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept
 {
-    EndWriteMediaSinksPayload(ssrc, packets, ok);
+    EndWriteMediaSinksPayload(ssrc, ok);
 }
 
 void ProducerTranslator::EndStream(bool failure) noexcept
@@ -269,8 +268,7 @@ ProducerTranslator::StreamInfo::~StreamInfo()
 MimeChangeStatus ProducerTranslator::StreamInfo::SetMime(const RtpCodecMimeType& mime)
 {
     MimeChangeStatus status = MimeChangeStatus::Failed;
-    LOCK_WRITE_PROTECTED_OBJ(_depacketizer);
-    if (_depacketizer->get() && mime == _depacketizer->get()->GetMimeType()) {
+    if (_depacketizer && mime == _depacketizer->GetMimeType()) {
         status = MimeChangeStatus::NotChanged;
     }
     else {
@@ -303,9 +301,8 @@ MimeChangeStatus ProducerTranslator::StreamInfo::SetMime(const RtpCodecMimeType&
 
 std::optional<RtpCodecMimeType> ProducerTranslator::StreamInfo::GetMime() const
 {
-    LOCK_READ_PROTECTED_OBJ(_depacketizer);
-    if (const auto& depacketizer = _depacketizer.ConstRef()) {
-        return depacketizer->GetMimeType();
+    if (_depacketizer) {
+        return _depacketizer->GetMimeType();
     }
     return std::nullopt;
 }
@@ -322,10 +319,9 @@ bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
 {
     if (packet) {
         MS_ASSERT(packet->GetSsrc() == GetMappedSsrc(), "invalid SSRC mapping");
-        LOCK_READ_PROTECTED_OBJ(_depacketizer);
-        if (const auto& depacketizer = _depacketizer.ConstRef()) {
-            if (const auto frame = depacketizer->AddPacket(packet)) {
-                return _serializer->Push(frame);
+        if (_depacketizer) {
+            if (const auto frame = _depacketizer->AddPacket(packet)) {
+                return _serializer->Push(GetMappedSsrc(), frame);
             }
         }
     }

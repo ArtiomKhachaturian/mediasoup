@@ -59,11 +59,9 @@ protected:
 private:
     // impl. of MediaSink
     void StartStream(bool restart) noexcept final;
-    void BeginWriteMediaPayload(uint32_t ssrc,
-                                const std::vector<RtpMediaPacketInfo>& packets) noexcept final;
-    void Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
-    void EndWriteMediaPayload(uint32_t ssrc, const std::vector<RtpMediaPacketInfo>& packets,
-                              bool ok) noexcept final;
+    void BeginWriteMediaPayload(uint32_t ssrc) noexcept final;
+    void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
+    void EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept final;
     void EndStream(bool failure) noexcept final;
 private:
     Producer* const _producer;

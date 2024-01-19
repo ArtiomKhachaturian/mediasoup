@@ -37,7 +37,7 @@ public:
     std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
     std::optional<FBS::TranslationPack::Voice> GetVoice() const final;
     // impl. of MediaSink
-    void Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
+    void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
 protected:
     void OnPauseChanged(bool pause) final;
 private:
