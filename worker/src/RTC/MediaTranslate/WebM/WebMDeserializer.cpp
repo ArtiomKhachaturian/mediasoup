@@ -1,12 +1,12 @@
 #define MS_CLASS "RTC::WebMDeserializer"
 #include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
 #include "RTC/MediaTranslate/WebM/WebMSerializer.hpp"
+#include "RTC/MediaTranslate/WebM/MkvReader.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "Logger.hpp"
 #include <array>
-#include <mkvparser/mkvreader.h>
 
 namespace {
 
@@ -25,6 +25,7 @@ class WebMDeserializer::WebMStream
 public:
     WebMStream(mkvparser::IMkvReader* reader);
     ~WebMStream();
+    // both parse methods returns true if EMBL header or MKV segmen is already parsed
     bool ParseEBMLHeader();
     bool ParseSegment();
     size_t GetTracksCount() const { return _segment ? _segment->GetTracks()->GetTracksCount() : 0UL; }
@@ -67,8 +68,9 @@ private:
     uint32_t _initialTimestamp = 0U;
 };
 
-WebMDeserializer::WebMDeserializer(mkvparser::IMkvReader* reader)
-    : _reader(reader)
+WebMDeserializer::WebMDeserializer(std::unique_ptr<MkvReader> reader)
+    : _reader(std::move(reader))
+    , _stream(std::make_unique<WebMStream>(_reader.get()))
 {
     MS_ASSERT(_reader, "MKV reader must not be null");
 }
@@ -77,20 +79,12 @@ WebMDeserializer::~WebMDeserializer()
 {
 }
 
-bool WebMDeserializer::Start()
+bool WebMDeserializer::AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer)
 {
-    if (!_stream && _reader) {
-        auto stream = std::make_unique<WebMStream>(_reader);
-        if (stream->ParseEBMLHeader() && stream->ParseSegment()) {
-            _stream = std::move(stream);
-        }
+    if (_reader->AddBuffer(buffer)) {
+        return _stream->ParseEBMLHeader() && _stream->ParseSegment();
     }
-    return nullptr != _stream;
-}
-
-void WebMDeserializer::Stop()
-{
-    _stream.reset();
+    return false;
 }
 
 size_t WebMDeserializer::GetTracksCount() const

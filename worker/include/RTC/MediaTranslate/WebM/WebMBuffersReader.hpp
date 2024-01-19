@@ -1,5 +1,5 @@
 #pragma once
-#include <mkvparser/mkvreader.h>
+#include "RTC/MediaTranslate/WebM/MkvReader.hpp"
 #include <array>
 
 namespace RTC
@@ -7,11 +7,12 @@ namespace RTC
 
 class MemoryBuffer;
 
-class WebMBuffersReader : public mkvparser::IMkvReader
+class WebMBuffersReader : public MkvReader
 {
 public:
     WebMBuffersReader() = default;
-    bool AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer);
+    // impl. of MkvReader
+    bool AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) final;
     // impl. of mkvparser::IMkvReader
     int Read(long long pos, long len, unsigned char* buf) final;
     int Length(long long* total, long long* available) final;

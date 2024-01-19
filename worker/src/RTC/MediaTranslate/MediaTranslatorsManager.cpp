@@ -4,10 +4,10 @@
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
-#include "RTC/MediaTranslate/WebM/WebMSerializer.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/ProducerObserver.hpp"
+#include "RTC/MediaTranslate/WebM/WebMMediaFrameSerializationFactory.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/Producer.hpp"
 #include "RTC/Consumer.hpp"
@@ -26,13 +26,13 @@ class MediaTranslatorsManager::Translator : private ProducerObserver,
 {
 public:
     Translator(MediaTranslatorsManager* manager,
-               Producer* producer,
+               std::unique_ptr<ProducerTranslator> producer,
                const std::string& serviceUri,
                const std::string& serviceUser,
                const std::string& servicePassword);
     ~Translator() final;
     void Pause(bool pause);
-    void AddConsumer(Consumer* consumer);
+    void AddConsumer(Consumer* consumer, const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory);
     bool RemoveConsumer(Consumer* consumer);
     void UpdateConsumerLanguageAndVoice(Consumer* consumer);
     void UpdateProducerLanguage();
@@ -61,6 +61,7 @@ MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
     , _serviceUri(serviceUri)
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
+    , _serializationFactory(std::make_shared<WebMMediaFrameSerializationFactory>())
     , _connectedTransport(nullptr)
 {
     MS_ASSERT(nullptr != _router, "router must be non-null");
@@ -88,17 +89,20 @@ void MediaTranslatorsManager::OnTransportNewProducer(Transport* transport, Produ
     if (producer && Media::Kind::AUDIO == producer->GetKind() && !producer->id.empty()) {
         const auto it = _translators.find(producer->id);
         if (it == _translators.end()) {
-            auto translator = std::make_unique<Translator>(this, producer,
-                                                           _serviceUri,
-                                                           _serviceUser,
-                                                           _servicePassword);
-            // add streams
-            const auto& streams = producer->GetRtpStreams();
-            for (auto its = streams.begin(); its != streams.end(); ++its) {
-                translator->AddNewRtpStream(its->first, its->second);
+            if (auto producerTranslator = ProducerTranslator::Create(producer, _serializationFactory)) {
+                auto translator = std::make_unique<Translator>(this,
+                                                               std::move(producerTranslator),
+                                                               _serviceUri,
+                                                               _serviceUser,
+                                                               _servicePassword);
+                // add streams
+                const auto& streams = producer->GetRtpStreams();
+                for (auto its = streams.begin(); its != streams.end(); ++its) {
+                    translator->AddNewRtpStream(its->first, its->second);
+                }
+                // enqueue
+                _translators[producer->id] = std::move(translator);
             }
-            // enqueue
-            _translators[producer->id] = std::move(translator);
         }
     }
 }
@@ -208,7 +212,7 @@ void MediaTranslatorsManager::OnTransportNewConsumer(Transport* transport, Consu
     if (consumer) {
         const auto it = _translators.find(producerId);
         if (it != _translators.end()) {
-            it->second->AddConsumer(consumer);
+            it->second->AddConsumer(consumer, _serializationFactory);
         }
     }
 }
@@ -330,12 +334,12 @@ void TranslatorUnit::Pause(bool pause)
 }
 
 MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager,
-                                                Producer* producer,
+                                                std::unique_ptr<ProducerTranslator> producer,
                                                 const std::string& serviceUri,
                                                 const std::string& serviceUser,
                                                 const std::string& servicePassword)
     : _manager(manager)
-    , _producer(std::make_unique<ProducerTranslator>(producer, std::make_unique<WebMSerializer>()))
+    , _producer(std::move(producer))
     , _serviceUri(serviceUri)
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
@@ -366,9 +370,10 @@ void MediaTranslatorsManager::Translator::Pause(bool pause)
     }
 }
 
-void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer)
+void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer,
+                                                      const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory)
 {
-    if (consumer) {
+    if (consumer && serializationFactory) {
         const auto it = _consumers.find(consumer);
         if (it == _consumers.end()) {
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
@@ -376,8 +381,9 @@ void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer)
                 return;
             }
 #endif
-            auto consumerTranslator = std::make_unique<ConsumerTranslator>(consumer,
-                                                                           static_cast<RtpPacketsCollector*>(this));
+            const auto packetsCollector = static_cast<RtpPacketsCollector*>(this);
+            auto consumerTranslator = std::make_unique<ConsumerTranslator>(consumer, packetsCollector,
+                                                                           serializationFactory);
 #ifdef NO_TRANSLATION_SERVICE
             _producer->AddSink(consumerTranslator.get());
 #endif
@@ -451,8 +457,8 @@ void MediaTranslatorsManager::Translator::AddNewRtpStream(RtpStreamRecv* rtpStre
 void MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* packet)
 {
     if (_producer->AddPacket(packet)) {
-        for (auto it = _endPoints.begin(); it != _endPoints.end(); ++it) {
-            if (it->second->IsConnected()) {
+        for (auto it = _consumers.begin(); it != _consumers.end(); ++it) {
+            if (it->second->HadIncomingMedia()) {
                 // drop packet's dispatching if connection with translation service was established
                 packet->AddRejectedConsumer(it->first);
             }

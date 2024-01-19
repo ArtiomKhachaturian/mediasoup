@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/MediaFrameSerializer.hpp"
+#include "RTC/MediaTranslate/MediaFrameSerializationFactory.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
@@ -61,6 +62,17 @@ ProducerTranslator::~ProducerTranslator()
     for (const auto mappedSsrc : GetAddedStreams()) {
         RemoveStream(mappedSsrc);
     }
+}
+
+std::unique_ptr<ProducerTranslator> ProducerTranslator::Create(Producer* producer,
+                                                               const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory)
+{
+    if (producer && serializationFactory) {
+        if (auto serializer = serializationFactory->CreateSerializer()) {
+            return std::make_unique<ProducerTranslator>(producer, std::move(serializer));
+        }
+    }
+    return nullptr;
 }
 
 bool ProducerTranslator::IsAudio() const

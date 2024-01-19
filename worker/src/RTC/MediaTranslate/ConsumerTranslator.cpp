@@ -1,34 +1,23 @@
 #define MS_CLASS "RTC::ConsumerTranslator"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 #include "RTC/MediaTranslate/MediaFrameDeserializer.hpp"
-#include "RTC/MediaTranslate/WebM/WebMBuffersReader.hpp"
-#include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
+#include "RTC/MediaTranslate/MediaFrameSerializationFactory.hpp"
 #include "RTC/Consumer.hpp"
 #include "Logger.hpp"
-#ifdef USE_TEST_FILE
-#include <mkvparser/mkvreader.h>
-#endif
 
 namespace RTC
 {
 
 ConsumerTranslator::ConsumerTranslator(const Consumer* consumer,
-                                       RtpPacketsCollector* packetsCollector)
+                                       RtpPacketsCollector* packetsCollector,
+                                       const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory)
     : _consumer(consumer)
     , _packetsCollector(packetsCollector)
+    , _serializationFactory(serializationFactory)
 {
     MS_ASSERT(_consumer, "consumer must not be null");
     MS_ASSERT(_packetsCollector, "RTP packets collector must not be null");
-#ifdef USE_TEST_FILE
-    auto deserializerSource = std::make_unique<mkvparser::MkvReader>();
-    if (0 == deserializerSource->Open("/Users/user/Downloads/1b0cefc4-abdb-48d0-9c50-f5050755be94.webm")) {
-        _deserializerSource = std::move(deserializerSource);
-        _deserializer = std::make_unique<WebMDeserializer>(_deserializerSource.get());
-    }
-#else
-    _deserializerSource = std::make_unique<WebMBuffersReader>();
-    _deserializer = std::make_unique<WebMDeserializer>(_deserializerSource.get());
-#endif
+    MS_ASSERT(_serializationFactory, "media frames serialization factory must not be null");
     if (consumer->IsPaused()) {
         Pause();
     }
@@ -63,23 +52,22 @@ std::optional<FBS::TranslationPack::Voice> ConsumerTranslator::GetVoice() const
     return _consumer->GetVoice();
 }
 
+void ConsumerTranslator::StartStream(bool restart) noexcept
+{
+    MediaSink::StartStream(restart);
+    _deserializer = _serializationFactory->CreateDeserializer();
+}
+
 void ConsumerTranslator::WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
-    if (buffer && _deserializer) {
-#ifndef USE_TEST_FILE
-        if (!_deserializerSource->AddBuffer(buffer)) {
-            return;
-        }
-#endif
+    if (buffer && _deserializer && _deserializer->AddBuffer(buffer)) {
         if (!_deserializedMediaTrackIndex.has_value()) {
-            if (_deserializer->Start()) {
-                if (const auto tracksCount = _deserializer->GetTracksCount()) {
-                    for (size_t trackIndex = 0UL; trackIndex < tracksCount; ++trackIndex) {
-                        const auto mime = _deserializer->GetTrackMimeType(trackIndex);
-                        if (mime.has_value() && mime->IsAudioCodec() == IsAudio()) {
-                            _deserializedMediaTrackIndex = trackIndex;
-                            break;
-                        }
+            if (const auto tracksCount = _deserializer->GetTracksCount()) {
+                for (size_t trackIndex = 0UL; trackIndex < tracksCount; ++trackIndex) {
+                    const auto mime = _deserializer->GetTrackMimeType(trackIndex);
+                    if (mime.has_value() && mime->IsAudioCodec() == IsAudio()) {
+                        _deserializedMediaTrackIndex = trackIndex;
+                        break;
                     }
                 }
             }
@@ -88,10 +76,17 @@ void ConsumerTranslator::WriteMediaPayload(const std::shared_ptr<const MemoryBuf
             // parse frames
             const auto frames = _deserializer->ReadNextFrames(_deserializedMediaTrackIndex.value());
             if (!frames.empty()) {
-                
+                _hadIncomingMedia = true;
             }
         }
     }
+}
+
+void ConsumerTranslator::EndStream(bool failure) noexcept
+{
+    MediaSink::EndStream(failure);
+    _deserializer.reset();
+    _deserializedMediaTrackIndex = std::nullopt;
 }
 
 void ConsumerTranslator::OnPauseChanged(bool pause)

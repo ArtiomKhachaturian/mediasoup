@@ -13,6 +13,8 @@
 namespace RTC
 {
 
+class MediaFrameSerializationFactory;
+
 class MediaTranslatorsManager : public TransportListener
 {
     class Translator;
@@ -75,6 +77,7 @@ private:
     const std::string _serviceUri;
     const std::string _serviceUser;
     const std::string _servicePassword;
+    const std::shared_ptr<MediaFrameSerializationFactory> _serializationFactory;
     // key is audio producer ID
     absl::flat_hash_map<std::string, std::unique_ptr<Translator>> _translators;
     std::atomic<RTC::Transport*> _connectedTransport;

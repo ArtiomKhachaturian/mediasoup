@@ -15,6 +15,7 @@ namespace RTC
 {
 
 class MediaFrameSerializer;
+class MediaFrameSerializationFactory;
 class ProducerObserver;
 class RtpStream;
 class Producer;
@@ -31,6 +32,8 @@ class ProducerTranslator : public TranslatorUnit,
 public:
     ProducerTranslator(Producer* producer, std::unique_ptr<MediaFrameSerializer> serializer);
     ~ProducerTranslator() final;
+    static std::unique_ptr<ProducerTranslator> Create(Producer* producer,
+                                                      const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory);
     Producer* GetProducer() const { return _producer; }
     bool IsAudio() const;
     void AddObserver(ProducerObserver* observer);
