@@ -332,7 +332,10 @@ void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t /*socketId*/,
     if (message) {
         LOCK_READ_PROTECTED_OBJ(_output);
         if (const auto& output = _output.ConstRef()) {
+            output->StartStream(_mediaRestarted);
             output->WriteMediaPayload(message);
+            output->EndStream(false);
+            _mediaRestarted = true;
         }
     }
 }

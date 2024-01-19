@@ -61,12 +61,13 @@ private:
 private:
     const std::string _userAgent;
     const std::unique_ptr<Websocket> _socket;
-    std::atomic_bool _connected = false;
     ProtectedOptional<FBS::TranslationPack::Language> _consumerLanguage;
     ProtectedOptional<FBS::TranslationPack::Voice> _consumerVoice;
     ProtectedOptional<FBS::TranslationPack::Language> _producerLanguage;
     ProtectedObj<MediaSource*> _input;
     ProtectedObj<MediaSink*> _output;
+    std::atomic_bool _connected = false;
+    bool _mediaRestarted = false;
 };
 
 } // namespace RTC
