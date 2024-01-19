@@ -379,7 +379,7 @@ void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer)
             auto consumerTranslator = std::make_unique<ConsumerTranslator>(consumer,
                                                                            static_cast<RtpPacketsCollector*>(this));
 #ifdef NO_TRANSLATION_SERVICE
-            _producer->AddOutputDevice(consumerTranslator.get());
+            _producer->AddSink(consumerTranslator.get());
 #endif
             _consumers[consumer] = std::move(consumerTranslator);
 #ifndef NO_TRANSLATION_SERVICE
@@ -395,7 +395,7 @@ bool MediaTranslatorsManager::Translator::RemoveConsumer(Consumer* consumer)
         const auto it = _consumers.find(consumer);
         if (it != _consumers.end()) {
 #ifdef NO_TRANSLATION_SERVICE
-            _producer->RemoveOutputDevice(it->second.get());
+            _producer->RemoveSink(it->second.get());
 #else
             const auto ite = _endPoints.find(consumer);
             if (ite != _endPoints.end()) {

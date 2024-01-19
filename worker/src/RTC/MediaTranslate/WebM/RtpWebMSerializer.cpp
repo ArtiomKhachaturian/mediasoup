@@ -249,12 +249,12 @@ void RtpWebMSerializer::RemoveMedia(uint32_t ssrc)
 
 bool RtpWebMSerializer::Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame)
 {
-    if (mediaFrame && _writer && HasDevices()) {
+    if (mediaFrame && _writer && HasSinks()) {
         if (const auto trackInfo = GetTrackInfo(mediaFrame)) {
             const auto mkvTimestamp = trackInfo->UpdateTimeStamp(mediaFrame->GetTimestamp());
             const auto trackNumber = trackInfo->GetNumber();
             if (!_writer->HasWroteMedia()) {
-                StartStream(_pendingRestartMode);
+                StartMediaSinksStream(_pendingRestartMode);
                 _pendingRestartMode = false;
             }
             const auto added = _writer->AddFrame(mediaFrame, mkvTimestamp, trackNumber, this);
@@ -343,11 +343,11 @@ void RtpWebMSerializer::DestroyWriter(bool failure)
 {
     if (_writer) {
         _writer->Finalize();
-        if (HasDevices()) {
-            WritePayload(_writer->TakeWrittenData());
+        if (HasSinks()) {
+            WritePayloadToMediaSinks(_writer->TakeWrittenData());
         }
         if (_writer->HasWroteMedia()) {
-            EndStream(failure);
+            EndMediaSinksStream(failure);
         }
         if (failure) {
             _hasFailure = true;
@@ -664,14 +664,14 @@ bool RtpWebMSerializer::BufferedWriter::WriteFrames(uint64_t mkvTimestamp,
         for (const auto& mkvFrame : _mkvFrames) {
             if (mkvFrame.GetMkvTimestamp() <= mkvTimestamp) {
                 if (serializer) {
-                    serializer->BeginWriteMediaPayload(mkvFrame.GetMediaFrame());
+                    serializer->BeginWriteMediaSinksPayload(mkvFrame.GetMediaFrame());
                 }
                 ok = mkvFrame.WriteToSegment(_segment);
                 if (serializer) {
                     if (ok) {
-                        serializer->WritePayload(TakeWrittenData());
+                        serializer->WritePayloadToMediaSinks(TakeWrittenData());
                     }
-                    serializer->EndWriteMediaPayload(mkvFrame.GetMediaFrame(), ok);
+                    serializer->EndWriteMediaSinksPayload(mkvFrame.GetMediaFrame(), ok);
                 }
                 if (ok) {
                     ++addedCount;

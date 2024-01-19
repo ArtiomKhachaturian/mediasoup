@@ -1,9 +1,7 @@
 #pragma once
 
 #include "RTC/RtpDictionaries.hpp"
-#include "RTC/MediaTranslate/ProducerInputMediaStreamer.hpp"
-#include "RTC/Listeners.hpp"
-#include <absl/container/flat_hash_set.h>
+#include "RTC/MediaTranslate/MediaSource.hpp"
 #include <memory>
 #include <string>
 
@@ -16,7 +14,7 @@ class MemoryBuffer;
 class AudioFrameConfig;
 class VideoFrameConfig;
 
-class RtpMediaFrameSerializer : public ProducerInputMediaStreamer
+class RtpMediaFrameSerializer : public MediaSource
 {
 public:
     RtpMediaFrameSerializer(const RtpMediaFrameSerializer&) = delete;
@@ -36,20 +34,8 @@ public:
     virtual bool Push(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) = 0;
     virtual bool IsCompatible(const RtpCodecMimeType& mimeType) const = 0;
     virtual void SetLiveMode(bool /*liveMode*/ = true) {}
-    // impl. of ProducerInputMediaStreamer
-    void AddOutputDevice(OutputDevice* outputDevice) final;
-    void RemoveOutputDevice(OutputDevice* outputDevice) final;
 protected:
     RtpMediaFrameSerializer() = default;
-    bool HasDevices() const;
-    void StartStream(bool restart) noexcept;
-    void BeginWriteMediaPayload(const std::shared_ptr<const RtpMediaFrame>& mediaFrame) noexcept;
-    void WritePayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept;
-    void EndWriteMediaPayload(const std::shared_ptr<const RtpMediaFrame>& mediaFrame,
-                              bool ok) noexcept;
-    void EndStream(bool failure) noexcept;
-private:
-    Listeners<OutputDevice*> _outputDevices;
 };
 
 } // namespace RTC

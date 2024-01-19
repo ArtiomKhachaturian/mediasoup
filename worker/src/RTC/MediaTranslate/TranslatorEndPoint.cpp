@@ -1,7 +1,7 @@
 #define MS_CLASS "RTC::TranslatorEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/Websocket.hpp"
-#include "RTC/MediaTranslate/ProducerInputMediaStreamer.hpp"
+#include "RTC/MediaTranslate/MediaSource.hpp"
 #include "Logger.hpp"
 
 namespace RTC
@@ -61,7 +61,7 @@ void TranslatorEndPoint::SetConsumerLanguageAndVoice(const std::optional<FBS::Tr
     }
 }
 
-void TranslatorEndPoint::SetInput(ProducerInputMediaStreamer* input)
+void TranslatorEndPoint::SetInput(MediaSource* input)
 {
     bool changed = false;
     {
@@ -93,7 +93,7 @@ bool TranslatorEndPoint::HasInput() const
     return nullptr != _input.ConstRef();
 }
 
-void TranslatorEndPoint::SetOutput(OutputDevice* output)
+void TranslatorEndPoint::SetOutput(MediaSink* output)
 {
     LOCK_WRITE_PROTECTED_OBJ(_output);
     _output = output;
@@ -209,14 +209,14 @@ void TranslatorEndPoint::ConnectToMediaInput(bool connect)
     ConnectToMediaInput(_input.ConstRef(), connect);
 }
 
-void TranslatorEndPoint::ConnectToMediaInput(ProducerInputMediaStreamer* input, bool connect)
+void TranslatorEndPoint::ConnectToMediaInput(MediaSource* input, bool connect)
 {
     if (input) {
         if (connect) {
-            input->AddOutputDevice(this);
+            input->AddSink(this);
         }
         else {
-            input->RemoveOutputDevice(this);
+            input->RemoveSink(this);
         }
     }
 }
@@ -270,7 +270,7 @@ void TranslatorEndPoint::OpenSocket()
 
 void TranslatorEndPoint::StartStream(bool restart) noexcept
 {
-    OutputDevice::StartStream(restart);
+    MediaSink::StartStream(restart);
     if (IsConnected()) {
         // TODO: send JSON command
     }
@@ -279,7 +279,7 @@ void TranslatorEndPoint::StartStream(bool restart) noexcept
 void TranslatorEndPoint::BeginWriteMediaPayload(uint32_t ssrc,
                                                 const std::vector<RtpMediaPacketInfo>& packets) noexcept
 {
-    OutputDevice::BeginWriteMediaPayload(ssrc, packets);
+    MediaSink::BeginWriteMediaPayload(ssrc, packets);
     if (IsConnected()) {
         // TODO: send JSON command
     }
@@ -289,7 +289,7 @@ void TranslatorEndPoint::EndWriteMediaPayload(uint32_t ssrc,
                                               const std::vector<RtpMediaPacketInfo>& packets,
                                               bool ok) noexcept
 {
-    OutputDevice::EndWriteMediaPayload(ssrc, packets, ok);
+    MediaSink::EndWriteMediaPayload(ssrc, packets, ok);
     if (IsConnected()) {
         // TODO: send JSON command
     }
@@ -304,7 +304,7 @@ void TranslatorEndPoint::Write(const std::shared_ptr<const MemoryBuffer>& buffer
 
 void TranslatorEndPoint::EndStream(bool failure) noexcept
 {
-    OutputDevice::EndStream(failure);
+    MediaSink::EndStream(failure);
     if (IsConnected()) {
         // TODO: send JSON command
     }

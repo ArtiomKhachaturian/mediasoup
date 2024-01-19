@@ -111,7 +111,7 @@ bool ProducerTranslator::AddStream(const RtpCodecMimeType& mime, uint32_t clockR
                                 fileName = std::string(depacketizerPath) + "/" + fileName;
                                 auto fileWriter = std::make_unique<FileWriter>(fileName);
                                 if (fileWriter->IsOpen()) {
-                                    AddOutputDevice(fileWriter.get());
+                                    AddSink(fileWriter.get());
                                     _fileWriters[mappedSsrc] = std::move(fileWriter);
                                 }
                             }
@@ -148,7 +148,7 @@ bool ProducerTranslator::RemoveStream(uint32_t mappedSsrc)
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
             const auto it = _fileWriters.find(mappedSsrc);
             if (it != _fileWriters.end()) {
-                RemoveOutputDevice(it->second.get());
+                RemoveSink(it->second.get());
                 _fileWriters.erase(it);
             }
 #endif
@@ -199,22 +199,6 @@ std::optional<FBS::TranslationPack::Language> ProducerTranslator::GetLanguage() 
     return _producer->GetLanguage();
 }
 
-void ProducerTranslator::AddOutputDevice(OutputDevice* outputDevice)
-{
-    if (outputDevice && outputDevice != this && _outputDevices.Add(outputDevice) &&
-        1UL == _outputDevices.GetSize()) {
-        _serializer->AddOutputDevice(this);
-    }
-}
-
-void ProducerTranslator::RemoveOutputDevice(OutputDevice* outputDevice)
-{
-    if (outputDevice && outputDevice != this && _outputDevices.Remove(outputDevice) &&
-        _outputDevices.IsEmpty()) {
-        _serializer->RemoveOutputDevice(this);
-    }
-}
-
 template <class Method, typename... Args>
 void ProducerTranslator::InvokeObserverMethod(const Method& method, Args&&... args) const
 {
@@ -226,31 +210,48 @@ void ProducerTranslator::OnPauseChanged(bool pause)
     InvokeObserverMethod(&ProducerObserver::OnPauseChanged, pause);
 }
 
+bool ProducerTranslator::IsSinkValid(const MediaSink* sink) const
+{
+    return sink != this;
+}
+
+void ProducerTranslator::OnFirstSinkAdded()
+{
+    MediaSource::OnFirstSinkAdded();
+    _serializer->AddSink(this);
+}
+
+void ProducerTranslator::OnLastSinkRemoved()
+{
+    MediaSource::OnLastSinkRemoved();
+    _serializer->RemoveSink(this);
+}
+
 void ProducerTranslator::StartStream(bool restart) noexcept
 {
-    _outputDevices.InvokeMethod(&OutputDevice::StartStream, restart);
+    StartMediaSinksStream(restart);
 }
 
 void ProducerTranslator::BeginWriteMediaPayload(uint32_t ssrc,
                                                 const std::vector<RtpMediaPacketInfo>& packets) noexcept
 {
-    _outputDevices.InvokeMethod(&OutputDevice::BeginWriteMediaPayload, ssrc, packets);
+    BeginWriteMediaSinksPayload(ssrc, packets);
 }
 
 void ProducerTranslator::Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
-    _outputDevices.InvokeMethod(&OutputDevice::Write, buffer);
+    WritePayloadToMediaSinks(buffer);
 }
 
 void ProducerTranslator::EndWriteMediaPayload(uint32_t ssrc, const std::vector<RtpMediaPacketInfo>& packets,
                                               bool ok) noexcept
 {
-    _outputDevices.InvokeMethod(&OutputDevice::EndWriteMediaPayload, ssrc, packets, ok);
+    EndWriteMediaSinksPayload(ssrc, packets, ok);
 }
 
 void ProducerTranslator::EndStream(bool failure) noexcept
 {
-    _outputDevices.InvokeMethod(&OutputDevice::EndStream, failure);
+    EndMediaSinksStream(failure);
 }
 
 ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint32_t mappedSsrc,

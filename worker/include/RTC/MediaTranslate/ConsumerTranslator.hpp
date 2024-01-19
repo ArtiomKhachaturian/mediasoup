@@ -2,7 +2,7 @@
 
 #include "RTC/MediaTranslate/ConsumerTranslatorSettings.hpp"
 #include "RTC/MediaTranslate/ConsumerObserver.hpp"
-#include "RTC/MediaTranslate/OutputDevice.hpp"
+#include "RTC/MediaTranslate/MediaSink.hpp"
 #include "RTC/Listeners.hpp"
 #include <memory>
 #include <optional>
@@ -23,11 +23,11 @@ class RtpPacketsCollector;
 class RtpMediaFrameDeserializer;
 class WebMBuffersReader;
 
-class ConsumerTranslator : public ConsumerTranslatorSettings, public OutputDevice
+class ConsumerTranslator : public ConsumerTranslatorSettings,
+                           public MediaSink
 {
 public:
-    ConsumerTranslator(const Consumer* consumer,
-                       RtpPacketsCollector* packetsCollector);
+    ConsumerTranslator(const Consumer* consumer, RtpPacketsCollector* packetsCollector);
     ~ConsumerTranslator() final;
     void AddObserver(ConsumerObserver* observer);
     void RemoveObserver(ConsumerObserver* observer);
@@ -36,7 +36,7 @@ public:
     // impl. of ConsumerTranslatorSettings
     std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
     std::optional<FBS::TranslationPack::Voice> GetVoice() const final;
-    // impl. of OutputDevice
+    // impl. of MediaSink
     void Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
 protected:
     void OnPauseChanged(bool pause) final;

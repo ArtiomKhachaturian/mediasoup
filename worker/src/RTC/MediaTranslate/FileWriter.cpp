@@ -53,7 +53,7 @@ bool FileWriter::Flush()
 
 void FileWriter::StartStream(bool restart) noexcept
 {
-    OutputDevice::StartStream(restart);
+    MediaSink::StartStream(restart);
     if (_file) {
         MS_DEBUG_DEV(restart ? "media stream restarted" : "media stream started");
         if (restart) {
@@ -92,7 +92,7 @@ void FileWriter::Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexce
 
 void FileWriter::EndStream(bool failure) noexcept
 {
-    OutputDevice::EndStream(failure);
+    MediaSink::EndStream(failure);
     MS_DEBUG_DEV(failure ? "media stream failed" : "media stream finished");
 }
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RTC/MediaTranslate/OutputDevice.hpp"
+#include "RTC/MediaTranslate/MediaSink.hpp"
 #include <string>
 #include <stddef.h>
 #include <stdio.h>
@@ -8,7 +8,7 @@
 namespace RTC
 {
 
-class FileWriter : public OutputDevice
+class FileWriter : public MediaSink
 {
 public:
     FileWriter() = default;
@@ -27,7 +27,7 @@ public:
     // Write any buffered data to the underlying file. Returns true on success,
     // false on write error. Note: Flushing when closing, is not required.
     bool Flush();
-    // impl. of OutputDevice
+    // impl. of MediaSink
     void StartStream(bool restart) noexcept final;
     void Write(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
     void EndStream(bool failure) noexcept final;

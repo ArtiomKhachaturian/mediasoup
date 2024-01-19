@@ -10,10 +10,10 @@ namespace RTC
 class RtpCodecMimeType;
 class MemoryBuffer;
 
-class OutputDevice
+class MediaSink
 {
 public:
-    virtual ~OutputDevice() = default;
+    virtual ~MediaSink() = default;
     virtual void StartStream(bool /*restart*/) noexcept {}
     virtual void BeginWriteMediaPayload(uint32_t /*ssrc*/,
                                         const std::vector<RtpMediaPacketInfo>& /*packets*/) noexcept {}

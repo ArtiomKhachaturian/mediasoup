@@ -2,7 +2,7 @@
 
 #include "FBS/translationPack.h"
 #include "RTC/MediaTranslate/WebsocketListener.hpp"
-#include "RTC/MediaTranslate/OutputDevice.hpp"
+#include "RTC/MediaTranslate/MediaSink.hpp"
 #include "ProtectedObj.hpp"
 #include <nlohmann/json.hpp>
 #include <string>
@@ -11,11 +11,11 @@
 namespace RTC
 {
 
-class ProducerInputMediaStreamer;
+class MediaSource;
 class ConsumerTranslatorSettings;
 class Websocket;
 
-class TranslatorEndPoint : private WebsocketListener, private OutputDevice
+class TranslatorEndPoint : private WebsocketListener, private MediaSink
 {
     class Impl;
 public:
@@ -27,9 +27,9 @@ public:
     void SetProducerLanguage(const std::optional<FBS::TranslationPack::Language>& language);
     void SetConsumerLanguageAndVoice(const std::optional<FBS::TranslationPack::Language>& language,
                                      const std::optional<FBS::TranslationPack::Voice>& voice);
-    void SetInput(ProducerInputMediaStreamer* input);
+    void SetInput(MediaSource* input);
     bool HasInput() const;
-    void SetOutput(OutputDevice* output);
+    void SetOutput(MediaSink* output);
     bool IsConnected() const { return _connected.load(std::memory_order_relaxed); }
 private:
     static std::string_view LanguageToId(const std::optional<FBS::TranslationPack::Language>& language);
@@ -43,12 +43,12 @@ private:
     std::optional<FBS::TranslationPack::Language> GetProducerLanguage() const;
     void SetConnected(bool connected);
     void ConnectToMediaInput(bool connect);
-    void ConnectToMediaInput(ProducerInputMediaStreamer* input, bool connect);
+    void ConnectToMediaInput(MediaSource* input, bool connect);
     void UpdateTranslationChanges();
     bool SendTranslationChanges();
     bool WriteJson(const nlohmann::json& data) const;
     void OpenSocket();
-    // impl. of OutputDevice
+    // impl. of MediaSink
     void StartStream(bool restart) noexcept final;
     void BeginWriteMediaPayload(uint32_t ssrc,
                                 const std::vector<RtpMediaPacketInfo>& packets) noexcept final;
@@ -68,8 +68,8 @@ private:
     ProtectedOptional<FBS::TranslationPack::Language> _consumerLanguage;
     ProtectedOptional<FBS::TranslationPack::Voice> _consumerVoice;
     ProtectedOptional<FBS::TranslationPack::Language> _producerLanguage;
-    ProtectedObj<ProducerInputMediaStreamer*> _input;
-    ProtectedObj<OutputDevice*> _output;
+    ProtectedObj<MediaSource*> _input;
+    ProtectedObj<MediaSink*> _output;
 };
 
 } // namespace RTC

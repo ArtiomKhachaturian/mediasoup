@@ -5,7 +5,7 @@
 namespace RTC
 {
 
-struct RtpMediaPacketInfo 
+struct RtpMediaPacketInfo
 {
     uint16_t _sequenceNumber = 0U;
 };

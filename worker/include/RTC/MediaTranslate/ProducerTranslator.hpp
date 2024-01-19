@@ -3,12 +3,10 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/MediaTranslate/TranslatorUnit.hpp"
-#include "RTC/MediaTranslate/ProducerInputMediaStreamer.hpp"
+#include "RTC/MediaTranslate/MediaSink.hpp"
+#include "RTC/MediaTranslate/MediaSource.hpp"
 #include "RTC/MediaTranslate/ProducerObserver.hpp"
-#include "RTC/MediaTranslate/OutputDevice.hpp"
 #include "RTC/MediaTranslate/TranslatorUnit.hpp"
-#include "RTC/Listeners.hpp"
-#include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
 
 #define WRITE_PRODUCER_RECV_TO_FILE
@@ -25,9 +23,9 @@ class FileWriter;
 #endif
 
 class ProducerTranslator : public TranslatorUnit,
-                           public ProducerInputMediaStreamer,
+                           public MediaSource,
                            public RtpPacketsCollector,
-                           private OutputDevice
+                           private MediaSink
 {
     class StreamInfo;
 public:
@@ -49,16 +47,17 @@ public:
     bool AddPacket(RtpPacket* packet) final;
     // impl. of TranslatorUnit
     std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
-    // impl. of ProducerInputMediaStreamer
-    void AddOutputDevice(OutputDevice* outputDevice) final;
-    void RemoveOutputDevice(OutputDevice* outputDevice) final;
 protected:
     template <class Method, typename... Args>
     void InvokeObserverMethod(const Method& method, Args&&... args) const;
     // override of TranslatorUnit
     void OnPauseChanged(bool pause) final;
+    // impl. of MediaSource
+    bool IsSinkValid(const MediaSink* sink) const final;
+    void OnFirstSinkAdded() final;
+    void OnLastSinkRemoved() final;
 private:
-    // impl. of OutputDevice
+    // impl. of MediaSink
     void StartStream(bool restart) noexcept final;
     void BeginWriteMediaPayload(uint32_t ssrc,
                                 const std::vector<RtpMediaPacketInfo>& packets) noexcept final;
@@ -70,7 +69,6 @@ private:
     Producer* const _producer;
     const std::unique_ptr<RtpMediaFrameSerializer> _serializer;
     Listeners<ProducerObserver*> _observers;
-    Listeners<OutputDevice*> _outputDevices;
     // key is mapped media SSRC
     absl::flat_hash_map<uint32_t, std::unique_ptr<StreamInfo>> _streams;
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
