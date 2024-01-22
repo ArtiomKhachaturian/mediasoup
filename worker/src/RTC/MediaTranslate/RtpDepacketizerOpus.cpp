@@ -41,6 +41,8 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 std::shared_ptr<const RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet)
 {
     if (packet && packet->GetPayload()) {
+        const auto ts = packet->GetTimestamp();
+        const auto sn = packet->GetSequenceNumber();
         bool stereo = false;
         Codecs::Opus::ParseTOC(packet->GetPayload()[0], nullptr, nullptr, nullptr, &stereo);
         auto config = std::make_shared<AudioFrameConfig>();

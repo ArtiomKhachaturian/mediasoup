@@ -2,6 +2,9 @@
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 #include "RTC/MediaTranslate/MediaFrameDeserializer.hpp"
 #include "RTC/MediaTranslate/MediaFrameSerializationFactory.hpp"
+#include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
+#include "RTC/MediaTranslate/MediaFrame.hpp"
+#include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/Consumer.hpp"
 #include "Logger.hpp"
 
@@ -77,6 +80,13 @@ void ConsumerTranslator::WriteMediaPayload(const std::shared_ptr<const MemoryBuf
             const auto frames = _deserializer->ReadNextFrames(_deserializedMediaTrackIndex.value());
             if (!frames.empty()) {
                 _hadIncomingMedia = true;
+                for (const auto& frame : frames) {
+                    if (const auto packetizer = GetPacketizer(frame)) {
+                        if (const auto rptPacket = packetizer->AddFrame(frame)) {
+                            _packetsCollector->AddPacket(rptPacket);
+                        }
+                    }
+                }
             }
         }
     }
@@ -97,6 +107,33 @@ void ConsumerTranslator::OnPauseChanged(bool pause)
 bool ConsumerTranslator::IsAudio() const
 {
     return RTC::Media::Kind::AUDIO == _consumer->GetKind();
+}
+
+RtpPacketizer* ConsumerTranslator::GetPacketizer(const std::shared_ptr<const MediaFrame>& frame)
+{
+    if (frame) {
+        const auto subType = frame->GetMimeType().GetSubtype();
+        auto it = _packetizers.find(subType);
+        if (it == _packetizers.end()) {
+            std::unique_ptr<RtpPacketizer> packetizer;
+            switch (subType) {
+                case RtpCodecMimeType::Subtype::OPUS:
+                    packetizer = std::make_unique<RtpPacketizerOpus>();
+                    break;
+                default:
+                    MS_ASSERT(false, "packetizer for [%s] not yet implemented",
+                              frame->GetMimeType().ToString().c_str());
+                    break;
+            }
+            if (packetizer) {
+                it = _packetizers.insert(std::make_pair(subType, std::move(packetizer))).first;
+            }
+        }
+        if (it != _packetizers.end()) {
+            return it->second.get();
+        }
+    }
+    return nullptr;
 }
 
 template <class Method, typename... Args>

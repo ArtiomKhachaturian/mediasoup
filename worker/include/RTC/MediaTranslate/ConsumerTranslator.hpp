@@ -4,6 +4,7 @@
 #include "RTC/MediaTranslate/ConsumerObserver.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
 #include "RTC/Listeners.hpp"
+#include "RTC/RtpDictionaries.hpp"
 #include <memory>
 #include <optional>
 
@@ -12,8 +13,10 @@ namespace RTC
 
 class Consumer;
 class RtpPacketsCollector;
+class MediaFrame;
 class MediaFrameDeserializer;
 class MediaFrameSerializationFactory;
+class RtpPacketizer;
 
 class ConsumerTranslator : public ConsumerTranslatorSettings,
                            public MediaSink
@@ -38,6 +41,7 @@ protected:
     void OnPauseChanged(bool pause) final;
 private:
     bool IsAudio() const;
+    RtpPacketizer* GetPacketizer(const std::shared_ptr<const MediaFrame>& frame);
     template <class Method, typename... Args>
     void InvokeObserverMethod(const Method& method, Args&&... args) const;
 private:
@@ -48,6 +52,7 @@ private:
     Listeners<ConsumerObserver*> _observers;
     std::optional<size_t> _deserializedMediaTrackIndex;
     bool _hadIncomingMedia = false;
+    std::unordered_map<RtpCodecMimeType::Subtype, std::unique_ptr<RtpPacketizer>> _packetizers;
 };
 
 } // namespace RTC

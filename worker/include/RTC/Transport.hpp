@@ -298,7 +298,7 @@ namespace RTC
 		RTC::RtpDataCounter recvRtxTransmission;
 		RTC::RtpDataCounter sendRtxTransmission;
 		RTC::RtpDataCounter sendProbationTransmission;
-		uint16_t transportWideCcSeq{ 0u };
+            uint16_t transportWideCcSeq{ 0u };
 		uint32_t initialAvailableOutgoingBitrate{ 600000u };
 		uint32_t maxIncomingBitrate{ 0u };
 		uint32_t maxOutgoingBitrate{ 0u };

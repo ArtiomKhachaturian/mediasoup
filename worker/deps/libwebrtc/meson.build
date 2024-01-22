@@ -1,5 +1,6 @@
 libwebrtc_sources = [
   'libwebrtc/system_wrappers/source/field_trial.cc',
+  'libwebrtc/rtc_base/random.cc',
   'libwebrtc/rtc_base/rate_statistics.cc',
   'libwebrtc/rtc_base/experiments/field_trial_parser.cc',
   'libwebrtc/rtc_base/experiments/alr_experiment.cc',
