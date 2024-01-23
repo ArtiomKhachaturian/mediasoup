@@ -11,7 +11,7 @@ class WebMDeserializer : public MediaFrameDeserializer
     class WebMStream;
     class TrackInfo;
 public:
-    WebMDeserializer(std::unique_ptr<MkvReader> reader);
+    WebMDeserializer(std::unique_ptr<MkvReader> reader, bool loopback = false);
     ~WebMDeserializer() final;
     // impl. of RtpMediaFrameDeserializer
     bool AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) final;

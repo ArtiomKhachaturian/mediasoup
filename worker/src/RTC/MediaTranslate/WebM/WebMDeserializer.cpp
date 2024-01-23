@@ -5,7 +5,9 @@
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
+#include "api/units/timestamp.h"
 #include "Logger.hpp"
+#include "DepLibUV.hpp"
 #include <array>
 
 namespace {
@@ -23,7 +25,7 @@ namespace RTC
 class WebMDeserializer::WebMStream
 {
 public:
-    WebMStream(mkvparser::IMkvReader* reader);
+    WebMStream(mkvparser::IMkvReader* reader, bool loopback);
     ~WebMStream();
     // both parse methods returns true if EMBL header or MKV segmen is already parsed
     bool ParseEBMLHeader();
@@ -35,6 +37,7 @@ public:
     void SetInitialTimestamp(size_t trackIndex, uint32_t initialTimestamp);
 private:
     mkvparser::IMkvReader* const _reader;
+    const bool _loopback;
     std::unique_ptr<mkvparser::EBMLHeader> _ebmlHeader;
     mkvparser::Segment* _segment = nullptr;
     absl::flat_hash_map<size_t, std::unique_ptr<TrackInfo>> _tracks;
@@ -49,7 +52,7 @@ public:
               const mkvparser::Track* track);
     const RtpCodecMimeType& GetMime() const { return _mime; }
     const std::shared_ptr<MediaFrameConfig>& GetConfig() const { return _config; }
-    const mkvparser::Block* GetNextBlock();
+    const mkvparser::Block* GetNextBlock(bool loopback);
     uint32_t GetCurrentTimestamp() const;
     uint32_t GetCurrentTimestamp(const mkvparser::Block* block) const;
     void SetClockRate(uint32_t clockRate);
@@ -68,9 +71,9 @@ private:
     uint32_t _initialTimestamp = 0U;
 };
 
-WebMDeserializer::WebMDeserializer(std::unique_ptr<MkvReader> reader)
+WebMDeserializer::WebMDeserializer(std::unique_ptr<MkvReader> reader, bool loopback)
     : _reader(std::move(reader))
-    , _stream(std::make_unique<WebMStream>(_reader.get()))
+    , _stream(std::make_unique<WebMStream>(_reader.get(), loopback))
 {
     MS_ASSERT(_reader, "MKV reader must not be null");
 }
@@ -89,43 +92,34 @@ bool WebMDeserializer::AddBuffer(const std::shared_ptr<const MemoryBuffer>& buff
 
 size_t WebMDeserializer::GetTracksCount() const
 {
-    return _stream ? _stream->GetTracksCount() : 0UL;
+    return _stream->GetTracksCount();
 }
 
 std::optional<RtpCodecMimeType> WebMDeserializer::GetTrackMimeType(size_t trackIndex) const
 {
-    if (_stream) {
-        return _stream->GetTrackMimeType(trackIndex);
-    }
-    return std::nullopt;
+    return _stream->GetTrackMimeType(trackIndex);
 }
 
 std::vector<std::shared_ptr<const MediaFrame>> WebMDeserializer::ReadNextFrames(size_t trackIndex)
 {
-    if (_stream) {
-        return _stream->ReadNextFrames(trackIndex);
-    }
-    return {};
+    return _stream->ReadNextFrames(trackIndex);
 }
 
 void WebMDeserializer::SetClockRate(size_t trackIndex, uint32_t clockRate)
 {
     MediaFrameDeserializer::SetClockRate(trackIndex, clockRate);
-    if (_stream) {
-        _stream->SetClockRate(trackIndex, clockRate);
-    }
+    _stream->SetClockRate(trackIndex, clockRate);
 }
 
 void WebMDeserializer::SetInitialTimestamp(size_t trackIndex, uint32_t initialTimestamp)
 {
     MediaFrameDeserializer::SetInitialTimestamp(trackIndex, initialTimestamp);
-    if (_stream) {
-        _stream->SetInitialTimestamp(trackIndex, initialTimestamp);
-    }
+    _stream->SetInitialTimestamp(trackIndex, initialTimestamp);
 }
 
-WebMDeserializer::WebMStream::WebMStream(mkvparser::IMkvReader* reader)
+WebMDeserializer::WebMStream::WebMStream(mkvparser::IMkvReader* reader, bool loopback)
     : _reader(reader)
+    , _loopback(loopback)
 {
 }
 
@@ -185,7 +179,7 @@ std::vector<std::shared_ptr<const MediaFrame>> WebMDeserializer::WebMStream::Rea
     if (_segment) {
         const auto it = _tracks.find(trackIndex);
         if (it != _tracks.end()) {
-            if (const auto block = it->second->GetNextBlock()) {
+            if (const auto block = it->second->GetNextBlock(_loopback)) {
                 const auto framesCount = block->GetFrameCount();
                 if (framesCount > 0) {
                     std::vector<std::shared_ptr<const MediaFrame>> frames;
@@ -219,7 +213,8 @@ void WebMDeserializer::WebMStream::SetClockRate(size_t trackIndex, uint32_t cloc
     }
 }
 
-void WebMDeserializer::WebMStream::SetInitialTimestamp(size_t trackIndex, uint32_t initialTimestamp)
+void WebMDeserializer::WebMStream::SetInitialTimestamp(size_t trackIndex,
+                                                       uint32_t initialTimestamp)
 {
     const auto it = _tracks.find(trackIndex);
     if (it != _tracks.end()) {
@@ -228,9 +223,9 @@ void WebMDeserializer::WebMStream::SetInitialTimestamp(size_t trackIndex, uint32
 }
 
 WebMDeserializer::TrackInfo::TrackInfo(RtpCodecMimeType::Type type,
-                                          RtpCodecMimeType::Subtype subType,
-                                          std::shared_ptr<MediaFrameConfig> config,
-                                          const mkvparser::Track* track)
+                                       RtpCodecMimeType::Subtype subType,
+                                       std::shared_ptr<MediaFrameConfig> config,
+                                       const mkvparser::Track* track)
     : _mime(type, subType)
     , _config(std::move(config))
     , _track(track)
@@ -240,19 +235,27 @@ WebMDeserializer::TrackInfo::TrackInfo(RtpCodecMimeType::Type type,
     }
 }
 
-const mkvparser::Block* WebMDeserializer::TrackInfo::GetNextBlock()
+const mkvparser::Block* WebMDeserializer::TrackInfo::GetNextBlock(bool loopback)
 {
     const mkvparser::BlockEntry* blockEntry = nullptr;
     if (!_currentBlockEntry) {
+        //_initialTimestamp = webrtc::Timestamp::ms(DepLibUV::GetTimeMs()).ms<uint32_t>();
+        //_initialTimestamp = static_cast<uint32_t>(DepLibUV::GetTimeMs());
         _track->GetFirst(blockEntry);
     }
     else {
         _track->GetNext(_currentBlockEntry, blockEntry);
     }
-    if (blockEntry && !blockEntry->EOS()) {
-        if (const auto block = blockEntry->GetBlock()) {
-            _currentBlockEntry = blockEntry;
-            return block;
+    if (blockEntry) {
+        if (!blockEntry->EOS()) {
+            if (const auto block = blockEntry->GetBlock()) {
+                _currentBlockEntry = blockEntry;
+                return block;
+            }
+        }
+        else if (loopback) {
+            _currentBlockEntry = nullptr;
+            return GetNextBlock(false);
         }
     }
     return nullptr;

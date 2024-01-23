@@ -241,12 +241,7 @@ namespace RTC
 
 		size_t GetHeaderExtensionLength() const
 		{
-			if (!this->headerExtension)
-			{
-				return 0u;
-			}
-
-			return static_cast<size_t>(ntohs(this->headerExtension->length) * 4);
+            return GetHeaderExtensionLength(this->headerExtension);
 		}
 
 		uint8_t* GetHeaderExtensionValue() const
@@ -636,6 +631,9 @@ namespace RTC
 		}
 
 		RtpPacket* Clone() const;
+        
+        static RtpPacket* Create(const uint8_t* payload, size_t payloadLength,
+                                 HeaderExtension* headerExtension = nullptr);
 
 		void RtxEncode(uint8_t payloadType, uint32_t ssrc, uint16_t seq);
 
@@ -664,6 +662,7 @@ namespace RTC
 
 	private:
 		void ParseExtensions();
+        static size_t GetHeaderExtensionLength(HeaderExtension* headerExtension);
 
 	private:
 		// Passed by argument.

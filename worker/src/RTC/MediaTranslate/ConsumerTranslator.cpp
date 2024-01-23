@@ -5,7 +5,10 @@
 #include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
+#include "RTC/Codecs/Opus.hpp"
 #include "RTC/Consumer.hpp"
+#include "RTC/RtpPacket.hpp"
+#include "DepLibUV.hpp"
 #include "Logger.hpp"
 
 namespace RTC
@@ -70,6 +73,9 @@ void ConsumerTranslator::WriteMediaPayload(const std::shared_ptr<const MemoryBuf
                     const auto mime = _deserializer->GetTrackMimeType(trackIndex);
                     if (mime.has_value() && mime->IsAudioCodec() == IsAudio()) {
                         _deserializedMediaTrackIndex = trackIndex;
+                        if (const auto codec = GetCodec(mime.value())) {
+                            _deserializer->SetClockRate(trackIndex, codec->clockRate);
+                        }
                         break;
                     }
                 }
@@ -82,8 +88,9 @@ void ConsumerTranslator::WriteMediaPayload(const std::shared_ptr<const MemoryBuf
                 _hadIncomingMedia = true;
                 for (const auto& frame : frames) {
                     if (const auto packetizer = GetPacketizer(frame)) {
-                        if (const auto rptPacket = packetizer->AddFrame(frame)) {
-                            _packetsCollector->AddPacket(rptPacket);
+                        if (const auto packet = packetizer->AddFrame(frame)) {
+                            SetupRtpPacketParameters(frame->GetMimeType(), packet);
+                            _packetsCollector->AddPacket(packet);
                         }
                     }
                 }
@@ -97,6 +104,7 @@ void ConsumerTranslator::EndStream(bool failure) noexcept
     MediaSink::EndStream(failure);
     _deserializer.reset();
     _deserializedMediaTrackIndex = std::nullopt;
+    _packetizers.clear();
 }
 
 void ConsumerTranslator::OnPauseChanged(bool pause)
@@ -107,6 +115,32 @@ void ConsumerTranslator::OnPauseChanged(bool pause)
 bool ConsumerTranslator::IsAudio() const
 {
     return RTC::Media::Kind::AUDIO == _consumer->GetKind();
+}
+
+const RtpCodecParameters* ConsumerTranslator::GetCodec(const RtpCodecMimeType& mime) const
+{
+    for (const auto& codec : _consumer->GetRtpParameters().codecs) {
+        if (codec.mimeType == mime) {
+            return &codec;
+        }
+    }
+    return nullptr;
+}
+
+void ConsumerTranslator::SetupRtpPacketParameters(const RtpCodecMimeType& mime, RtpPacket* packet) const
+{
+    if (packet) {
+        if (const auto codec = GetCodec(mime)) {
+            packet->SetPayloadType(codec->payloadType);
+        }
+        switch (mime.GetSubtype()) {
+            case RtpCodecMimeType::Subtype::OPUS:
+                Codecs::Opus::ProcessRtpPacket(packet);
+                break;
+            default:
+                break;
+        }
+    }
 }
 
 RtpPacketizer* ConsumerTranslator::GetPacketizer(const std::shared_ptr<const MediaFrame>& frame)

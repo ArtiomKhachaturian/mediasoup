@@ -37,7 +37,7 @@ public:
     void UpdateConsumerLanguageAndVoice(Consumer* consumer);
     void UpdateProducerLanguage();
     void AddNewRtpStream(RtpStreamRecv* rtpStream, uint32_t mappedSsrc);
-    void DispatchProducerPacket(RtpPacket* packet);
+    bool DispatchProducerPacket(RtpPacket* packet);
 private:
     // impl. of RtpPacketsCollector
     bool AddPacket(RtpPacket* packet) final;
@@ -86,6 +86,11 @@ void MediaTranslatorsManager::OnTransportDisconnected(RTC::Transport* transport)
 void MediaTranslatorsManager::OnTransportNewProducer(Transport* transport, Producer* producer)
 {
     _router->OnTransportNewProducer(transport, producer);
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+    if (!_translators.empty()) {
+        return;
+    }
+#endif
     if (producer && Media::Kind::AUDIO == producer->GetKind() && !producer->id.empty()) {
         const auto it = _translators.find(producer->id);
         if (it == _translators.end()) {
@@ -187,13 +192,21 @@ void MediaTranslatorsManager::OnTransportProducerRtpPacketReceived(Transport* tr
                                                                    Producer* producer,
                                                                    RtpPacket* packet)
 {
+    bool dispatched = false;
     if (producer && packet) {
         const auto it = _translators.find(producer->id);
         if (it != _translators.end()) {
-            it->second->DispatchProducerPacket(packet);
+            dispatched = it->second->DispatchProducerPacket(packet);
         }
     }
-    _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+    if (!dispatched && !_translators.empty()) {
+        return;
+    }
+#endif
+    if (!dispatched) {
+        _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
+    }
 }
 
 void MediaTranslatorsManager::OnTransportNeedWorstRemoteFractionLost(Transport* transport,
@@ -350,9 +363,15 @@ MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager
 MediaTranslatorsManager::Translator::~Translator()
 {
     _producer->RemoveObserver(this);
+#ifdef NO_TRANSLATION_SERVICE
+    for (auto it = _consumers.begin(); it != _consumers.end(); ++it) {
+        _producer->RemoveSink(it->second.get());
+    }
+#else
     for (auto it = _endPoints.begin(); it != _endPoints.end(); ++it) {
         it->second->SetInput(nullptr);
     }
+#endif
 }
 
 bool MediaTranslatorsManager::Translator::AddPacket(RtpPacket* packet)
@@ -376,11 +395,6 @@ void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer,
     if (consumer && serializationFactory) {
         const auto it = _consumers.find(consumer);
         if (it == _consumers.end()) {
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-            if (!_consumers.empty()) {
-                return;
-            }
-#endif
             const auto packetsCollector = static_cast<RtpPacketsCollector*>(this);
             auto consumerTranslator = std::make_unique<ConsumerTranslator>(consumer, packetsCollector,
                                                                            serializationFactory);
@@ -454,7 +468,7 @@ void MediaTranslatorsManager::Translator::AddNewRtpStream(RtpStreamRecv* rtpStre
     }
 }
 
-void MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* packet)
+bool MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* packet)
 {
     if (_producer->AddPacket(packet)) {
         for (auto it = _consumers.begin(); it != _consumers.end(); ++it) {
@@ -463,7 +477,9 @@ void MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* pack
                 packet->AddRejectedConsumer(it->first);
             }
         }
+        return true;
     }
+    return false;
 }
 
 } // namespace RTC

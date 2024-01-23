@@ -17,6 +17,9 @@ class MediaFrame;
 class MediaFrameDeserializer;
 class MediaFrameSerializationFactory;
 class RtpPacketizer;
+class RtpPacket;
+class RtpCodecParameters;
+class RtpCodecMimeType;
 
 class ConsumerTranslator : public ConsumerTranslatorSettings,
                            public MediaSink
@@ -40,6 +43,8 @@ public:
 protected:
     void OnPauseChanged(bool pause) final;
 private:
+    const RtpCodecParameters* GetCodec(const RtpCodecMimeType& mime) const;
+    void SetupRtpPacketParameters(const RtpCodecMimeType& mime, RtpPacket* packet) const;
     bool IsAudio() const;
     RtpPacketizer* GetPacketizer(const std::shared_ptr<const MediaFrame>& frame);
     template <class Method, typename... Args>

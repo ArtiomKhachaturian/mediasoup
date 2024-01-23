@@ -771,6 +771,39 @@ namespace RTC
 		return packet;
 	}
 
+    RtpPacket* RtpPacket::Create(const uint8_t* payload, size_t payloadLength,
+                                 HeaderExtension* headerExtension)
+    {
+        if (payload && payloadLength) {
+            size_t size = payloadLength + HeaderSize; // or MtuSize ?
+            if (headerExtension) {
+                size += GetHeaderExtensionLength(headerExtension);
+            }
+            HeaderExtension* newHeaderExtension = nullptr;
+            auto* buffer = new uint8_t[size + 100];
+            auto* ptr    = const_cast<uint8_t*>(buffer);
+            // Set header pointer.
+            auto* newHeader = reinterpret_cast<Header*>(ptr);
+            std::memset(newHeader, 0, HeaderSize);
+            newHeader->version = 2u; // default
+            ptr += HeaderSize;
+            if (headerExtension) {
+                const auto numBytes = 4 + GetHeaderExtensionLength(headerExtension);
+                std::memcpy(ptr, headerExtension, numBytes);
+                // Set the header extension pointer.
+                newHeaderExtension = reinterpret_cast<HeaderExtension*>(ptr);
+                ptr += numBytes;
+            }
+            // payload
+            std::memcpy(ptr, payload, payloadLength);
+            auto packet = new RtpPacket(newHeader, newHeaderExtension, payload, payloadLength,
+                                        0u, size);
+            packet->buffer = buffer;
+            return packet;
+        }
+        return nullptr;
+    }
+
 	// NOTE: The caller must ensure that the buffer/memmory of the packet has
 	// space enough for adding 2 extra bytes.
 	void RtpPacket::RtxEncode(uint8_t payloadType, uint32_t ssrc, uint16_t seq)
@@ -1015,4 +1048,12 @@ namespace RTC
 			}
 		}
 	}
+
+    size_t RtpPacket::GetHeaderExtensionLength(HeaderExtension* headerExtension)
+    {
+        if (headerExtension) {
+            return static_cast<size_t>(ntohs(headerExtension->length) * 4);
+        }
+        return 0u;
+    }
 } // namespace RTC

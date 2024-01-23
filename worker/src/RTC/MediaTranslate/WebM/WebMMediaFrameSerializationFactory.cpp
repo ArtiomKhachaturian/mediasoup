@@ -3,10 +3,14 @@
 #include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
 #include "RTC/MediaTranslate/WebM/WebMBuffersReader.hpp"
 #ifdef USE_TEST_FILE_FOR_DESERIALIZATION
+#include "Logger.hpp"
 #include <mkvparser/mkvreader.h>
 #endif
 
 #ifdef USE_TEST_FILE_FOR_DESERIALIZATION
+
+#define MS_CLASS "RTC::WebMMediaFrameSerializationFactory"
+
 namespace {
 
 class FileReader : public RTC::MkvReader
@@ -37,15 +41,21 @@ std::unique_ptr<MediaFrameSerializer> WebMMediaFrameSerializationFactory::Create
 
 std::unique_ptr<MediaFrameDeserializer> WebMMediaFrameSerializationFactory::CreateDeserializer()
 {
+    bool loopback = false;
 #ifdef USE_TEST_FILE_FOR_DESERIALIZATION
-    auto reader = FileReader::Create("/Users/user/Downloads/1b0cefc4-abdb-48d0-9c50-f5050755be94.webm");
+    auto reader = FileReader::Create(_testFileName);
     if (!reader) {
+        MS_ERROR("failed to load %s test file for WebM deserializer", _testFileName);
         reader = std::make_unique<WebMBuffersReader>();
+    }
+    else {
+        MS_DEBUG_TAG(info, "test file %s for WebM deserializer loaded successfully", _testFileName);
+        loopback = true;
     }
 #else
     auto reader = std::make_unique<WebMBuffersReader>();
 #endif
-    return std::make_unique<WebMDeserializer>(std::move(reader));
+    return std::make_unique<WebMDeserializer>(std::move(reader), loopback);
 }
 
 } // namespace RTC
