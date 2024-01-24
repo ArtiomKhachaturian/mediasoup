@@ -3,6 +3,8 @@
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/RtpStream.hpp"
+#include "DepLibUV.hpp"
+#include "rtc_base/random.h"
 
 namespace {
 
@@ -83,6 +85,18 @@ const std::string& MimeSubTypeToString(const RtpCodecMimeType& mime)
         return MimeSubTypeToString(mime.GetSubtype());
     }
     return g_emptyString;
+}
+
+uint32_t GenerateRtpTimestamp()
+{
+    webrtc::Random random(DepLibUV::GetTimeUs());
+    return random.Rand<uint32_t>();
+}
+
+uint16_t GenerateRtpInitialSequenceNumber(uint16_t maxInitRtpSeqNumber)
+{
+    webrtc::Random random(DepLibUV::GetTimeUs());
+    return static_cast<uint16_t>(random.Rand(1u, uint32_t(maxInitRtpSeqNumber)));
 }
 
 } // namespace RTC

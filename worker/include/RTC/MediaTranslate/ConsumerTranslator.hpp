@@ -44,7 +44,7 @@ protected:
     void OnPauseChanged(bool pause) final;
 private:
     void FetchMediaTrackIndex();
-    void FetchNextMediaFrame();
+    void DeserializeMediaFrames();
     const RtpCodecParameters* GetCodec(const RtpCodecMimeType& mime) const;
     void SetupRtpPacketParameters(const RtpCodecMimeType& mime, RtpPacket* packet) const;
     bool IsAudio() const;

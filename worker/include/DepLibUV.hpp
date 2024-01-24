@@ -19,6 +19,7 @@ public:
 	{
 		return static_cast<uint64_t>(uv_hrtime() / 1000000u);
 	}
+    // micro
 	static uint64_t GetTimeUs()
 	{
 		return static_cast<uint64_t>(uv_hrtime() / 1000u);

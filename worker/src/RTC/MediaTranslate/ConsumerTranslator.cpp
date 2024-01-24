@@ -8,7 +8,6 @@
 #include "RTC/Codecs/Opus.hpp"
 #include "RTC/Consumer.hpp"
 #include "RTC/RtpPacket.hpp"
-#include "DepLibUV.hpp"
 #include "Logger.hpp"
 
 namespace RTC
@@ -79,9 +78,9 @@ void ConsumerTranslator::WriteMediaPayload(const std::shared_ptr<const MemoryBuf
             default:
                 break;
         }
-        if (MediaFrameDeserializeResult::Success == result && _deserializedMediaTrackIndex.has_value()) {
+        if (MediaFrameDeserializeResult::Success == result) {
             // parse frames
-            FetchNextMediaFrame();
+            DeserializeMediaFrames();
         }
     }
 }
@@ -122,7 +121,7 @@ void ConsumerTranslator::FetchMediaTrackIndex()
     }
 }
 
-void ConsumerTranslator::FetchNextMediaFrame()
+void ConsumerTranslator::DeserializeMediaFrames()
 {
     if (_deserializer && _deserializedMediaTrackIndex.has_value()) {
         std::vector<std::shared_ptr<const MediaFrame>> frames;

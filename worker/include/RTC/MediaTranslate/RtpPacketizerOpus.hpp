@@ -10,6 +10,8 @@ public:
     RtpPacketizerOpus() = default;
     // impl. of RtpPacketizer
     RtpPacket* AddFrame(const std::shared_ptr<const MediaFrame>& frame) final;
+private:
+    bool _firstFrame = true;
 };
 
 } // namespace RTC

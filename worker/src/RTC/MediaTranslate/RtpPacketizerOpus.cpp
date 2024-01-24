@@ -11,9 +11,10 @@ RtpPacket* RtpPacketizerOpus::AddFrame(const std::shared_ptr<const MediaFrame>& 
     if (frame) {
         if (const auto payload = frame->GetPayload()) {
             if (const auto packet = RtpPacket::Create(payload->GetData(), payload->GetSize())) {
-                packet->SetSequenceNumber(GetNextMediaSequenceNumber());
+                packet->SetSequenceNumber(GetNextSequenceNumber());
                 packet->SetTimestamp(frame->GetTimestamp());
-                packet->SetMarker(true);
+                packet->SetMarker(_firstFrame);
+                _firstFrame = false;
                 return packet;
             }
         }

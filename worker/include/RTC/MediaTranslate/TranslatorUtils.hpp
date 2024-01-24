@@ -22,4 +22,7 @@ const std::string& MimeTypeToString(const RtpCodecMimeType& mime);
 const std::string& MimeSubTypeToString(RtpCodecMimeType::Subtype subtype);
 const std::string& MimeSubTypeToString(const RtpCodecMimeType& mime);
 
+uint32_t GenerateRtpTimestamp();
+uint16_t GenerateRtpInitialSequenceNumber(uint16_t maxInitRtpSeqNumber);
+
 } // namespace RTC

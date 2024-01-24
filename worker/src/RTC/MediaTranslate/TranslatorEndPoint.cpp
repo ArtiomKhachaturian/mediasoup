@@ -1,9 +1,9 @@
 #define MS_CLASS "RTC::TranslatorEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/Websocket.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "Logger.hpp"
-#include "DepLibUV.hpp"
 
 namespace RTC
 {
@@ -14,7 +14,7 @@ TranslatorEndPoint::TranslatorEndPoint(const std::string& serviceUri,
                                        const std::string& userAgent)
     : _userAgent(userAgent)
     , _socket(std::make_unique<Websocket>(serviceUri, serviceUser, servicePassword))
-    , _startTimestamp(static_cast<uint32_t>(DepLibUV::GetTimeMs()))
+    , _startTimestamp(GenerateRtpTimestamp())
 {
     _socket->AddListener(this);
 }
