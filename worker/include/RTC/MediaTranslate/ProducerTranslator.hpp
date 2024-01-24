@@ -61,11 +61,9 @@ protected:
     void OnLastSinkRemoved() final;
 private:
     // impl. of MediaSink
-    void StartStream(bool restart) noexcept final;
-    void BeginWriteMediaPayload(uint32_t ssrc) noexcept final;
+    void StartMediaWriting(bool restart, uint32_t startTimestamp) noexcept final;
     void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
-    void EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept final;
-    void EndStream(bool failure) noexcept final;
+    void EndMediaWriting() noexcept final;
 private:
     Producer* const _producer;
     const std::unique_ptr<MediaFrameSerializer> _serializer;

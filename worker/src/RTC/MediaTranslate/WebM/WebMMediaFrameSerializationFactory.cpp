@@ -13,14 +13,16 @@
 
 namespace {
 
-class FileReader : public RTC::MkvReader
+using namespace RTC;
+
+class FileReader : public MkvReader
 {
 public:
     FileReader(std::unique_ptr<mkvparser::MkvReader> fileReader);
     ~FileReader() final = default;
-    static std::unique_ptr<RTC::MkvReader> Create(const char* filename);
+    static std::unique_ptr<MkvReader> Create(const char* filename);
     // impl. of MkvReader
-    bool AddBuffer(const std::shared_ptr<const RTC::MemoryBuffer>& /*buffer*/) final { return true; }
+    MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) final;
     // impl. of mkvparser::IMkvReader
     int Read(long long pos, long len, unsigned char* buf) final;
     int Length(long long* total, long long* available) final;
@@ -69,7 +71,7 @@ FileReader::FileReader(std::unique_ptr<mkvparser::MkvReader> fileReader)
 {
 }
 
-std::unique_ptr<RTC::MkvReader> FileReader::Create(const char* filename)
+std::unique_ptr<    MkvReader> FileReader::Create(const char* filename)
 {
     if (filename) {
         auto fileReader = std::make_unique<mkvparser::MkvReader>();
@@ -78,6 +80,11 @@ std::unique_ptr<RTC::MkvReader> FileReader::Create(const char* filename)
         }
     }
     return nullptr;
+}
+
+MediaFrameDeserializeResult FileReader::AddBuffer(const std::shared_ptr<const MemoryBuffer>& /*buffer*/)
+{
+    return MediaFrameDeserializeResult::Success;
 }
 
 int FileReader::Read(long long pos, long len, unsigned char* buf)

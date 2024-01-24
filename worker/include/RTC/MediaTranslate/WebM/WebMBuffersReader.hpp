@@ -12,7 +12,7 @@ class WebMBuffersReader : public MkvReader
 public:
     WebMBuffersReader() = default;
     // impl. of MkvReader
-    bool AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) final;
+    MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) final;
     // impl. of mkvparser::IMkvReader
     int Read(long long pos, long len, unsigned char* buf) final;
     int Length(long long* total, long long* available) final;

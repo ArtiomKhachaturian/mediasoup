@@ -65,7 +65,7 @@ namespace RTC
 {
 
 class WebMSerializer::BufferedWriter : private mkvmuxer::IMkvWriter,
-                                          private SimpleMemoryBuffer
+                                       private SimpleMemoryBuffer
 {
 public:
     BufferedWriter(const char* writingApp);
@@ -255,7 +255,7 @@ bool WebMSerializer::Push(uint32_t ssrc, const std::shared_ptr<const MediaFrame>
             const auto mkvTimestamp = trackInfo->UpdateTimeStamp(mediaFrame->GetTimestamp());
             const auto trackNumber = trackInfo->GetNumber();
             if (!_writer->HasWroteMedia()) {
-                StartMediaSinksStream(_pendingRestartMode);
+                StartMediaSinksWriting(_pendingRestartMode, mediaFrame->GetTimestamp());
                 _pendingRestartMode = false;
             }
             const auto added = _writer->AddFrame(mediaFrame, ssrc, mkvTimestamp, trackNumber, this);
@@ -347,7 +347,7 @@ void WebMSerializer::DestroyWriter(bool failure)
             WriteMediaSinksPayload(_writer->TakeWrittenData());
         }
         if (_writer->HasWroteMedia()) {
-            EndMediaSinksStream(failure);
+            EndMediaSinksWriting();
         }
         if (failure) {
             _hasFailure = true;
@@ -663,17 +663,11 @@ bool WebMSerializer::BufferedWriter::WriteFrames(uint32_t ssrc, uint64_t mkvTime
         size_t addedCount = 0UL;
         for (const auto& mkvFrame : _mkvFrames) {
             if (mkvFrame.GetMkvTimestamp() <= mkvTimestamp) {
-                if (serializer) {
-                    serializer->BeginWriteMediaSinksPayload(ssrc);
-                }
                 ok = mkvFrame.WriteToSegment(_segment);
-                if (serializer) {
-                    if (ok) {
+                if (ok) {
+                    if (serializer) {
                         serializer->WriteMediaSinksPayload(TakeWrittenData());
                     }
-                    serializer->EndWriteMediaSinksPayload(ssrc, ok);
-                }
-                if (ok) {
                     ++addedCount;
                 }
                 else {

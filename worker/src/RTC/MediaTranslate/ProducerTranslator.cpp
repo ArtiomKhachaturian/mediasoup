@@ -240,14 +240,9 @@ void ProducerTranslator::OnLastSinkRemoved()
     _serializer->RemoveSink(this);
 }
 
-void ProducerTranslator::StartStream(bool restart) noexcept
+void ProducerTranslator::StartMediaWriting(bool restart, uint32_t startTimestamp) noexcept
 {
-    StartMediaSinksStream(restart);
-}
-
-void ProducerTranslator::BeginWriteMediaPayload(uint32_t ssrc) noexcept
-{
-    BeginWriteMediaSinksPayload(ssrc);
+    StartMediaSinksWriting(restart, startTimestamp);
 }
 
 void ProducerTranslator::WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
@@ -255,14 +250,9 @@ void ProducerTranslator::WriteMediaPayload(const std::shared_ptr<const MemoryBuf
     WriteMediaSinksPayload(buffer);
 }
 
-void ProducerTranslator::EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept
+void ProducerTranslator::EndMediaWriting() noexcept
 {
-    EndWriteMediaSinksPayload(ssrc, ok);
-}
-
-void ProducerTranslator::EndStream(bool failure) noexcept
-{
-    EndMediaSinksStream(failure);
+    EndMediaSinksWriting();
 }
 
 ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint32_t mappedSsrc,

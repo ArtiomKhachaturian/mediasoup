@@ -28,9 +28,8 @@ public:
     // false on write error. Note: Flushing when closing, is not required.
     bool Flush();
     // impl. of MediaSink
-    void StartStream(bool restart) noexcept final;
+    void StartMediaWriting(bool restart, uint32_t startTimestamp) noexcept final;
     void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
-    void EndStream(bool failure) noexcept final;
 protected:
     static FILE* OpenFile(std::string_view fileNameUtf8, int* error = nullptr);
 private:

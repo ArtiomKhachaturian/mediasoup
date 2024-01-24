@@ -3,6 +3,7 @@
 #include "RTC/MediaTranslate/Websocket.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "Logger.hpp"
+#include "DepLibUV.hpp"
 
 namespace RTC
 {
@@ -13,6 +14,7 @@ TranslatorEndPoint::TranslatorEndPoint(const std::string& serviceUri,
                                        const std::string& userAgent)
     : _userAgent(userAgent)
     , _socket(std::make_unique<Websocket>(serviceUri, serviceUser, servicePassword))
+    , _startTimestamp(static_cast<uint32_t>(DepLibUV::GetTimeMs()))
 {
     _socket->AddListener(this);
 }
@@ -268,42 +270,10 @@ void TranslatorEndPoint::OpenSocket()
     }
 }
 
-void TranslatorEndPoint::StartStream(bool restart) noexcept
-{
-    MediaSink::StartStream(restart);
-    if (IsConnected()) {
-        // TODO: send JSON command
-    }
-}
-
-void TranslatorEndPoint::BeginWriteMediaPayload(uint32_t ssrc) noexcept
-{
-    MediaSink::BeginWriteMediaPayload(ssrc);
-    if (IsConnected()) {
-        // TODO: send JSON command
-    }
-}
-
-void TranslatorEndPoint::EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept
-{
-    MediaSink::EndWriteMediaPayload(ssrc, ok);
-    if (IsConnected()) {
-        // TODO: send JSON command
-    }
-}
-
 void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
     if (buffer && IsConnected()) {
         _socket->WriteBinary(buffer);
-    }
-}
-
-void TranslatorEndPoint::EndStream(bool failure) noexcept
-{
-    MediaSink::EndStream(failure);
-    if (IsConnected()) {
-        // TODO: send JSON command
     }
 }
 
@@ -332,9 +302,9 @@ void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t /*socketId*/,
     if (message) {
         LOCK_READ_PROTECTED_OBJ(_output);
         if (const auto& output = _output.ConstRef()) {
-            output->StartStream(_mediaRestarted);
+            output->StartMediaWriting(_mediaRestarted, _startTimestamp);
             output->WriteMediaPayload(message);
-            output->EndStream(false);
+            output->EndMediaWriting();
             _mediaRestarted = true;
         }
     }

@@ -49,11 +49,7 @@ private:
     bool WriteJson(const nlohmann::json& data) const;
     void OpenSocket();
     // impl. of MediaSink
-    void StartStream(bool restart) noexcept final;
-    void BeginWriteMediaPayload(uint32_t ssrc) noexcept final;
-    void EndWriteMediaPayload(uint32_t ssrc, bool ok) noexcept final;
     void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
-    void EndStream(bool failure) noexcept final;
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
     void OnTextMessageReceived(uint64_t socketId, std::string message) final;
@@ -61,6 +57,7 @@ private:
 private:
     const std::string _userAgent;
     const std::unique_ptr<Websocket> _socket;
+    const uint32_t _startTimestamp;
     ProtectedOptional<FBS::TranslationPack::Language> _consumerLanguage;
     ProtectedOptional<FBS::TranslationPack::Voice> _consumerVoice;
     ProtectedOptional<FBS::TranslationPack::Language> _producerLanguage;

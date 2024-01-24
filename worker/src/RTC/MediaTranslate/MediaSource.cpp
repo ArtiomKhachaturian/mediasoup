@@ -18,31 +18,20 @@ void MediaSource::RemoveSink(MediaSink* sink)
     }
 }
 
-void MediaSource::StartMediaSinksStream(bool restart) noexcept
+void MediaSource::StartMediaSinksWriting(bool restart, uint32_t startTimestamp) noexcept
 {
-    _sinks.InvokeMethod(&MediaSink::StartStream, restart);
-}
-
-void MediaSource::BeginWriteMediaSinksPayload(uint32_t ssrc) noexcept
-{
-    _sinks.InvokeMethod(&MediaSink::BeginWriteMediaPayload, ssrc);
+    _sinks.InvokeMethod(&MediaSink::StartMediaWriting, restart, startTimestamp);
 }
 
 void MediaSource::WriteMediaSinksPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
-    if (buffer) {
-        _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, buffer);
-    }
+    _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, buffer);
 }
 
-void MediaSource::EndWriteMediaSinksPayload(uint32_t ssrc, bool ok) noexcept
+void MediaSource::EndMediaSinksWriting() noexcept
 {
-    _sinks.InvokeMethod(&MediaSink::EndWriteMediaPayload, ssrc, ok);
+    _sinks.InvokeMethod(&MediaSink::EndMediaWriting);
 }
 
-void MediaSource::EndMediaSinksStream(bool failure) noexcept
-{
-    _sinks.InvokeMethod(&MediaSink::EndStream, failure);
-}
 
 } // namespace RTC

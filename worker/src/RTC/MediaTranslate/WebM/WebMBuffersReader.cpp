@@ -6,11 +6,14 @@
 namespace RTC
 {
 
-bool WebMBuffersReader::AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer)
+MediaFrameDeserializeResult WebMBuffersReader::AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer)
 {
     if (buffer && !buffer->IsEmpty()) {
         const auto size = buffer->GetSize();
-        MS_ASSERT(size <= _maxBufferSize, "data buffer is too big for WebM decoding");
+        if (size > _maxBufferSize) {
+            MS_WARN_DEV("size of data buffer (%d) is too big for WebM decoding", size);
+            return MediaFrameDeserializeResult::OutOfMemory;
+        }
         uint8_t* target = nullptr;
         if (size + _bufferSize >= _maxBufferSize) {
             target = _buffer.data();
@@ -21,9 +24,9 @@ bool WebMBuffersReader::AddBuffer(const std::shared_ptr<const MemoryBuffer>& buf
         }
         std::memcpy(target, buffer->GetData(), size);
         _bufferSize += size;
-        return true;
+        return MediaFrameDeserializeResult::Success;
     }
-    return false;
+    return MediaFrameDeserializeResult::InvalidArg;
 }
 
 int WebMBuffersReader::Read(long long pos, long len, unsigned char* buf)

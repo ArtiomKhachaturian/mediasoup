@@ -51,9 +51,9 @@ bool FileWriter::Flush()
     return _file && 0 == ::fflush(_file);
 }
 
-void FileWriter::StartStream(bool restart) noexcept
+void FileWriter::StartMediaWriting(bool restart, uint32_t startTimestamp) noexcept
 {
-    MediaSink::StartStream(restart);
+    MediaSink::StartMediaWriting(restart, startTimestamp);
     if (_file) {
         MS_DEBUG_DEV(restart ? "media stream restarted" : "media stream started");
         if (restart) {
@@ -88,12 +88,6 @@ void FileWriter::WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& bu
                      expected, actual, errno);
         }
     }
-}
-
-void FileWriter::EndStream(bool failure) noexcept
-{
-    MediaSink::EndStream(failure);
-    MS_DEBUG_DEV(failure ? "media stream failed" : "media stream finished");
 }
 
 FILE* FileWriter::OpenFile(std::string_view fileNameUtf8, int* error)

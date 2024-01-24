@@ -8,7 +8,6 @@ namespace RTC
 
 class MediaSink;
 class MemoryBuffer;
-struct RtpMediaPacketInfo;
 
 class MediaSource
 {
@@ -22,11 +21,9 @@ protected:
     virtual bool IsSinkValid(const MediaSink* sink) const { return nullptr != sink; }
     virtual void OnFirstSinkAdded() {}
     virtual void OnLastSinkRemoved() {}
-    void StartMediaSinksStream(bool restart) noexcept;
-    void BeginWriteMediaSinksPayload(uint32_t ssrc) noexcept;
+    void StartMediaSinksWriting(bool restart, uint32_t startTimestamp) noexcept;
     void WriteMediaSinksPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept;
-    void EndWriteMediaSinksPayload(uint32_t ssrc, bool ok) noexcept;
-    void EndMediaSinksStream(bool failure) noexcept;
+    void EndMediaSinksWriting() noexcept;
 private:
     Listeners<MediaSink*> _sinks;
 };

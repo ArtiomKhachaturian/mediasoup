@@ -37,12 +37,14 @@ public:
     std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
     std::optional<FBS::TranslationPack::Voice> GetVoice() const final;
     // impl. of MediaSink
-    void StartStream(bool restart) noexcept final;
+    void StartMediaWriting(bool restart, uint32_t startTimestamp) noexcept final;
     void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
-    void EndStream(bool failure) noexcept final;
+    void EndMediaWriting() noexcept final;
 protected:
     void OnPauseChanged(bool pause) final;
 private:
+    void FetchMediaTrackIndex();
+    void FetchNextMediaFrame();
     const RtpCodecParameters* GetCodec(const RtpCodecMimeType& mime) const;
     void SetupRtpPacketParameters(const RtpCodecMimeType& mime, RtpPacket* packet) const;
     bool IsAudio() const;

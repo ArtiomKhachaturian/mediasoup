@@ -58,50 +58,37 @@ std::optional<FBS::TranslationPack::Voice> ConsumerTranslator::GetVoice() const
     return _consumer->GetVoice();
 }
 
-void ConsumerTranslator::StartStream(bool restart) noexcept
+void ConsumerTranslator::StartMediaWriting(bool restart, uint32_t startTimestamp) noexcept
 {
-    MediaSink::StartStream(restart);
+    MediaSink::StartMediaWriting(restart, startTimestamp);
     _deserializer = _serializationFactory->CreateDeserializer();
+    if (_deserializer) {
+        _deserializer->SetInitialTimestamp(startTimestamp);
+    }
 }
 
 void ConsumerTranslator::WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
-    if (buffer && _deserializer && _deserializer->AddBuffer(buffer)) {
-        if (!_deserializedMediaTrackIndex.has_value()) {
-            if (const auto tracksCount = _deserializer->GetTracksCount()) {
-                for (size_t trackIndex = 0UL; trackIndex < tracksCount; ++trackIndex) {
-                    const auto mime = _deserializer->GetTrackMimeType(trackIndex);
-                    if (mime.has_value() && mime->IsAudioCodec() == IsAudio()) {
-                        _deserializedMediaTrackIndex = trackIndex;
-                        if (const auto codec = GetCodec(mime.value())) {
-                            _deserializer->SetClockRate(trackIndex, codec->clockRate);
-                        }
-                        break;
-                    }
-                }
-            }
+    if (buffer && _deserializer) {
+        const auto result = _deserializer->AddBuffer(buffer);
+        switch (result) {
+            case MediaFrameDeserializeResult::Success:
+            case MediaFrameDeserializeResult::NeedMoreData:
+                FetchMediaTrackIndex();
+                break;
+            default:
+                break;
         }
-        if (_deserializedMediaTrackIndex.has_value()) {
+        if (MediaFrameDeserializeResult::Success == result && _deserializedMediaTrackIndex.has_value()) {
             // parse frames
-            const auto frames = _deserializer->ReadNextFrames(_deserializedMediaTrackIndex.value());
-            if (!frames.empty()) {
-                _hadIncomingMedia = true;
-                for (const auto& frame : frames) {
-                    if (const auto packetizer = GetPacketizer(frame)) {
-                        if (const auto packet = packetizer->AddFrame(frame)) {
-                            SetupRtpPacketParameters(frame->GetMimeType(), packet);
-                            _packetsCollector->AddPacket(packet);
-                        }
-                    }
-                }
-            }
+            FetchNextMediaFrame();
         }
     }
 }
 
-void ConsumerTranslator::EndStream(bool failure) noexcept
+void ConsumerTranslator::EndMediaWriting() noexcept
 {
-    MediaSink::EndStream(failure);
+    MediaSink::EndMediaWriting();
     _deserializer.reset();
     _deserializedMediaTrackIndex = std::nullopt;
     _packetizers.clear();
@@ -115,6 +102,40 @@ void ConsumerTranslator::OnPauseChanged(bool pause)
 bool ConsumerTranslator::IsAudio() const
 {
     return RTC::Media::Kind::AUDIO == _consumer->GetKind();
+}
+
+void ConsumerTranslator::FetchMediaTrackIndex()
+{
+    if (_deserializer && !_deserializedMediaTrackIndex.has_value()) {
+        if (const auto tracksCount = _deserializer->GetTracksCount()) {
+            for (size_t trackIndex = 0UL; trackIndex < tracksCount; ++trackIndex) {
+                const auto mime = _deserializer->GetTrackMimeType(trackIndex);
+                if (mime.has_value() && mime->IsAudioCodec() == IsAudio()) {
+                    _deserializedMediaTrackIndex = trackIndex;
+                    if (const auto codec = GetCodec(mime.value())) {
+                        _deserializer->SetClockRate(trackIndex, codec->clockRate);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+}
+
+void ConsumerTranslator::FetchNextMediaFrame()
+{
+    if (_deserializer && _deserializedMediaTrackIndex.has_value()) {
+        std::vector<std::shared_ptr<const MediaFrame>> frames;
+        _deserializer->ReadNextFrames(_deserializedMediaTrackIndex.value(), frames);
+        for (const auto& frame : frames) {
+            if (const auto packetizer = GetPacketizer(frame)) {
+                if (const auto packet = packetizer->AddFrame(frame)) {
+                    SetupRtpPacketParameters(frame->GetMimeType(), packet);
+                    _packetsCollector->AddPacket(packet);
+                }
+            }
+        }
+    }
 }
 
 const RtpCodecParameters* ConsumerTranslator::GetCodec(const RtpCodecMimeType& mime) const

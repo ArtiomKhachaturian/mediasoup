@@ -1,6 +1,14 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaFrameDeserializer.hpp"
 
+namespace mkvparser {
+class EBMLHeader;
+class Segment;
+class Cluster;
+class Block;
+class BlockEntry;
+}
+
 namespace RTC
 {
 
@@ -14,15 +22,25 @@ public:
     WebMDeserializer(std::unique_ptr<MkvReader> reader, bool loopback = false);
     ~WebMDeserializer() final;
     // impl. of RtpMediaFrameDeserializer
-    bool AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) final;
+    MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) final;
+    MediaFrameDeserializeResult ReadNextFrames(size_t trackIndex,
+                                               std::vector<std::shared_ptr<const MediaFrame>>& output) final;
     size_t GetTracksCount() const final;
     std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const final;
-    std::vector<std::shared_ptr<const MediaFrame>> ReadNextFrames(size_t trackIndex) final;
     void SetClockRate(size_t trackIndex, uint32_t clockRate) final;
-    void SetInitialTimestamp(size_t trackIndex, uint32_t initialTimestamp) final;
+    void SetInitialTimestamp(uint32_t timestamp) final;
+private:
+    MediaFrameDeserializeResult ParseEBMLHeader();
+    MediaFrameDeserializeResult ParseSegment();
+    template<typename mkvResult = long>
+    static MediaFrameDeserializeResult ToResult(mkvResult result);
 private:
     const std::unique_ptr<MkvReader> _reader;
-    const std::unique_ptr<WebMStream> _stream;
+    const bool _loopback;
+    std::unique_ptr<mkvparser::EBMLHeader> _ebmlHeader;
+    mkvparser::Segment* _segment = nullptr;
+    absl::flat_hash_map<size_t, std::unique_ptr<TrackInfo>> _tracks;
+    uint32_t _initialTimestamp = 0U;
 };
 
 } // namespace RTC

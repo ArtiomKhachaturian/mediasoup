@@ -1,4 +1,5 @@
 #pragma once
+#include "RTC/MediaTranslate/MediaFrameDeserializeResult.hpp"
 #include <mkvparser/mkvreader.h>
 #include <memory>
 
@@ -10,7 +11,7 @@ class MemoryBuffer;
 class MkvReader : public mkvparser::IMkvReader
 {
 public:
-	virtual bool AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) = 0;
+	virtual MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) = 0;
 };
 
 }
