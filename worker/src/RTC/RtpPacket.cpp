@@ -785,7 +785,7 @@ namespace RTC
             // Set header pointer.
             auto* newHeader = reinterpret_cast<Header*>(ptr);
             std::memset(newHeader, 0, HeaderSize);
-            newHeader->version = 2u; // default
+            newHeader->version = Version; // default
             ptr += HeaderSize;
             if (headerExtension) {
                 const auto numBytes = 4 + GetHeaderExtensionLength(headerExtension);

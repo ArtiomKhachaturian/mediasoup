@@ -117,7 +117,8 @@ namespace RTC
 		};
 
 	public:
-		static const size_t HeaderSize{ 12 };
+        static inline const uint8_t Version = 2;
+		static inline const size_t HeaderSize{ 12 };
 		static bool IsRtp(const uint8_t* data, size_t len)
 		{
 			// NOTE: RtcpPacket::IsRtcp() must always be called before this method.
@@ -130,7 +131,7 @@ namespace RTC
 				// DOC: https://tools.ietf.org/html/draft-ietf-avtcore-rfc5764-mux-fixes
 				(data[0] > 127 && data[0] < 192) &&
 				// RTP Version must be 2.
-				(header->version == 2)
+				(header->version == Version)
 			);
 			// clang-format on
 		}
