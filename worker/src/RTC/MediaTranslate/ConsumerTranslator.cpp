@@ -5,7 +5,6 @@
 #include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
-#include "RTC/Codecs/Opus.hpp"
 #include "RTC/Consumer.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
@@ -152,13 +151,6 @@ void ConsumerTranslator::SetupRtpPacketParameters(const RtpCodecMimeType& mime, 
     if (packet) {
         if (const auto codec = GetCodec(mime)) {
             packet->SetPayloadType(codec->payloadType);
-        }
-        switch (mime.GetSubtype()) {
-            case RtpCodecMimeType::Subtype::OPUS:
-                Codecs::Opus::ProcessRtpPacket(packet);
-                break;
-            default:
-                break;
         }
     }
 }

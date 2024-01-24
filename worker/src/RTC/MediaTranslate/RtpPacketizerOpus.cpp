@@ -1,5 +1,6 @@
 #include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
+#include "RTC/Codecs/Opus.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "MemoryBuffer.hpp"
 
@@ -14,6 +15,7 @@ RtpPacket* RtpPacketizerOpus::AddFrame(const std::shared_ptr<const MediaFrame>& 
                 packet->SetSequenceNumber(GetNextSequenceNumber());
                 packet->SetTimestamp(frame->GetTimestamp());
                 packet->SetMarker(_firstFrame);
+                Codecs::Opus::ProcessRtpPacket(packet);
                 _firstFrame = false;
                 return packet;
             }

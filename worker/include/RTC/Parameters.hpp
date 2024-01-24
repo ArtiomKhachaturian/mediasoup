@@ -25,36 +25,41 @@ namespace RTC
 			};
 
 		public:
-			explicit Value(bool booleanValue) : type(Type::BOOLEAN), booleanValue(booleanValue)
+			explicit Value(bool booleanValue)
+                : type(Type::BOOLEAN),
+                  booleanValue(booleanValue)
 			{
 			}
 
-			explicit Value(int32_t integerValue) : type(Type::INTEGER), integerValue(integerValue)
+			explicit Value(int32_t integerValue)
+                : type(Type::INTEGER),
+                  integerValue(integerValue)
 			{
 			}
 
-			explicit Value(double doubleValue) : type(Type::DOUBLE), doubleValue(doubleValue)
+			explicit Value(double doubleValue)
+                : type(Type::DOUBLE),
+                  doubleValue(doubleValue)
 			{
 			}
 
-			explicit Value(std::string& stringValue) : type(Type::STRING), stringValue(stringValue)
+			explicit Value(std::string stringValue)
+                : type(Type::STRING),
+                  stringValue(std::move(stringValue))
 			{
 			}
 
-			explicit Value(std::string&& stringValue) : type(Type::STRING), stringValue(stringValue)
-			{
-			}
-
-			explicit Value(std::vector<int32_t>& arrayOfIntegers)
-			  : type(Type::ARRAY_OF_INTEGERS), arrayOfIntegers(arrayOfIntegers)
+			explicit Value(std::vector<int32_t> arrayOfIntegers)
+			  : type(Type::ARRAY_OF_INTEGERS),
+                arrayOfIntegers(std::move(arrayOfIntegers))
 			{
 			}
 
 		public:
-			Type type;
-			bool booleanValue{ false };
-			int32_t integerValue{ 0 };
-			double doubleValue{ 0.0 };
+			const Type type;
+            const bool booleanValue{ false };
+            const int32_t integerValue{ 0 };
+            const double doubleValue{ 0.0 };
 			const std::string stringValue;
 			const std::vector<int32_t> arrayOfIntegers;
 		};
