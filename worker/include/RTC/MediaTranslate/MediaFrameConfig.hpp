@@ -13,7 +13,7 @@ class MediaFrameConfig
 public:
 	virtual ~MediaFrameConfig();
     virtual std::string ToString() const = 0;
-	std::shared_ptr<const MemoryBuffer> GetCodecSpecificData() const;
+	const std::shared_ptr<const MemoryBuffer>& GetCodecSpecificData() const;
 	void SetCodecSpecificData(const std::shared_ptr<const MemoryBuffer>& data);
     // makes a deep copy of input data
     void SetCodecSpecificData(const uint8_t* data, size_t len);

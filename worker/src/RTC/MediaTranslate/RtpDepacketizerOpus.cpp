@@ -4,6 +4,7 @@
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/Codecs/Opus.hpp"
+#include "RTC/Codecs/Tools.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "MemoryBuffer.hpp"
 #include "Logger.hpp"
@@ -30,8 +31,12 @@ private:
 RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t sampleRate)
     : RtpDepacketizer(mimeType)
     , _sampleRate(sampleRate)
+    , _encodingContext(Codecs::Tools::GetEncodingContext(mimeType, Codecs::EncodingContext::Params()))
     , _opusCodecData(std::make_shared<OpusHeadBuffer>(sampleRate))
 {
+    if (_encodingContext) {
+        _encodingContext->SetIgnoreDtx(true);
+    }
 }
 
 RtpDepacketizerOpus::~RtpDepacketizerOpus()
@@ -40,9 +45,7 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 
 std::shared_ptr<const RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet)
 {
-    if (packet && packet->GetPayload()) {
-        const auto ts = packet->GetTimestamp();
-        const auto sn = packet->GetSequenceNumber();
+    if (IsValidPacket(packet)) {
         bool stereo = false;
         Codecs::Opus::ParseTOC(packet->GetPayload()[0], nullptr, nullptr, nullptr, &stereo);
         auto config = std::make_shared<AudioFrameConfig>();
@@ -60,6 +63,19 @@ std::shared_ptr<const RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPac
         }
     }
     return nullptr;
+}
+
+bool RtpDepacketizerOpus::IsValidPacket(const RtpPacket* packet) const
+{
+    if (packet && packet->GetPayload()) {
+        bool valid = true;
+        if (_encodingContext) {
+            bool marker = false;
+            valid = packet->ProcessPayload(_encodingContext.get(), marker);
+        }
+        return valid;
+    }
+    return false;
 }
 
 RtpDepacketizerOpus::OpusHeadBuffer::OpusHeadBuffer(uint32_t sampleRate)

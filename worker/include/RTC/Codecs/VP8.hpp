@@ -37,9 +37,6 @@ namespace RTC
 		public:
 			struct PayloadDescriptor : public RTC::Codecs::PayloadDescriptor
 			{
-				/* Pure virtual methods inherited from RTC::Codecs::PayloadDescriptor. */
-				~PayloadDescriptor() = default;
-
 				void Dump() const override;
 				// Rewrite the buffer with the given pictureId and tl0PictureIndex values.
 				void Encode(uint8_t* data, uint16_t pictureId, uint8_t tl0PictureIndex) const;
@@ -71,7 +68,7 @@ namespace RTC
 			};
 
 		public:
-			static VP8::PayloadDescriptor* Parse(
+			static std::unique_ptr<VP8::PayloadDescriptor> Parse(
 			  const uint8_t* data,
 			  size_t len,
 			  RTC::RtpPacket::FrameMarking* frameMarking = nullptr,
@@ -105,9 +102,8 @@ namespace RTC
 			class PayloadDescriptorHandler : public RTC::Codecs::PayloadDescriptorHandler
 			{
 			public:
-				explicit PayloadDescriptorHandler(PayloadDescriptor* payloadDescriptor);
-				~PayloadDescriptorHandler() = default;
-
+				explicit PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor);
+                
 			public:
 				void Dump() const override
 				{

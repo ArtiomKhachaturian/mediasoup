@@ -131,7 +131,7 @@ void validate(std::vector<TestNackGeneratorInput>& inputs)
 	{
 		listener.Reset(input);
 
-		auto* tpdh = new TestPayloadDescriptorHandler(input.isKeyFrame);
+		auto tpdh = std::make_shared<TestPayloadDescriptorHandler>(input.isKeyFrame);
 
 		packet->SetPayloadDescriptorHandler(tpdh);
 		packet->SetSequenceNumber(input.seq);

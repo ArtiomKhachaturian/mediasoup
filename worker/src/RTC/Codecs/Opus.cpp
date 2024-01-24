@@ -60,11 +60,11 @@ namespace RTC
 	{
 		/* Class methods. */
 
-		Opus::PayloadDescriptor* Opus::Parse(const uint8_t* data, size_t len)
+        std::unique_ptr<Opus::PayloadDescriptor> Opus::Parse(const uint8_t* data, size_t len)
 		{
 			MS_TRACE();
 
-			std::unique_ptr<PayloadDescriptor> payloadDescriptor(new PayloadDescriptor());
+            auto payloadDescriptor = std::make_unique<Opus::PayloadDescriptor>();
 
 			// libopus generates a single byte payload (TOC, no frames) to generate DTX.
 			if (len == 1)
@@ -72,7 +72,7 @@ namespace RTC
 				payloadDescriptor->isDtx = true;
 			}
             payloadDescriptor->size = 1UL;
-			return payloadDescriptor.release();
+			return payloadDescriptor;
 		}
 
 		void Opus::ProcessRtpPacket(RTC::RtpPacket* packet)
@@ -82,11 +82,9 @@ namespace RTC
 			auto* data = packet->GetPayload();
 			auto len   = packet->GetPayloadLength();
 
-			PayloadDescriptor* payloadDescriptor = Opus::Parse(data, len);
-
-			auto* payloadDescriptorHandler = new PayloadDescriptorHandler(payloadDescriptor);
-
-			packet->SetPayloadDescriptorHandler(payloadDescriptorHandler);
+            if (auto payloadDescriptor = Opus::Parse(data, len)) {
+                packet->SetPayloadDescriptorHandler(std::make_shared<PayloadDescriptorHandler>(std::move(payloadDescriptor)));
+            }			
 		}
     
         Opus::OpusHead::OpusHead(uint8_t channelCount, uint32_t sampleRate)
@@ -139,11 +137,11 @@ namespace RTC
 			MS_DUMP("</PayloadDescriptor>");
 		}
 
-		Opus::PayloadDescriptorHandler::PayloadDescriptorHandler(Opus::PayloadDescriptor* payloadDescriptor)
+		Opus::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor)
 		{
 			MS_TRACE();
 
-			this->payloadDescriptor.reset(payloadDescriptor);
+			this->payloadDescriptor = std::move(payloadDescriptor);
 		}
 
 		bool Opus::PayloadDescriptorHandler::Process(

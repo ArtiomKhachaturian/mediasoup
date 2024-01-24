@@ -98,14 +98,14 @@ MediaFrameConfig::~MediaFrameConfig()
 {
 }
 
-std::shared_ptr<const MemoryBuffer> MediaFrameConfig::GetCodecSpecificData() const
+const std::shared_ptr<const MemoryBuffer>& MediaFrameConfig::GetCodecSpecificData() const
 {
-    return std::atomic_load(&_codecSpecificData);
+    return _codecSpecificData;
 }
 
 void MediaFrameConfig::SetCodecSpecificData(const std::shared_ptr<const MemoryBuffer>& data)
 {
-    std::atomic_store(&_codecSpecificData, data);
+    _codecSpecificData = data;
 }
 
 void MediaFrameConfig::SetCodecSpecificData(const uint8_t* data, size_t len)

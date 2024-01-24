@@ -880,7 +880,7 @@ namespace RTC
 		return true;
 	}
 
-	bool RtpPacket::ProcessPayload(RTC::Codecs::EncodingContext* context, bool& marker)
+	bool RtpPacket::ProcessPayload(RTC::Codecs::EncodingContext* context, bool& marker) const
 	{
 		MS_TRACE();
 

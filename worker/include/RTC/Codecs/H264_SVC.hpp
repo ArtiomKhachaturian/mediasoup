@@ -15,8 +15,6 @@ namespace RTC
 		public:
 			struct PayloadDescriptor : public RTC::Codecs::PayloadDescriptor
 			{
-				~PayloadDescriptor() = default;
-
 				void Dump() const override;
 
 				// Fields in frame-marking extension.
@@ -42,7 +40,7 @@ namespace RTC
 			};
 
 		public:
-			static H264_SVC::PayloadDescriptor* Parse(
+			static std::unique_ptr<H264_SVC::PayloadDescriptor> Parse(
 			  const uint8_t* data,
 			  size_t len,
 			  RTC::RtpPacket::FrameMarking* frameMarking = nullptr,
@@ -50,7 +48,7 @@ namespace RTC
 			static std::unique_ptr<H264_SVC::PayloadDescriptor> ParseSingleNalu(
 			  const uint8_t* data,
 			  size_t len,
-			  std::unique_ptr<H264_SVC::PayloadDescriptor> payloadDescriptor,
+              std::unique_ptr<H264_SVC::PayloadDescriptor> payloadDescriptor,
 			  bool isStartBit); // useful in FU packet to indicate first packet. Set to true for other packets
 			static void ProcessRtpPacket(RTC::RtpPacket* packet);
 
@@ -79,8 +77,7 @@ namespace RTC
 			class PayloadDescriptorHandler : public RTC::Codecs::PayloadDescriptorHandler
 			{
 			public:
-				explicit PayloadDescriptorHandler(PayloadDescriptor* payloadDescriptor);
-				~PayloadDescriptorHandler() = default;
+				explicit PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor);
 
 			public:
 				void Dump() const override

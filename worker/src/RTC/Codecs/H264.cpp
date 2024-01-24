@@ -11,7 +11,7 @@ namespace RTC
 	{
 		/* Class methods. */
 
-		H264::PayloadDescriptor* H264::Parse(
+        std::unique_ptr<H264::PayloadDescriptor> H264::Parse(
 		  const uint8_t* data, size_t len, RTC::RtpPacket::FrameMarking* frameMarking, uint8_t frameMarkingLen)
 		{
 			MS_TRACE();
@@ -20,8 +20,8 @@ namespace RTC
 			{
 				return nullptr;
 			}
-
-			std::unique_ptr<PayloadDescriptor> payloadDescriptor(new PayloadDescriptor());
+            
+            auto payloadDescriptor = std::make_unique<H264::PayloadDescriptor>();
 
 			// Use frame-marking.
 			if (frameMarking)
@@ -128,7 +128,7 @@ namespace RTC
 				}
 			}
 
-			return payloadDescriptor.release();
+			return payloadDescriptor;
 		}
 
 		void H264::ProcessRtpPacket(RTC::RtpPacket* packet)
@@ -143,16 +143,9 @@ namespace RTC
 			// Read frame-marking.
 			packet->ReadFrameMarking(&frameMarking, frameMarkingLen);
 
-			PayloadDescriptor* payloadDescriptor = H264::Parse(data, len, frameMarking, frameMarkingLen);
-
-			if (!payloadDescriptor)
-			{
-				return;
-			}
-
-			auto* payloadDescriptorHandler = new PayloadDescriptorHandler(payloadDescriptor);
-
-			packet->SetPayloadDescriptorHandler(payloadDescriptorHandler);
+            if (auto payloadDescriptor = H264::Parse(data, len, frameMarking, frameMarkingLen)) {
+                packet->SetPayloadDescriptorHandler(std::make_shared<PayloadDescriptorHandler>(std::move(payloadDescriptor)));
+            }
 		}
 
 		/* Instance methods. */
@@ -185,11 +178,11 @@ namespace RTC
 			MS_DUMP("</PayloadDescriptor>");
 		}
 
-		H264::PayloadDescriptorHandler::PayloadDescriptorHandler(H264::PayloadDescriptor* payloadDescriptor)
+		H264::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<H264::PayloadDescriptor> payloadDescriptor)
 		{
 			MS_TRACE();
 
-			this->payloadDescriptor.reset(payloadDescriptor);
+			this->payloadDescriptor = std::move(payloadDescriptor);
 		}
 
 		bool H264::PayloadDescriptorHandler::Process(

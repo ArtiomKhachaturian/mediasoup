@@ -10,7 +10,7 @@ namespace RTC
 	{
 		/* Class methods. */
 
-		VP9::PayloadDescriptor* VP9::Parse(
+        std::unique_ptr<VP9::PayloadDescriptor> VP9::Parse(
 		  const uint8_t* data,
 		  size_t len,
 		  RTC::RtpPacket::FrameMarking* /*frameMarking*/,
@@ -23,7 +23,7 @@ namespace RTC
 				return nullptr;
 			}
 
-			std::unique_ptr<PayloadDescriptor> payloadDescriptor(new PayloadDescriptor());
+            auto payloadDescriptor = std::make_unique<VP9::PayloadDescriptor>();
 
 			size_t offset{ 0 };
 			uint8_t byte = data[offset];
@@ -105,7 +105,7 @@ namespace RTC
 				payloadDescriptor->isKeyFrame = true;
 			}
             payloadDescriptor->size = offset;
-			return payloadDescriptor.release();
+			return payloadDescriptor;
 		}
 
 		void VP9::ProcessRtpPacket(RTC::RtpPacket* packet)
@@ -120,7 +120,7 @@ namespace RTC
 			// Read frame-marking.
 			packet->ReadFrameMarking(&frameMarking, frameMarkingLen);
 
-			PayloadDescriptor* payloadDescriptor = VP9::Parse(data, len, frameMarking, frameMarkingLen);
+			auto payloadDescriptor = VP9::Parse(data, len, frameMarking, frameMarkingLen);
 
 			if (!payloadDescriptor)
 			{
@@ -135,9 +135,7 @@ namespace RTC
 				  packet->GetTemporalLayer());
 			}
 
-			auto* payloadDescriptorHandler = new PayloadDescriptorHandler(payloadDescriptor);
-
-			packet->SetPayloadDescriptorHandler(payloadDescriptorHandler);
+			packet->SetPayloadDescriptorHandler(std::make_shared<PayloadDescriptorHandler>(std::move(payloadDescriptor)));
 		}
 
 		/* Instance methods. */
@@ -172,11 +170,11 @@ namespace RTC
 			MS_DUMP("</PayloadDescriptor>");
 		}
 
-		VP9::PayloadDescriptorHandler::PayloadDescriptorHandler(VP9::PayloadDescriptor* payloadDescriptor)
+		VP9::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor)
 		{
 			MS_TRACE();
 
-			this->payloadDescriptor.reset(payloadDescriptor);
+			this->payloadDescriptor = std::move(payloadDescriptor);
 		}
 
 		bool VP9::PayloadDescriptorHandler::Process(

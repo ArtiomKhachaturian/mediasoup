@@ -640,9 +640,9 @@ namespace RTC
 
 		bool RtxDecode(uint8_t payloadType, uint32_t ssrc);
 
-		void SetPayloadDescriptorHandler(RTC::Codecs::PayloadDescriptorHandler* payloadDescriptorHandler)
+		void SetPayloadDescriptorHandler(const std::shared_ptr<Codecs::PayloadDescriptorHandler>& payloadDescriptorHandler)
 		{
-			this->payloadDescriptorHandler.reset(payloadDescriptorHandler);
+			this->payloadDescriptorHandler = payloadDescriptorHandler;
 		}
         
         std::shared_ptr<const Codecs::PayloadDescriptorHandler> GetPayloadDescriptorHandler() const
@@ -650,7 +650,7 @@ namespace RTC
             return this->payloadDescriptorHandler;
         }
 
-		bool ProcessPayload(RTC::Codecs::EncodingContext* context, bool& marker);
+		bool ProcessPayload(RTC::Codecs::EncodingContext* context, bool& marker) const;
 
 		void RestorePayload();
 

@@ -57,9 +57,6 @@ namespace RTC
 		public:
 			struct PayloadDescriptor : public RTC::Codecs::PayloadDescriptor
 			{
-				/* Pure virtual methods inherited from RTC::Codecs::PayloadDescriptor. */
-				~PayloadDescriptor() = default;
-
 				void Dump() const override;
 
 				// Header.
@@ -88,7 +85,7 @@ namespace RTC
 			};
 
 		public:
-			static VP9::PayloadDescriptor* Parse(
+			static std::unique_ptr<VP9::PayloadDescriptor> Parse(
 			  const uint8_t* data,
 			  size_t len,
 			  RTC::RtpPacket::FrameMarking* frameMarking = nullptr,
@@ -120,8 +117,7 @@ namespace RTC
 			class PayloadDescriptorHandler : public RTC::Codecs::PayloadDescriptorHandler
 			{
 			public:
-				explicit PayloadDescriptorHandler(PayloadDescriptor* payloadDescriptor);
-				~PayloadDescriptorHandler() = default;
+				explicit PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor);
 
 			public:
 				void Dump() const override
