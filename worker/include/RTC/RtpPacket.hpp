@@ -50,7 +50,7 @@ namespace RTC
 			uint32_t ssrc;
 		};
 
-	private:
+	protected:
 		/* Struct for RTP header extension. */
 		struct HeaderExtension
 		{
@@ -138,7 +138,7 @@ namespace RTC
 
 		static RtpPacket* Parse(const uint8_t* data, size_t len);
 
-	private:
+	protected:
 		RtpPacket(
 		  Header* header,
 		  HeaderExtension* headerExtension,
@@ -148,7 +148,7 @@ namespace RTC
 		  size_t size);
 
 	public:
-		~RtpPacket();
+		virtual ~RtpPacket();
 
         void AddRejectedConsumer(Consumer* consumer);
         void RemoveRejectedConsumer(Consumer* consumer);
@@ -632,9 +632,6 @@ namespace RTC
 		}
 
 		RtpPacket* Clone() const;
-        
-        static RtpPacket* Create(const uint8_t* payload, size_t payloadLength,
-                                 HeaderExtension* headerExtension = nullptr);
 
 		void RtxEncode(uint8_t payloadType, uint32_t ssrc, uint16_t seq);
 

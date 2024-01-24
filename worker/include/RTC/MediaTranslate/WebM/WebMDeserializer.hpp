@@ -23,8 +23,9 @@ public:
     ~WebMDeserializer() final;
     // impl. of RtpMediaFrameDeserializer
     MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) final;
-    MediaFrameDeserializeResult ReadNextFrames(size_t trackIndex,
-                                               std::vector<std::shared_ptr<const MediaFrame>>& output) final;
+    std::vector<std::shared_ptr<const MediaFrame>> ReadNextFrames(size_t trackIndex,
+                                                                  size_t payloadOffset,
+                                                                  MediaFrameDeserializeResult* result) final;
     size_t GetTracksCount() const final;
     std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const final;
     void SetClockRate(size_t trackIndex, uint32_t clockRate) final;

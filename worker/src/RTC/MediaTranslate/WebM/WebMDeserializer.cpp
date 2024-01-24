@@ -34,7 +34,8 @@ public:
     void Reset();
     void SetClockRate(uint32_t clockRate);
     void SetInitialTimestamp(uint32_t timestamp);
-    MediaFrameDeserializeResult ReadFrames(std::vector<std::shared_ptr<const MediaFrame>>& output);
+    MediaFrameDeserializeResult ReadFrames(size_t payloadOffset,
+                                           std::vector<std::shared_ptr<const MediaFrame>>& output);
     static std::unique_ptr<TrackInfo> Create(const mkvparser::Tracks* tracks,
                                              mkvparser::Segment* segment,
                                              unsigned long trackIndex);
@@ -80,23 +81,21 @@ MediaFrameDeserializeResult WebMDeserializer::AddBuffer(const std::shared_ptr<co
     return result;
 }
 
-MediaFrameDeserializeResult WebMDeserializer::ReadNextFrames(size_t trackIndex,
-                                                             std::vector<std::shared_ptr<const MediaFrame>>& output)
+std::vector<std::shared_ptr<const MediaFrame>> WebMDeserializer::ReadNextFrames(size_t trackIndex,
+                                                                                size_t payloadOffset,
+                                                                                MediaFrameDeserializeResult* outResult)
 {
-    MediaFrameDeserializeResult result = MediaFrameDeserializeResult::ParseError;
+    std::vector<std::shared_ptr<const MediaFrame>> output;
     if (_segment) {
         const auto it = _tracks.find(trackIndex);
         if (it != _tracks.end()) {
-            if (it->second->IsEOS()) {
-                result = MediaFrameDeserializeResult::NeedMoreData;
-            }
-            else {
-                result = it->second->ReadFrames(output);
-            }
+            const auto& track = it->second;
+            auto result = track->IsEOS() ? MediaFrameDeserializeResult::NeedMoreData :
+                                           track->ReadFrames(payloadOffset, output);
             // lookup the next blocks if any
             if (MediaFrameDeserializeResult::Success == result ||
                 MediaFrameDeserializeResult::NeedMoreData == result) {
-                const auto advanceResult = it->second->Advance();
+                const auto advanceResult = track->Advance();
                 switch (advanceResult) {
                     case MediaFrameDeserializeResult::ParseError:
                     case MediaFrameDeserializeResult::OutOfMemory:
@@ -108,7 +107,7 @@ MediaFrameDeserializeResult WebMDeserializer::ReadNextFrames(size_t trackIndex,
                             long long total = 0LL, available = 0LL;
                             // check if not live stream
                             if (0L == _reader->Length(&total, &available) && total > 0LL) {
-                                it->second->Reset();
+                                track->Reset();
                             }
                         }
                         break;
@@ -116,12 +115,18 @@ MediaFrameDeserializeResult WebMDeserializer::ReadNextFrames(size_t trackIndex,
                         break;
                 }
             }
+            if (outResult) {
+                *outResult = result;
+            }
         }
-        else {
-            result = MediaFrameDeserializeResult::InvalidArg;
+        else if (outResult) {
+            *outResult = MediaFrameDeserializeResult::InvalidArg;
         }
     }
-    return result;
+    else if (outResult) {
+        *outResult = MediaFrameDeserializeResult::ParseError;
+    }
+    return output;
 }
 
 size_t WebMDeserializer::GetTracksCount() const
@@ -246,7 +251,7 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::Advance()
                 if (res < 0) {
                     // I/O error
                     MS_ERROR("Cluster::Parse returned result %ld", res);
-                    _cluster = NULL;
+                    _cluster = nullptr;
                     return ToResult(res);
                 }
                 continue;
@@ -258,7 +263,7 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::Advance()
                 if (res != 0) {
                     // EOF or error
                     if (res < 0) {
-                        _cluster = NULL;
+                        _cluster = nullptr;
                     }
                     return ToResult(res);
                 }
@@ -272,7 +277,7 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::Advance()
                     if (mkvparser::E_BUFFER_NOT_FULL != res) {
                         MS_ERROR("Cluster::Parse (2) returned result %ld", res);
                     }
-                    _cluster = NULL;
+                    _cluster = nullptr;
                     return ToResult(res);
                 }
                 _blockEntryIndex = 0;
@@ -315,7 +320,7 @@ void WebMDeserializer::TrackInfo::SetInitialTimestamp(uint32_t timestamp)
 }
 
 MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
-    ReadFrames(std::vector<std::shared_ptr<const MediaFrame>>& output)
+    ReadFrames(size_t payloadOffset, std::vector<std::shared_ptr<const MediaFrame>>& output)
 {
     MediaFrameDeserializeResult result = MediaFrameDeserializeResult::ParseError;
     if (const auto block = Block()) {
@@ -324,8 +329,8 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
         output.reserve(static_cast<size_t>(block->GetFrameCount()));
         for (int i = 0; i < block->GetFrameCount(); ++i) {
             const auto& frame = block->GetFrame(i);
-            std::vector<uint8_t> buffer(frame.len);
-            result = ToResult(frame.Read(_segment->m_pReader, buffer.data()));
+            std::vector<uint8_t> buffer(payloadOffset + frame.len);
+            result = ToResult(frame.Read(_segment->m_pReader, buffer.data() + payloadOffset));
             if (MediaFrameDeserializeResult::Success == result) {
                 auto mediaFrame = std::make_shared<MediaFrame>(GetMime());
                 if (mediaFrame->AddPayload(std::move(buffer))) {

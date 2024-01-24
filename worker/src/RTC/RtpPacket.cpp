@@ -771,40 +771,6 @@ namespace RTC
 		return packet;
 	}
 
-    RtpPacket* RtpPacket::Create(const uint8_t* payload, size_t payloadLength,
-                                 HeaderExtension* headerExtension)
-    {
-        if (payload && payloadLength) {
-            size_t size = payloadLength + HeaderSize; // or MtuSize ?
-            if (headerExtension) {
-                size += GetHeaderExtensionLength(headerExtension);
-            }
-            MS_ASSERT(size <= MtuSize, "packet size (%ld bytes) is greater than max MTU size", size);
-            HeaderExtension* newHeaderExtension = nullptr;
-            auto* buffer = new uint8_t[size];
-            auto* ptr    = const_cast<uint8_t*>(buffer);
-            // Set header pointer.
-            auto* newHeader = reinterpret_cast<Header*>(ptr);
-            std::memset(newHeader, 0, HeaderSize);
-            newHeader->version = Version; // default
-            ptr += HeaderSize;
-            if (headerExtension) {
-                const auto numBytes = 4 + GetHeaderExtensionLength(headerExtension);
-                std::memcpy(ptr, headerExtension, numBytes);
-                // Set the header extension pointer.
-                newHeaderExtension = reinterpret_cast<HeaderExtension*>(ptr);
-                ptr += numBytes;
-            }
-            // payload
-            std::memcpy(ptr, payload, payloadLength);
-            auto packet = new RtpPacket(newHeader, newHeaderExtension, ptr, payloadLength,
-                                        0u, size);
-            packet->buffer = buffer;
-            return packet;
-        }
-        return nullptr;
-    }
-
 	// NOTE: The caller must ensure that the buffer/memmory of the packet has
 	// space enough for adding 2 extra bytes.
 	void RtpPacket::RtxEncode(uint8_t payloadType, uint32_t ssrc, uint16_t seq)

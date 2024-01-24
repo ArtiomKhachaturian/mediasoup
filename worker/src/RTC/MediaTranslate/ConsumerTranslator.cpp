@@ -4,9 +4,9 @@
 #include "RTC/MediaTranslate/MediaFrameSerializationFactory.hpp"
 #include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
+#include "RTC/MediaTranslate/RtpMemoryBufferPacket.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/Consumer.hpp"
-#include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 
 namespace RTC
@@ -123,9 +123,9 @@ void ConsumerTranslator::FetchMediaTrackIndex()
 void ConsumerTranslator::DeserializeMediaFrames()
 {
     if (_deserializer && _deserializedMediaTrackIndex.has_value()) {
-        std::vector<std::shared_ptr<const MediaFrame>> frames;
-        _deserializer->ReadNextFrames(_deserializedMediaTrackIndex.value(), frames);
-        for (const auto& frame : frames) {
+        // TODO: rewrite access to RtpMemoryBufferPacket::GetPayloadOffset() with consider of packetizer class logic
+        for (const auto& frame : _deserializer->ReadNextFrames(_deserializedMediaTrackIndex.value(),
+                                                               RtpMemoryBufferPacket::GetPayloadOffset())) {
             if (const auto packetizer = GetPacketizer(frame)) {
                 if (const auto packet = packetizer->AddFrame(frame)) {
                     SetupRtpPacketParameters(frame->GetMimeType(), packet);

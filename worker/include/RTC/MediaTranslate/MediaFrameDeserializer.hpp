@@ -18,8 +18,9 @@ public:
     MediaFrameDeserializer(MediaFrameDeserializer&&) = delete;
     virtual ~MediaFrameDeserializer() = default;
     virtual MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) = 0;
-    virtual MediaFrameDeserializeResult ReadNextFrames(size_t trackIndex,
-                                                       std::vector<std::shared_ptr<const MediaFrame>>& output) = 0;
+    virtual std::vector<std::shared_ptr<const MediaFrame>> ReadNextFrames(size_t trackIndex,
+                                                                          size_t payloadOffset = 0UL,
+                                                                          MediaFrameDeserializeResult* result = nullptr) = 0;
     // tracks info maybe actual after 1st calling of 'AddBuffer'
     virtual size_t GetTracksCount() const = 0; // all tracks, including subtitles
     virtual std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const = 0;
