@@ -5,9 +5,7 @@
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
-#include "api/units/timestamp.h"
 #include "Logger.hpp"
-#include "DepLibUV.hpp"
 
 namespace {
 
@@ -190,6 +188,7 @@ MediaFrameDeserializeResult WebMDeserializer::ParseSegment()
                         std::swap(_segment, segment);
                         for (unsigned long i = 0UL; i < tracksCount; ++i) {
                             if (auto trackInfo = TrackInfo::Create(tracks, _segment, i)) {
+                                trackInfo->SetInitialTimestamp(_initialTimestamp);
                                 _tracks[i] = std::move(trackInfo);
                             }
                         }
