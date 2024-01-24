@@ -779,8 +779,9 @@ namespace RTC
             if (headerExtension) {
                 size += GetHeaderExtensionLength(headerExtension);
             }
+            MS_ASSERT(size <= MtuSize, "packet size (%ld bytes) is greater than max MTU size", size);
             HeaderExtension* newHeaderExtension = nullptr;
-            auto* buffer = new uint8_t[size + 100];
+            auto* buffer = new uint8_t[size];
             auto* ptr    = const_cast<uint8_t*>(buffer);
             // Set header pointer.
             auto* newHeader = reinterpret_cast<Header*>(ptr);
@@ -796,7 +797,7 @@ namespace RTC
             }
             // payload
             std::memcpy(ptr, payload, payloadLength);
-            auto packet = new RtpPacket(newHeader, newHeaderExtension, payload, payloadLength,
+            auto packet = new RtpPacket(newHeader, newHeaderExtension, ptr, payloadLength,
                                         0u, size);
             packet->buffer = buffer;
             return packet;

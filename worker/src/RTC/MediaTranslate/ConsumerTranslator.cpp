@@ -130,6 +130,7 @@ void ConsumerTranslator::DeserializeMediaFrames()
                 if (const auto packet = packetizer->AddFrame(frame)) {
                     SetupRtpPacketParameters(frame->GetMimeType(), packet);
                     _packetsCollector->AddPacket(packet);
+                    delete packet;
                 }
             }
         }
