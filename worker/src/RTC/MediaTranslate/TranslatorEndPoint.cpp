@@ -1,6 +1,5 @@
 #define MS_CLASS "RTC::TranslatorEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
-#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/Websocket.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "Logger.hpp"
@@ -15,7 +14,6 @@ TranslatorEndPoint::TranslatorEndPoint(const std::string& serviceUri,
     : _userAgent(userAgent)
     , _socket(std::make_unique<Websocket>(serviceUri, serviceUser, servicePassword))
     , _serviceUri(serviceUri)
-    , _startTimestamp(GenerateRtpTimestamp())
 {
     _socket->AddListener(this);
 }
@@ -313,7 +311,7 @@ void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t /*socketId*/,
     if (message) {
         LOCK_READ_PROTECTED_OBJ(_output);
         if (const auto& output = _output.ConstRef()) {
-            output->StartMediaWriting(_mediaRestarted, _startTimestamp);
+            output->StartMediaWriting(_mediaRestarted);
             output->WriteMediaPayload(message);
             output->EndMediaWriting();
             _mediaRestarted = true;

@@ -51,9 +51,9 @@ bool FileWriter::Flush()
     return _file && 0 == ::fflush(_file);
 }
 
-void FileWriter::StartMediaWriting(bool restart, uint32_t startTimestamp) noexcept
+void FileWriter::StartMediaWriting(bool restart) noexcept
 {
-    MediaSink::StartMediaWriting(restart, startTimestamp);
+    MediaSink::StartMediaWriting(restart);
     if (_file) {
         MS_DEBUG_DEV(restart ? "media stream restarted" : "media stream started");
         if (restart) {

@@ -25,7 +25,7 @@ public:
     virtual size_t GetTracksCount() const = 0; // all tracks, including subtitles
     virtual std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const = 0;
     virtual void SetClockRate(size_t /*trackIndex*/, uint32_t /*clockRate*/) {}
-    virtual void SetInitialTimestamp(uint32_t /*timestamp*/) {}
+    virtual void SetInitialTimestamp(size_t /*trackIndex*/, uint32_t /*timestamp*/) {}
 protected:
     MediaFrameDeserializer() = default;
 };

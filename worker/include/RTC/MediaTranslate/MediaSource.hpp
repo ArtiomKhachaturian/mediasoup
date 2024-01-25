@@ -21,7 +21,7 @@ protected:
     virtual bool IsSinkValid(const MediaSink* sink) const { return nullptr != sink; }
     virtual void OnFirstSinkAdded() {}
     virtual void OnLastSinkRemoved() {}
-    void StartMediaSinksWriting(bool restart, uint32_t startTimestamp) noexcept;
+    void StartMediaSinksWriting(bool restart) noexcept;
     void WriteMediaSinksPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept;
     void EndMediaSinksWriting() noexcept;
 private:

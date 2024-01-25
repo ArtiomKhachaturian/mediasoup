@@ -61,7 +61,7 @@ protected:
     void OnLastSinkRemoved() final;
 private:
     // impl. of MediaSink
-    void StartMediaWriting(bool restart, uint32_t startTimestamp) noexcept final;
+    void StartMediaWriting(bool restart) noexcept final;
     void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
     void EndMediaWriting() noexcept final;
 private:

@@ -17,4 +17,12 @@ enum class MediaFrameDeserializeResult {
    NeedMoreData = 1,
 };
 
+inline bool IsOk(MediaFrameDeserializeResult result) {
+    return MediaFrameDeserializeResult::Success == result;
+}
+
+inline bool MaybeOk(MediaFrameDeserializeResult result) {
+    return MediaFrameDeserializeResult::NeedMoreData == result || IsOk(result);
+}
+
 } // namespace RTC

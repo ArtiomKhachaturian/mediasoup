@@ -255,7 +255,7 @@ bool WebMSerializer::Push(uint32_t ssrc, const std::shared_ptr<const MediaFrame>
             const auto mkvTimestamp = trackInfo->UpdateTimeStamp(mediaFrame->GetTimestamp());
             const auto trackNumber = trackInfo->GetNumber();
             if (!_writer->HasWroteMedia()) {
-                StartMediaSinksWriting(_pendingRestartMode, mediaFrame->GetTimestamp());
+                StartMediaSinksWriting(_pendingRestartMode);
                 _pendingRestartMode = false;
             }
             const auto added = _writer->AddFrame(mediaFrame, ssrc, mkvTimestamp, trackNumber, this);

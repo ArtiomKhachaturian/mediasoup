@@ -18,9 +18,9 @@ void MediaSource::RemoveSink(MediaSink* sink)
     }
 }
 
-void MediaSource::StartMediaSinksWriting(bool restart, uint32_t startTimestamp) noexcept
+void MediaSource::StartMediaSinksWriting(bool restart) noexcept
 {
-    _sinks.InvokeMethod(&MediaSink::StartMediaWriting, restart, startTimestamp);
+    _sinks.InvokeMethod(&MediaSink::StartMediaWriting, restart);
 }
 
 void MediaSource::WriteMediaSinksPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept

@@ -20,6 +20,7 @@ private:
     static inline constexpr size_t _maxBufferSize = 1024UL * 1024UL * 16UL; // 16 Mb
     std::array<uint8_t, _maxBufferSize> _buffer;
     size_t _bufferSize = 0UL;
+    uint64_t _buffersCount = 0ULL; // TODO: for debug only, remove in productions
 };
 
 } // namespace RTC

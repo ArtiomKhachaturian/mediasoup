@@ -24,6 +24,7 @@ MediaFrameDeserializeResult WebMBuffersReader::AddBuffer(const std::shared_ptr<c
         }
         std::memcpy(target, buffer->GetData(), size);
         _bufferSize += size;
+        ++_buffersCount;
         return MediaFrameDeserializeResult::Success;
     }
     return MediaFrameDeserializeResult::InvalidArg;

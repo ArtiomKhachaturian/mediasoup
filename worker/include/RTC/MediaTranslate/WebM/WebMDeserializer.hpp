@@ -29,19 +29,20 @@ public:
     size_t GetTracksCount() const final;
     std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const final;
     void SetClockRate(size_t trackIndex, uint32_t clockRate) final;
-    void SetInitialTimestamp(uint32_t timestamp) final;
+    void SetInitialTimestamp(size_t trackIndex, uint32_t timestamp) final;
 private:
     MediaFrameDeserializeResult ParseEBMLHeader();
     MediaFrameDeserializeResult ParseSegment();
-    template<typename mkvResult = long>
-    static MediaFrameDeserializeResult ToResult(mkvResult result);
+    template<typename TMkvResult = long>
+    static MediaFrameDeserializeResult FromMkvResult(TMkvResult result);
+    template<typename TMkvResult = long>
+    static const char* MkvResultToString(TMkvResult result);
 private:
     const std::unique_ptr<MkvReader> _reader;
     const bool _loopback;
     std::unique_ptr<mkvparser::EBMLHeader> _ebmlHeader;
     mkvparser::Segment* _segment = nullptr;
     absl::flat_hash_map<size_t, std::unique_ptr<TrackInfo>> _tracks;
-    uint32_t _initialTimestamp = 0U;
 };
 
 } // namespace RTC

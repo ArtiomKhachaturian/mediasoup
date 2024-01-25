@@ -59,7 +59,6 @@ private:
     const std::string _userAgent;
     const std::unique_ptr<Websocket> _socket;
     const std::string _serviceUri; // for logs
-    const uint32_t _startTimestamp;
     ProtectedOptional<FBS::TranslationPack::Language> _consumerLanguage;
     ProtectedOptional<FBS::TranslationPack::Voice> _consumerVoice;
     ProtectedOptional<FBS::TranslationPack::Language> _producerLanguage;

@@ -10,7 +10,7 @@ class MediaSink
 {
 public:
     virtual ~MediaSink() = default;
-    virtual void StartMediaWriting(bool /*restart*/, uint32_t /*startTimestamp*/) noexcept {}
+    virtual void StartMediaWriting(bool /*restart*/) noexcept {}
     virtual void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept = 0;
     virtual void EndMediaWriting() noexcept {}
 };
