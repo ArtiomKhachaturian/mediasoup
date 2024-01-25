@@ -30,9 +30,8 @@ public:
     void SetInput(MediaSource* input);
     bool HasInput() const;
     void SetOutput(MediaSink* output);
-    bool IsConnected() const { return _connected.load(std::memory_order_relaxed); }
+    bool IsConnected() const { return _connected.load(); }
 private:
-    static std::string JsonToString(const nlohmann::json& data);
     static std::string_view LanguageToId(const std::optional<FBS::TranslationPack::Language>& language);
     static std::string_view VoiceToId(FBS::TranslationPack::Voice voice);
     static nlohmann::json TargetLanguageCmd(FBS::TranslationPack::Language languageTo,
@@ -64,7 +63,6 @@ private:
     ProtectedObj<MediaSource*> _input;
     ProtectedObj<MediaSink*> _output;
     std::atomic_bool _connected = false;
-    bool _mediaRestarted = false;
 };
 
 } // namespace RTC

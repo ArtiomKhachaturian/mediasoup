@@ -186,6 +186,7 @@ MediaFrameDeserializeResult WebMDeserializer::ParseSegment()
                                 _tracks[i] = std::move(trackInfo);
                             }
                         }
+                        result = MediaFrameDeserializeResult::Success;
                     }
                 }
             }

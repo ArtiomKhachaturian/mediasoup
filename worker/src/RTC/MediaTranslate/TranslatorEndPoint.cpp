@@ -22,6 +22,7 @@ TranslatorEndPoint::~TranslatorEndPoint()
 {
     SetInput(nullptr);
     _socket->RemoveListener(this);
+    SetConnected(false);
 }
 
 void TranslatorEndPoint::SetProducerLanguage(const std::optional<FBS::TranslationPack::Language>& language)
@@ -78,9 +79,7 @@ void TranslatorEndPoint::SetInput(MediaSource* input)
     }
     if (changed) {
         if (input) {
-            if (!IsConnected()) {
-                OpenSocket();
-            }
+            OpenSocket();
         }
         else {
             _socket->Close();
@@ -98,11 +97,6 @@ void TranslatorEndPoint::SetOutput(MediaSink* output)
 {
     LOCK_WRITE_PROTECTED_OBJ(_output);
     _output = output;
-}
-
-std::string TranslatorEndPoint::JsonToString(const nlohmann::json& data)
-{
-    return nlohmann::to_string(data);
 }
 
 std::string_view TranslatorEndPoint::LanguageToId(const std::optional<FBS::TranslationPack::Language>& language)
@@ -205,10 +199,18 @@ void TranslatorEndPoint::SetConnected(bool connected)
         if (connected) {
             if (SendTranslationChanges()) {
                 ConnectToMediaInput(true);
+                LOCK_READ_PROTECTED_OBJ(_output);
+                if (const auto& output = _output.ConstRef()) {
+                    output->StartMediaWriting(false);
+                }
             }
         }
         else {
             ConnectToMediaInput(false);
+            LOCK_READ_PROTECTED_OBJ(_output);
+            if (const auto& output = _output.ConstRef()) {
+                output->EndMediaWriting();
+            }
         }
     }
 }
@@ -262,7 +264,7 @@ bool TranslatorEndPoint::SendTranslationChanges()
 
 bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
 {
-    const auto jsonAsText = JsonToString(data);
+    const auto jsonAsText = nlohmann::to_string(data);
     const auto ok = _socket->WriteText(jsonAsText);
     if (!ok) {
         MS_ERROR_STD("failed write JSON command '%s' into translation service", jsonAsText.c_str());
@@ -272,15 +274,23 @@ bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
 
 void TranslatorEndPoint::OpenSocket()
 {
-    if (HasInput() && !IsConnected() && HasValidTranslationSettings()) {
-        _socket->Open(_userAgent);
+    if (HasInput() && HasValidTranslationSettings()) {
+        switch (_socket->GetState()) {
+            case WebsocketState::Disconnected:
+                if (!_socket->Open(_userAgent)) {
+                    // TODO: log error
+                }
+                break;
+            default:
+                break;
+        }
     }
 }
 
 void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
 {
-    if (buffer && IsConnected()) {
-        _socket->WriteBinary(buffer);
+    if (buffer && IsConnected() && !_socket->WriteBinary(buffer)) {
+        MS_ERROR_STD("failed write binary packet (%ld bytes)' into translation service", buffer->GetSize());
     }
 }
 
@@ -305,10 +315,7 @@ void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t /*socketId*/,
     if (message) {
         LOCK_READ_PROTECTED_OBJ(_output);
         if (const auto& output = _output.ConstRef()) {
-            output->StartMediaWriting(_mediaRestarted);
             output->WriteMediaPayload(message);
-            output->EndMediaWriting();
-            _mediaRestarted = true;
         }
     }
 }

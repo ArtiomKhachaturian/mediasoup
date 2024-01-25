@@ -769,12 +769,16 @@ bool Websocket::SocketWrapper::WriteText(const std::string& text)
 
 void WebsocketListener::OnStateChanged(uint64_t socketId, WebsocketState state)
 {
-    LogStreamBuf::Write(LogLevel::LOG_DEBUG, "state changed to " + ToString(state));
+    if (LogStreamBuf::IsAccepted(LogLevel::LOG_DEBUG)) {
+        LogStreamBuf::Write(LogLevel::LOG_DEBUG, socketId, "state changed to " + ToString(state));
+    }
 }
 
 void WebsocketListener::OnFailed(uint64_t socketId, FailureType type, const std::string& what)
 {
-    LogStreamBuf::Write(LogLevel::LOG_ERROR, socketId, ToString(type) + " - " + what);
+    if (LogStreamBuf::IsAccepted(LogLevel::LOG_ERROR)) {
+        LogStreamBuf::Write(LogLevel::LOG_ERROR, socketId, ToString(type) + " - " + what);
+    }
 }
 
 } // namespace RTC
@@ -824,7 +828,7 @@ int LogStreamBuf::sync()
 
 bool LogStreamBuf::IsAccepted(LogLevel level)
 {
-    return Settings::configuration.logTags.rtp && Settings::configuration.logLevel >= level;
+    return Settings::configuration.logLevel >= level;
 }
 
 void LogStreamBuf::Write(LogLevel level, const std::string& message)
