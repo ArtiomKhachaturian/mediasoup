@@ -265,7 +265,7 @@ bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
     const auto jsonAsText = JsonToString(data);
     const auto ok = _socket->WriteText(jsonAsText);
     if (!ok) {
-        MS_ERROR("failed write JSON command '%s' into translation service", jsonAsText.c_str());
+        MS_ERROR_STD("failed write JSON command '%s' into translation service", jsonAsText.c_str());
     }
     return ok;
 }
@@ -282,12 +282,6 @@ void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<const MemoryBuf
     if (buffer && IsConnected()) {
         _socket->WriteBinary(buffer);
     }
-}
-
-void TranslatorEndPoint::OnFailed(uint64_t socketId, FailureType type, const std::string& what)
-{
-    WebsocketListener::OnFailed(socketId, type, what);
-    //MS_ERROR("failed to connect with translation service URL %s", _serviceUri.c_str());
 }
 
 void TranslatorEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)

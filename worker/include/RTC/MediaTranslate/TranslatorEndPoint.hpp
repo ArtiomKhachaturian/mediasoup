@@ -52,7 +52,6 @@ private:
     // impl. of MediaSink
     void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
     // impl. of WebsocketListener
-    void OnFailed(uint64_t socketId, FailureType type, const std::string& what);
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
     void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message) final;
 private:

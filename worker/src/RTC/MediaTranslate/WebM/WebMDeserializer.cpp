@@ -14,6 +14,12 @@ inline constexpr T ValueFromNano(unsigned long long nano) {
     return static_cast<T>(nano / 1000 / 1000 / 1000);
 }
 
+enum class StreamState {
+    BeforeTheStart,
+    InTheMiddle,
+    End
+};
+
 }
 
 namespace RTC
@@ -29,8 +35,7 @@ public:
               long long trackNum);
     const RtpCodecMimeType& GetMime() const { return _mime; }
     const std::shared_ptr<MediaFrameConfig>& GetConfig() const { return _config; }
-    bool IsEOS() const { return _cluster == nullptr || _cluster->EOS(); }
-    MediaFrameDeserializeResult Advance();
+    StreamState GetState() const;
     void Reset();
     void SetClockRate(uint32_t clockRate);
     void SetInitialTimestamp(uint32_t timestamp);
@@ -40,8 +45,8 @@ public:
                                              mkvparser::Segment* segment,
                                              unsigned long trackIndex);
 private:
-    const mkvparser::Block* Block() const;
-    std::optional<uint32_t> BlockTime() const;
+    const mkvparser::Block* GetNextBlock();
+    std::optional<uint32_t> GetBlockTime(const mkvparser::Block* block) const;
     uint32_t GetClockRate() const { return _clockRate; }
     uint32_t GetInitialTimestamp() const { return _initialTimestamp; }
 private:
@@ -52,6 +57,7 @@ private:
     const mkvparser::Cluster* _cluster = nullptr;
     const mkvparser::BlockEntry* _blockEntry = nullptr;
     long _blockEntryIndex = 0L;
+    long _lastBlockIterationResult = 0L;
     uint32_t _clockRate = 0U;
     uint32_t _initialTimestamp = 0U;
     uint32_t _latestTimestamp = 0U;
@@ -91,29 +97,15 @@ std::vector<std::shared_ptr<const MediaFrame>> WebMDeserializer::ReadNextFrames(
         if (it != _tracks.end()) {
             const auto& track = it->second;
             MediaFrameDeserializeResult result = MediaFrameDeserializeResult::NeedMoreData;
-            if (!track->IsEOS()) {
+            if (StreamState::End != track->GetState()) {
                 result = track->ReadFrames(payloadOffset, output);
             }
             // lookup the next blocks if any
-            if (MaybeOk(result)) {
-                const auto advanceResult = track->Advance();
-                switch (advanceResult) {
-                    case MediaFrameDeserializeResult::ParseError:
-                    case MediaFrameDeserializeResult::OutOfMemory:
-                    case MediaFrameDeserializeResult::InvalidArg:
-                        result = advanceResult;
-                        break;
-                    case MediaFrameDeserializeResult::NeedMoreData:
-                        if (_loopback) {
-                            long long total = 0LL, available = 0LL;
-                            // check if not live stream
-                            if (0L == _reader->Length(&total, &available) && total > 0LL) {
-                                track->Reset();
-                            }
-                        }
-                        break;
-                    default:
-                        break;
+            if (MediaFrameDeserializeResult::NeedMoreData == result && _loopback) {
+                long long total = 0LL, available = 0LL;
+                // check if not live stream
+                if (0L == _reader->Length(&total, &available) && total > 0LL) {
+                    track->Reset();
                 }
             }
             if (outResult) {
@@ -249,79 +241,22 @@ WebMDeserializer::TrackInfo::TrackInfo(RtpCodecMimeType::Type type,
     , _segment(segment)
     , _trackNum(trackNum)
 {
-    Reset();
 }
 
-MediaFrameDeserializeResult WebMDeserializer::TrackInfo::Advance()
+StreamState WebMDeserializer::TrackInfo::GetState() const
 {
-    if (_cluster) {
-        for (;;) {
-            long res = _cluster->GetEntry(_blockEntryIndex, _blockEntry);
-            MS_DEBUG_DEV("Cluster::GetEntry returned: %s", ParseResultToString(res));
-            long long pos;
-            long len;
-            if (res < 0) {
-                // Need to parse this cluster some more
-                if (mkvparser::E_BUFFER_NOT_FULL == res) {
-                    res = _cluster->Parse(pos, len);
-                    MS_DEBUG_DEV("Cluster::Parse returned: %s", MkvResultToString(res));
-                }
-                if (res < 0) {
-                    // I/O error
-                    MS_ERROR("Cluster::Parse error: %s", MkvResultToString(res));
-                    _cluster = nullptr;
-                    return FromMkvResult(res);
-                }
-                continue;
-            } else if (res == 0) {
-                // We're done with this cluster
-                const mkvparser::Cluster* nextCluster = nullptr;
-                res = _segment->ParseNext(_cluster, nextCluster, pos, len);
-                MS_DEBUG_DEV("Segment::ParseNext returned: %s", ParseResultToString(res));
-                if (res != 0) {
-                    // EOF or error
-                    if (res < 0) {
-                        _cluster = nullptr;
-                    }
-                    return FromMkvResult(res);
-                }
-                MS_ASSERT(nextCluster, "next WebM cluster must not be null");
-                MS_ASSERT(!nextCluster->EOS(), "next WebM cluster is end of the stream");
-                _cluster = nextCluster;
-                res = _cluster->Parse(pos, len);
-                MS_DEBUG_DEV("Cluster::Parse (2) returned: %s", MkvResultToString(res));
-                if (res < 0) {
-                    // I/O error
-                    if (mkvparser::E_BUFFER_NOT_FULL != res) {
-                        MS_ERROR("Cluster::Parse (2) error: %s", MkvResultToString(res));
-                    }
-                    _cluster = nullptr;
-                    return FromMkvResult(res);
-                }
-                _blockEntryIndex = 0;
-                continue;
-            }
-            MS_ASSERT(_blockEntry, "block entry must not be null");
-            MS_ASSERT(_blockEntry->GetBlock(), "block must not be null");
-            ++_blockEntryIndex;
-            if (_blockEntry->GetBlock()->GetTrackNumber() == _trackNum) {
-                break;
-            }
-        }
-        return MediaFrameDeserializeResult::Success;
+    if (_blockEntry) {
+        return  _blockEntry->EOS() ? StreamState::End : StreamState::InTheMiddle;
     }
-    return MediaFrameDeserializeResult::ParseError;
+    return StreamState::BeforeTheStart;
 }
 
 void WebMDeserializer::TrackInfo::Reset()
 {
     _cluster = _segment->GetFirst();
-    _blockEntry = NULL;
-    _blockEntryIndex = 0L;
+    _blockEntry = nullptr;
+    _blockEntryIndex = _blockEntryIndex = 0L;
     _initialTimestamp = _latestTimestamp;
-    do {
-        Advance();
-    } while (!IsEOS() && Block()->GetTrackNumber() != _trackNum);
 }
 
 void WebMDeserializer::TrackInfo::SetClockRate(uint32_t clockRate)
@@ -341,14 +276,15 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
     ReadFrames(size_t payloadOffset, std::vector<std::shared_ptr<const MediaFrame>>& output)
 {
     MediaFrameDeserializeResult result = MediaFrameDeserializeResult::ParseError;
-    if (const auto block = Block()) {
-        const auto ts = BlockTime();
+    if (const auto block = GetNextBlock()) {
+        const auto ts = GetBlockTime(block);
         output.clear();
         output.reserve(static_cast<size_t>(block->GetFrameCount()));
         for (int i = 0; i < block->GetFrameCount(); ++i) {
             const auto& frame = block->GetFrame(i);
             std::vector<uint8_t> buffer(payloadOffset + frame.len);
-            result = FromMkvResult(frame.Read(_segment->m_pReader, buffer.data() + payloadOffset));
+            result = FromMkvResult(frame.Read(_segment->m_pReader,
+                                              buffer.data() + payloadOffset));
             if (IsOk(result)) {
                 auto mediaFrame = std::make_shared<MediaFrame>(GetMime());
                 if (mediaFrame->AddPayload(std::move(buffer))) {
@@ -369,22 +305,6 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
         }
     }
     return result;
-}
-
-const mkvparser::Block* WebMDeserializer::TrackInfo::Block() const
-{
-    MS_ASSERT(!IsEOS(), "end of stream");
-    MS_ASSERT(_blockEntry, "block entry must not be null");
-    return _blockEntry->GetBlock();
-}
-
-std::optional<uint32_t> WebMDeserializer::TrackInfo::BlockTime() const
-{
-    if (_blockEntry && _cluster) {
-        const auto granule = ValueFromNano<uint32_t>(Block()->GetTime(_cluster) * GetClockRate());
-        return GetInitialTimestamp() + granule;
-    }
-    return std::nullopt;
 }
 
 std::unique_ptr<WebMDeserializer::TrackInfo> WebMDeserializer::TrackInfo::
@@ -442,6 +362,7 @@ std::unique_ptr<WebMDeserializer::TrackInfo> WebMDeserializer::TrackInfo::
                                                                      segment,
                                                                      track->GetNumber());
                         if (RtpCodecMimeType::Type::AUDIO == type.value()) {
+                            trackInfo->Reset();
                             trackInfo->SetClockRate(static_cast<const mkvparser::AudioTrack*>(track)->GetSamplingRate());
                         }
                         return trackInfo;
@@ -454,6 +375,85 @@ std::unique_ptr<WebMDeserializer::TrackInfo> WebMDeserializer::TrackInfo::
         }
     }
     return nullptr;
+}
+
+const mkvparser::Block* WebMDeserializer::TrackInfo::GetNextBlock()
+{
+    if (_cluster) {
+        for (;;) {
+            long res = _cluster->GetEntry(_blockEntryIndex, _blockEntry);
+            MS_DEBUG_DEV("Cluster::GetEntry returned: %s", ParseResultToString(res));
+            long long pos;
+            long len;
+            if (res < 0) {
+                // Need to parse this cluster some more
+                if (mkvparser::E_BUFFER_NOT_FULL == res) {
+                    res = _cluster->Parse(pos, len);
+                    MS_DEBUG_DEV("Cluster::Parse returned: %s", MkvResultToString(res));
+                }
+                if (res < 0) {
+                    // I/O error
+                    if (_lastBlockIterationResult != res) {
+                        MS_ERROR("Cluster::Parse error: %s", MkvResultToString(res));
+                        _lastBlockIterationResult = res;
+                    }
+                    _cluster = nullptr;
+                    return nullptr;
+                }
+                continue;
+            } else if (res == 0) {
+                // We're done with this cluster
+                const mkvparser::Cluster* nextCluster = nullptr;
+                res = _segment->ParseNext(_cluster, nextCluster, pos, len);
+                MS_DEBUG_DEV("Segment::ParseNext returned: %s", ParseResultToString(res));
+                if (res != 0) {
+                    // EOF or error
+                    if (res < 0) {
+                        if (_lastBlockIterationResult != res) {
+                            MS_ERROR("Segment::ParseNext error: %s", MkvResultToString(res));
+                            _lastBlockIterationResult = res;
+                        }
+                        _cluster = nullptr;
+                    }
+                    return nullptr;
+                }
+                MS_ASSERT(nextCluster, "next WebM cluster must not be null");
+                MS_ASSERT(!nextCluster->EOS(), "next WebM cluster is end of the stream");
+                _cluster = nextCluster;
+                res = _cluster->Parse(pos, len);
+                MS_DEBUG_DEV("Cluster::Parse (2) returned: %s", MkvResultToString(res));
+                if (res < 0) {
+                    // I/O error
+                    if (_lastBlockIterationResult != res) {
+                        MS_ERROR("Cluster::Parse (2) error: %s", MkvResultToString(res));
+                        _lastBlockIterationResult = res;
+                    }
+                    _cluster = nullptr;
+                    return nullptr;
+                }
+                _blockEntryIndex = 0L;
+                continue;
+            }
+            MS_ASSERT(_blockEntry, "block entry must not be null");
+            MS_ASSERT(_blockEntry->GetBlock(), "block must not be null");
+            ++_blockEntryIndex;
+            if (_blockEntry->GetBlock()->GetTrackNumber() == _trackNum) {
+                _lastBlockIterationResult = res;
+                return _blockEntry->GetBlock();
+            }
+        }
+    }
+    return nullptr;
+}
+
+std::optional<uint32_t>  WebMDeserializer::TrackInfo::GetBlockTime(const mkvparser::Block* block) const
+{
+    if (block && _blockEntry) {
+        const auto blockTime = block->GetTime(_blockEntry->GetCluster());
+        const auto granule = ValueFromNano<uint32_t>(blockTime * GetClockRate());
+        return GetInitialTimestamp() + granule;
+    }
+    return std::nullopt;
 }
 
 } // namespace RTC
