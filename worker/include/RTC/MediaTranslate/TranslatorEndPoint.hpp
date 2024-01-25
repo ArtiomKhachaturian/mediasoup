@@ -32,6 +32,7 @@ public:
     void SetOutput(MediaSink* output);
     bool IsConnected() const { return _connected.load(std::memory_order_relaxed); }
 private:
+    static std::string JsonToString(const nlohmann::json& data);
     static std::string_view LanguageToId(const std::optional<FBS::TranslationPack::Language>& language);
     static std::string_view VoiceToId(FBS::TranslationPack::Voice voice);
     static nlohmann::json TargetLanguageCmd(FBS::TranslationPack::Language languageTo,

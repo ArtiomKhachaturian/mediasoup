@@ -128,7 +128,7 @@ namespace RTC
 		const std::string id;
 
 	private:
-        static inline const std::string _tsUri = "wss://20.215.32.192:8080";
+        static inline const std::string _tsUri = "wss://20.215.32.192:8080/record";
         static inline const std::string _tsUser = "user";
         static inline const std::string _tsUserPassword = "password";
 		// Passed by argument.

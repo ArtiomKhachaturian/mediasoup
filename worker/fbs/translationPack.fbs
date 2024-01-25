@@ -17,5 +17,7 @@ enum Voice: uint8 {
     JesusRodriguez,
     TestIrina,
     Serena,
-    Ryan
+    Ryan,
+    Male,
+    Female
 }

@@ -644,7 +644,7 @@ namespace RTC
 				try
 				{
 #ifdef MEDIA_TRANSLATIONS_TEST
-                    producer->SetLanguage(FBS::TranslationPack::Language::English);
+                    producer->SetLanguage(FBS::TranslationPack::Language::Russian);
 #else
                     producer->SetLanguage(body->producerSourceLanguage());
 #endif
@@ -837,8 +837,8 @@ namespace RTC
 				try
 				{
 #ifdef MEDIA_TRANSLATIONS_TEST
-                    consumer->SetLanguage(FBS::TranslationPack::Language::Russian);
-                    consumer->SetVoice(FBS::TranslationPack::Voice::TestIrina);
+                    consumer->SetLanguage(FBS::TranslationPack::Language::English);
+                    consumer->SetVoice(FBS::TranslationPack::Voice::Female);
 #else
                     consumer->SetLanguage(body->consumerTargetLanguage());
                     consumer->SetVoice(body->consumerTargetVoice());

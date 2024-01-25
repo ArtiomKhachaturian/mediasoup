@@ -102,6 +102,11 @@ void TranslatorEndPoint::SetOutput(MediaSink* output)
     _output = output;
 }
 
+std::string TranslatorEndPoint::JsonToString(const nlohmann::json& data)
+{
+    return nlohmann::to_string(data);
+}
+
 std::string_view TranslatorEndPoint::LanguageToId(const std::optional<FBS::TranslationPack::Language>& language)
 {
     if (language.has_value()) {
@@ -146,6 +151,10 @@ std::string_view TranslatorEndPoint::VoiceToId(FBS::TranslationPack::Voice voice
             return "pMsXgVXv3BLzUgSXRplE";
         case FBS::TranslationPack::Voice::Ryan:
             return "wViXBPUzp2ZZixB1xQuM";
+        case FBS::TranslationPack::Voice::Male:
+            return "Male";
+        case FBS::TranslationPack::Voice::Female:
+            return "Female";
         default:
             MS_ASSERT(false, "unhandled voice type");
             break;
@@ -157,16 +166,16 @@ nlohmann::json TranslatorEndPoint::TargetLanguageCmd(FBS::TranslationPack::Langu
                                                      FBS::TranslationPack::Voice voice,
                                                      const std::optional<FBS::TranslationPack::Language>& languageFrom)
 {
-    nlohmann::json cmd = {{
-        "from",    LanguageToId(languageFrom),
-        "to",      LanguageToId(languageTo),
-        "voiceID", VoiceToId(voice)
-    }};
-    nlohmann::json data = {
-        "type", "set_target_language",
-        "cmd",  cmd
-    };
-    return data;
+    // language settings
+    nlohmann::json languageSettings;
+    languageSettings["from"] = LanguageToId(languageFrom);
+    languageSettings["to"] = LanguageToId(languageTo);
+    languageSettings["voiceID"] = VoiceToId(voice);
+    // command
+    nlohmann::json command;
+    command["type"] = "set_target_language";
+    command["cmd"] = languageSettings;
+    return command;
 }
 
 bool TranslatorEndPoint::HasValidTranslationSettings() const
@@ -255,7 +264,7 @@ bool TranslatorEndPoint::SendTranslationChanges()
 
 bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
 {
-    const auto jsonAsText = to_string(data);
+    const auto jsonAsText = JsonToString(data);
     const auto ok = _socket->WriteText(jsonAsText);
     if (!ok) {
         MS_ERROR("failed write JSON command '%s' into translation service", jsonAsText.c_str());
