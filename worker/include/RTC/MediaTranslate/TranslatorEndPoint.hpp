@@ -51,12 +51,13 @@ private:
     // impl. of MediaSink
     void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
     // impl. of WebsocketListener
+    void OnFailed(uint64_t socketId, FailureType type, const std::string& what);
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
-    void OnTextMessageReceived(uint64_t socketId, std::string message) final;
     void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message) final;
 private:
     const std::string _userAgent;
     const std::unique_ptr<Websocket> _socket;
+    const std::string _serviceUri; // for logs
     const uint32_t _startTimestamp;
     ProtectedOptional<FBS::TranslationPack::Language> _consumerLanguage;
     ProtectedOptional<FBS::TranslationPack::Voice> _consumerVoice;

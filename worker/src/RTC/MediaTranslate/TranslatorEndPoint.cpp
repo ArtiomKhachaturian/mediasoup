@@ -14,6 +14,7 @@ TranslatorEndPoint::TranslatorEndPoint(const std::string& serviceUri,
                                        const std::string& userAgent)
     : _userAgent(userAgent)
     , _socket(std::make_unique<Websocket>(serviceUri, serviceUser, servicePassword))
+    , _serviceUri(serviceUri)
     , _startTimestamp(GenerateRtpTimestamp())
 {
     _socket->AddListener(this);
@@ -223,7 +224,6 @@ void TranslatorEndPoint::ConnectToMediaInput(MediaSource* input, bool connect)
     }
 }
 
-
 void TranslatorEndPoint::UpdateTranslationChanges()
 {
     if (HasValidTranslationSettings()) {
@@ -277,6 +277,12 @@ void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<const MemoryBuf
     }
 }
 
+void TranslatorEndPoint::OnFailed(uint64_t socketId, FailureType type, const std::string& what)
+{
+    WebsocketListener::OnFailed(socketId, type, what);
+    //MS_ERROR("failed to connect with translation service URL %s", _serviceUri.c_str());
+}
+
 void TranslatorEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
 {
     WebsocketListener::OnStateChanged(socketId, state);
@@ -290,10 +296,6 @@ void TranslatorEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
         default:
             break;
     }
-}
-
-void TranslatorEndPoint::OnTextMessageReceived(uint64_t socketId, std::string message)
-{
 }
 
 void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t /*socketId*/,

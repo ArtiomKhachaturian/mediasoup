@@ -558,7 +558,7 @@ void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
         DropHdl(std::move(droppedGuard));
         InvokeListenersMethod(&WebsocketListener::OnFailed,
                               WebsocketListener::FailureType::General,
-                              std::move(error));
+                              error);
     }
 }
 
@@ -774,7 +774,7 @@ void WebsocketListener::OnStateChanged(uint64_t socketId, WebsocketState state)
     }
 }
 
-void WebsocketListener::OnFailed(uint64_t socketId, FailureType type, std::string what)
+void WebsocketListener::OnFailed(uint64_t socketId, FailureType type, const std::string& what)
 {
     if (LogStreamBuf::IsAccepted(LogLevel::LOG_ERROR)) {
         std::string error = ToString(type) + " failure";
