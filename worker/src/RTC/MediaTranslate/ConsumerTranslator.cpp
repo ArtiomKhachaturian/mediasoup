@@ -181,13 +181,15 @@ void ConsumerTranslator::MediaGrabber::ProcessMediaPayload(const std::shared_ptr
 {
     if (payload) {
         const auto result = _deserializer->AddBuffer(payload);
+        bool requestMediaFrames = false;
         if (MaybeOk(result)) {
-            if (FetchMediaInfo(producerPacketsInfo)) {
-                DeserializeMediaFrames();
-            }
+            requestMediaFrames = FetchMediaInfo(producerPacketsInfo);
         }
         else if (_lastProcessingError != result) {
             MS_ERROR("failed to deserialize of input media buffer: %s", ToString(result));
+        }
+        if (requestMediaFrames && IsOk(result)) {
+            DeserializeMediaFrames();
         }
         _lastProcessingError = result;
     }
