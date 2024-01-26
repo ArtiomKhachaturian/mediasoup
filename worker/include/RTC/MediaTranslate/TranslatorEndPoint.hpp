@@ -31,6 +31,7 @@ public:
     void SetOutput(MediaSink* output);
     bool IsConnected() const;
 private:
+    static void ProcessTranslation(MediaSink* output, const std::shared_ptr<MemoryBuffer>& message);
     static std::string_view LanguageToId(const std::optional<FBS::TranslationPack::Language>& language);
     static std::string_view VoiceToId(FBS::TranslationPack::Voice voice);
     static nlohmann::json TargetLanguageCmd(FBS::TranslationPack::Language languageTo,

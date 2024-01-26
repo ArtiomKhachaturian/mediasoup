@@ -104,6 +104,15 @@ bool TranslatorEndPoint::IsConnected() const
     return WebsocketState::Connected == _socket->GetState();
 }
 
+void TranslatorEndPoint::ProcessTranslation(MediaSink* output, const std::shared_ptr<MemoryBuffer>& message)
+{
+    if (output && message) {
+        output->StartMediaWriting(false);
+        output->WriteMediaPayload(message);
+        output->EndMediaWriting();
+    }
+}
+
 std::string_view TranslatorEndPoint::LanguageToId(const std::optional<FBS::TranslationPack::Language>& language)
 {
     if (language.has_value()) {
@@ -309,13 +318,8 @@ void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t /*socketId*/,
 {
     if (message) {
         LOCK_READ_PROTECTED_OBJ(_output);
-        if (const auto& output = _output.ConstRef()) {
-            output->StartMediaWriting(false);
-            output->WriteMediaPayload(message);
-            output->EndMediaWriting();
-        }
+        ProcessTranslation(_output.ConstRef(), message);
     }
 }
 
 } // namespace RTC
-    

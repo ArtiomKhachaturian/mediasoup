@@ -72,13 +72,13 @@ MediaTranslatorsManager::~MediaTranslatorsManager()
 {
 }
 
-void MediaTranslatorsManager::OnTransportConnected(RTC::Transport* transport)
+void MediaTranslatorsManager::OnTransportConnected(Transport* transport)
 {
     _router->OnTransportConnected(transport);
     _connectedTransport.store(transport);
 }
 
-void MediaTranslatorsManager::OnTransportDisconnected(RTC::Transport* transport)
+void MediaTranslatorsManager::OnTransportDisconnected(Transport* transport)
 {
     _connectedTransport.compare_exchange_strong(transport, nullptr);
     _router->OnTransportDisconnected(transport);
@@ -113,8 +113,8 @@ void MediaTranslatorsManager::OnTransportNewProducer(Transport* transport, Produ
     }
 }
 
-void MediaTranslatorsManager::OnTransportProducerLanguageChanged(RTC::Transport* transport,
-                                                                 RTC::Producer* producer)
+void MediaTranslatorsManager::OnTransportProducerLanguageChanged(Transport* transport,
+                                                                 Producer* producer)
 {
     _router->OnTransportProducerLanguageChanged(transport, producer);
     if (producer) {
@@ -231,8 +231,8 @@ void MediaTranslatorsManager::OnTransportNewConsumer(Transport* transport, Consu
     }
 }
 
-void MediaTranslatorsManager::OnTransportConsumerLanguageChanged(RTC::Transport* transport,
-                                                                 RTC::Consumer* consumer)
+void MediaTranslatorsManager::OnTransportConsumerLanguageChanged(Transport* transport,
+                                                                 Consumer* consumer)
 {
     _router->OnTransportConsumerLanguageChanged(transport, consumer);
     for (auto it = _translators.begin(); it != _translators.end(); ++it) {
@@ -240,8 +240,8 @@ void MediaTranslatorsManager::OnTransportConsumerLanguageChanged(RTC::Transport*
     }
 }
 
-void MediaTranslatorsManager::OnTransportConsumerVoiceChanged(RTC::Transport* transport,
-                                                              RTC::Consumer* consumer)
+void MediaTranslatorsManager::OnTransportConsumerVoiceChanged(Transport* transport,
+                                                              Consumer* consumer)
 {
     _router->OnTransportConsumerVoiceChanged(transport, consumer);
     for (auto it = _translators.begin(); it != _translators.end(); ++it) {
@@ -329,7 +329,7 @@ void MediaTranslatorsManager::OnTransportListenServerClosed(Transport* transport
     _router->OnTransportListenServerClosed(transport);
 }
 
-bool MediaTranslatorsManager::SendRtpPacket(RTC::Producer* producer, RtpPacket* packet)
+bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packet)
 {
     if (producer && packet) {
         if (const auto transport = _connectedTransport.load()) {
