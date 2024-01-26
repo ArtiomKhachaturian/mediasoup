@@ -17,7 +17,6 @@ class Websocket;
 
 class TranslatorEndPoint : private WebsocketListener, private MediaSink
 {
-    class Impl;
 public:
     TranslatorEndPoint(const std::string& serviceUri,
                        const std::string& serviceUser = std::string(),
@@ -30,7 +29,7 @@ public:
     void SetInput(MediaSource* input);
     bool HasInput() const;
     void SetOutput(MediaSink* output);
-    bool IsConnected() const { return _connected.load(); }
+    bool IsConnected() const;
 private:
     static std::string_view LanguageToId(const std::optional<FBS::TranslationPack::Language>& language);
     static std::string_view VoiceToId(FBS::TranslationPack::Voice voice);
@@ -62,7 +61,6 @@ private:
     ProtectedOptional<FBS::TranslationPack::Language> _producerLanguage;
     ProtectedObj<MediaSource*> _input;
     ProtectedObj<MediaSink*> _output;
-    std::atomic_bool _connected = false;
 };
 
 } // namespace RTC

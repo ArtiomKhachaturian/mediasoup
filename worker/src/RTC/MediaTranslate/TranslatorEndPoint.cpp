@@ -99,6 +99,11 @@ void TranslatorEndPoint::SetOutput(MediaSink* output)
     _output = output;
 }
 
+bool TranslatorEndPoint::IsConnected() const
+{
+    return WebsocketState::Connected == _socket->GetState();
+}
+
 std::string_view TranslatorEndPoint::LanguageToId(const std::optional<FBS::TranslationPack::Language>& language)
 {
     if (language.has_value()) {
@@ -195,23 +200,13 @@ std::optional<FBS::TranslationPack::Language> TranslatorEndPoint::GetProducerLan
 
 void TranslatorEndPoint::SetConnected(bool connected)
 {
-    if (connected != _connected.exchange(connected)) {
-        if (connected) {
-            if (SendTranslationChanges()) {
-                ConnectToMediaInput(true);
-                LOCK_READ_PROTECTED_OBJ(_output);
-                if (const auto& output = _output.ConstRef()) {
-                    output->StartMediaWriting(false);
-                }
-            }
+    if (connected) {
+        if (SendTranslationChanges()) {
+            ConnectToMediaInput(true);
         }
-        else {
-            ConnectToMediaInput(false);
-            LOCK_READ_PROTECTED_OBJ(_output);
-            if (const auto& output = _output.ConstRef()) {
-                output->EndMediaWriting();
-            }
-        }
+    }
+    else {
+        ConnectToMediaInput(false);
     }
 }
 
@@ -315,7 +310,9 @@ void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t /*socketId*/,
     if (message) {
         LOCK_READ_PROTECTED_OBJ(_output);
         if (const auto& output = _output.ConstRef()) {
+            output->StartMediaWriting(false);
             output->WriteMediaPayload(message);
+            output->EndMediaWriting();
         }
     }
 }

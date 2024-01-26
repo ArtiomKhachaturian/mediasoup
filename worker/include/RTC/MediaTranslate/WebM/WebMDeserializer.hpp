@@ -16,8 +16,8 @@ class MkvReader;
 
 class WebMDeserializer : public MediaFrameDeserializer
 {
-    class WebMStream;
     class TrackInfo;
+    enum class MkvResult;
 public:
     WebMDeserializer(std::unique_ptr<MkvReader> reader, bool loopback = false);
     ~WebMDeserializer() final;
@@ -33,10 +33,12 @@ public:
 private:
     MediaFrameDeserializeResult ParseEBMLHeader();
     MediaFrameDeserializeResult ParseSegment();
-    template<typename TMkvResult = long>
-    static MediaFrameDeserializeResult FromMkvResult(TMkvResult result);
-    template<typename TMkvResult = long>
-    static const char* MkvResultToString(TMkvResult result);
+    static MkvResult ToMkvResult(long ret);
+    static MediaFrameDeserializeResult FromMkvResult(MkvResult result);
+    static const char* MkvResultToString(MkvResult result);
+    static const char* MkvResultToString(long result);
+    static bool IsOk(MkvResult result);
+    static bool MaybeOk(MkvResult result);
 private:
     const std::unique_ptr<MkvReader> _reader;
     const bool _loopback;
