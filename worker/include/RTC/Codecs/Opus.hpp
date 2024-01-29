@@ -139,7 +139,10 @@ namespace RTC
                 ms60    = 2880
             };
             
-            static void ParseTOC(uint8_t toc, Mode* mode = nullptr,
+            static void ParseTOC(const uint8_t toc, Mode* mode = nullptr,
+                                 Bandwitdh* bandWidth = nullptr, FrameSize* frameSize = nullptr,
+                                 bool* stereo = nullptr, CodeNumber* codeNumber = nullptr);
+            static void ParseTOC(const uint8_t* payload, Mode* mode = nullptr,
                                  Bandwitdh* bandWidth = nullptr, FrameSize* frameSize = nullptr,
                                  bool* stereo = nullptr, CodeNumber* codeNumber = nullptr);
 		};

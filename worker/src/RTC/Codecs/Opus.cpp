@@ -93,7 +93,7 @@ namespace RTC
         {
         }
     
-        void Opus::ParseTOC(uint8_t toc, Mode* mode,
+        void Opus::ParseTOC(const uint8_t toc, Mode* mode,
                             Bandwitdh* bandWidth, FrameSize* frameSize,
                             bool* stereo, CodeNumber* codeNumber)
         {
@@ -123,6 +123,15 @@ namespace RTC
                 else {
                     MS_ASSERT(false, "OPUS TOC config is invalid");
                 }
+            }
+        }
+    
+        void Opus::ParseTOC(const uint8_t* payload, Mode* mode,
+                            Bandwitdh* bandWidth, FrameSize* frameSize,
+                            bool* stereo, CodeNumber* codeNumber)
+        {
+            if (payload) {
+                ParseTOC(payload[0], mode, bandWidth, frameSize, stereo, codeNumber);
             }
         }
 

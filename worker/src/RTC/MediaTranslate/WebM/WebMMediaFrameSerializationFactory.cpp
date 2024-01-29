@@ -71,7 +71,7 @@ FileReader::FileReader(std::unique_ptr<mkvparser::MkvReader> fileReader)
 {
 }
 
-std::unique_ptr<    MkvReader> FileReader::Create(const char* filename)
+std::unique_ptr<MkvReader> FileReader::Create(const char* filename)
 {
     if (filename) {
         auto fileReader = std::make_unique<mkvparser::MkvReader>();

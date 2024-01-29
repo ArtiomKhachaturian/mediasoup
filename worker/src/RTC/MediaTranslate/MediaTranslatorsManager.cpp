@@ -40,6 +40,8 @@ public:
     void AddNewRtpStream(RtpStreamRecv* rtpStream, uint32_t mappedSsrc);
     bool DispatchProducerPacket(RtpPacket* packet);
 private:
+    void CommitLastTimestamp(uint32_t timestamp, bool synth);
+    void CommitLastTimestamp(const RtpPacket* packet, bool synth);
     // impl. of RtpPacketsCollector
     bool AddPacket(RtpPacket* packet) final;
 private:
@@ -52,6 +54,8 @@ private:
     // key is consumer instance, simple model - each consumer has own channer for translation
     // TODO: revise this logic for better resources consumption if more than 1 consumers has the same language and voice
     ProtectedObj<TranslationEndPointsMap> _endPoints;
+    uint32_t _synthPacketLastTimestamp = 0UL;
+    uint32_t _dispatchedPacketLastTimestamp = 0UL;
 };
 
 MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
@@ -375,8 +379,26 @@ MediaTranslatorsManager::Translator::~Translator()
 #endif
 }
 
+void MediaTranslatorsManager::Translator::CommitLastTimestamp(uint32_t timestamp, bool synth)
+{
+    auto& ts = synth ? _synthPacketLastTimestamp : _dispatchedPacketLastTimestamp;
+    if (0UL != ts) {
+        const uint32_t diff = timestamp > ts ? timestamp - ts :  ts - timestamp;
+        MS_ERROR_STD("TS diff between 2 RTP %s packets: %du", (synth ? "synth" : "dispatched"), diff);
+    }
+    ts = timestamp;
+}
+
+void MediaTranslatorsManager::Translator::CommitLastTimestamp(const RtpPacket* packet, bool synth)
+{
+    if (packet) {
+        CommitLastTimestamp(packet->GetTimestamp(), synth);
+    }
+}
+
 bool MediaTranslatorsManager::Translator::AddPacket(RtpPacket* packet)
 {
+    CommitLastTimestamp(packet, true);
     return packet && _manager->SendRtpPacket(_producer->GetProducer(), packet);
 }
 
@@ -488,6 +510,7 @@ bool MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* pack
         it->second->ProcessProducerRtpPacket(packet);
     }
     if (_producer->AddPacket(packet)) {
+        CommitLastTimestamp(packet, false);
         for (auto it = _consumers.ConstRef().begin(); it != _consumers.ConstRef().end(); ++it) {
             if (it->second->HadIncomingMedia()) {
                 // drop packet's dispatching if connection with translation service was established

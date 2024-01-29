@@ -37,6 +37,7 @@ RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint3
     if (_encodingContext) {
         _encodingContext->SetIgnoreDtx(true);
     }
+    EnsureStereoAudioConfig(true);
 }
 
 RtpDepacketizerOpus::~RtpDepacketizerOpus()
@@ -46,19 +47,10 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 std::shared_ptr<const RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet)
 {
     if (IsValidPacket(packet)) {
-        bool stereo = false;
-        Codecs::Opus::ParseTOC(packet->GetPayload()[0], nullptr, nullptr, nullptr, &stereo);
-        auto config = std::make_shared<AudioFrameConfig>();
-        config->SetChannelCount(stereo ? 2U : 1U);
-        config->SetBitsPerSample(16U);
-        if (_opusCodecData->GetChannelCount() != config->GetChannelCount()) {
-            _opusCodecData = std::make_shared<OpusHeadBuffer>(config->GetChannelCount(),
-                                                              _sampleRate);
-        }
-        config->SetCodecSpecificData(_opusCodecData);
-        if (auto frame = RtpMediaFrame::Create(GetMimeType(), packet,
-                                               GetPayloadAllocator())) {
-            frame->SetAudioConfig(config);
+        if (const auto frame = RtpMediaFrame::Create(GetMimeType(), packet, GetPayloadAllocator())) {
+            bool stereo = false;
+            Codecs::Opus::ParseTOC(packet->GetPayload(), nullptr, nullptr, nullptr, &stereo);
+            frame->SetAudioConfig(EnsureStereoAudioConfig(stereo));
             return frame;
         }
     }
@@ -76,6 +68,25 @@ bool RtpDepacketizerOpus::IsValidPacket(const RtpPacket* packet) const
         return valid;
     }
     return false;
+}
+
+std::shared_ptr<AudioFrameConfig> RtpDepacketizerOpus::EnsureAudioConfig(uint8_t channelCount)
+{
+    if (!_audioConfig || _audioConfig->GetChannelCount() != channelCount) {
+        _audioConfig = std::make_shared<AudioFrameConfig>();
+        _audioConfig->SetChannelCount(channelCount);
+        _audioConfig->SetBitsPerSample(_bitsPerSample);
+    }
+    if (_opusCodecData->GetChannelCount() != channelCount) {
+        _opusCodecData = std::make_shared<OpusHeadBuffer>(channelCount, _sampleRate);
+    }
+    _audioConfig->SetCodecSpecificData(_opusCodecData);
+    return _audioConfig;
+}
+
+std::shared_ptr<AudioFrameConfig> RtpDepacketizerOpus::EnsureStereoAudioConfig(bool stereo)
+{
+    return EnsureAudioConfig(stereo ? 2U : 1U);
 }
 
 RtpDepacketizerOpus::OpusHeadBuffer::OpusHeadBuffer(uint32_t sampleRate)

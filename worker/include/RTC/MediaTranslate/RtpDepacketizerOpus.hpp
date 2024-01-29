@@ -9,6 +9,8 @@ namespace Codecs {
     class EncodingContext;
 }
 
+class AudioFrameConfig;
+
 class RtpDepacketizerOpus : public RtpDepacketizer
 {
     class OpusHeadBuffer;
@@ -19,10 +21,14 @@ public:
     std::shared_ptr<const RtpMediaFrame> AddPacket(const RtpPacket* packet) final;
 private:
     bool IsValidPacket(const RtpPacket* packet) const;
+    std::shared_ptr<AudioFrameConfig> EnsureAudioConfig(uint8_t channelCount);
+    std::shared_ptr<AudioFrameConfig> EnsureStereoAudioConfig(bool stereo);
 private:
+    static inline constexpr uint8_t _bitsPerSample = 16U;
     const uint32_t _sampleRate;
     const std::unique_ptr<Codecs::EncodingContext> _encodingContext;
     std::shared_ptr<OpusHeadBuffer> _opusCodecData;
+    std::shared_ptr<AudioFrameConfig> _audioConfig;
 };
 
 } // namespace RTC
