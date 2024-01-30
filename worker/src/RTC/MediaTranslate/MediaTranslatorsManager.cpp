@@ -13,6 +13,7 @@
 #include "RTC/Consumer.hpp"
 #include "RTC/RtpStream.hpp"
 #include "RTC/RtpPacket.hpp"
+#include "RTC/Transport.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include <absl/container/flat_hash_set.h>
@@ -42,6 +43,7 @@ public:
 private:
     void CommitLastTimestamp(uint32_t timestamp, bool synth);
     void CommitLastTimestamp(const RtpPacket* packet, bool synth);
+    bool ProcessProducerPacket(RtpPacket* packet);
     // impl. of RtpPacketsCollector
     bool AddPacket(RtpPacket* packet) final;
 private:
@@ -54,8 +56,18 @@ private:
     // key is consumer instance, simple model - each consumer has own channer for translation
     // TODO: revise this logic for better resources consumption if more than 1 consumers has the same language and voice
     ProtectedObj<TranslationEndPointsMap> _endPoints;
+    std::atomic<RtpPacket*> _currentPacket = nullptr;
     uint32_t _synthPacketLastTimestamp = 0UL;
     uint32_t _dispatchedPacketLastTimestamp = 0UL;
+};
+
+class MediaTranslatorsManager::CurrentRtpPacketHolder
+{
+public:
+    CurrentRtpPacketHolder(RtpPacket* packet, std::atomic<RtpPacket*>& currentPacket);
+    ~CurrentRtpPacketHolder();
+private:
+    std::atomic<RtpPacket*>& _currentPacket;
 };
 
 MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
@@ -335,9 +347,9 @@ void MediaTranslatorsManager::OnTransportListenServerClosed(Transport* transport
 
 bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packet)
 {
-    if (producer && packet) {
+    if (packet) {
         if (const auto transport = _connectedTransport.load()) {
-            _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
+            transport->ReceiveRtpPacket(packet, producer);
             return true;
         }
     }
@@ -362,6 +374,12 @@ MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
 {
+#if defined(USE_TEST_FILE_FOR_DESERIALIZATION) && defined(NO_TRANSLATION_SERVICE)
+    auto file = std::make_unique<FileReader>(_testFileName);
+    if (file->IsOpen()) {
+        _producerStubFile = std::move(file);
+    }
+#endif
 }
 
 MediaTranslatorsManager::Translator::~Translator()
@@ -381,12 +399,17 @@ MediaTranslatorsManager::Translator::~Translator()
 
 void MediaTranslatorsManager::Translator::CommitLastTimestamp(uint32_t timestamp, bool synth)
 {
-    auto& ts = synth ? _synthPacketLastTimestamp : _dispatchedPacketLastTimestamp;
+    /*auto& ts = synth ? _synthPacketLastTimestamp : _dispatchedPacketLastTimestamp;
     if (0UL != ts) {
         const uint32_t diff = timestamp > ts ? timestamp - ts :  ts - timestamp;
         MS_ERROR_STD("TS diff between 2 RTP %s packets: %du", (synth ? "synth" : "dispatched"), diff);
     }
-    ts = timestamp;
+    ts = timestamp;*/
+}
+
+bool MediaTranslatorsManager::Translator::ProcessProducerPacket(RtpPacket* packet)
+{
+    return _producer->AddPacket(packet);
 }
 
 void MediaTranslatorsManager::Translator::CommitLastTimestamp(const RtpPacket* packet, bool synth)
@@ -398,8 +421,13 @@ void MediaTranslatorsManager::Translator::CommitLastTimestamp(const RtpPacket* p
 
 bool MediaTranslatorsManager::Translator::AddPacket(RtpPacket* packet)
 {
-    CommitLastTimestamp(packet, true);
-    return packet && _manager->SendRtpPacket(_producer->GetProducer(), packet);
+    if (packet) {
+        const CurrentRtpPacketHolder holder(packet, _currentPacket);
+        CommitLastTimestamp(packet, true);
+        packet->SetPayloadType(_producer->GetPayloadType(packet->GetSsrc()));
+        return _manager->SendRtpPacket(_producer->GetProducer(), packet);
+    }
+    return false;
 }
 
 void MediaTranslatorsManager::Translator::Pause(bool pause)
@@ -498,28 +526,41 @@ void MediaTranslatorsManager::Translator::AddNewRtpStream(RtpStreamRecv* rtpStre
 {
     if (!_producer->AddStream(rtpStream, mappedSsrc)) {
         const auto desc = GetStreamInfoString(mappedSsrc, rtpStream);
-        MS_ERROR("failed to register stream [%s] for producer %s", desc.c_str(),
-                 _producer->GetId().c_str());
+        MS_ERROR("failed to register stream [%s] for producer %s", desc.c_str(), _producer->GetId().c_str());
     }
 }
 
 bool MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* packet)
 {
-    LOCK_READ_PROTECTED_OBJ(_consumers);
-    for (auto it = _consumers.ConstRef().begin(); it != _consumers.ConstRef().end(); ++it) {
-        it->second->ProcessProducerRtpPacket(packet);
-    }
-    if (_producer->AddPacket(packet)) {
-        CommitLastTimestamp(packet, false);
+    if (packet && packet != _currentPacket.load()) {
+        LOCK_READ_PROTECTED_OBJ(_consumers);
         for (auto it = _consumers.ConstRef().begin(); it != _consumers.ConstRef().end(); ++it) {
-            if (it->second->HadIncomingMedia()) {
-                // drop packet's dispatching if connection with translation service was established
-                packet->AddRejectedConsumer(it->first);
-            }
+            it->second->ProcessProducerRtpPacket(packet);
         }
-        return true;
+        if (ProcessProducerPacket(packet)) {
+            CommitLastTimestamp(packet, false);
+            for (auto it = _consumers.ConstRef().begin(); it != _consumers.ConstRef().end(); ++it) {
+                if (it->second->HadIncomingMedia()) {
+                    // drop packet's dispatching if connection with translation service was established
+                    packet->AddRejectedConsumer(it->first);
+                }
+            }
+            return true;
+        }
     }
     return false;
+}
+
+MediaTranslatorsManager::CurrentRtpPacketHolder::CurrentRtpPacketHolder(RtpPacket* packet,
+                                                                        std::atomic<RtpPacket*>& currentPacket)
+    : _currentPacket(currentPacket)
+{
+    _currentPacket = packet;
+}
+
+MediaTranslatorsManager::CurrentRtpPacketHolder::~CurrentRtpPacketHolder()
+{
+    _currentPacket = nullptr;
 }
 
 } // namespace RTC

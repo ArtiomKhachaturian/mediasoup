@@ -153,7 +153,7 @@ WebMSerializer::WebMSerializer(const char* writingApp)
 
 WebMSerializer::~WebMSerializer()
 {
-    DestroyWriter(false);
+    DestroyWriter(_latestWrittenSsrc, false);
 }
 
 bool WebMSerializer::IsSupported(const RtpCodecMimeType& mimeType)
@@ -239,7 +239,7 @@ void WebMSerializer::RemoveMedia(uint32_t ssrc)
             _tracksInfo.erase(it);
             if (_writer) {
                 _pendingRestartMode = _writer->HasWroteMedia();
-                DestroyWriter(false);
+                DestroyWriter(ssrc, false);
                 if (!_tracksInfo.empty()) {
                     InitWriter();
                 }
@@ -262,7 +262,10 @@ bool WebMSerializer::Push(uint32_t ssrc, const std::shared_ptr<const MediaFrame>
             if (!added) {
                 const auto frameInfo = GetMediaFrameInfoString(mediaFrame, ssrc);
                 MS_ERROR("unable write frame to MKV data [%s] to track #%d", frameInfo.c_str(), trackNumber);
-                DestroyWriter(true);
+                DestroyWriter(ssrc, true);
+            }
+            else {
+                _latestWrittenSsrc = ssrc;
             }
             return added;
         }
@@ -339,12 +342,12 @@ void WebMSerializer::InitWriter()
     }
 }
 
-void WebMSerializer::DestroyWriter(bool failure)
+void WebMSerializer::DestroyWriter(uint32_t ssrc, bool failure)
 {
     if (_writer) {
         _writer->Finalize();
         if (HasSinks()) {
-            WriteMediaSinksPayload(_writer->TakeWrittenData());
+            WriteMediaSinksPayload(ssrc, _writer->TakeWrittenData());
         }
         if (_writer->HasWroteMedia()) {
             EndMediaSinksWriting();
@@ -358,8 +361,8 @@ void WebMSerializer::DestroyWriter(bool failure)
 
 template<class TConfig>
 bool WebMSerializer::AddMedia(uint32_t ssrc, uint32_t clockRate,
-                                 const RtpCodecMimeType& mime,
-                                 const std::shared_ptr<TConfig>& config)
+                              const RtpCodecMimeType& mime,
+                              const std::shared_ptr<TConfig>& config)
 {
     bool registered = false;
     if (!_hasFailure && ssrc) {
@@ -369,7 +372,7 @@ bool WebMSerializer::AddMedia(uint32_t ssrc, uint32_t clockRate,
                 InitWriter();
             }
             else if(_writer->HasWroteMedia()) {
-                DestroyWriter(false);
+                DestroyWriter(ssrc, false);
                 InitWriter();
                 _pendingRestartMode = true;
             }
@@ -396,7 +399,7 @@ bool WebMSerializer::AddMedia(uint32_t ssrc, uint32_t clockRate,
                 }
                 else {
                     MS_ERROR("unable to create MKV writer track, [SSRC = %du]", ssrc);
-                    DestroyWriter(true);
+                    DestroyWriter(ssrc, true);
                 }
             }
         }
@@ -650,7 +653,7 @@ EnqueueResult WebMSerializer::BufferedWriter::EnqueueFrame(const std::shared_ptr
 }
 
 bool WebMSerializer::BufferedWriter::WriteFrames(uint32_t ssrc, uint64_t mkvTimestamp,
-                                                    WebMSerializer* serializer)
+                                                 WebMSerializer* serializer)
 {
     bool ok = true;
     if (!_mkvFrames.empty()) {
@@ -666,7 +669,7 @@ bool WebMSerializer::BufferedWriter::WriteFrames(uint32_t ssrc, uint64_t mkvTime
                 ok = mkvFrame.WriteToSegment(_segment);
                 if (ok) {
                     if (serializer) {
-                        serializer->WriteMediaSinksPayload(TakeWrittenData());
+                        serializer->WriteMediaSinksPayload(ssrc, TakeWrittenData());
                     }
                     ++addedCount;
                 }

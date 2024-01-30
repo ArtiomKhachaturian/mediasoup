@@ -22,8 +22,8 @@ class ConsumerTranslator : public ConsumerTranslatorSettings,
                            public MediaSink
 {
     class MediaGrabber;
-    // key is payload type, value - RTP timestamp / seq. number
-    using ProducerPacketsInfo = absl::flat_hash_map<uint8_t, std::pair<uint32_t, uint16_t>>;
+    // key is payload type, value - RTP timestamp, SSRC & seq. number
+    using ProducerPacketsInfo = absl::flat_hash_map<uint8_t, std::tuple<uint32_t, uint32_t, uint16_t>>;
 public:
     ConsumerTranslator(const Consumer* consumer, RtpPacketsCollector* packetsCollector,
                        const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory);
@@ -38,9 +38,9 @@ public:
     std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
     std::optional<FBS::TranslationPack::Voice> GetVoice() const final;
     // impl. of MediaSink
-    void StartMediaWriting(bool restart) noexcept final;
-    void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
-    void EndMediaWriting() noexcept final;
+    void StartMediaWriting(bool restart) final;
+    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer) final;
+    void EndMediaWriting() final;
 protected:
     void OnPauseChanged(bool pause) final;
 private:

@@ -92,6 +92,8 @@ namespace RTC
 	public:
 		void CloseProducersAndConsumers();
 		void ListenServerClosed();
+        void ReceiveRtpPacket(RTC::RtpPacket* packet, RTC::Producer* producer = nullptr);
+        void ReceiveRtcpPacket(RTC::RTCP::Packet* packet);
 		// Subclasses must also invoke the parent Close().
 		flatbuffers::Offset<FBS::Transport::Stats> FillBufferStats(flatbuffers::FlatBufferBuilder& builder);
 		flatbuffers::Offset<FBS::Transport::Dump> FillBuffer(flatbuffers::FlatBufferBuilder& builder) const;
@@ -117,8 +119,6 @@ namespace RTC
 		{
 			this->sendTransmission.Update(len, DepLibUV::GetTimeMs());
 		}
-		void ReceiveRtpPacket(RTC::RtpPacket* packet);
-		void ReceiveRtcpPacket(RTC::RTCP::Packet* packet);
 		void ReceiveSctpData(const uint8_t* data, size_t len);
 		RTC::Producer* GetProducerById(const std::string& producerId) const;
 		RTC::Consumer* GetConsumerById(const std::string& consumerId) const;

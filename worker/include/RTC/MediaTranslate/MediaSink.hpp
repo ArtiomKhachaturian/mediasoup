@@ -10,9 +10,9 @@ class MediaSink
 {
 public:
     virtual ~MediaSink() = default;
-    virtual void StartMediaWriting(bool /*restart*/) noexcept {}
-    virtual void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept = 0;
-    virtual void EndMediaWriting() noexcept {}
+    virtual void StartMediaWriting(bool /*restart*/) {}
+    virtual void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer) = 0;
+    virtual void EndMediaWriting() {}
 };
 
 } // namespace RTC

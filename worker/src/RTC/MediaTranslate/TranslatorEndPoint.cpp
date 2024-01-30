@@ -104,11 +104,12 @@ bool TranslatorEndPoint::IsConnected() const
     return WebsocketState::Connected == _socket->GetState();
 }
 
-void TranslatorEndPoint::ProcessTranslation(MediaSink* output, const std::shared_ptr<MemoryBuffer>& message)
+void TranslatorEndPoint::ProcessTranslation(uint32_t ssrc, MediaSink* output,
+                                            const std::shared_ptr<MemoryBuffer>& message)
 {
     if (output && message) {
         output->StartMediaWriting(false);
-        output->WriteMediaPayload(message);
+        output->WriteMediaPayload(ssrc, message);
         output->EndMediaWriting();
     }
 }
@@ -291,10 +292,14 @@ void TranslatorEndPoint::OpenSocket()
     }
 }
 
-void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept
+void TranslatorEndPoint::WriteMediaPayload(uint32_t ssrc,
+                                           const std::shared_ptr<const MemoryBuffer>& buffer)
 {
     if (buffer && IsConnected() && !_socket->WriteBinary(buffer)) {
         MS_ERROR_STD("failed write binary packet (%ld bytes)' into translation service", buffer->GetSize());
+    }
+    else {
+        _latestSsrc = ssrc;
     }
 }
 
@@ -318,7 +323,7 @@ void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t /*socketId*/,
 {
     if (message) {
         LOCK_READ_PROTECTED_OBJ(_output);
-        ProcessTranslation(_output.ConstRef(), message);
+        ProcessTranslation(_latestSsrc.load(), _output.ConstRef(), message);
     }
 }
 

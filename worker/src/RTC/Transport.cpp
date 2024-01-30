@@ -1597,7 +1597,7 @@ namespace RTC
         this->listener->OnTransportDisconnected(this);
 	}
 
-	void Transport::ReceiveRtpPacket(RTC::RtpPacket* packet)
+	void Transport::ReceiveRtpPacket(RTC::RtpPacket* packet, RTC::Producer* producer)
 	{
 		MS_TRACE();
 
@@ -1621,7 +1621,9 @@ namespace RTC
 		}
 
 		// Get the associated Producer.
-		RTC::Producer* producer = this->rtpListener.GetProducer(packet);
+        if (!producer) {
+            producer = this->rtpListener.GetProducer(packet);
+        }
 
 		if (!producer)
 		{

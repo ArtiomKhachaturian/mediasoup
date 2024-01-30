@@ -448,7 +448,7 @@ WebMDeserializer::MkvResult WebMDeserializer::TrackInfo::GetNextBlock(const mkvp
                     const auto mkvResult = ToMkvResult(res);
                     // I/O error
                     if (_lastBlockIterationResult != res) {
-                        MS_ERROR("Cluster::Parse error: %s", WebMDeserializer::MkvResultToString(mkvResult));
+                        MS_ERROR_STD("Cluster::Parse error: %s", WebMDeserializer::MkvResultToString(mkvResult));
                         _lastBlockIterationResult = res;
                     }
                     _cluster = nullptr;
@@ -465,7 +465,7 @@ WebMDeserializer::MkvResult WebMDeserializer::TrackInfo::GetNextBlock(const mkvp
                     // EOF or error
                     if (res < 0L) {
                         if (_lastBlockIterationResult != res) {
-                            MS_ERROR("Segment::ParseNext error: %s", WebMDeserializer::MkvResultToString(mkvResult));
+                            MS_ERROR_STD("Segment::ParseNext error: %s", WebMDeserializer::MkvResultToString(mkvResult));
                             _lastBlockIterationResult = res;
                         }
                         _cluster = nullptr;
@@ -481,7 +481,7 @@ WebMDeserializer::MkvResult WebMDeserializer::TrackInfo::GetNextBlock(const mkvp
                     const auto mkvResult = ToMkvResult(res);
                     // I/O error
                     if (_lastBlockIterationResult != res) {
-                        MS_ERROR("Cluster::Parse (2) error: %s", WebMDeserializer::MkvResultToString(mkvResult));
+                        MS_ERROR_STD("Cluster::Parse (2) error: %s", WebMDeserializer::MkvResultToString(mkvResult));
                         _lastBlockIterationResult = res;
                     }
                     _cluster = nullptr;

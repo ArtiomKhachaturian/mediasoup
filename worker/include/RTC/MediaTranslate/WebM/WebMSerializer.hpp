@@ -33,7 +33,7 @@ public:
     bool IsCompatible(const RtpCodecMimeType& mimeType) const final;
 private:
     void InitWriter();
-    void DestroyWriter(bool failure = false);
+    void DestroyWriter(uint32_t ssrc, bool failure = false);
     template<class TConfig>
     bool AddMedia(uint32_t ssrc, uint32_t clockRate, const RtpCodecMimeType& mime, 
                   const std::shared_ptr<TConfig>& config);
@@ -46,6 +46,7 @@ private:
     absl::flat_hash_map<uint32_t, std::unique_ptr<TrackInfo>> _tracksInfo;
     bool _pendingRestartMode = false;
     bool _hasFailure = false;
+    uint32_t _latestWrittenSsrc = 0U;
 };
 
 } // namespace RTC

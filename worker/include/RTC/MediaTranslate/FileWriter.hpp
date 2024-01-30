@@ -1,39 +1,20 @@
 #pragma once
-
+#include "RTC/MediaTranslate/FileDevice.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
-#include <string>
-#include <stddef.h>
-#include <stdio.h>
 
 namespace RTC
 {
 
-class FileWriter : public MediaSink
+class FileWriter : public FileDevice<MediaSink>
 {
 public:
-    FileWriter() = default;
-    explicit FileWriter(FILE* file);
-    FileWriter(std::string_view fileNameUtf8, int* error = nullptr);
-    FileWriter(FileWriter&& tmp);
-    ~FileWriter() override { Close(); }
-    FileWriter& operator=(FileWriter&& tmp);
-    // Closes the file, and implies Flush. Returns true on success, false if
-    // writing buffered data fails. On failure, the file is nevertheless closed.
-    // Calling Close on an already closed file does nothing and returns success.
-    bool Close();
-    // Returns true if a file has been opened. If the file is not open, no methods
-    // but IsOpen and Close may be called.
-    bool IsOpen() const { return nullptr != _file; }
+    FileWriter(const std::string_view& fileNameUtf8, int* error = nullptr);
     // Write any buffered data to the underlying file. Returns true on success,
     // false on write error. Note: Flushing when closing, is not required.
     bool Flush();
     // impl. of MediaSink
-    void StartMediaWriting(bool restart) noexcept final;
-    void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
-protected:
-    static FILE* OpenFile(std::string_view fileNameUtf8, int* error = nullptr);
-private:
-    FILE* _file = nullptr;
+    void StartMediaWriting(bool restart) final;
+    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer) final;
 };
 
 } // namespace RTC

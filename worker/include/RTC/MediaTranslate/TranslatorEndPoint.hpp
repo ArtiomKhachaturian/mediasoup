@@ -31,7 +31,7 @@ public:
     void SetOutput(MediaSink* output);
     bool IsConnected() const;
 private:
-    static void ProcessTranslation(MediaSink* output, const std::shared_ptr<MemoryBuffer>& message);
+    static void ProcessTranslation(uint32_t ssrc, MediaSink* output, const std::shared_ptr<MemoryBuffer>& message);
     static std::string_view LanguageToId(const std::optional<FBS::TranslationPack::Language>& language);
     static std::string_view VoiceToId(FBS::TranslationPack::Voice voice);
     static nlohmann::json TargetLanguageCmd(FBS::TranslationPack::Language languageTo,
@@ -49,7 +49,7 @@ private:
     bool WriteJson(const nlohmann::json& data) const;
     void OpenSocket();
     // impl. of MediaSink
-    void WriteMediaPayload(const std::shared_ptr<const MemoryBuffer>& buffer) noexcept final;
+    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer) final;
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
     void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message) final;
@@ -62,6 +62,7 @@ private:
     ProtectedOptional<FBS::TranslationPack::Language> _producerLanguage;
     ProtectedObj<MediaSource*> _input;
     ProtectedObj<MediaSink*> _output;
+    std::atomic<uint32_t> _latestSsrc = 0U;
 };
 
 } // namespace RTC

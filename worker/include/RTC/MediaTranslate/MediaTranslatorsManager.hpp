@@ -18,6 +18,7 @@ class MediaFrameSerializationFactory;
 class MediaTranslatorsManager : public TransportListener
 {
     class Translator;
+    class CurrentRtpPacketHolder;
 public:
     MediaTranslatorsManager(TransportListener* router,
                             const std::string& serviceUri,
@@ -71,7 +72,7 @@ public:
                                                    DataConsumer* dataConsumer) final;
     void OnTransportListenServerClosed(Transport* transport) final;
 private:
-    bool SendRtpPacket(RTC::Producer* producer, RtpPacket* packet);
+    bool SendRtpPacket(Producer* producer, RtpPacket* packet);
 private:
     TransportListener* const _router;
     const std::string _serviceUri;
@@ -80,7 +81,7 @@ private:
     const std::shared_ptr<MediaFrameSerializationFactory> _serializationFactory;
     // key is audio producer ID
     absl::flat_hash_map<std::string, std::unique_ptr<Translator>> _translators;
-    std::atomic<RTC::Transport*> _connectedTransport;
+    std::atomic<Transport*> _connectedTransport;
 };
 
 } // namespace RTC
