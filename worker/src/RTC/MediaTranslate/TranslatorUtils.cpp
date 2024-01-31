@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
+#include "RTC/MediaTranslate/MediaFrameDeserializeResult.hpp"
 #include "RTC/RtpStream.hpp"
 #include "DepLibUV.hpp"
 #include "rtc_base/random.h"
@@ -87,16 +88,23 @@ const std::string& MimeSubTypeToString(const RtpCodecMimeType& mime)
     return g_emptyString;
 }
 
-uint32_t GenerateRtpTimestamp()
+const char* ToString(MediaFrameDeserializeResult result)
 {
-    webrtc::Random random(DepLibUV::GetTimeUs());
-    return random.Rand<uint32_t>();
-}
-
-uint16_t GenerateRtpInitialSequenceNumber(uint16_t maxInitRtpSeqNumber)
-{
-    webrtc::Random random(DepLibUV::GetTimeUs());
-    return static_cast<uint16_t>(random.Rand(1u, uint32_t(maxInitRtpSeqNumber)));
+    switch (result) {
+        case MediaFrameDeserializeResult::ParseError:
+            return "parse error";
+        case MediaFrameDeserializeResult::OutOfMemory:
+            return "out of memory";
+        case MediaFrameDeserializeResult::InvalidArg:
+            return "invalid argument";
+        case MediaFrameDeserializeResult::Success:
+            return "success";
+        case MediaFrameDeserializeResult::NeedMoreData:
+            return "need more data";
+        default:
+            break;
+    }
+    return "";
 }
 
 } // namespace RTC

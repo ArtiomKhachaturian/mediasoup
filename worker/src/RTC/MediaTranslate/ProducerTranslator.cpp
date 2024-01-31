@@ -37,9 +37,9 @@ public:
     uint8_t GetPayloadType() const { return _payloadType.load(); }
     void SetPayloadType(uint8_t payloadType);
     uint32_t GetLastOriginalRtpTimestamp() const { return _lastOriginalRtpTimestamp.load(); }
-    void SetLastOriginalRtpTimestamp(uint32_t timestamp) { _lastOriginalRtpTimestamp = timestamp; }
+    void SetLastOriginalRtpTimestamp(uint32_t timestamp);
     uint16_t GetLastOriginalRtpSeqNumber() const { return _lastOriginalRtpSeqNumber.load(); }
-    void SetLastOriginalRtpSeqNumber(uint16_t seqNumber) { _lastOriginalRtpSeqNumber = seqNumber; }
+    void SetLastOriginalRtpSeqNumber(uint16_t seqNumber);
     const RtpCodecMimeType& GetMime() const { return _depacketizer->GetMimeType(); }
     void SetProducerSink(MediaSink* sink);
     // impl. of RtpPacketsCollector
@@ -405,6 +405,16 @@ void ProducerTranslator::StreamInfo::SetPayloadType(uint8_t payloadType)
     }
 }
 
+void ProducerTranslator::StreamInfo::SetLastOriginalRtpTimestamp(uint32_t timestamp)
+{
+    _lastOriginalRtpTimestamp = timestamp;
+}
+
+void ProducerTranslator::StreamInfo::SetLastOriginalRtpSeqNumber(uint16_t seqNumber)
+{
+    _lastOriginalRtpSeqNumber = seqNumber;
+}
+
 void ProducerTranslator::StreamInfo::SetProducerSink(MediaSink* sink)
 {
     MS_ASSERT(this != sink, "wrong reference to itself sink");
@@ -438,7 +448,7 @@ void ProducerTranslator::StreamInfo::SetProducerSink(MediaSink* sink)
 
 bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
 {
-    if (packet) {
+    if (packet && !packet->IsSynthenized()) {
         SetLastOriginalRtpTimestamp(packet->GetTimestamp());
         SetLastOriginalRtpSeqNumber(packet->GetSequenceNumber());
 #ifdef READ_PRODUCER_RECV_FROM_FILE
@@ -446,10 +456,14 @@ bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
             return true;
         }
 #endif
-        if (_depacketizer) {
-            if (const auto frame = _depacketizer->AddPacket(packet)) {
-                return _serializer->Push(GetMappedSsrc(), frame);
-            }
+        if (const auto frame = _depacketizer->AddPacket(packet)) {
+            return _serializer->Push(GetMappedSsrc(), frame);
+        }
+        else {
+            const auto ts = GetLastOriginalRtpTimestamp();
+            const auto sn = GetLastOriginalRtpSeqNumber();
+            bool a = true;
+            a = false;
         }
     }
     return false;

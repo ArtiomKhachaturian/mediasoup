@@ -451,7 +451,11 @@ MediaTranslatorsManager::Translator::~Translator()
 bool MediaTranslatorsManager::Translator::AddPacket(RtpPacket* packet)
 {
     if (packet) {
-        return _manager->SendRtpPacket(_producer->GetProducer(), packet, false);
+        static bool sendToRouter = false;
+        if (!sendToRouter) {
+            packet->SetPayloadType(_producer->GetPayloadType(packet->GetSsrc()));
+        }
+        return _manager->SendRtpPacket(_producer->GetProducer(), packet, sendToRouter);
     }
     return false;
 }

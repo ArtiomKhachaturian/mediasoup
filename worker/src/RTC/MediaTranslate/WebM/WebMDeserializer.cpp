@@ -38,7 +38,6 @@ public:
     StreamState GetState() const;
     void Reset();
     void SetClockRate(uint32_t clockRate);
-    void SetInitialTimestamp(uint32_t timestamp);
     MediaFrameDeserializeResult ReadFrames(std::vector<std::shared_ptr<const MediaFrame>>& output);
     static std::unique_ptr<TrackInfo> Create(const mkvparser::Tracks* tracks,
                                              mkvparser::Segment* segment,
@@ -47,7 +46,6 @@ private:
     MkvResult GetNextBlock(const mkvparser::Block*& block);
     std::optional<uint32_t> GetBlockTime(const mkvparser::Block* block) const;
     uint32_t GetClockRate() const { return _clockRate; }
-    uint32_t GetInitialTimestamp() const { return _initialTimestamp; }
 private:
     const RtpCodecMimeType _mime;
     const std::shared_ptr<MediaFrameConfig> _config;
@@ -58,8 +56,6 @@ private:
     long _blockEntryIndex = 0L;
     long _lastBlockIterationResult = 0L;
     uint32_t _clockRate = 0U;
-    uint32_t _initialTimestamp = 0U;
-    uint32_t _latestTimestamp = 0U;
 };
 
 enum class WebMDeserializer::MkvResult {
@@ -148,15 +144,6 @@ void WebMDeserializer::SetClockRate(size_t trackIndex, uint32_t clockRate)
     const auto it = _tracks.find(trackIndex);
     if (it != _tracks.end()) {
         it->second->SetClockRate(clockRate);
-    }
-}
-
-void WebMDeserializer::SetInitialTimestamp(size_t trackIndex, uint32_t timestamp)
-{
-    MediaFrameDeserializer::SetInitialTimestamp(trackIndex, timestamp);
-    const auto it = _tracks.find(trackIndex);
-    if (it != _tracks.end()) {
-        it->second->SetInitialTimestamp(timestamp);
     }
 }
 
@@ -302,20 +289,12 @@ void WebMDeserializer::TrackInfo::Reset()
     _cluster = _segment->GetFirst();
     _blockEntry = nullptr;
     _blockEntryIndex = _blockEntryIndex = 0L;
-    _initialTimestamp = _latestTimestamp;
 }
 
 void WebMDeserializer::TrackInfo::SetClockRate(uint32_t clockRate)
 {
     MS_ASSERT(clockRate > 0U, "clock rate must be greater than zero");
     _clockRate = clockRate;
-}
-
-void WebMDeserializer::TrackInfo::SetInitialTimestamp(uint32_t timestamp)
-{
-    if (timestamp != _initialTimestamp) {
-        _latestTimestamp = _initialTimestamp = timestamp;
-    }
 }
 
 MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
@@ -345,9 +324,6 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
             else {
                 break;
             }
-        }
-        if (!output.empty() && ts.has_value()) {
-            _latestTimestamp = ts.value();
         }
     }
     return FromMkvResult(mkvResult);
@@ -506,7 +482,7 @@ std::optional<uint32_t>  WebMDeserializer::TrackInfo::GetBlockTime(const mkvpars
     if (block && _blockEntry) {
         const auto blockTime = block->GetTime(_blockEntry->GetCluster());
         const auto granule = ValueFromNano<uint32_t>(blockTime * GetClockRate());
-        return GetInitialTimestamp() + granule;
+        return granule;
     }
     return std::nullopt;
 }

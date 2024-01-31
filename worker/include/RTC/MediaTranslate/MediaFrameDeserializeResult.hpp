@@ -25,4 +25,6 @@ inline bool MaybeOk(MediaFrameDeserializeResult result) {
     return MediaFrameDeserializeResult::NeedMoreData == result || IsOk(result);
 }
 
+const char* ToString(MediaFrameDeserializeResult result);
+
 } // namespace RTC

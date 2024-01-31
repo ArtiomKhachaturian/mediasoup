@@ -23,6 +23,7 @@ class ConsumerTranslator : public ConsumerTranslatorSettings,
                            public MediaSink
 {
     class MediaGrabber;
+    class CodecInfo;
 public:
     ConsumerTranslator(const Consumer* consumer,
                        RtpPacketsCollector* packetsCollector,

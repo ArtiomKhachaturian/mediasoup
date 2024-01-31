@@ -187,7 +187,6 @@ common_sources = [
   'src/RTC/MediaTranslate/RtpDepacketizerOpus.cpp',
   'src/RTC/MediaTranslate/RtpDepacketizerVpx.cpp',
   'src/RTC/MediaTranslate/RtpMediaFrame.cpp',
-  'src/RTC/MediaTranslate/RtpPacketizer.cpp',
   'src/RTC/MediaTranslate/RtpPacketizerOpus.cpp',
   'src/RTC/MediaTranslate/SimpleMemoryBuffer.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint.cpp',

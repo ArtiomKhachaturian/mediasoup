@@ -31,12 +31,8 @@ private:
 RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t sampleRate)
     : RtpDepacketizer(mimeType)
     , _sampleRate(sampleRate)
-    , _encodingContext(Codecs::Tools::GetEncodingContext(mimeType, Codecs::EncodingContext::Params()))
     , _opusCodecData(std::make_shared<OpusHeadBuffer>(sampleRate))
 {
-    if (_encodingContext) {
-        _encodingContext->SetIgnoreDtx(true);
-    }
     EnsureStereoAudioConfig(true);
 }
 
@@ -46,28 +42,13 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 
 std::shared_ptr<const RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet)
 {
-    if (IsValidPacket(packet)) {
-        if (const auto frame = RtpMediaFrame::Create(GetMimeType(), packet, GetPayloadAllocator())) {
-            bool stereo = false;
-            Codecs::Opus::ParseTOC(packet->GetPayload(), nullptr, nullptr, nullptr, &stereo);
-            frame->SetAudioConfig(EnsureStereoAudioConfig(stereo));
-            return frame;
-        }
+    if (const auto frame = RtpMediaFrame::Create(GetMimeType(), packet, GetPayloadAllocator())) {
+        bool stereo = false;
+        Codecs::Opus::ParseTOC(packet->GetPayload(), nullptr, nullptr, nullptr, &stereo);
+        frame->SetAudioConfig(EnsureStereoAudioConfig(stereo));
+        return frame;
     }
     return nullptr;
-}
-
-bool RtpDepacketizerOpus::IsValidPacket(const RtpPacket* packet) const
-{
-    if (packet && packet->GetPayload()) {
-        bool valid = true;
-        if (_encodingContext) {
-            bool marker = false;
-            valid = packet->ProcessPayload(_encodingContext.get(), marker);
-        }
-        return valid;
-    }
-    return false;
 }
 
 std::shared_ptr<AudioFrameConfig> RtpDepacketizerOpus::EnsureAudioConfig(uint8_t channelCount)

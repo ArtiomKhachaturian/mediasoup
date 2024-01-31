@@ -28,7 +28,6 @@ public:
     size_t GetTracksCount() const final;
     std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const final;
     void SetClockRate(size_t trackIndex, uint32_t clockRate) final;
-    void SetInitialTimestamp(size_t trackIndex, uint32_t timestamp) final;
 private:
     MediaFrameDeserializeResult ParseEBMLHeader();
     MediaFrameDeserializeResult ParseSegment();
