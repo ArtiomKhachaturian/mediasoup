@@ -21,8 +21,8 @@ namespace RTC
 	/* Instance methods. */
 
 	Router::Router(RTC::Shared* shared, const std::string& id, Listener* listener)
-	  : id(id), shared(shared), listener(listener),
-      _translatorsManager(std::make_shared<MediaTranslatorsManager>(this, _tsUri, _tsUser, _tsUserPassword))
+	  : id(id), shared(shared), listener(listener)
+      , _translatorsManager(std::make_shared<MediaTranslatorsManager>(this, _tsUri, _tsUser, _tsUserPassword))
 	{
 		MS_TRACE();
 
@@ -217,11 +217,11 @@ namespace RTC
 				auto transportId = body->transportId()->str();
 
 				// This may throw.
-				CheckNoTransport(transportId);
-
+				CheckNoTransport(transportId);                
 				// This may throw.
 				auto* webRtcTransport =
-				  new RTC::WebRtcTransport(this->shared, transportId, _translatorsManager.get(), body->options());
+				  new RTC::WebRtcTransport(this->shared, transportId, GetTransportListener(),
+                                           body->options());
 
 				// Insert into the map.
 				this->mapTransports[transportId] = webRtcTransport;
@@ -260,7 +260,7 @@ namespace RTC
 
 				// This may throw.
 				auto* webRtcTransport = new RTC::WebRtcTransport(
-				  this->shared, transportId, _translatorsManager.get(), webRtcServer, iceCandidates, options);
+				  this->shared, transportId, GetTransportListener(), webRtcServer, iceCandidates, options);
 
 				// Insert into the map.
 				this->mapTransports[transportId] = webRtcTransport;
@@ -284,7 +284,7 @@ namespace RTC
 				CheckNoTransport(transportId);
 
 				auto* plainTransport =
-				  new RTC::PlainTransport(this->shared, transportId, _translatorsManager.get(), body->options());
+				  new RTC::PlainTransport(this->shared, transportId, GetTransportListener(), body->options());
 
 				// Insert into the map.
 				this->mapTransports[transportId] = plainTransport;
@@ -307,7 +307,7 @@ namespace RTC
 				CheckNoTransport(transportId);
 
 				auto* pipeTransport =
-				  new RTC::PipeTransport(this->shared, transportId, _translatorsManager.get(), body->options());
+				  new RTC::PipeTransport(this->shared, transportId, GetTransportListener(), body->options());
 
 				// Insert into the map.
 				this->mapTransports[transportId] = pipeTransport;
@@ -330,7 +330,7 @@ namespace RTC
 				CheckNoTransport(transportId);
 
 				auto* directTransport =
-				  new RTC::DirectTransport(this->shared, transportId, _translatorsManager.get(), body->options());
+				  new RTC::DirectTransport(this->shared, transportId, GetTransportListener(), body->options());
 
 				// Insert into the map.
 				this->mapTransports[transportId] = directTransport;
@@ -462,6 +462,14 @@ namespace RTC
 			MS_THROW_ERROR("an RtpObserver with same id already exists");
 		}
 	}
+
+    RTC::TransportListener* Router::GetTransportListener()
+    {
+        if (_translatorsManager) {
+            return _translatorsManager.get();
+        }
+        return this;
+    }
 
 	RTC::Transport* Router::GetTransportById(const std::string& transportId) const
 	{

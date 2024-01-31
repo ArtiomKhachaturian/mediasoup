@@ -11,7 +11,6 @@ RtpPacket* RtpPacketizerOpus::AddFrame(const std::shared_ptr<const MediaFrame>& 
     if (frame) {
         if (const auto payload = frame->GetPayload()) {
             if (const auto packet = RtpMemoryBufferPacket::Create(payload)) {
-                //packet->SetSequenceNumber(GetNextSequenceNumber());
                 packet->SetTimestamp(frame->GetTimestamp());
                 packet->SetMarker(_firstFrame);
                 Codecs::Opus::ProcessRtpPacket(packet);

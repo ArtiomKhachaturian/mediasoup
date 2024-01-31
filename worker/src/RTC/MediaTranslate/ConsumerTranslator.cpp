@@ -6,6 +6,7 @@
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/RtpMemoryBufferPacket.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
+#include "RTC/MediaTranslate/RtpPacketsInfoProvider.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/Consumer.hpp"
 #include "Logger.hpp"
@@ -15,13 +16,10 @@ namespace {
 struct CodecInfo
 {
     const std::unique_ptr<RTC::RtpPacketizer> _packetizer;
-    const uint8_t _payloadType;
     const size_t _trackIndex;
-    const uint32_t _ssrc;
-    uint16_t _sequenceNumber;
+    uint16_t _sequenceNumber = 0U;
     RTC::MediaFrameDeserializeResult _lastError = RTC::MediaFrameDeserializeResult::Success;
-    CodecInfo(std::unique_ptr<RTC::RtpPacketizer> packetizer, uint8_t payloadType,
-              size_t trackIndex, uint32_t ssrc, uint16_t sequenceNumber);
+    CodecInfo(std::unique_ptr<RTC::RtpPacketizer> packetizer, size_t trackIndex);
 };
 
 }
@@ -34,30 +32,29 @@ class ConsumerTranslator::MediaGrabber
 public:
     MediaGrabber(Media::Kind kind,
                  std::unique_ptr<MediaFrameDeserializer> deserializer,
-                 RtpPacketsCollector* packetsCollector,
-                 const RtpParameters& rtpParameters);
+                 RtpPacketsCollector* packetsCollector);
     void ProcessMediaPayload(uint32_t ssrc,
                              const std::shared_ptr<const MemoryBuffer>& payload,
-                             const ProducerPacketsInfo& producerPacketsInfo);
+                             const RtpPacketsInfoProvider* packetsInfoProvider);
 private:
-    bool FetchMediaInfo(const ProducerPacketsInfo& producerPacketsInfo);
-    void DeserializeMediaFrames(uint32_t ssrc);
-    const RtpCodecParameters* GetCodec(const RtpCodecMimeType& mime) const;
+    bool FetchMediaInfo();
+    void DeserializeMediaFrames(uint32_t ssrc, const RtpPacketsInfoProvider* packetsInfoProvider);
     static const char* ToString(MediaFrameDeserializeResult result);
 private:
     const bool _audio;
     const std::unique_ptr<MediaFrameDeserializer> _deserializer;
     RtpPacketsCollector* const _packetsCollector;
-    const RtpParameters& _rtpParameters;
     absl::flat_hash_map<RtpCodecMimeType::Subtype, std::unique_ptr<CodecInfo>> _codecs;
     MediaFrameDeserializeResult _lastProcessingError = MediaFrameDeserializeResult::Success;
 };
 
 ConsumerTranslator::ConsumerTranslator(const Consumer* consumer,
                                        RtpPacketsCollector* packetsCollector,
+                                       const RtpPacketsInfoProvider* packetsInfoProvider,
                                        const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory)
     : _consumer(consumer)
     , _packetsCollector(packetsCollector)
+    , _packetsInfoProvider(packetsInfoProvider)
     , _serializationFactory(serializationFactory)
 {
     MS_ASSERT(_consumer, "consumer must not be null");
@@ -70,8 +67,7 @@ ConsumerTranslator::ConsumerTranslator(const Consumer* consumer,
 
 ConsumerTranslator::~ConsumerTranslator()
 {
-    LOCK_WRITE_PROTECTED_OBJ(_mediaGrabber);
-    _mediaGrabber->reset();
+    std::atomic_store(&_mediaGrabber, std::shared_ptr<MediaGrabber>());
 }
 
 const std::string& ConsumerTranslator::GetId() const
@@ -91,20 +87,7 @@ void ConsumerTranslator::RemoveObserver(ConsumerObserver* observer)
 
 bool ConsumerTranslator::HadIncomingMedia() const
 {
-    LOCK_READ_PROTECTED_OBJ(_mediaGrabber);
-    return nullptr != _mediaGrabber.ConstRef();
-}
-
-void ConsumerTranslator::ProcessProducerRtpPacket(const RtpPacket* packet)
-{
-    if (packet) {
-        if (const auto payloadType = packet->GetPayloadType()) {
-            LOCK_WRITE_PROTECTED_OBJ(_producerPacketsInfo);
-            auto& producerPacketsInfo = _producerPacketsInfo.Ref();
-            auto packetInfo = std::make_tuple(packet->GetTimestamp(), packet->GetSsrc(), packet->GetSequenceNumber());
-            producerPacketsInfo[payloadType] = std::move(packetInfo);
-        }
-    }
+    return nullptr != std::atomic_load(&_mediaGrabber);
 }
 
 std::optional<FBS::TranslationPack::Language> ConsumerTranslator::GetLanguage() const
@@ -121,13 +104,10 @@ void ConsumerTranslator::StartMediaWriting(bool restart)
 {
     MediaSink::StartMediaWriting(restart);
     if (auto deserializer = _serializationFactory->CreateDeserializer()) {
-        {
-            LOCK_WRITE_PROTECTED_OBJ(_mediaGrabber);
-            _mediaGrabber = std::make_unique<MediaGrabber>(_consumer->GetKind(),
+        auto mediaGrabber = std::make_shared<MediaGrabber>(_consumer->GetKind(),
                                                            std::move(deserializer),
-                                                           _packetsCollector,
-                                                           _consumer->GetRtpParameters());
-        }
+                                                           _packetsCollector);
+        std::atomic_store(&_mediaGrabber, std::move(mediaGrabber));
         InvokeObserverMethod(&ConsumerObserver::OnConsumerMediaStreamStarted, true);
     }
 }
@@ -136,10 +116,8 @@ void ConsumerTranslator::WriteMediaPayload(uint32_t ssrc,
                                            const std::shared_ptr<const MemoryBuffer>& buffer)
 {
     if (buffer) {
-        LOCK_READ_PROTECTED_OBJ(_mediaGrabber);
-        if (const auto& mediaGrabber = _mediaGrabber.ConstRef()) {
-            LOCK_READ_PROTECTED_OBJ(_producerPacketsInfo);
-            mediaGrabber->ProcessMediaPayload(ssrc, buffer, _producerPacketsInfo.ConstRef());
+        if (const auto mediaGrabber = std::atomic_load(&_mediaGrabber)) {
+            mediaGrabber->ProcessMediaPayload(ssrc, buffer, _packetsInfoProvider);
         }
     }
 }
@@ -147,14 +125,7 @@ void ConsumerTranslator::WriteMediaPayload(uint32_t ssrc,
 void ConsumerTranslator::EndMediaWriting()
 {
     MediaSink::EndMediaWriting();
-    bool ended = false;
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_mediaGrabber);
-        if (auto mediaGrabber = _mediaGrabber.Take()) {
-            ended = true;
-        }
-    }
-    if (ended) {
+    if (std::atomic_exchange(&_mediaGrabber, std::shared_ptr<MediaGrabber>())) {
         InvokeObserverMethod(&ConsumerObserver::OnConsumerMediaStreamStarted, false);
     }
 }
@@ -172,71 +143,53 @@ void ConsumerTranslator::InvokeObserverMethod(const Method& method, Args&&... ar
 
 ConsumerTranslator::MediaGrabber::MediaGrabber(Media::Kind kind,
                                                std::unique_ptr<MediaFrameDeserializer> deserializer,
-                                               RtpPacketsCollector* packetsCollector,
-                                               const RtpParameters& rtpParameters)
+                                               RtpPacketsCollector* packetsCollector)
     : _audio(Media::Kind::AUDIO == kind)
     , _deserializer(std::move(deserializer))
     , _packetsCollector(packetsCollector)
-    , _rtpParameters(rtpParameters)
 {
 }
 
 void ConsumerTranslator::MediaGrabber::ProcessMediaPayload(uint32_t ssrc,
                                                            const std::shared_ptr<const MemoryBuffer>& payload,
-                                                           const ProducerPacketsInfo& producerPacketsInfo)
+                                                           const RtpPacketsInfoProvider* packetsInfoProvider)
 {
     if (payload) {
         const auto result = _deserializer->AddBuffer(payload);
         bool requestMediaFrames = false;
         if (MaybeOk(result)) {
-            requestMediaFrames = FetchMediaInfo(producerPacketsInfo);
+            requestMediaFrames = FetchMediaInfo();
         }
         else if (_lastProcessingError != result) {
             MS_ERROR_STD("failed to deserialize of input media buffer: %s", ToString(result));
         }
         if (requestMediaFrames && IsOk(result)) {
-            DeserializeMediaFrames(ssrc);
+            DeserializeMediaFrames(ssrc, packetsInfoProvider);
         }
         _lastProcessingError = result;
     }
 }
 
-bool ConsumerTranslator::MediaGrabber::FetchMediaInfo(const ProducerPacketsInfo& producerPacketsInfo)
+bool ConsumerTranslator::MediaGrabber::FetchMediaInfo()
 {
     if (_codecs.empty()) {
         if (const auto tracksCount = _deserializer->GetTracksCount()) {
             for (size_t trackIndex = 0UL; trackIndex < tracksCount; ++trackIndex) {
                 const auto mime = _deserializer->GetTrackMimeType(trackIndex);
                 if (mime.has_value() && mime->IsAudioCodec() == _audio) {
-                    if (const auto codec = GetCodec(mime.value())) {
-                        const auto pi = producerPacketsInfo.find(codec->payloadType);
-                        if (pi != producerPacketsInfo.end()) {
-                            const auto codecType = mime->GetSubtype();
-                            std::unique_ptr<RtpPacketizer> packetizer;
-                            switch (codecType) {
-                                case RtpCodecMimeType::Subtype::OPUS:
-                                    packetizer = std::make_unique<RtpPacketizerOpus>();
-                                    break;
-                                default:
-                                    MS_ASSERT(false, "packetizer for [%s] not yet implemented", mime->ToString().c_str());
-                                    break;
-                            }
-                            if (packetizer) {
-                                const auto& packetInfo = pi->second;
-                                _deserializer->SetInitialTimestamp(trackIndex, std::get<0U>(packetInfo));
-                                _codecs[codecType] = std::make_unique<CodecInfo>(std::move(packetizer),
-                                                                                 codec->payloadType,
-                                                                                 trackIndex,
-                                                                                 std::get<1U>(packetInfo),
-                                                                                 std::get<2U>(packetInfo));
-                            }
-                        }
-                        else {
-                            // TODO: log warning
-                        }
+                    const auto codecType = mime->GetSubtype();
+                    std::unique_ptr<RtpPacketizer> packetizer;
+                    switch (codecType) {
+                        case RtpCodecMimeType::Subtype::OPUS:
+                            packetizer = std::make_unique<RtpPacketizerOpus>();
+                            break;
+                        default:
+                            MS_ASSERT(false, "packetizer for [%s] not yet implemented", mime->ToString().c_str());
+                            break;
                     }
-                    else {
-                        // TODO: log warning
+                    if (packetizer) {
+                        auto codec = std::make_unique<CodecInfo>(std::move(packetizer), trackIndex);
+                        _codecs[codecType] = std::move(codec);
                     }
                 }
             }
@@ -245,38 +198,34 @@ bool ConsumerTranslator::MediaGrabber::FetchMediaInfo(const ProducerPacketsInfo&
     return !_codecs.empty();
 }
 
-void ConsumerTranslator::MediaGrabber::DeserializeMediaFrames(uint32_t ssrc)
+void ConsumerTranslator::MediaGrabber::DeserializeMediaFrames(uint32_t ssrc,
+                                                              const RtpPacketsInfoProvider* packetsInfoProvider)
 {
-    for (auto it = _codecs.begin(); it != _codecs.end(); ++it) {
-        MediaFrameDeserializeResult result;
-        // TODO: rewrite access to RtpMemoryBufferPacket::GetPayloadOffset() with consider of packetizer class logic
-        for (const auto& frame : _deserializer->ReadNextFrames(it->second->_trackIndex,
-                                                               RtpMemoryBufferPacket::GetPayloadOffset(),
-                                                               &result)) {
-            if (const auto packet = it->second->_packetizer->AddFrame(frame)) {
-                packet->SetPayloadType(it->second->_payloadType);
-                packet->SetSsrc(ssrc);
-                packet->SetSequenceNumber(++it->second->_sequenceNumber);
-                _packetsCollector->AddPacket(packet);
-                //delete packet;
+    if (packetsInfoProvider) {
+        for (auto it = _codecs.begin(); it != _codecs.end(); ++it) {
+            if (!it->second->_sequenceNumber) {
+                it->second->_sequenceNumber = packetsInfoProvider->GetLastOriginalRtpSeqNumber(ssrc);
+                _deserializer->SetInitialTimestamp(it->second->_trackIndex, packetsInfoProvider->GetLastOriginalRtpTimestamp(ssrc));
+                _deserializer->SetClockRate(it->second->_trackIndex, packetsInfoProvider->GetClockRate(ssrc));
             }
+            MediaFrameDeserializeResult result;
+            // TODO: rewrite access to RtpMemoryBufferPacket::GetPayloadOffset() with consider of packetizer class logic
+            for (const auto& frame : _deserializer->ReadNextFrames(it->second->_trackIndex,
+                                                                   &result)) {
+                if (const auto packet = it->second->_packetizer->AddFrame(frame)) {
+                    packet->SetPayloadType(packetsInfoProvider->GetPayloadType(ssrc));
+                    packet->SetSsrc(ssrc);
+                    packet->SetSequenceNumber(++it->second->_sequenceNumber);
+                    _packetsCollector->AddPacket(packet);
+                }
+            }
+            if (!MaybeOk(result) && it->second->_lastError != result) {
+                MS_ERROR("failed to read deserialized %s frames: %s",
+                         MimeSubTypeToString(it->first).c_str(), ToString(result));
+            }
+            it->second->_lastError = result;
         }
-        if (!MaybeOk(result) && it->second->_lastError != result) {
-            MS_ERROR("failed to read deserialized %s frames: %s",
-                     MimeSubTypeToString(it->first).c_str(), ToString(result));
-        }
-        it->second->_lastError = result;
     }
-}
-
-const RtpCodecParameters* ConsumerTranslator::MediaGrabber::GetCodec(const RtpCodecMimeType& mime) const
-{
-    for (const auto& codec : _rtpParameters.codecs) {
-        if (codec.mimeType == mime) {
-            return &codec;
-        }
-    }
-    return nullptr;
 }
 
 const char* ConsumerTranslator::MediaGrabber::ToString(MediaFrameDeserializeResult result)
@@ -303,14 +252,9 @@ const char* ConsumerTranslator::MediaGrabber::ToString(MediaFrameDeserializeResu
 
 namespace {
 
-CodecInfo::CodecInfo(std::unique_ptr<RTC::RtpPacketizer> packetizer,
-                     uint8_t payloadType, size_t trackIndex,
-                     uint32_t ssrc, uint16_t sequenceNumber)
+CodecInfo::CodecInfo(std::unique_ptr<RTC::RtpPacketizer> packetizer, size_t trackIndex)
     : _packetizer(std::move(packetizer))
-    , _payloadType(payloadType)
     , _trackIndex(trackIndex)
-    , _ssrc(ssrc)
-    , _sequenceNumber(sequenceNumber)
 {
     MS_ASSERT(_packetizer, "packetizer must not be null");
 }

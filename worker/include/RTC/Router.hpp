@@ -51,6 +51,7 @@ namespace RTC
 		void HandleRequest(Channel::ChannelRequest* request) override;
 
 	private:
+        RTC::TransportListener* GetTransportListener();
 		RTC::Transport* GetTransportById(const std::string& transportId) const;
 		RTC::RtpObserver* GetRtpObserverById(const std::string& rtpObserverId) const;
 		void CheckNoTransport(const std::string& transportId) const;

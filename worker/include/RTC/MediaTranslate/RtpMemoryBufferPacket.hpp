@@ -10,16 +10,14 @@ class MemoryBuffer;
 class RtpMemoryBufferPacket : public RtpPacket
 {
 public:
-    RtpMemoryBufferPacket(Header* header,
-                          HeaderExtension* headerExtension,
-                          const uint8_t* payload,
-                          size_t payloadLength,
-                          const std::shared_ptr<const MemoryBuffer>& buffer);
     ~RtpMemoryBufferPacket() final;
-    static RtpPacket* Create(const std::shared_ptr<const MemoryBuffer>& buffer);
-    static size_t GetPayloadOffset() { return RtpPacket::HeaderSize; }
+    static RtpPacket* Create(const std::shared_ptr<const MemoryBuffer>& payload);
 private:
-    const std::shared_ptr<const MemoryBuffer> _buffer;
+    RtpMemoryBufferPacket(std::unique_ptr<uint8_t[]> headerBuffer,
+                          const std::shared_ptr<const MemoryBuffer>& payload);
+private:
+    const std::unique_ptr<uint8_t[]> _headerBuffer;
+    const std::shared_ptr<const MemoryBuffer> _payload;
 };
 
 } // namespace RTC

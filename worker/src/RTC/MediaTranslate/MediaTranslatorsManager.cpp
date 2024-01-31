@@ -41,9 +41,6 @@ public:
     void AddNewRtpStream(RtpStreamRecv* rtpStream, uint32_t mappedSsrc);
     bool DispatchProducerPacket(RtpPacket* packet);
 private:
-    void CommitLastTimestamp(uint32_t timestamp, bool synth);
-    void CommitLastTimestamp(const RtpPacket* packet, bool synth);
-    bool ProcessProducerPacket(RtpPacket* packet);
     // impl. of RtpPacketsCollector
     bool AddPacket(RtpPacket* packet) final;
 private:
@@ -56,18 +53,6 @@ private:
     // key is consumer instance, simple model - each consumer has own channer for translation
     // TODO: revise this logic for better resources consumption if more than 1 consumers has the same language and voice
     ProtectedObj<TranslationEndPointsMap> _endPoints;
-    std::atomic<RtpPacket*> _currentPacket = nullptr;
-    uint32_t _synthPacketLastTimestamp = 0UL;
-    uint32_t _dispatchedPacketLastTimestamp = 0UL;
-};
-
-class MediaTranslatorsManager::CurrentRtpPacketHolder
-{
-public:
-    CurrentRtpPacketHolder(RtpPacket* packet, std::atomic<RtpPacket*>& currentPacket);
-    ~CurrentRtpPacketHolder();
-private:
-    std::atomic<RtpPacket*>& _currentPacket;
 };
 
 MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
@@ -79,9 +64,11 @@ MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
     , _serializationFactory(std::make_shared<WebMMediaFrameSerializationFactory>())
-    , _connectedTransport(nullptr)
+    , _ownerLoop(DepLibUV::GetLoop())
 {
     MS_ASSERT(nullptr != _router, "router must be non-null");
+    uv_async_init(_ownerLoop, &_asynHandle, ProcessDefferedPackets);
+    _asynHandle.data = (void*)this;
 }
 
 MediaTranslatorsManager::~MediaTranslatorsManager()
@@ -91,12 +78,18 @@ MediaTranslatorsManager::~MediaTranslatorsManager()
 void MediaTranslatorsManager::OnTransportConnected(Transport* transport)
 {
     _router->OnTransportConnected(transport);
-    _connectedTransport.store(transport);
+    LOCK_WRITE_PROTECTED_OBJ(_connectedTransport);
+    _connectedTransport = transport;
 }
 
 void MediaTranslatorsManager::OnTransportDisconnected(Transport* transport)
 {
-    _connectedTransport.compare_exchange_strong(transport, nullptr);
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_connectedTransport);
+        if (_connectedTransport.ConstRef() == transport) {
+            _connectedTransport = nullptr;
+        }
+    }
     _router->OnTransportDisconnected(transport);
 }
 
@@ -210,17 +203,15 @@ void MediaTranslatorsManager::OnTransportProducerRtpPacketReceived(Transport* tr
                                                                    RtpPacket* packet)
 {
     bool dispatched = false;
-    if (producer && packet) {
+    if (producer && packet && !packet->IsSynthenized()) {
         const auto it = _translators.find(producer->id);
         if (it != _translators.end()) {
             dispatched = it->second->DispatchProducerPacket(packet);
         }
+        else {
+            dispatched = true; // drop packet if producer is not registered
+        }
     }
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-    if (!dispatched && !_translators.empty()) {
-        return;
-    }
-#endif
     if (!dispatched) {
         _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
     }
@@ -345,15 +336,81 @@ void MediaTranslatorsManager::OnTransportListenServerClosed(Transport* transport
     _router->OnTransportListenServerClosed(transport);
 }
 
-bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packet)
+void MediaTranslatorsManager::ProcessDefferedPackets(uv_async_t* handle)
 {
-    if (packet) {
-        if (const auto transport = _connectedTransport.load()) {
-            transport->ReceiveRtpPacket(packet, producer);
+    if (handle) {
+        const auto self = (MediaTranslatorsManager*)handle->data;
+        {
+            LOCK_WRITE_PROTECTED_OBJ(self->_defferedPackets);
+            for (auto it = self->_defferedPackets.Ref().begin();
+                 it != self->_defferedPackets.Ref().end(); ++it) {
+                if (it->second.size() >= 50) {
+                    auto packets = std::move(it->second);
+                    for (const auto& packet : packets) {
+                        if (!self->ProcessRtpPacket(it->first, packet.second, packet.first)) {
+                            delete packet.second;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+bool MediaTranslatorsManager::ProcessRtpPacket(Producer* producer,
+                                               RtpPacket* packet, bool toRouter)
+{
+    if (packet && producer) {
+        LOCK_READ_PROTECTED_OBJ(_connectedTransport);
+        if (const auto transport = _connectedTransport.ConstRef()) {
+            if (toRouter) {
+                _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
+                delete packet;
+            }
+            else {
+                transport->ReceiveRtpPacket(packet, producer);
+            }
             return true;
         }
     }
     return false;
+}
+
+bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packet, bool toRouter)
+{
+    bool ok = false;
+    if (packet) {
+        if (_ownerLoop == DepLibUV::GetLoop()) {
+            ok = ProcessRtpPacket(producer, packet, toRouter);
+            if (!ok) {
+                delete packet;
+            }
+        }
+        else {
+            LOCK_READ_PROTECTED_OBJ(_connectedTransport);
+            if (_connectedTransport.ConstRef()) {
+                LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
+                auto& defferedPackets = _defferedPackets.Ref();
+                const auto it = defferedPackets.find(producer);
+                if (it == defferedPackets.end()) {
+                    PacketsList packets;
+                    packets.push_back(std::make_pair(toRouter, packet));
+                    defferedPackets[producer] = std::move(packets);
+                }
+                else {
+                    it->second.push_back(std::make_pair(toRouter, packet));
+                    if (it->second.size() >= 50) { // 1 sec for 20ms OPUS audio frames
+                        uv_async_send(&_asynHandle);
+                    }
+                }
+                ok = true;
+            }
+            else {
+                delete packet;
+            }
+        }
+    }
+    return ok;
 }
 
 void TranslatorUnit::Pause(bool pause)
@@ -374,12 +431,6 @@ MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
 {
-#if defined(USE_TEST_FILE_FOR_DESERIALIZATION) && defined(NO_TRANSLATION_SERVICE)
-    auto file = std::make_unique<FileReader>(_testFileName);
-    if (file->IsOpen()) {
-        _producerStubFile = std::move(file);
-    }
-#endif
 }
 
 MediaTranslatorsManager::Translator::~Translator()
@@ -397,35 +448,10 @@ MediaTranslatorsManager::Translator::~Translator()
 #endif
 }
 
-void MediaTranslatorsManager::Translator::CommitLastTimestamp(uint32_t timestamp, bool synth)
-{
-    /*auto& ts = synth ? _synthPacketLastTimestamp : _dispatchedPacketLastTimestamp;
-    if (0UL != ts) {
-        const uint32_t diff = timestamp > ts ? timestamp - ts :  ts - timestamp;
-        MS_ERROR_STD("TS diff between 2 RTP %s packets: %du", (synth ? "synth" : "dispatched"), diff);
-    }
-    ts = timestamp;*/
-}
-
-bool MediaTranslatorsManager::Translator::ProcessProducerPacket(RtpPacket* packet)
-{
-    return _producer->AddPacket(packet);
-}
-
-void MediaTranslatorsManager::Translator::CommitLastTimestamp(const RtpPacket* packet, bool synth)
-{
-    if (packet) {
-        CommitLastTimestamp(packet->GetTimestamp(), synth);
-    }
-}
-
 bool MediaTranslatorsManager::Translator::AddPacket(RtpPacket* packet)
 {
     if (packet) {
-        const CurrentRtpPacketHolder holder(packet, _currentPacket);
-        CommitLastTimestamp(packet, true);
-        packet->SetPayloadType(_producer->GetPayloadType(packet->GetSsrc()));
-        return _manager->SendRtpPacket(_producer->GetProducer(), packet);
+        return _manager->SendRtpPacket(_producer->GetProducer(), packet, false);
     }
     return false;
 }
@@ -450,7 +476,9 @@ void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer,
             const auto it = consumers.find(consumer);
             if (it == consumers.end()) {
                 const auto packetsCollector = static_cast<RtpPacketsCollector*>(this);
-                auto consumerTranslator = std::make_unique<ConsumerTranslator>(consumer, packetsCollector,
+                auto consumerTranslator = std::make_unique<ConsumerTranslator>(consumer,
+                                                                               packetsCollector,
+                                                                               _producer.get(),
                                                                                serializationFactory);
 #ifdef NO_TRANSLATION_SERVICE
                 _producer->AddSink(consumerTranslator.get());
@@ -532,35 +560,17 @@ void MediaTranslatorsManager::Translator::AddNewRtpStream(RtpStreamRecv* rtpStre
 
 bool MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* packet)
 {
-    if (packet && packet != _currentPacket.load()) {
+    if (packet && !packet->IsSynthenized() && _producer->AddPacket(packet)) {
         LOCK_READ_PROTECTED_OBJ(_consumers);
         for (auto it = _consumers.ConstRef().begin(); it != _consumers.ConstRef().end(); ++it) {
-            it->second->ProcessProducerRtpPacket(packet);
-        }
-        if (ProcessProducerPacket(packet)) {
-            CommitLastTimestamp(packet, false);
-            for (auto it = _consumers.ConstRef().begin(); it != _consumers.ConstRef().end(); ++it) {
-                if (it->second->HadIncomingMedia()) {
-                    // drop packet's dispatching if connection with translation service was established
-                    packet->AddRejectedConsumer(it->first);
-                }
+            if (it->second->HadIncomingMedia()) {
+                // drop packet's dispatching if connection with translation service was established
+                packet->AddRejectedConsumer(it->first);
             }
-            return true;
         }
+        return true;
     }
     return false;
-}
-
-MediaTranslatorsManager::CurrentRtpPacketHolder::CurrentRtpPacketHolder(RtpPacket* packet,
-                                                                        std::atomic<RtpPacket*>& currentPacket)
-    : _currentPacket(currentPacket)
-{
-    _currentPacket = packet;
-}
-
-MediaTranslatorsManager::CurrentRtpPacketHolder::~CurrentRtpPacketHolder()
-{
-    _currentPacket = nullptr;
 }
 
 } // namespace RTC

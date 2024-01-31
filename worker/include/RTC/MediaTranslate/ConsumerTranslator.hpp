@@ -15,6 +15,7 @@ namespace RTC
 class Consumer;
 class RtpPacket;
 class RtpPacketsCollector;
+class RtpPacketsInfoProvider;
 class MediaFrameSerializationFactory;
 class RtpCodecMimeType;
 
@@ -22,16 +23,15 @@ class ConsumerTranslator : public ConsumerTranslatorSettings,
                            public MediaSink
 {
     class MediaGrabber;
-    // key is payload type, value - RTP timestamp, SSRC & seq. number
-    using ProducerPacketsInfo = absl::flat_hash_map<uint8_t, std::tuple<uint32_t, uint32_t, uint16_t>>;
 public:
-    ConsumerTranslator(const Consumer* consumer, RtpPacketsCollector* packetsCollector,
+    ConsumerTranslator(const Consumer* consumer,
+                       RtpPacketsCollector* packetsCollector,
+                       const RtpPacketsInfoProvider* packetsInfoProvider,
                        const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory);
     ~ConsumerTranslator() final;
     void AddObserver(ConsumerObserver* observer);
     void RemoveObserver(ConsumerObserver* observer);
     bool HadIncomingMedia() const;
-    void ProcessProducerRtpPacket(const RtpPacket* packet);
     // impl. of TranslatorUnit
     const std::string& GetId() const final;
     // impl. of ConsumerTranslatorSettings
@@ -49,10 +49,10 @@ private:
 private:
     const Consumer* const _consumer;
     RtpPacketsCollector* const _packetsCollector;
+    const RtpPacketsInfoProvider* const _packetsInfoProvider;
     const std::shared_ptr<MediaFrameSerializationFactory> _serializationFactory;
     Listeners<ConsumerObserver*> _observers;
-    ProtectedUniquePtr<MediaGrabber> _mediaGrabber;
-    ProtectedObj<ProducerPacketsInfo> _producerPacketsInfo;
+    std::shared_ptr <MediaGrabber> _mediaGrabber;
 };
 
 } // namespace RTC

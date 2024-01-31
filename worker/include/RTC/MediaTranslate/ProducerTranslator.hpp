@@ -2,14 +2,14 @@
 
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
+#include "RTC/MediaTranslate/RtpPacketsInfoProvider.hpp"
 #include "RTC/MediaTranslate/TranslatorUnit.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "RTC/MediaTranslate/ProducerObserver.hpp"
-#include "RTC/MediaTranslate/TranslatorUnit.hpp"
 #include <absl/container/flat_hash_map.h>
 
-#define WRITE_PRODUCER_RECV_TO_FILE
+//#define WRITE_PRODUCER_RECV_TO_FILE
 #define READ_PRODUCER_RECV_FROM_FILE
 
 namespace RTC
@@ -24,6 +24,7 @@ class Producer;
 class ProducerTranslator : public TranslatorUnit,
                            public MediaSource,
                            public RtpPacketsCollector,
+                           public RtpPacketsInfoProvider,
                            private MediaSink
 {
     class StreamInfo;
@@ -42,12 +43,15 @@ public:
     bool RemoveStream(uint32_t mappedSsrc);
     // list of mapped ssrcs
     std::list<uint32_t> GetAddedStreams() const;
-    // SSRC maybe mapped or original, return zero if failed
-    uint8_t GetPayloadType(uint32_t ssrc) const;
     // impl. of TranslatorUnit
     const std::string& GetId() const final;
     // impl. of RtpPacketsCollector
     bool AddPacket(RtpPacket* packet) final;
+    // impl. of RtpPacketsInfoProvider
+    uint8_t GetPayloadType(uint32_t ssrc) const final;
+    uint16_t GetLastOriginalRtpSeqNumber(uint32_t ssrc) const final;
+    uint32_t GetLastOriginalRtpTimestamp(uint32_t ssrc) const final;
+    uint32_t GetClockRate(uint32_t ssrc) const final;
     // impl. of TranslatorUnit
     std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
 protected:

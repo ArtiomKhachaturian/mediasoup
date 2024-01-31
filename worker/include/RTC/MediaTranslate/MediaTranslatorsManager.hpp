@@ -1,6 +1,8 @@
 #pragma once
 
 #include "common.hpp"
+#include "DepLibUV.hpp"
+#include "ProtectedObj.hpp"
 #include "RTC/TransportListener.hpp"
 #include "absl/container/flat_hash_map.h"
 #include <string>
@@ -18,7 +20,8 @@ class MediaFrameSerializationFactory;
 class MediaTranslatorsManager : public TransportListener
 {
     class Translator;
-    class CurrentRtpPacketHolder;
+    using PacketInfo = std::pair<bool, RtpPacket*>; // 1st is flag to router or no
+    using PacketsList = std::list<PacketInfo>;
 public:
     MediaTranslatorsManager(TransportListener* router,
                             const std::string& serviceUri,
@@ -72,16 +75,21 @@ public:
                                                    DataConsumer* dataConsumer) final;
     void OnTransportListenServerClosed(Transport* transport) final;
 private:
-    bool SendRtpPacket(Producer* producer, RtpPacket* packet);
+    static void ProcessDefferedPackets(uv_async_t* handle);
+    bool ProcessRtpPacket(Producer* producer, RtpPacket* packet, bool toRouter);
+    bool SendRtpPacket(Producer* producer, RtpPacket* packet, bool toRouter);
 private:
     TransportListener* const _router;
     const std::string _serviceUri;
     const std::string _serviceUser;
     const std::string _servicePassword;
     const std::shared_ptr<MediaFrameSerializationFactory> _serializationFactory;
+    uv_loop_t* const _ownerLoop;
+    uv_async_t _asynHandle;
     // key is audio producer ID
     absl::flat_hash_map<std::string, std::unique_ptr<Translator>> _translators;
-    std::atomic<Transport*> _connectedTransport;
+    ProtectedObj<Transport*> _connectedTransport = nullptr;
+    ProtectedObj<absl::flat_hash_map<Producer*, PacketsList>> _defferedPackets;
 };
 
 } // namespace RTC

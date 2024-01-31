@@ -19,12 +19,11 @@ class WebMDeserializer : public MediaFrameDeserializer
     class TrackInfo;
     enum class MkvResult;
 public:
-    WebMDeserializer(std::unique_ptr<MkvReader> reader, bool loopback = false);
+    WebMDeserializer(std::unique_ptr<MkvReader> reader);
     ~WebMDeserializer() final;
     // impl. of RtpMediaFrameDeserializer
     MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) final;
     std::vector<std::shared_ptr<const MediaFrame>> ReadNextFrames(size_t trackIndex,
-                                                                  size_t payloadOffset,
                                                                   MediaFrameDeserializeResult* result) final;
     size_t GetTracksCount() const final;
     std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const final;
@@ -41,7 +40,6 @@ private:
     static bool MaybeOk(MkvResult result);
 private:
     const std::unique_ptr<MkvReader> _reader;
-    const bool _loopback;
     std::unique_ptr<mkvparser::EBMLHeader> _ebmlHeader;
     mkvparser::Segment* _segment = nullptr;
     absl::flat_hash_map<size_t, std::unique_ptr<TrackInfo>> _tracks;
