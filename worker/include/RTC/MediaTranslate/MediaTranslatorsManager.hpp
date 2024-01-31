@@ -11,6 +11,7 @@
 
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 #define NO_TRANSLATION_SERVICE
+//#define USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
 
 namespace RTC
 {
@@ -20,8 +21,10 @@ class MediaFrameSerializationFactory;
 class MediaTranslatorsManager : public TransportListener
 {
     class Translator;
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     using PacketInfo = std::pair<bool, RtpPacket*>; // 1st is flag to router or no
     using PacketsList = std::list<PacketInfo>;
+#endif
 public:
     MediaTranslatorsManager(TransportListener* router,
                             const std::string& serviceUri,
@@ -75,21 +78,27 @@ public:
                                                    DataConsumer* dataConsumer) final;
     void OnTransportListenServerClosed(Transport* transport) final;
 private:
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     static void ProcessDefferedPackets(uv_async_t* handle);
+#endif
     bool ProcessRtpPacket(Producer* producer, RtpPacket* packet, bool toRouter);
     bool SendRtpPacket(Producer* producer, RtpPacket* packet, bool toRouter);
 private:
+    // 1 sec for 20ms OPUS audio frames
+    static inline constexpr size_t _defferedPacketsBatchSize = 50UL;
     TransportListener* const _router;
     const std::string _serviceUri;
     const std::string _serviceUser;
     const std::string _servicePassword;
     const std::shared_ptr<MediaFrameSerializationFactory> _serializationFactory;
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     uv_loop_t* const _ownerLoop;
     uv_async_t _asynHandle;
+    ProtectedObj<absl::flat_hash_map<Producer*, PacketsList>> _defferedPackets;
+#endif
     // key is audio producer ID
     absl::flat_hash_map<std::string, std::unique_ptr<Translator>> _translators;
     ProtectedObj<Transport*> _connectedTransport = nullptr;
-    ProtectedObj<absl::flat_hash_map<Producer*, PacketsList>> _defferedPackets;
 };
 
 } // namespace RTC

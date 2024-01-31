@@ -11,10 +11,34 @@
 #include "RTC/Consumer.hpp"
 #include "Logger.hpp"
 
+namespace {
+
+using namespace RTC;
+
+class MediaInfo
+{
+public:
+    MediaFrameDeserializeResult SetResult(uint32_t ssrc, MediaFrameDeserializeResult result,
+                                          const std::string_view& operationName = "");
+protected:
+    MediaInfo(const RtpPacketsInfoProvider* packetsInfoProvider);
+    const RtpPacketsInfoProvider* GetPacketsInfoProvider() const { return _packetsInfoProvider; }
+    uint8_t GetPayloadType(uint32_t ssrc) const;
+    uint16_t GetLastOriginalRtpSeqNumber(uint32_t ssrc) const;
+    uint32_t GetLastOriginalRtpTimestamp(uint32_t ssrc) const;
+    uint32_t GetClockRate(uint32_t ssrc) const;
+    virtual std::string_view GetDescription() const { return ""; }
+private:
+    const RtpPacketsInfoProvider* const _packetsInfoProvider;
+    std::atomic<MediaFrameDeserializeResult> _lastResult = MediaFrameDeserializeResult::Success;
+};
+
+}
+
 namespace RTC
 {
 
-class ConsumerTranslator::MediaGrabber
+class ConsumerTranslator::MediaGrabber : public MediaInfo
 {
 public:
     MediaGrabber(Media::Kind kind,
@@ -23,6 +47,9 @@ public:
                  RtpPacketsCollector* packetsCollector,
                  const RtpPacketsInfoProvider* packetsInfoProvider);
     void ProcessMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& payload);
+protected:
+    // overrides of MediaInfo
+    std::string_view GetDescription() const final { return _audio ? "audio grabber" : "video grabber"; }
 private:
     bool FetchMediaInfo();
     void DeserializeMediaFrames(uint32_t ssrc);
@@ -32,25 +59,25 @@ private:
     const std::unique_ptr<MediaFrameDeserializer> _deserializer;
     const std::vector<RtpCodecParameters>& _codecParameters;
     RtpPacketsCollector* const _packetsCollector;
-    const RtpPacketsInfoProvider* const _packetsInfoProvider;
     absl::flat_hash_map<RtpCodecMimeType::Subtype, std::unique_ptr<CodecInfo>> _codecs;
-    MediaFrameDeserializeResult _lastProcessingError = MediaFrameDeserializeResult::Success;
 };
 
-class ConsumerTranslator::CodecInfo
+class ConsumerTranslator::CodecInfo : public MediaInfo
 {
 public:
-    CodecInfo(std::unique_ptr<RtpPacketizer> packetizer, size_t trackIndex,
+    CodecInfo(std::unique_ptr<RtpPacketizer> packetizer,
+              RtpCodecMimeType::Subtype codecType, size_t trackIndex,
               const RtpPacketsInfoProvider* packetsInfoProvider);
     size_t GetTrackIndex() const { return _trackIndex; }
     bool HasSequenceNumber() const { return _sequenceNumber > 0U; }
     RtpPacket* AddFrame(uint32_t ssrc, const std::shared_ptr<const MediaFrame>& frame);
-    void SetLastError(RtpCodecMimeType::Subtype codecType, MediaFrameDeserializeResult lastError);
+protected:
+    // overrides of MediaInfo
+    std::string_view GetDescription() const final;
 private:
     const std::unique_ptr<RtpPacketizer> _packetizer;
+    const RtpCodecMimeType::Subtype _codecType;
     const size_t _trackIndex;
-    const RtpPacketsInfoProvider* const _packetsInfoProvider;
-    MediaFrameDeserializeResult _lastError = MediaFrameDeserializeResult::Success;
     uint16_t _sequenceNumber = 0U;
     uint32_t _initialRtpTimestamp = 0U;
 };
@@ -156,11 +183,11 @@ ConsumerTranslator::MediaGrabber::MediaGrabber(Media::Kind kind,
                                                const std::vector<RtpCodecParameters>& codecParameters,
                                                RtpPacketsCollector* packetsCollector,
                                                const RtpPacketsInfoProvider* packetsInfoProvider)
-    : _audio(Media::Kind::AUDIO == kind)
+    : MediaInfo(packetsInfoProvider)
+    , _audio(Media::Kind::AUDIO == kind)
     , _deserializer(std::move(deserializer))
     , _codecParameters(codecParameters)
     , _packetsCollector(packetsCollector)
-    , _packetsInfoProvider(packetsInfoProvider)
 {
 }
 
@@ -168,18 +195,15 @@ void ConsumerTranslator::MediaGrabber::ProcessMediaPayload(uint32_t ssrc,
                                                            const std::shared_ptr<const MemoryBuffer>& payload)
 {
     if (payload) {
-        const auto result = _deserializer->AddBuffer(payload);
+        const auto result = SetResult(ssrc, _deserializer->AddBuffer(payload),
+                                      "input media buffer deserialization");
         bool requestMediaFrames = false;
         if (MaybeOk(result)) {
             requestMediaFrames = FetchMediaInfo();
         }
-        else if (_lastProcessingError != result) {
-            MS_ERROR_STD("failed to deserialize of input media buffer: %s", ToString(result));
-        }
         if (requestMediaFrames && IsOk(result)) {
             DeserializeMediaFrames(ssrc);
         }
-        _lastProcessingError = result;
     }
 }
 
@@ -202,8 +226,8 @@ bool ConsumerTranslator::MediaGrabber::FetchMediaInfo()
                     }
                     if (packetizer) {
                         auto codec = std::make_unique<CodecInfo>(std::move(packetizer),
-                                                                 trackIndex,
-                                                                 _packetsInfoProvider);
+                                                                 codecType, trackIndex,
+                                                                 GetPacketsInfoProvider());
                         _codecs[codecType] = std::move(codec);
                     }
                 }
@@ -218,7 +242,7 @@ void ConsumerTranslator::MediaGrabber::DeserializeMediaFrames(uint32_t ssrc)
     for (auto it = _codecs.begin(); it != _codecs.end(); ++it) {
         auto& codec = it->second;
         if (!codec->HasSequenceNumber()) {
-            _deserializer->SetClockRate(codec->GetTrackIndex(), _packetsInfoProvider->GetClockRate(ssrc));
+            _deserializer->SetClockRate(codec->GetTrackIndex(), GetClockRate(ssrc));
         }
         MediaFrameDeserializeResult result;
         for (const auto& frame : _deserializer->ReadNextFrames(codec->GetTrackIndex(), &result)) {
@@ -229,7 +253,7 @@ void ConsumerTranslator::MediaGrabber::DeserializeMediaFrames(uint32_t ssrc)
                 _packetsCollector->AddPacket(packet);
             }
         }
-        codec->SetLastError(it->first, result);
+        codec->SetResult(ssrc, result, "read of deserialized frames");
     }
 }
 
@@ -244,13 +268,19 @@ const RtpCodecParameters* ConsumerTranslator::MediaGrabber::GetCodecParameters(c
 }
 
 ConsumerTranslator::CodecInfo::CodecInfo(std::unique_ptr<RtpPacketizer> packetizer,
-                                         size_t trackIndex,
+                                         RtpCodecMimeType::Subtype codecType, size_t trackIndex,
                                          const RtpPacketsInfoProvider* packetsInfoProvider)
-    : _packetizer(std::move(packetizer))
+    : MediaInfo(packetsInfoProvider)
+    , _packetizer(std::move(packetizer))
+    , _codecType(codecType)
     , _trackIndex(trackIndex)
-    , _packetsInfoProvider(packetsInfoProvider)
 {
     MS_ASSERT(_packetizer, "packetizer must not be null");
+}
+
+std::string_view ConsumerTranslator::CodecInfo::GetDescription() const
+{
+    return MimeSubTypeToString(_codecType).c_str();
 }
 
 RtpPacket* ConsumerTranslator::CodecInfo::AddFrame(uint32_t ssrc, const std::shared_ptr<const MediaFrame>& frame)
@@ -258,30 +288,64 @@ RtpPacket* ConsumerTranslator::CodecInfo::AddFrame(uint32_t ssrc, const std::sha
     if (frame) {
         if (const auto packet = _packetizer->AddFrame(frame)) {
             if (!_initialRtpTimestamp) {
-                _initialRtpTimestamp = _packetsInfoProvider->GetLastOriginalRtpTimestamp(ssrc);
+                _initialRtpTimestamp = GetLastOriginalRtpTimestamp(ssrc);
             }
-            _sequenceNumber = std::max(_sequenceNumber, _packetsInfoProvider->GetLastOriginalRtpSeqNumber(ssrc));
+            _sequenceNumber = std::max(_sequenceNumber, GetLastOriginalRtpSeqNumber(ssrc));
             const uint32_t timestamp = _initialRtpTimestamp + frame->GetTimestamp();
             packet->SetSsrc(ssrc);
             packet->SetSequenceNumber(++_sequenceNumber);
-            packet->SetTimestamp(std::max(timestamp, _packetsInfoProvider->GetLastOriginalRtpTimestamp(ssrc)));
+            packet->SetTimestamp(std::max(timestamp, GetLastOriginalRtpTimestamp(ssrc)));
             return packet;
         }
     }
     return nullptr;
 }
 
-void ConsumerTranslator::CodecInfo::SetLastError(RtpCodecMimeType::Subtype codecType,
-                                                 MediaFrameDeserializeResult lastError)
+} // namespace RTC
+
+namespace {
+
+MediaInfo::MediaInfo(const RtpPacketsInfoProvider* packetsInfoProvider)
+    : _packetsInfoProvider(packetsInfoProvider)
 {
-    if (lastError != _lastError) {
-        if (!MaybeOk(lastError)) {
-            MS_ERROR_STD("failed to read deserialized %s frames: %s",
-                         MimeSubTypeToString(codecType).c_str(),
-                         ToString(lastError));
-        }
-        _lastError = lastError;
-    }
 }
 
-} // namespace RTC
+MediaFrameDeserializeResult MediaInfo::SetResult(uint32_t ssrc, MediaFrameDeserializeResult result,
+                                                 const std::string_view& operationName)
+{
+    if (result != _lastResult.exchange(result) && !IsOk(result)) {
+        if (MaybeOk(result)) {
+            MS_WARN_DEV_STD("%s (SSRC = %u) had a problem in result of %s: %s",
+                            GetDescription().data(), ssrc, operationName.data(),
+                            ToString(result));
+        }
+        else {
+            MS_ERROR_STD("%s (SSRC = %u) operation %s failed: %s",
+                         GetDescription().data(), ssrc, operationName.data(),
+                         ToString(result));
+        }
+    }
+    return result;
+}
+
+uint8_t MediaInfo::GetPayloadType(uint32_t ssrc) const
+{
+    return GetPacketsInfoProvider()->GetPayloadType(ssrc);
+}
+
+uint16_t MediaInfo::GetLastOriginalRtpSeqNumber(uint32_t ssrc) const
+{
+    return GetPacketsInfoProvider()->GetLastOriginalRtpSeqNumber(ssrc);
+}
+
+uint32_t MediaInfo::GetLastOriginalRtpTimestamp(uint32_t ssrc) const
+{
+    return GetPacketsInfoProvider()->GetLastOriginalRtpTimestamp(ssrc);
+}
+
+uint32_t MediaInfo::GetClockRate(uint32_t ssrc) const
+{
+    return GetPacketsInfoProvider()->GetClockRate(ssrc);
+}
+
+}

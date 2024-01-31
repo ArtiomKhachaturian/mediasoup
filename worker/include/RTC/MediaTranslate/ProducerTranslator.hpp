@@ -10,7 +10,7 @@
 #include <absl/container/flat_hash_map.h>
 
 //#define WRITE_PRODUCER_RECV_TO_FILE
-//#define READ_PRODUCER_RECV_FROM_FILE
+#define READ_PRODUCER_RECV_FROM_FILE
 
 namespace RTC
 {

@@ -64,15 +64,22 @@ MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
     , _serializationFactory(std::make_shared<WebMMediaFrameSerializationFactory>())
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     , _ownerLoop(DepLibUV::GetLoop())
+#endif
 {
     MS_ASSERT(nullptr != _router, "router must be non-null");
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     uv_async_init(_ownerLoop, &_asynHandle, ProcessDefferedPackets);
     _asynHandle.data = (void*)this;
+#endif
 }
 
 MediaTranslatorsManager::~MediaTranslatorsManager()
 {
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
+    uv_close((uv_handle_t*)&_asynHandle, nullptr);
+#endif
 }
 
 void MediaTranslatorsManager::OnTransportConnected(Transport* transport)
@@ -336,6 +343,7 @@ void MediaTranslatorsManager::OnTransportListenServerClosed(Transport* transport
     _router->OnTransportListenServerClosed(transport);
 }
 
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
 void MediaTranslatorsManager::ProcessDefferedPackets(uv_async_t* handle)
 {
     if (handle) {
@@ -344,7 +352,7 @@ void MediaTranslatorsManager::ProcessDefferedPackets(uv_async_t* handle)
             LOCK_WRITE_PROTECTED_OBJ(self->_defferedPackets);
             for (auto it = self->_defferedPackets.Ref().begin();
                  it != self->_defferedPackets.Ref().end(); ++it) {
-                if (it->second.size() >= 50) {
+                if (it->second.size() >= _defferedPacketsBatchSize) {
                     auto packets = std::move(it->second);
                     for (const auto& packet : packets) {
                         if (!self->ProcessRtpPacket(it->first, packet.second, packet.first)) {
@@ -356,6 +364,7 @@ void MediaTranslatorsManager::ProcessDefferedPackets(uv_async_t* handle)
         }
     }
 }
+#endif
 
 bool MediaTranslatorsManager::ProcessRtpPacket(Producer* producer,
                                                RtpPacket* packet, bool toRouter)
@@ -379,6 +388,7 @@ bool MediaTranslatorsManager::ProcessRtpPacket(Producer* producer,
 bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packet, bool toRouter)
 {
     bool ok = false;
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     if (packet) {
         if (_ownerLoop == DepLibUV::GetLoop()) {
             ok = ProcessRtpPacket(producer, packet, toRouter);
@@ -399,7 +409,7 @@ bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packe
                 }
                 else {
                     it->second.push_back(std::make_pair(toRouter, packet));
-                    if (it->second.size() >= 50) { // 1 sec for 20ms OPUS audio frames
+                    if (it->second.size() >= _defferedPacketsBatchSize) {
                         uv_async_send(&_asynHandle);
                     }
                 }
@@ -410,6 +420,12 @@ bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packe
             }
         }
     }
+#else
+    ok = ProcessRtpPacket(producer, packet, toRouter);
+    if (!ok) {
+        delete packet;
+    }
+#endif
     return ok;
 }
 
