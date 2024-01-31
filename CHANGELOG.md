@@ -1,8 +1,9 @@
 # Changelog
 
-### NEXT
+### 3.13.17
 
-- C++: Update libsrtp to v3.0-alpha.
+- Fix prebuilt worker download ([PR #1319](https://github.com/versatica/mediasoup/pull/1319) by @brynrichards).
+- libsrtp: Update to v3.0-alpha version in our fork.
 
 ### 3.13.16
 
