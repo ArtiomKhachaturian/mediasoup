@@ -31,7 +31,7 @@ FileReader::~FileReader()
 
 bool FileReader::IsOpen() const
 {
-    return FileDevice<MediaSource>::IsOpen() && _fileSize > 0LL && _chunkSize > 0UL;
+    return FileDevice<MediaSource>::IsOpen() && _fileSize > 0LL;
 }
 
 void FileReader::OnFirstSinkAdded()
@@ -46,6 +46,7 @@ void FileReader::OnFirstSinkAdded()
                         operationDone = true;
                         if (_loop) { // seek to start
                             if (!FileSeek(GetHandle(), SEEK_SET, 0L)) {
+                                MS_WARN_DEV_STD("Failed seek to beginning of file");
                                 break;
                             }
                         }
@@ -101,14 +102,15 @@ std::shared_ptr<const MemoryBuffer> FileReader::ReadBuffer(bool& eof, bool* erro
         if (size) {
             chunk.resize(size);
             buffer = SimpleMemoryBuffer::Create(std::move(chunk));
-            const auto currentPos = FileTell(handle);
-            ok = currentPos >= 0LL && FileSeek(handle, SEEK_SET, currentPos + size);
         }
         else {
-            ok = errno != 0;
+            ok = 0 == errno;
+            if (!ok) {
+                MS_WARN_DEV_STD("Unable to read file chunk, size %ul, error code %d", chunk.size(), errno);
+            }
         }
         if (ok) {
-            eof = size < _chunkSize;
+            eof = _fileSize == FileTell(handle);
         }
         if (error) {
             *error = !ok;

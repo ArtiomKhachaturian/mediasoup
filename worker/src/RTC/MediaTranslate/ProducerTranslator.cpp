@@ -60,7 +60,7 @@ private:
 private:
 #ifdef READ_PRODUCER_RECV_FROM_FILE
     //static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/translation_39.webm";
-    static inline const char* _testFileName = "/Users/user/Downloads/1b0cefc4-abdb-48d0-9c50-f5050755be94.webm";
+    static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/producer_test.webm";
 #endif
     const uint32_t _clockRate;
     const uint32_t _mappedSsrc;
@@ -459,12 +459,6 @@ bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
         if (const auto frame = _depacketizer->AddPacket(packet)) {
             return _serializer->Push(GetMappedSsrc(), frame);
         }
-        else {
-            const auto ts = GetLastOriginalRtpTimestamp();
-            const auto sn = GetLastOriginalRtpSeqNumber();
-            bool a = true;
-            a = false;
-        }
     }
     return false;
 }
@@ -505,6 +499,7 @@ std::unique_ptr<FileReader> ProducerTranslator::StreamInfo::CreateFileReader()
     if (fileReader->IsOpen()) {
         return fileReader;
     }
+    MS_WARN_DEV_STD("Failed to open producer file input %s", _testFileName);
     return nullptr;
 }
 #endif
@@ -522,6 +517,7 @@ std::unique_ptr<FileWriter> ProducerTranslator::StreamInfo::CreateFileWriter(uin
             if (fileWriter->IsOpen()) {
                 return fileWriter;
             }
+            MS_WARN_DEV_STD("Failed to open producer file output %s", fileName.c_str());
         }
     }
     return nullptr;
