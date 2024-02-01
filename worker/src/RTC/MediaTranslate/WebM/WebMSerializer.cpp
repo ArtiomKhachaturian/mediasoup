@@ -129,8 +129,8 @@ public:
     bool SetCodec(RtpCodecMimeType::Subtype codec);
     bool SetCodec(const RtpCodecMimeType& mime) { return SetCodec(mime.GetSubtype()); }
     const std::optional<RtpCodecMimeType::Subtype>& GetCodec() const { return _codec; }
-    void ResetRtpTiming();
-    uint64_t UpdateTimeStamp(uint32_t rtpTimestamp);
+    void ResetTiming();
+    uint64_t UpdateTimeStamp(uint32_t timestamp);
     void SetLatestConfig(const std::shared_ptr<const AudioFrameConfig>& config);
     void SetLatestConfig(const std::shared_ptr<const VideoFrameConfig>& config);
     const std::shared_ptr<const AudioFrameConfig>& GetLatestAudioConfig() const;
@@ -140,7 +140,7 @@ private:
     const bool _audio;
     const uint32_t _clockRate;
     std::optional<RtpCodecMimeType::Subtype> _codec;
-    uint32_t _lastRtpTimestamp = 0ULL;
+    uint32_t _lastTimestamp = 0UL;
     uint64_t _granule = 0ULL;
     std::shared_ptr<const AudioFrameConfig> _latestAudioConfig;
     std::shared_ptr<const VideoFrameConfig> _latestVideoConfig;
@@ -327,7 +327,7 @@ void WebMSerializer::InitWriter()
             }
             if (ok) {
                 for (auto it = _tracksInfo.begin(); it != _tracksInfo.end(); ++it) {
-                    it->second->ResetRtpTiming();
+                    it->second->ResetTiming();
                 }
                 _writer = std::move(writer);
                 _writer->SetLiveMode(_liveMode);
@@ -725,7 +725,12 @@ WebMSerializer::TrackInfo::TrackInfo(int32_t number, bool audio, uint32_t clockR
 
 bool WebMSerializer::TrackInfo::IsAccepted(const std::shared_ptr<const MediaFrame>& mediaFrame) const
 {
-    return mediaFrame && mediaFrame->GetTimestamp() > _lastRtpTimestamp;
+    if (mediaFrame) {
+        const auto timestamp = mediaFrame->GetTimestamp();
+        // special case if both timestamps are zero, for 1st initial frame
+        return (0U == timestamp && 0U == _lastTimestamp) || timestamp > _lastTimestamp;
+    }
+    return false;
 }
 
 bool WebMSerializer::TrackInfo::SetCodec(RtpCodecMimeType::Subtype codec)
@@ -737,19 +742,19 @@ bool WebMSerializer::TrackInfo::SetCodec(RtpCodecMimeType::Subtype codec)
     return false;
 }
 
-void WebMSerializer::TrackInfo::ResetRtpTiming()
+void WebMSerializer::TrackInfo::ResetTiming()
 {
-    _lastRtpTimestamp = 0U;
+    _lastTimestamp = 0U;
     _granule = 0ULL;
 }
 
-uint64_t WebMSerializer::TrackInfo::UpdateTimeStamp(uint32_t rtpTimestamp)
+uint64_t WebMSerializer::TrackInfo::UpdateTimeStamp(uint32_t timestamp)
 {
-    if (rtpTimestamp > _lastRtpTimestamp) {
-        if (_lastRtpTimestamp) {
-            _granule += rtpTimestamp - _lastRtpTimestamp;
+    if (timestamp > _lastTimestamp) {
+        if (_lastTimestamp) {
+            _granule += timestamp - _lastTimestamp;
         }
-        _lastRtpTimestamp = rtpTimestamp;
+        _lastTimestamp = timestamp;
     }
     return ValueToNano(_granule) / GetClockRate();
 }
