@@ -364,6 +364,13 @@ void MediaTranslatorsManager::ProcessDefferedPackets(uv_async_t* handle)
         }
     }
 }
+
+bool MediaTranslatorsManager::HasConnectedTransport() const
+{
+    LOCK_READ_PROTECTED_OBJ(_connectedTransport);
+    return nullptr != _connectedTransport.ConstRef();
+}
+
 #endif
 
 bool MediaTranslatorsManager::ProcessRtpPacket(Producer* producer,
@@ -392,13 +399,9 @@ bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packe
     if (packet) {
         if (_ownerLoop == DepLibUV::GetLoop()) {
             ok = ProcessRtpPacket(producer, packet, toRouter);
-            if (!ok) {
-                delete packet;
-            }
         }
         else {
-            LOCK_READ_PROTECTED_OBJ(_connectedTransport);
-            if (_connectedTransport.ConstRef()) {
+            if (HasConnectedTransport()) {
                 LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
                 auto& defferedPackets = _defferedPackets.Ref();
                 const auto it = defferedPackets.find(producer);
@@ -415,17 +418,14 @@ bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packe
                 }
                 ok = true;
             }
-            else {
-                delete packet;
-            }
         }
     }
 #else
     ok = ProcessRtpPacket(producer, packet, toRouter);
+#endif
     if (!ok) {
         delete packet;
     }
-#endif
     return ok;
 }
 

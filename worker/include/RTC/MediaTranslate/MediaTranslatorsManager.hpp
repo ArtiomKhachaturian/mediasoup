@@ -11,7 +11,7 @@
 
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 #define NO_TRANSLATION_SERVICE
-//#define USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
+#define USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
 
 namespace RTC
 {
@@ -80,6 +80,7 @@ public:
 private:
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     static void ProcessDefferedPackets(uv_async_t* handle);
+    bool HasConnectedTransport() const;
 #endif
     bool ProcessRtpPacket(Producer* producer, RtpPacket* packet, bool toRouter);
     bool SendRtpPacket(Producer* producer, RtpPacket* packet, bool toRouter);

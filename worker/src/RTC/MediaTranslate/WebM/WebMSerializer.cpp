@@ -175,6 +175,9 @@ const char* WebMSerializer::GetCodecId(RtpCodecMimeType::Subtype codec)
             return "V_MPEG4/ISO/AVC"; // matroska
         case RtpCodecMimeType::Subtype::H265:
             return "V_MPEGH/ISO/HEVC";
+        case RtpCodecMimeType::Subtype::PCMA:
+        case RtpCodecMimeType::Subtype::PCMU:
+            return "A_PCM/FLOAT/IEEE";
         default:
             if (IsOpus(codec)) {
                 return mkvmuxer::Tracks::kOpusCodecId;
@@ -261,7 +264,7 @@ bool WebMSerializer::Push(uint32_t ssrc, const std::shared_ptr<const MediaFrame>
             const auto added = _writer->AddFrame(mediaFrame, ssrc, mkvTimestamp, trackNumber, this);
             if (!added) {
                 const auto frameInfo = GetMediaFrameInfoString(mediaFrame, ssrc);
-                MS_ERROR("unable write frame to MKV data [%s] to track #%d", frameInfo.c_str(), trackNumber);
+                MS_ERROR_STD("unable write frame to MKV data [%s] to track #%d", frameInfo.c_str(), trackNumber);
                 DestroyWriter(ssrc, true);
             }
             else {
@@ -333,11 +336,11 @@ void WebMSerializer::InitWriter()
                 _writer->SetLiveMode(_liveMode);
             }
             else {
-                MS_ERROR("failed to recreate of MKV writer tracks");
+                MS_ERROR_STD("failed to recreate of MKV writer tracks");
             }
         }
         else {
-            MS_ERROR("failed to init of MKV writer segment");
+            MS_ERROR_STD("failed to init of MKV writer segment");
         }
     }
 }
@@ -398,7 +401,7 @@ bool WebMSerializer::AddMedia(uint32_t ssrc, uint32_t clockRate,
                     registered = true;
                 }
                 else {
-                    MS_ERROR("unable to create MKV writer track, [SSRC = %du]", ssrc);
+                    MS_ERROR_STD("unable to create MKV writer track, [SSRC = %du]", ssrc);
                     DestroyWriter(ssrc, true);
                 }
             }
@@ -416,6 +419,7 @@ WebMSerializer::BufferedWriter::BufferedWriter(const char* writingApp)
     if (IsInitialized()) {
         if (const auto segmentInfo = _segment.GetSegmentInfo()) {
             segmentInfo->set_writing_app(writingApp);
+            segmentInfo->set_muxing_app(writingApp);
         }
         ReserveBuffer();
     }
@@ -538,7 +542,7 @@ void WebMSerializer::BufferedWriter::SetTrackSettings(int32_t number,
             track->set_channels(config->GetChannelCount());
             track->set_bit_depth(config->GetBitsPerSample());
             if (!SetCodecSpecific(track, config->GetCodecSpecificData())) {
-                MS_ERROR("failed to setup of MKV writer audio codec data for track #%d", number);
+                MS_ERROR_STD("failed to setup of MKV writer audio codec data for track #%d", number);
             }
         }
     }
@@ -559,10 +563,10 @@ void WebMSerializer::BufferedWriter::SetTrackSettings(int32_t number,
                 track->set_display_height(config->GetHeight());
             }
             else {
-                MS_WARN_DEV("video resolution is not available or wrong for track #%d", number);
+                MS_WARN_DEV_STD("video resolution is not available or wrong for track #%d", number);
             }
             if (!SetCodecSpecific(track, config->GetCodecSpecificData())) {
-                MS_ERROR("failed to setup of MKV writer video codec data for track #%d", number);
+                MS_ERROR_STD("failed to setup of MKV writer video codec data for track #%d", number);
             }
         }
     }
