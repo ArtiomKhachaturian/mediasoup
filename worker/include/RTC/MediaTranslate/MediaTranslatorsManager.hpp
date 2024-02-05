@@ -22,8 +22,7 @@ class MediaTranslatorsManager : public TransportListener
 {
     class Translator;
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
-    using PacketInfo = std::pair<bool, RtpPacket*>; // 1st is flag to router or no
-    using PacketsList = std::list<PacketInfo>;
+    using PacketsList = std::list<RtpPacket*>;
 #endif
 public:
     MediaTranslatorsManager(TransportListener* router,
@@ -82,8 +81,8 @@ private:
     static void ProcessDefferedPackets(uv_async_t* handle);
     bool HasConnectedTransport() const;
 #endif
-    bool ProcessRtpPacket(Producer* producer, RtpPacket* packet, bool toRouter);
-    bool SendRtpPacket(Producer* producer, RtpPacket* packet, bool toRouter);
+    bool ProcessRtpPacket(Producer* producer, RtpPacket* packet);
+    bool SendRtpPacket(Producer* producer, RtpPacket* packet);
 private:
     // 1 sec for 20ms OPUS audio frames
     static inline constexpr size_t _defferedPacketsBatchSize = 50UL;

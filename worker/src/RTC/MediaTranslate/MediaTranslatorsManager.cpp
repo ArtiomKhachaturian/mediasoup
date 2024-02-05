@@ -355,8 +355,8 @@ void MediaTranslatorsManager::ProcessDefferedPackets(uv_async_t* handle)
                 if (it->second.size() >= _defferedPacketsBatchSize) {
                     auto packets = std::move(it->second);
                     for (const auto& packet : packets) {
-                        if (!self->ProcessRtpPacket(it->first, packet.second, packet.first)) {
-                            delete packet.second;
+                        if (!self->ProcessRtpPacket(it->first, packet)) {
+                            delete packet;
                         }
                     }
                 }
@@ -373,32 +373,25 @@ bool MediaTranslatorsManager::HasConnectedTransport() const
 
 #endif
 
-bool MediaTranslatorsManager::ProcessRtpPacket(Producer* producer,
-                                               RtpPacket* packet, bool toRouter)
+bool MediaTranslatorsManager::ProcessRtpPacket(Producer* producer, RtpPacket* packet)
 {
     if (packet && producer) {
         LOCK_READ_PROTECTED_OBJ(_connectedTransport);
         if (const auto transport = _connectedTransport.ConstRef()) {
-            if (toRouter) {
-                _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
-                delete packet;
-            }
-            else {
-                transport->ReceiveRtpPacket(packet, producer);
-            }
+            transport->ReceiveRtpPacket(packet, producer);
             return true;
         }
     }
     return false;
 }
 
-bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packet, bool toRouter)
+bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packet)
 {
     bool ok = false;
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     if (packet) {
         if (_ownerLoop == DepLibUV::GetLoop()) {
-            ok = ProcessRtpPacket(producer, packet, toRouter);
+            ok = ProcessRtpPacket(producer, packet);
         }
         else {
             if (HasConnectedTransport()) {
@@ -407,11 +400,11 @@ bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packe
                 const auto it = defferedPackets.find(producer);
                 if (it == defferedPackets.end()) {
                     PacketsList packets;
-                    packets.push_back(std::make_pair(toRouter, packet));
+                    packets.push_back(packet);
                     defferedPackets[producer] = std::move(packets);
                 }
                 else {
-                    it->second.push_back(std::make_pair(toRouter, packet));
+                    it->second.push_back(packet);
                     if (it->second.size() >= _defferedPacketsBatchSize) {
                         uv_async_send(&_asynHandle);
                     }
@@ -467,11 +460,8 @@ MediaTranslatorsManager::Translator::~Translator()
 bool MediaTranslatorsManager::Translator::AddPacket(RtpPacket* packet)
 {
     if (packet) {
-        static bool sendToRouter = false;
-        if (!sendToRouter) {
-            packet->SetPayloadType(_producer->GetPayloadType(packet->GetSsrc()));
-        }
-        return _manager->SendRtpPacket(_producer->GetProducer(), packet, sendToRouter);
+        packet->SetPayloadType(_producer->GetPayloadType(packet->GetSsrc()));
+        return _manager->SendRtpPacket(_producer->GetProducer(), packet);
     }
     return false;
 }

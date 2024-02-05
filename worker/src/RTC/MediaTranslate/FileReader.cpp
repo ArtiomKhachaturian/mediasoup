@@ -42,7 +42,7 @@ void FileReader::OnSinkWasAdded(MediaSink* sink, bool first)
             if (!IsStopRequested()) {
                 bool operationDone = false;
                 for(; (!operationDone || _loop) && !IsStopRequested();) {
-                    if (StartRead(operationDone)) {
+                    if (ReadContent(operationDone)) {
                         operationDone = true;
                         if (_loop) { // seek to start
                             if (!FileSeek(GetHandle(), SEEK_SET, 0L)) {
@@ -76,28 +76,27 @@ void FileReader::Stop()
     }
 }
 
-bool FileReader::StartRead(bool restart)
+bool FileReader::ReadContent(bool restart)
 {
     if (!IsStopRequested()) {
         const StartEndNotifier notifier(this, restart);
-        bool eof = false, error = false;
-        while (!IsStopRequested() && !eof && !error) {
-            if (const auto buffer = ReadBuffer(eof, &error)) {
+        bool eof = false, ok = true;
+        while (!IsStopRequested() && ok && !eof) {
+            if (const auto buffer = ReadBuffer(eof, ok)) {
                 WriteMediaSinksPayload(_ssrc.load(), buffer);
             }
         }
-        if (error) {
+        if (!ok) {
             return false;
         }
     }
     return !IsStopRequested();
 }
 
-std::shared_ptr<const MemoryBuffer> FileReader::ReadBuffer(bool& eof, bool* error) const
+std::shared_ptr<const MemoryBuffer> FileReader::ReadBuffer(bool& eof, bool& ok) const
 {
     std::shared_ptr<const MemoryBuffer> buffer;
     if (const auto handle = GetHandle()) {
-        bool ok = true;
         std::vector<uint8_t> chunk;
         chunk.resize(_chunkSize, 0);
         const auto size = ::fread(chunk.data(), 1UL, chunk.size(), handle);
@@ -113,9 +112,6 @@ std::shared_ptr<const MemoryBuffer> FileReader::ReadBuffer(bool& eof, bool* erro
         }
         if (ok) {
             eof = _fileSize == FileTell(handle);
-        }
-        if (error) {
-            *error = !ok;
         }
     }
     else {

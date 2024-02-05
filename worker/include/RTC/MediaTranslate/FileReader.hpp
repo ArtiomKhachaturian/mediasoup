@@ -26,8 +26,8 @@ protected:
 private:
     bool IsStopRequested() const { return _stopRequested.load(); }
     void Stop();
-    bool StartRead(bool restart); // return false if error or stop requested
-    std::shared_ptr<const MemoryBuffer> ReadBuffer(bool& eof, bool* error = nullptr) const;
+    bool ReadContent(bool restart); // return false if error or stop requested
+    std::shared_ptr<const MemoryBuffer> ReadBuffer(bool& eof, bool& ok) const;
     static int64_t GetFileSize(FILE* handle);
     static int64_t FileTell(FILE* handle);
     static bool FileSeek(FILE* handle, int command, long offset = 0L);
