@@ -423,6 +423,7 @@ test_sources = [
   'test/src/RTC/TestSeqManager.cpp',
   'test/src/RTC/TestTrendCalculator.cpp',
   'test/src/RTC/TestRtpEncodingParameters.cpp',
+  'test/src/RTC/TestTransportCongestionControlServer.cpp',
   'test/src/RTC/Codecs/TestVP8.cpp',
   'test/src/RTC/Codecs/TestVP9.cpp',
   'test/src/RTC/Codecs/TestH264.cpp',

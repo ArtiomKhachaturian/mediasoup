@@ -72,10 +72,18 @@ export type TransportListenInfo = {
 	ip: string;
 
 	/**
-	 * Announced IPv4 or IPv6 (useful when running mediasoup behind NAT with
-	 * private IP).
+	 * @deprecated Use |announcedAddress| instead.
+	 *
+	 * Announced IPv4, IPv6 or hostname (useful when running mediasoup behind NAT
+	 * with private IP).
 	 */
 	announcedIp?: string;
+
+	/**
+	 * Announced IPv4, IPv6 or hostname (useful when running mediasoup behind NAT
+	 * with private IP).
+	 */
+	announcedAddress?: string;
 
 	/**
 	 * Listening port.
@@ -109,8 +117,8 @@ export type TransportListenIp = {
 	ip: string;
 
 	/**
-	 * Announced IPv4 or IPv6 (useful when running mediasoup behind NAT with
-	 * private IP).
+	 * Announced IPv4, IPv6 or hostname (useful when running mediasoup behind NAT
+	 * with private IP).
 	 */
 	announcedIp?: string;
 };
@@ -136,7 +144,9 @@ export type TransportSocketFlags = {
 };
 
 export type TransportTuple = {
+	// @deprecated Use localAddress instead.
 	localIp: string;
+	localAddress: string;
 	localPort: number;
 	remoteIp?: string;
 	remotePort?: number;
@@ -1354,7 +1364,9 @@ export function serializeProtocol(
 
 export function parseTuple(binary: FbsTransport.Tuple): TransportTuple {
 	return {
-		localIp: binary.localIp()!,
+		// @deprecated Use localAddress instead.
+		localIp: binary.localAddress()!,
+		localAddress: binary.localAddress()!,
 		localPort: binary.localPort(),
 		remoteIp: binary.remoteIp() ?? undefined,
 		remotePort: binary.remotePort(),
