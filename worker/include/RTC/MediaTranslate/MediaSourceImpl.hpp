@@ -24,8 +24,8 @@ protected:
     virtual bool IsSinkValid(const MediaSink* sink) const { return nullptr != sink; }
     virtual void OnSinkWasAdded(MediaSink* /*sink*/, bool /*first*/) {}
     virtual void OnSinkWasRemoved(MediaSink* /*sink*/, bool /*last*/) {}
-    void StartMediaSinksWriting(bool restart);
-    void WriteMediaSinksPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer);
+    void StartMediaSinksWriting(uint32_t ssrc);
+    void WriteMediaSinksPayload(const std::shared_ptr<MemoryBuffer>& buffer);
     void EndMediaSinksWriting();
 private:
     Listeners<MediaSink*> _sinks;

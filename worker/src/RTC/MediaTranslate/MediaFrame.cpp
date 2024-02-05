@@ -1,5 +1,6 @@
 #define MS_CLASS "RTC::MediaFrame"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
+#include "RTC/MediaTranslate/CompoundMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
@@ -10,9 +11,9 @@ namespace RTC
 
 MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType)
     : _mimeType(mimeType)
+    , _payload(std::make_shared<CompoundMemoryBuffer>())
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
-    _payloads.reserve(_mimeType.IsAudioCodec() ? 1UL : 4UL);
 }
 
 MediaFrame::~MediaFrame()
@@ -21,45 +22,28 @@ MediaFrame::~MediaFrame()
 
 bool MediaFrame::AddPayload(std::vector<uint8_t> payload)
 {
-    return AddPayload(SimpleMemoryBuffer::Create(std::move(payload)));
+    return _payload->Add(std::move(payload));
 }
 
 bool MediaFrame::AddPayload(const uint8_t* data, size_t len,
                             const std::allocator<uint8_t>& payloadAllocator)
 {
-    return AddPayload(SimpleMemoryBuffer::Create(data, len, payloadAllocator));
+    return _payload->Add(data, len, payloadAllocator);
 }
 
-bool MediaFrame::AddPayload(const std::shared_ptr<const MemoryBuffer>& payload)
+bool MediaFrame::AddPayload(const std::shared_ptr<MemoryBuffer>& payload)
 {
-    if (payload && !payload->IsEmpty()) {
-        _payloads.push_back(payload);
-        _payloadSize += payload->GetSize();
-        return true;
-    }
-    return false;
+    return _payload->Add(payload);
 }
 
-const std::vector<std::shared_ptr<const MemoryBuffer>>& MediaFrame::GetPayloads() const
+bool MediaFrame::IsEmpty() const
 {
-    return _payloads;
+    return _payload->IsEmpty();
 }
 
 std::shared_ptr<const MemoryBuffer> MediaFrame::GetPayload() const
 {
-    if (!_payloads.empty()) {
-        if (_payloads.size() > 1UL) { // merge all packets into continious area
-            const auto mergedPayload = std::make_shared<SimpleMemoryBuffer>();
-            mergedPayload->Reserve(GetPayloadSize());
-            for (const auto& payload : _payloads) {
-                mergedPayload->Append(*payload);
-            }
-            MS_ASSERT(!mergedPayload->IsEmpty(), "merged payload should not be an empty");
-            return mergedPayload;
-        }
-        return _payloads.front();
-    }
-    return nullptr;
+    return _payload;
 }
 
 void MediaFrame::SetKeyFrame(bool keyFrame)

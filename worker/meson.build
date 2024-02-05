@@ -174,6 +174,7 @@ common_sources = [
   'src/RTC/RTCP/XR.cpp',
   'src/RTC/RTCP/XrDelaySinceLastRr.cpp',
   'src/RTC/RTCP/XrReceiverReferenceTime.cpp',
+  'src/RTC/MediaTranslate/CompoundMemoryBuffer.cpp',
   'src/RTC/MediaTranslate/ConsumerTranslator.cpp',
   'src/RTC/MediaTranslate/FileReader.cpp',
   'src/RTC/MediaTranslate/FileWriter.cpp',

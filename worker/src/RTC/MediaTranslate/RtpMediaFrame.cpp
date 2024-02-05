@@ -45,7 +45,7 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet,
 }
 
 bool RtpMediaFrame::AddPacket(const RtpPacket* packet,
-                              const std::shared_ptr<const MemoryBuffer>& payload)
+                              const std::shared_ptr<MemoryBuffer>& payload)
 {
     if (packet && AddPayload(payload)) {
         if (GetTimestamp() > packet->GetTimestamp()) {
@@ -103,7 +103,7 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mim
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,
                                                      const RtpPacket* packet,
-                                                     const std::shared_ptr<const MemoryBuffer>& payload)
+                                                     const std::shared_ptr<MemoryBuffer>& payload)
 {
     if (packet && payload) {
         auto frame = std::make_shared<RtpMediaFrame>(mimeType);

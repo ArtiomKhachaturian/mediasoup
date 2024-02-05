@@ -20,7 +20,7 @@ public:
     bool AddPacket(const RtpPacket* packet, const uint8_t* data, size_t len,
                    const std::allocator<uint8_t>& payloadAllocator = {});
     bool AddPacket(const RtpPacket* packet, const std::allocator<uint8_t>& payloadAllocator = {});
-    bool AddPacket(const RtpPacket* packet, const std::shared_ptr<const MemoryBuffer>& payload);
+    bool AddPacket(const RtpPacket* packet, const std::shared_ptr<MemoryBuffer>& payload);
     // factory methods (for single-packet frames)
     static std::shared_ptr<RtpMediaFrame> Create(const RtpCodecMimeType& mimeType,
                                                  const RtpPacket* packet,
@@ -34,7 +34,7 @@ public:
                                                  const std::allocator<uint8_t>& payloadAllocator = {});
     static std::shared_ptr<RtpMediaFrame> Create(const RtpCodecMimeType& mimeType,
                                                  const RtpPacket* packet,
-                                                 const std::shared_ptr<const MemoryBuffer>& payload);
+                                                 const std::shared_ptr<MemoryBuffer>& payload);
     // null_opt if no descriptor for the packet
     static std::optional<size_t> GetPayloadDescriptorSize(const RtpPacket* packet);
     static bool ParseVp8VideoConfig(const RtpPacket* packet, const std::shared_ptr<VideoFrameConfig>& applyTo);

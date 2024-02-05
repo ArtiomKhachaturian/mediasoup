@@ -9,7 +9,7 @@ namespace RTC
 class FileReader::StartEndNotifier
 {
 public:
-    StartEndNotifier(FileReader* source, bool restart);
+    StartEndNotifier(FileReader* source);
     ~StartEndNotifier();
 private:
     FileReader* const _source;
@@ -42,7 +42,7 @@ void FileReader::OnSinkWasAdded(MediaSink* sink, bool first)
             if (!IsStopRequested()) {
                 bool operationDone = false;
                 for(; (!operationDone || _loop) && !IsStopRequested();) {
-                    if (ReadContent(operationDone)) {
+                    if (ReadContent()) {
                         operationDone = true;
                         if (_loop) { // seek to start
                             if (!FileSeek(GetHandle(), SEEK_SET, 0L)) {
@@ -76,14 +76,14 @@ void FileReader::Stop()
     }
 }
 
-bool FileReader::ReadContent(bool restart)
+bool FileReader::ReadContent()
 {
     if (!IsStopRequested()) {
-        const StartEndNotifier notifier(this, restart);
+        const StartEndNotifier notifier(this);
         bool eof = false, ok = true;
         while (!IsStopRequested() && ok && !eof) {
             if (const auto buffer = ReadBuffer(eof, ok)) {
-                WriteMediaSinksPayload(_ssrc.load(), buffer);
+                WriteMediaSinksPayload(buffer);
             }
         }
         if (!ok) {
@@ -93,9 +93,9 @@ bool FileReader::ReadContent(bool restart)
     return !IsStopRequested();
 }
 
-std::shared_ptr<const MemoryBuffer> FileReader::ReadBuffer(bool& eof, bool& ok) const
+std::shared_ptr<MemoryBuffer> FileReader::ReadBuffer(bool& eof, bool& ok) const
 {
-    std::shared_ptr<const MemoryBuffer> buffer;
+    std::shared_ptr<MemoryBuffer> buffer;
     if (const auto handle = GetHandle()) {
         std::vector<uint8_t> chunk;
         chunk.resize(_chunkSize, 0);
@@ -160,10 +160,10 @@ bool FileReader::FileSeek(FILE* handle, int command, long offset)
     return false;
 }
 
-FileReader::StartEndNotifier::StartEndNotifier(FileReader* source, bool restart)
+FileReader::StartEndNotifier::StartEndNotifier(FileReader* source)
     : _source(source)
 {
-    _source->StartMediaSinksWriting(restart);
+    _source->StartMediaSinksWriting(_source->_ssrc.load());
 }
 
 FileReader::StartEndNotifier::~StartEndNotifier()

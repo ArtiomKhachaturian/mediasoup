@@ -1597,7 +1597,7 @@ namespace RTC
         this->listener->OnTransportDisconnected(this);
 	}
 
-	void Transport::ReceiveRtpPacket(RTC::RtpPacket* packet, RTC::Producer* producer)
+	bool Transport::ReceiveRtpPacket(RTC::RtpPacket* packet, RTC::Producer* producer)
 	{
 		MS_TRACE();
 
@@ -1642,7 +1642,7 @@ namespace RTC
 
 			delete packet;
 
-			return;
+			return false;
 		}
 
 		// MS_DEBUG_DEV(
@@ -1652,7 +1652,7 @@ namespace RTC
 		//   producer->id.c_str());
 
 		// Pass the RTP packet to the corresponding Producer.
-		auto result = producer->ReceiveRtpPacket(packet);
+		const auto result = producer->ReceiveRtpPacket(packet);
 
 		switch (result)
 		{
@@ -1670,6 +1670,7 @@ namespace RTC
 		}
 
 		delete packet;
+        return RTC::Producer::ReceiveRtpPacketResult::DISCARDED != result;
 	}
 
 	void Transport::ReceiveRtcpPacket(RTC::RTCP::Packet* packet)

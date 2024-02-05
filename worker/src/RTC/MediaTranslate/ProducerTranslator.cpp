@@ -31,14 +31,14 @@ protected:
 class MediaSinkWrapper : public RTC::MediaSink
 {
 public:
-    MediaSinkWrapper(RTC::MediaSink* impl, SsrcProvider* ssrcProvider);
+    MediaSinkWrapper(RTC::MediaSink* impl, const SsrcProvider* ssrcProvider);
     bool IsLiveMode() const final;
-    void StartMediaWriting(bool restart) final;
-    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<const RTC::MemoryBuffer>& buffer) final;
+    void StartMediaWriting(uint32_t ssrc) final;
+    void WriteMediaPayload(const std::shared_ptr<RTC::MemoryBuffer>& buffer) final;
     void EndMediaWriting() final;
 private:
     RTC::MediaSink* const _impl;
-    SsrcProvider* const _ssrcProvider;
+    const SsrcProvider* const _ssrcProvider;
 };
 
 }
@@ -581,7 +581,7 @@ std::unique_ptr<FileWriter> ProducerTranslator::StreamInfo::CreateFileWriter(uin
 
 namespace {
 
-MediaSinkWrapper::MediaSinkWrapper(RTC::MediaSink* impl, SsrcProvider* ssrcProvider)
+MediaSinkWrapper::MediaSinkWrapper(RTC::MediaSink* impl, const SsrcProvider* ssrcProvider)
     : _impl(impl)
     , _ssrcProvider(ssrcProvider)
 {
@@ -592,20 +592,19 @@ bool MediaSinkWrapper::IsLiveMode() const
     return _impl->IsLiveMode();
 }
 
-void MediaSinkWrapper::StartMediaWriting(bool restart)
+void MediaSinkWrapper::StartMediaWriting(uint32_t ssrc)
 {
-    RTC::MediaSink::StartMediaWriting(restart);
-    _impl->StartMediaWriting(restart);
+    RTC::MediaSink::StartMediaWriting(ssrc);
+    if (ssrc == _ssrcProvider->GetMappedSsrc()) {
+        ssrc = _ssrcProvider->GetOriginalSsrc();
+    }
+    _impl->StartMediaWriting(ssrc);
 }
 
-void MediaSinkWrapper::WriteMediaPayload(uint32_t ssrc,
-                                         const std::shared_ptr<const RTC::MemoryBuffer>& buffer)
+void MediaSinkWrapper::WriteMediaPayload(const std::shared_ptr<RTC::MemoryBuffer>& buffer)
 {
     if (buffer) {
-        if (ssrc == _ssrcProvider->GetMappedSsrc()) {
-            ssrc = _ssrcProvider->GetOriginalSsrc();
-        }
-        _impl->WriteMediaPayload(ssrc, buffer);
+        _impl->WriteMediaPayload(buffer);
     }
 }
 

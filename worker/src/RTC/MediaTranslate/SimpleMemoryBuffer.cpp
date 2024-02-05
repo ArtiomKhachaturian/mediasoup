@@ -28,6 +28,11 @@ bool SimpleMemoryBuffer::Prepend(const MemoryBuffer& buffer)
     return Prepend(buffer.GetData(), buffer.GetSize());
 }
 
+void SimpleMemoryBuffer::Clear()
+{
+    _buffer.clear();
+}
+
 std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Detach() const
 {
     return Create(GetData(), GetSize());
@@ -38,11 +43,12 @@ std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Take()
     return Create(TakeData());
 }
 
-std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Create(const uint8_t* data, size_t len,
+std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Create(const void* data, size_t len,
                                                                const std::allocator<uint8_t>& allocator)
 {
     if (data && len) {
-        return Create(std::vector<uint8_t>(data, data + len, allocator));
+        const auto bytes = reinterpret_cast<const uint8_t*>(data);
+        return Create(std::vector<uint8_t>(bytes, bytes + len, allocator));
     }
     return nullptr;
 }

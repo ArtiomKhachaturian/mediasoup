@@ -12,7 +12,7 @@ static constexpr int ProducerChannelFd{ 4 };
 
 int main(int argc, char* argv[])
 {
-    sleep(10); // TODO: remove this sleep for production
+    //sleep(10); // TODO: remove this sleep for production
 	// Ensure we are called by our Node library.
 	if (!std::getenv("MEDIASOUP_VERSION"))
 	{

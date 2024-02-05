@@ -10,7 +10,7 @@
 #include <atomic>
 
 #define SINGLE_TRANSLATION_POINT_CONNECTION
-#define NO_TRANSLATION_SERVICE
+//#define NO_TRANSLATION_SERVICE
 #define USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
 
 namespace RTC
@@ -78,10 +78,12 @@ public:
     void OnTransportListenServerClosed(Transport* transport) final;
 private:
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
-    static void ProcessDefferedPackets(uv_async_t* handle);
+    static void PlaybackDefferedRtpPackets(uv_async_t* handle);
+    void PlaybackDefferedRtpPackets();
+    void PlaybackDefferedRtpPackets(Producer* producer, PacketsList packets);
     bool HasConnectedTransport() const;
 #endif
-    bool ProcessRtpPacket(Producer* producer, RtpPacket* packet);
+    bool PlaybackRtpPacket(Producer* producer, RtpPacket* packet);
     bool SendRtpPacket(Producer* producer, RtpPacket* packet);
 private:
     // 1 sec for 20ms OPUS audio frames
@@ -99,6 +101,7 @@ private:
     // key is audio producer ID
     absl::flat_hash_map<std::string, std::unique_ptr<Translator>> _translators;
     ProtectedObj<Transport*> _connectedTransport = nullptr;
+    uint64_t _sendPackets = 0ULL;
 };
 
 } // namespace RTC

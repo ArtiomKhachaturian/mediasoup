@@ -14,8 +14,7 @@ public:
     bool Flush();
     // impl. of MediaSink
     bool IsLiveMode() const final { return false; }
-    void StartMediaWriting(bool restart) final;
-    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer) final;
+    void WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer) final;
 };
 
 } // namespace RTC

@@ -11,10 +11,6 @@
 #include "RTC/Consumer.hpp"
 #include "Logger.hpp"
 
-// for tests
-#include "RTC/MediaTranslate/FileWriter.hpp"
-#include "RTC/MediaTranslate/MediaFrameSerializer.hpp"
-
 namespace {
 
 using namespace RTC;
@@ -45,30 +41,26 @@ namespace RTC
 class ConsumerTranslator::MediaGrabber : public MediaInfo
 {
 public:
-    MediaGrabber(Media::Kind kind,
+    MediaGrabber(uint32_t ssrc, Media::Kind kind,
                  std::unique_ptr<MediaFrameDeserializer> deserializer,
                  const std::vector<RtpCodecParameters>& codecParameters,
                  RtpPacketsCollector* packetsCollector,
                  const RtpPacketsInfoProvider* packetsInfoProvider);
-    void ProcessMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& payload);
-    void SetSerializer(std::unique_ptr<MediaFrameSerializer> serializer);
+    void ProcessMediaPayload(const std::shared_ptr<const MemoryBuffer>& payload);
 protected:
     // overrides of MediaInfo
     std::string_view GetDescription() const final { return _audio ? "audio grabber" : "video grabber"; }
 private:
     bool FetchMediaInfo();
-    void DeserializeMediaFrames(uint32_t ssrc);
+    void DeserializeMediaFrames();
     const RtpCodecParameters* GetCodecParameters(const RtpCodecMimeType& mime) const;
 private:
+    const uint32_t _ssrc;
     const bool _audio;
     const std::unique_ptr<MediaFrameDeserializer> _deserializer;
     const std::vector<RtpCodecParameters>& _codecParameters;
     RtpPacketsCollector* const _packetsCollector;
     absl::flat_hash_map<RtpCodecMimeType::Subtype, std::unique_ptr<CodecInfo>> _codecs;
-    // for tests
-    static inline std::atomic<uint64_t> _outputCounter = 1ULL;
-    std::unique_ptr<FileWriter> _output;
-    std::unique_ptr<MediaFrameSerializer> _serializer;
 };
 
 class ConsumerTranslator::CodecInfo : public MediaInfo
@@ -144,28 +136,25 @@ std::optional<FBS::TranslationPack::Voice> ConsumerTranslator::GetVoice() const
     return _consumer->GetVoice();
 }
 
-void ConsumerTranslator::StartMediaWriting(bool restart)
+void ConsumerTranslator::StartMediaWriting(uint32_t ssrc)
 {
-    MediaSink::StartMediaWriting(restart);
+    MediaSink::StartMediaWriting(ssrc);
     if (auto deserializer = _serializationFactory->CreateDeserializer()) {
-        auto mediaGrabber = std::make_shared<MediaGrabber>(_consumer->GetKind(),
+        auto mediaGrabber = std::make_shared<MediaGrabber>(ssrc, _consumer->GetKind(),
                                                            std::move(deserializer),
                                                            _consumer->GetRtpParameters().codecs,
                                                            _packetsCollector,
                                                            _packetsInfoProvider);
-        const RtpCodecMimeType mime(RtpCodecMimeType::Type::AUDIO, RtpCodecMimeType::Subtype::OPUS);
-        mediaGrabber->SetSerializer(_serializationFactory->CreateSerializer(1, 48000, mime));
         std::atomic_store(&_mediaGrabber, std::move(mediaGrabber));
         InvokeObserverMethod(&ConsumerObserver::OnConsumerMediaStreamStarted, true);
     }
 }
 
-void ConsumerTranslator::WriteMediaPayload(uint32_t ssrc,
-                                           const std::shared_ptr<const MemoryBuffer>& buffer)
+void ConsumerTranslator::WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (buffer) {
         if (const auto mediaGrabber = std::atomic_load(&_mediaGrabber)) {
-            mediaGrabber->ProcessMediaPayload(ssrc, buffer);
+            mediaGrabber->ProcessMediaPayload(buffer);
         }
     }
 }
@@ -189,12 +178,13 @@ void ConsumerTranslator::InvokeObserverMethod(const Method& method, Args&&... ar
     _observers.InvokeMethod(method, GetId(), std::forward<Args>(args)...);
 }
 
-ConsumerTranslator::MediaGrabber::MediaGrabber(Media::Kind kind,
+ConsumerTranslator::MediaGrabber::MediaGrabber(uint32_t ssrc, Media::Kind kind,
                                                std::unique_ptr<MediaFrameDeserializer> deserializer,
                                                const std::vector<RtpCodecParameters>& codecParameters,
                                                RtpPacketsCollector* packetsCollector,
                                                const RtpPacketsInfoProvider* packetsInfoProvider)
     : MediaInfo(packetsInfoProvider)
+    , _ssrc(ssrc)
     , _audio(Media::Kind::AUDIO == kind)
     , _deserializer(std::move(deserializer))
     , _codecParameters(codecParameters)
@@ -202,33 +192,17 @@ ConsumerTranslator::MediaGrabber::MediaGrabber(Media::Kind kind,
 {
 }
 
-void ConsumerTranslator::MediaGrabber::ProcessMediaPayload(uint32_t ssrc,
-                                                           const std::shared_ptr<const MemoryBuffer>& payload)
+void ConsumerTranslator::MediaGrabber::ProcessMediaPayload(const std::shared_ptr<const MemoryBuffer>& payload)
 {
     if (payload) {
-        const auto result = SetResult(ssrc, _deserializer->AddBuffer(payload),
+        const auto result = SetResult(_ssrc, _deserializer->AddBuffer(payload),
                                       "input media buffer deserialization");
         bool requestMediaFrames = false;
         if (MaybeOk(result)) {
             requestMediaFrames = FetchMediaInfo();
         }
         if (requestMediaFrames && IsOk(result)) {
-            DeserializeMediaFrames(ssrc);
-        }
-    }
-}
-
-void ConsumerTranslator::MediaGrabber::SetSerializer(std::unique_ptr<MediaFrameSerializer> serializer)
-{
-    _serializer = std::move(serializer);
-    _output.reset();
-    if (_serializer) {
-        const auto fileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/testMediaGrabber" +
-            std::to_string(_outputCounter.fetch_add(1U)) + ".webm";
-        auto fileWriter = std::make_unique<FileWriter>(fileName);
-        if (fileWriter->IsOpen()) {
-            _output = std::move(fileWriter);
-            _serializer->AddSink(_output.get());
+            DeserializeMediaFrames();
         }
     }
 }
@@ -263,26 +237,23 @@ bool ConsumerTranslator::MediaGrabber::FetchMediaInfo()
     return !_codecs.empty();
 }
 
-void ConsumerTranslator::MediaGrabber::DeserializeMediaFrames(uint32_t ssrc)
+void ConsumerTranslator::MediaGrabber::DeserializeMediaFrames()
 {
     for (auto it = _codecs.begin(); it != _codecs.end(); ++it) {
         auto& codec = it->second;
         if (!codec->HasSequenceNumber()) {
-            _deserializer->SetClockRate(codec->GetTrackIndex(), GetClockRate(ssrc));
+            _deserializer->SetClockRate(codec->GetTrackIndex(), GetClockRate(_ssrc));
         }
         MediaFrameDeserializeResult result = MediaFrameDeserializeResult::Success;
         for (const auto& frame : _deserializer->ReadNextFrames(codec->GetTrackIndex(), &result)) {
-            if (const auto packet = codec->AddFrame(ssrc, frame)) {
+            if (const auto packet = codec->AddFrame(_ssrc, frame)) {
                 if (const auto cp = GetCodecParameters(frame->GetMimeType())) {
                     packet->SetPayloadType(cp->payloadType);
                 }
                 _packetsCollector->AddPacket(packet);
             }
-            if (_serializer) {
-                MS_ASSERT(_serializer->Push(frame), "failed to push audio frame");
-            }
         }
-        codec->SetResult(ssrc, result, "read of deserialized frames");
+        codec->SetResult(_ssrc, result, "read of deserialized frames");
     }
 }
 

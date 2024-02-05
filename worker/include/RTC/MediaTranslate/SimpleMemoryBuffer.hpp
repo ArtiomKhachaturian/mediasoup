@@ -15,6 +15,7 @@ public:
     bool Append(const MemoryBuffer& buffer);
     bool Prepend(const void* buf, size_t len);
     bool Prepend(const MemoryBuffer& buffer);
+    void Clear();
     void Reserve(size_t size) { _buffer.reserve(size); }
     void Resize(size_t size) { _buffer.resize(size); }
     std::vector<uint8_t> TakeData() { return std::move(_buffer); }
@@ -25,7 +26,7 @@ public:
     std::shared_ptr<SimpleMemoryBuffer> Take();
     bool IsEmpty() const { return _buffer.empty(); }
     // create buffer with deep copy of input [data]
-    static std::shared_ptr<SimpleMemoryBuffer> Create(const uint8_t* data, size_t len,
+    static std::shared_ptr<SimpleMemoryBuffer> Create(const void* data, size_t len,
                                                       const std::allocator<uint8_t>& allocator = {});
     static std::shared_ptr<SimpleMemoryBuffer> Create(std::vector<uint8_t> buffer);
     // impl. of MemoryBuffer

@@ -92,7 +92,7 @@ namespace RTC
 	public:
 		void CloseProducersAndConsumers();
 		void ListenServerClosed();
-        void ReceiveRtpPacket(RTC::RtpPacket* packet, RTC::Producer* producer = nullptr);
+        bool ReceiveRtpPacket(RTC::RtpPacket* packet, RTC::Producer* producer = nullptr);
         void ReceiveRtcpPacket(RTC::RTCP::Packet* packet);
 		// Subclasses must also invoke the parent Close().
 		flatbuffers::Offset<FBS::Transport::Stats> FillBufferStats(flatbuffers::FlatBufferBuilder& builder);

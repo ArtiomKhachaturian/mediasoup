@@ -70,7 +70,7 @@ MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
 {
     MS_ASSERT(nullptr != _router, "router must be non-null");
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
-    uv_async_init(_ownerLoop, &_asynHandle, ProcessDefferedPackets);
+    uv_async_init(_ownerLoop, &_asynHandle, PlaybackDefferedRtpPackets);
     _asynHandle.data = (void*)this;
 #endif
 }
@@ -95,6 +95,10 @@ void MediaTranslatorsManager::OnTransportDisconnected(Transport* transport)
         LOCK_WRITE_PROTECTED_OBJ(_connectedTransport);
         if (_connectedTransport.ConstRef() == transport) {
             _connectedTransport = nullptr;
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
+            LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
+            _defferedPackets.Ref().clear();
+#endif
         }
     }
     _router->OnTransportDisconnected(transport);
@@ -124,6 +128,10 @@ void MediaTranslatorsManager::OnTransportNewProducer(Transport* transport, Produ
                 }
                 // enqueue
                 _translators[producer->id] = std::move(translator);
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
+                LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
+                _defferedPackets.Ref()[producer] = PacketsList();
+#endif
             }
         }
     }
@@ -143,6 +151,14 @@ void MediaTranslatorsManager::OnTransportProducerLanguageChanged(Transport* tran
 
 void MediaTranslatorsManager::OnTransportProducerClosed(Transport* transport, Producer* producer)
 {
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
+    LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
+    const auto itd = _defferedPackets.Ref().find(producer);
+    if (itd != _defferedPackets.Ref().end()) {
+        PlaybackDefferedRtpPackets(producer, std::move(itd->second));
+        _defferedPackets.Ref().erase(itd);
+    }
+#endif
     _router->OnTransportProducerClosed(transport, producer);
     if (producer) {
         const auto it = _translators.find(producer->id);
@@ -344,22 +360,31 @@ void MediaTranslatorsManager::OnTransportListenServerClosed(Transport* transport
 }
 
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
-void MediaTranslatorsManager::ProcessDefferedPackets(uv_async_t* handle)
+void MediaTranslatorsManager::PlaybackDefferedRtpPackets(uv_async_t* handle)
 {
     if (handle) {
         const auto self = (MediaTranslatorsManager*)handle->data;
-        {
-            LOCK_WRITE_PROTECTED_OBJ(self->_defferedPackets);
-            for (auto it = self->_defferedPackets.Ref().begin();
-                 it != self->_defferedPackets.Ref().end(); ++it) {
-                if (it->second.size() >= _defferedPacketsBatchSize) {
-                    auto packets = std::move(it->second);
-                    for (const auto& packet : packets) {
-                        if (!self->ProcessRtpPacket(it->first, packet)) {
-                            delete packet;
-                        }
-                    }
-                }
+        self->PlaybackDefferedRtpPackets();
+    }
+}
+
+void MediaTranslatorsManager::PlaybackDefferedRtpPackets()
+{
+    LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
+    for (auto it = _defferedPackets.Ref().begin(); it != _defferedPackets.Ref().end(); ++it) {
+        if (it->second.size() >= _defferedPacketsBatchSize) {
+            PlaybackDefferedRtpPackets(it->first, std::move(it->second));
+        }
+    }
+}
+
+void MediaTranslatorsManager::PlaybackDefferedRtpPackets(Producer* producer, PacketsList packets)
+{
+    if (producer && !packets.empty()) {
+        MS_ASSERT(_ownerLoop == DepLibUV::GetLoop(), "incorrect calling thread");
+        for (const auto packet : packets) {
+            if (!PlaybackRtpPacket(producer, packet)) {
+                delete packet;
             }
         }
     }
@@ -373,12 +398,14 @@ bool MediaTranslatorsManager::HasConnectedTransport() const
 
 #endif
 
-bool MediaTranslatorsManager::ProcessRtpPacket(Producer* producer, RtpPacket* packet)
+bool MediaTranslatorsManager::PlaybackRtpPacket(Producer* producer, RtpPacket* packet)
 {
     if (packet && producer) {
         LOCK_READ_PROTECTED_OBJ(_connectedTransport);
         if (const auto transport = _connectedTransport.ConstRef()) {
-            transport->ReceiveRtpPacket(packet, producer);
+            if (transport->ReceiveRtpPacket(packet, producer)) {
+                ++_sendPackets;
+            }
             return true;
         }
     }
@@ -391,30 +418,22 @@ bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packe
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     if (packet) {
         if (_ownerLoop == DepLibUV::GetLoop()) {
-            ok = ProcessRtpPacket(producer, packet);
+            ok = PlaybackRtpPacket(producer, packet);
         }
-        else {
-            if (HasConnectedTransport()) {
-                LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
-                auto& defferedPackets = _defferedPackets.Ref();
-                const auto it = defferedPackets.find(producer);
-                if (it == defferedPackets.end()) {
-                    PacketsList packets;
-                    packets.push_back(packet);
-                    defferedPackets[producer] = std::move(packets);
-                }
-                else {
-                    it->second.push_back(packet);
-                    if (it->second.size() >= _defferedPacketsBatchSize) {
-                        uv_async_send(&_asynHandle);
-                    }
+        else if (HasConnectedTransport()) {
+            LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
+            const auto it = _defferedPackets.Ref().find(producer);
+            if (it != _defferedPackets.Ref().end()) {
+                it->second.push_back(packet);
+                if (it->second.size() == _defferedPacketsBatchSize) {
+                    uv_async_send(&_asynHandle);
                 }
                 ok = true;
             }
         }
     }
 #else
-    ok = ProcessRtpPacket(producer, packet, toRouter);
+    ok = PlaybackRtpPacket(producer, packet, toRouter);
 #endif
     if (!ok) {
         delete packet;
@@ -440,6 +459,7 @@ MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
 {
+    MS_ERROR_STD("Translator for producer: %s", _producer->GetId().c_str());
 }
 
 MediaTranslatorsManager::Translator::~Translator()

@@ -40,8 +40,8 @@ public:
     std::optional<FBS::TranslationPack::Voice> GetVoice() const final;
     // impl. of MediaSink
     bool IsLiveMode() const final { return true; }
-    void StartMediaWriting(bool restart) final;
-    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer) final;
+    void StartMediaWriting(uint32_t ssrc) final;
+    void WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer) final;
     void EndMediaWriting() final;
 protected:
     void OnPauseChanged(bool pause) final;

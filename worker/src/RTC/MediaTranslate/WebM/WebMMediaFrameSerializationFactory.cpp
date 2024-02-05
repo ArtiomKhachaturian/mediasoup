@@ -7,11 +7,10 @@ namespace RTC
 {
 
 std::unique_ptr<MediaFrameSerializer> WebMMediaFrameSerializationFactory::
-    CreateSerializer(uint32_t ssrc, uint32_t clockRate, const RtpCodecMimeType& mime,
-                     uint32_t timeSliceMs)
+    CreateSerializer(uint32_t ssrc, uint32_t clockRate, const RtpCodecMimeType& mime)
 {
     if (WebMSerializer::IsSupported(mime)) {
-        return std::make_unique<WebMSerializer>(ssrc, clockRate, mime, timeSliceMs);
+        return std::make_unique<WebMSerializer>(ssrc, clockRate, mime);
     }
     return nullptr;
 }

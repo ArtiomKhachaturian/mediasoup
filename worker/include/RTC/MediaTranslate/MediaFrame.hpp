@@ -11,6 +11,7 @@ class MediaFrameConfig;
 class AudioFrameConfig;
 class VideoFrameConfig;
 class MemoryBuffer;
+class CompoundMemoryBuffer;
 
 class MediaFrame
 {
@@ -20,12 +21,10 @@ public:
     // add-methods return false if input arguments is incorrect: null or empty payload
     bool AddPayload(std::vector<uint8_t> payload);
     bool AddPayload(const uint8_t* data, size_t len, const std::allocator<uint8_t>& payloadAllocator = {});
-    bool AddPayload(const std::shared_ptr<const MemoryBuffer>& payload);
-	bool IsEmpty() const { return _payloads.empty(); }
-	const std::vector<std::shared_ptr<const MemoryBuffer>>& GetPayloads() const;
+    bool AddPayload(const std::shared_ptr<MemoryBuffer>& payload);
+    bool IsEmpty() const;
 	// expensive operation, in difference from [GetPayloads] returns continuous area of payload data
     std::shared_ptr<const MemoryBuffer> GetPayload() const;
-    size_t GetPayloadSize() const { return _payloadSize; }
     // common properties
     const RtpCodecMimeType& GetMimeType() const { return _mimeType; }
     bool IsAudio() const { return GetMimeType().IsAudioCodec(); }
@@ -42,10 +41,9 @@ public:
     std::shared_ptr<const VideoFrameConfig> GetVideoConfig() const;
 private:
 	const RtpCodecMimeType _mimeType;
+    const std::shared_ptr<CompoundMemoryBuffer> _payload;
     bool _keyFrame = false;
     uint32_t _timestamp = 0U; // RTP time
-    std::vector<std::shared_ptr<const MemoryBuffer>> _payloads;
-    size_t _payloadSize = 0UL;
     std::shared_ptr<const MediaFrameConfig> _config;
 };
 

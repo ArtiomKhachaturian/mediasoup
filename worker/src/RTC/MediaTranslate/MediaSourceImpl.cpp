@@ -27,15 +27,15 @@ void MediaSourceImpl::RemoveAllSinks()
     _sinks.Clear();
 }
 
-void MediaSourceImpl::StartMediaSinksWriting(bool restart)
+void MediaSourceImpl::StartMediaSinksWriting(uint32_t ssrc)
 {
-    _sinks.InvokeMethod(&MediaSink::StartMediaWriting, restart);
+    _sinks.InvokeMethod(&MediaSink::StartMediaWriting, ssrc);
 }
 
-void MediaSourceImpl::WriteMediaSinksPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer)
+void MediaSourceImpl::WriteMediaSinksPayload(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (buffer) {
-        _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, ssrc, buffer);
+        _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, buffer);
     }
 }
 
