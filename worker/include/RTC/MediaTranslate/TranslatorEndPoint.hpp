@@ -8,6 +8,8 @@
 #include <string>
 #include <optional>
 
+#define WRITE_TRANSLATION_TO_FILE
+
 namespace RTC
 {
 
@@ -31,7 +33,7 @@ public:
     void SetOutput(MediaSink* output);
     bool IsConnected() const;
 private:
-    static void ProcessTranslation(uint32_t ssrc, MediaSink* output, const std::shared_ptr<MemoryBuffer>& message);
+    void ProcessTranslation(uint32_t ssrc, MediaSink* output, const std::shared_ptr<MemoryBuffer>& message);
     static std::string_view LanguageToId(const std::optional<FBS::TranslationPack::Language>& language);
     static std::string_view VoiceToId(FBS::TranslationPack::Voice voice);
     static nlohmann::json TargetLanguageCmd(FBS::TranslationPack::Language languageTo,
@@ -64,6 +66,9 @@ private:
     ProtectedObj<MediaSource*> _input;
     ProtectedObj<MediaSink*> _output;
     std::atomic<uint32_t> _latestSsrc = 0U;
+#ifdef WRITE_TRANSLATION_TO_FILE
+    std::atomic<uint32_t> _translationsCounter = 0ULL;
+#endif
 };
 
 } // namespace RTC

@@ -12,7 +12,7 @@ class WebMSerializer : public MediaFrameSerializer
     class BufferedWriter;
 public:
     WebMSerializer(uint32_t ssrc, uint32_t clockRate, const RtpCodecMimeType& mime,
-                   const char* app = "SpeakShiftSFU");
+                   uint32_t timeSliceMs, const char* app = "SpeakShiftSFU");
     ~WebMSerializer() final;
     static bool IsSupported(const RtpCodecMimeType& mimeType);
     static const char* GetCodecId(RtpCodecMimeType::Subtype codec);
@@ -31,6 +31,7 @@ private:
     uint64_t UpdateTimeStamp(uint32_t timestamp);
 private:
     static inline constexpr int32_t _trackNumber = 1;
+    const uint32_t _timeSliceMs;
     const char* const _app;
     absl::flat_hash_map<MediaSink*, std::unique_ptr<BufferedWriter>> _sinks;
     uint32_t _lastTimestamp = 0UL;

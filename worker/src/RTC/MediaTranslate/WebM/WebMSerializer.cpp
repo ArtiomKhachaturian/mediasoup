@@ -6,6 +6,7 @@
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
+#include "DepLibUV.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
 #include <mkvmuxer/mkvmuxer.h>
@@ -61,7 +62,7 @@ namespace RTC
 class WebMSerializer::BufferedWriter : private mkvmuxer::IMkvWriter
 {
 public:
-    BufferedWriter(uint32_t ssrc, MediaSink* sink, const char* app);
+    BufferedWriter(uint32_t ssrc, MediaSink* sink, uint32_t timeSliceMs, const char* app);
     ~BufferedWriter() final;
     bool IsInitialized() const { return _initialized; }
     bool HasAudioTracks() const { return _audioTracksCount > 0UL; }
@@ -77,7 +78,7 @@ public:
 private:
     static bool SetCodecSpecific(mkvmuxer::Track* track,
                                  const std::shared_ptr<const MemoryBuffer>& specific);
-    void WriteMediaPayloadToSink();
+    void WriteMediaPayloadToSink(bool force = false);
     bool HasWroteMedia() const { return _wroteMedia; }
     void ReserveBuffer() { EnsureBufferSize(1024UL, true); }
     void EnsureBufferSize(size_t len, bool reserve);
@@ -86,6 +87,10 @@ private:
     EnqueueResult EnqueueFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
                                uint64_t mkvTimestamp, int32_t trackNumber);
     bool WriteFrames(uint64_t mkvTimestamp);
+    // Forces data output from |segment_| on the next frame if recording video,
+    // and |min_data_output_interval_| was configured and has passed since the
+    // last received video frame.
+    void MaybeForceNewCluster();
     // impl. of mkvmuxer::IMkvWriter
     mkvmuxer::int32 Write(const void* buf, mkvmuxer::uint32 len) final;
     mkvmuxer::int64 Position() const final;
@@ -95,6 +100,7 @@ private:
 private:
     const uint32_t _ssrc;
     MediaSink* const _sink;
+    const uint32_t _timeSliceMs;
     mkvmuxer::Segment _segment;
     const bool _initialized;
     bool _wroteMedia = false;
@@ -106,11 +112,15 @@ private:
     std::vector<MkvFrame> _mkvFrames;
     SimpleMemoryBuffer _buffer;
     mkvmuxer::int64 _position = 0LL;
+    uint64_t _sliceOriginTimestamp = 0ULL;
+    uint64_t _lastDataOutputTimestamp = 0ULL;
 };
 
 WebMSerializer::WebMSerializer(uint32_t ssrc, uint32_t clockRate,
-                               const RtpCodecMimeType& mime, const char* app)
+                               const RtpCodecMimeType& mime,
+                               uint32_t timeSliceMs, const char* app)
     : MediaFrameSerializer(ssrc, clockRate, mime)
+    , _timeSliceMs(timeSliceMs)
     , _app(app)
 {
 }
@@ -158,7 +168,7 @@ const char* WebMSerializer::GetCodecId(const RtpCodecMimeType& mime)
 bool WebMSerializer::AddSink(MediaSink* sink)
 {
     if (sink && _sinks.end() == _sinks.find(sink)) {
-        auto writer = std::make_unique<BufferedWriter>(GetSsrc(), sink, _app);
+        auto writer = std::make_unique<BufferedWriter>(GetSsrc(), sink, _timeSliceMs, _app);
         if (writer->IsInitialized()) {
             bool ok = false;
             switch (GetMimeType().GetType()) {
@@ -269,9 +279,11 @@ uint64_t WebMSerializer::UpdateTimeStamp(uint32_t timestamp)
     return ValueToNano(_granule) / GetClockRate();
 }
 
-WebMSerializer::BufferedWriter::BufferedWriter(uint32_t ssrc, MediaSink* sink, const char* app)
+WebMSerializer::BufferedWriter::BufferedWriter(uint32_t ssrc, MediaSink* sink,
+                                               uint32_t timeSliceMs, const char* app)
     : _ssrc(ssrc)
     , _sink(sink)
+    , _timeSliceMs(timeSliceMs)
     , _initialized(_segment.Init(this))
 {
     if (IsInitialized()) {
@@ -297,7 +309,7 @@ WebMSerializer::BufferedWriter::~BufferedWriter()
 {
     if (IsInitialized()) {
         _segment.Finalize();
-        WriteMediaPayloadToSink();
+        WriteMediaPayloadToSink(true);
         if (HasWroteMedia()) {
             _sink->EndMediaWriting();
         }
@@ -445,12 +457,22 @@ bool WebMSerializer::BufferedWriter::SetCodecSpecific(mkvmuxer::Track* track,
     return true;
 }
 
-void WebMSerializer::BufferedWriter::WriteMediaPayloadToSink()
+void WebMSerializer::BufferedWriter::WriteMediaPayloadToSink(bool force)
 {
-    if (const auto buffer = _buffer.Take()) {
-        _position = 0LL;
-        _sink->WriteMediaPayload(_ssrc, buffer);
-        ReserveBuffer();
+    bool canWrite = force || 0U == _timeSliceMs;
+    if (!canWrite) {
+        const auto now = DepLibUV::GetTimeMs();
+        canWrite = now > _sliceOriginTimestamp + _timeSliceMs;
+        if (canWrite) {
+            _sliceOriginTimestamp = now;
+        }
+    }
+    if (canWrite) {
+        if (const auto buffer = _buffer.Take()) {
+            _position = 0LL;
+            _sink->WriteMediaPayload(_ssrc, buffer);
+            ReserveBuffer();
+        }
     }
 }
 
@@ -527,6 +549,10 @@ bool WebMSerializer::BufferedWriter::WriteFrames(uint64_t mkvTimestamp)
             if (mkvFrame.GetMkvTimestamp() <= mkvTimestamp) {
                 if (!HasWroteMedia()) {
                     _sink->StartMediaWriting(false);
+                    _sliceOriginTimestamp = DepLibUV::GetTimeMs();
+                }
+                if (mkvFrame.GetMediaFrame()->IsAudio()) {
+                    MaybeForceNewCluster();
                 }
                 ok = mkvFrame.WriteToSegment(_segment);
                 if (ok) {
@@ -546,6 +572,14 @@ bool WebMSerializer::BufferedWriter::WriteFrames(uint64_t mkvTimestamp)
     return ok;
 }
 
+void WebMSerializer::BufferedWriter::MaybeForceNewCluster()
+{
+    if (_videoTracksCount && _timeSliceMs && _lastDataOutputTimestamp
+        && DepLibUV::GetTimeMs() - _lastDataOutputTimestamp >= _timeSliceMs) {
+        _segment.ForceNewClusterOnNextFrame();
+    }
+}
+
 mkvmuxer::int32 WebMSerializer::BufferedWriter::Write(const void* buf, mkvmuxer::uint32 len)
 {
     if (buf && len) {
@@ -553,6 +587,7 @@ mkvmuxer::int32 WebMSerializer::BufferedWriter::Write(const void* buf, mkvmuxer:
         std::memcpy(_buffer.GetData() + _position, buf, len);
         _position += len;
         _wroteMedia = true;
+        _lastDataOutputTimestamp = DepLibUV::GetTimeMs();
         return 0;
     }
     return -1;

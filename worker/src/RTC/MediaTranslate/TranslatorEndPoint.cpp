@@ -2,6 +2,9 @@
 #include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/Websocket.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
+#ifdef WRITE_TRANSLATION_TO_FILE
+#include "RTC/MediaTranslate/FileWriter.hpp"
+#endif
 #include "Logger.hpp"
 
 namespace RTC
@@ -108,9 +111,21 @@ void TranslatorEndPoint::ProcessTranslation(uint32_t ssrc, MediaSink* output,
                                             const std::shared_ptr<MemoryBuffer>& message)
 {
     if (output && message) {
+        MS_ERROR_STD("Received translation for %u SSRC", ssrc);
         output->StartMediaWriting(false);
         output->WriteMediaPayload(ssrc, message);
         output->EndMediaWriting();
+#ifdef WRITE_TRANSLATION_TO_FILE
+        const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
+        if (depacketizerPath && std::strlen(depacketizerPath)) {
+            std::string fileName = "received_translation_" + std::to_string(ssrc) + "_"
+                + std::to_string(++_translationsCounter) + ".webm";
+            FileWriter file(std::string(depacketizerPath) + "/" + fileName);
+            if (file.IsOpen()) {
+                file.WriteMediaPayload(ssrc, message);
+            }
+        }
+#endif
     }
 }
 
@@ -235,6 +250,7 @@ void TranslatorEndPoint::ConnectToMediaInput(MediaSource* input, bool connect)
         else {
             input->RemoveSink(this);
         }
+        MS_ERROR_STD("Translation service connected to media source: %s", connect ? "YES" : "NO");
     }
 }
 
@@ -295,6 +311,7 @@ void TranslatorEndPoint::OpenSocket()
 void TranslatorEndPoint::WriteMediaPayload(uint32_t ssrc,
                                            const std::shared_ptr<const MemoryBuffer>& buffer)
 {
+    MS_ERROR_STD("dataavailable, size = %d", int(buffer->GetSize()));
     if (buffer && IsConnected() && !_socket->WriteBinary(buffer)) {
         MS_ERROR_STD("failed write binary packet (%ld bytes)' into translation service", buffer->GetSize());
     }
