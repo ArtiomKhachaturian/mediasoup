@@ -18,6 +18,7 @@ public:
     void Reserve(size_t size) { _buffer.reserve(size); }
     void Resize(size_t size) { _buffer.resize(size); }
     std::vector<uint8_t> TakeData() { return std::move(_buffer); }
+    size_t GetCapacity() const { return _buffer.capacity(); }
     // return a deep copy
     std::shared_ptr<SimpleMemoryBuffer> Detach() const;
     // return null if this buffer is empty

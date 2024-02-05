@@ -17,7 +17,7 @@ private:
 
 FileReader::FileReader(const std::string_view& fileNameUtf8,
                        bool loop, size_t chunkSize, int* error)
-    : FileDevice<MediaSource>(fileNameUtf8, true, error)
+    : Base(fileNameUtf8, true, error)
     , _loop(loop)
     , _fileSize(GetFileSize(GetHandle()))
     , _chunkSize(std::min<size_t>(_fileSize, std::max(chunkSize, 1024UL)))
@@ -31,13 +31,13 @@ FileReader::~FileReader()
 
 bool FileReader::IsOpen() const
 {
-    return FileDevice<MediaSource>::IsOpen() && _fileSize > 0LL;
+    return Base::IsOpen() && _fileSize > 0LL;
 }
 
-void FileReader::OnFirstSinkAdded()
+void FileReader::OnSinkWasAdded(MediaSink* sink, bool first)
 {
-    FileDevice<MediaSource>::OnFirstSinkAdded();
-    if (IsOpen() && !_thread.joinable()) {
+    Base::OnSinkWasAdded(sink, first);
+    if (first && IsOpen() && !_thread.joinable()) {
         _thread = std::thread([this]() {
             if (!IsStopRequested()) {
                 bool operationDone = false;
@@ -60,10 +60,12 @@ void FileReader::OnFirstSinkAdded()
     }
 }
 
-void FileReader::OnLastSinkRemoved()
+void FileReader::OnSinkWasRemoved(MediaSink* sink, bool last)
 {
-    Stop();
-    FileDevice<MediaSource>::OnLastSinkRemoved();
+    if (last) {
+        Stop();
+    }
+    Base::OnSinkWasRemoved(sink, last);
 }
 
 void FileReader::Stop()

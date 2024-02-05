@@ -6,11 +6,13 @@ namespace RTC
 
 class MediaFrameSerializer;
 class MediaFrameDeserializer;
+class RtpCodecMimeType;
 
 class MediaFrameSerializationFactory
 {
 public:
-    virtual std::unique_ptr<MediaFrameSerializer> CreateSerializer() = 0;
+    virtual std::unique_ptr<MediaFrameSerializer> CreateSerializer(uint32_t ssrc, uint32_t clockRate,
+                                                                   const RtpCodecMimeType& mime) = 0;
     virtual std::unique_ptr<MediaFrameDeserializer> CreateDeserializer() = 0;
 protected:
     virtual ~MediaFrameSerializationFactory() = default;

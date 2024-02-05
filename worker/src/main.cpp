@@ -14,7 +14,7 @@ static constexpr int PayloadProducerChannelFd{ 6 };
 
 int main(int argc, char* argv[])
 {
-    sleep(10);
+    sleep(10); // TODO: remove this sleep for production
 	// Ensure we are called by our Node library.
 	if (!std::getenv("MEDIASOUP_VERSION"))
 	{

@@ -180,7 +180,7 @@ common_sources = [
   'src/RTC/MediaTranslate/MediaFrame.cpp',
   'src/RTC/MediaTranslate/RtpMemoryBufferPacket.cpp',
   'src/RTC/MediaTranslate/MediaFrameSerializer.cpp',
-  'src/RTC/MediaTranslate/MediaSource.cpp',
+  'src/RTC/MediaTranslate/MediaSourceImpl.cpp',
   'src/RTC/MediaTranslate/MediaTranslatorsManager.cpp',
   'src/RTC/MediaTranslate/ProducerTranslator.cpp',
   'src/RTC/MediaTranslate/RtpDepacketizer.cpp',

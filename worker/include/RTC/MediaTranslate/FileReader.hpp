@@ -1,15 +1,16 @@
 #pragma once
 #include "RTC/MediaTranslate/FileDevice.hpp"
-#include "RTC/MediaTranslate/MediaSource.hpp"
+#include "RTC/MediaTranslate/MediaSourceImpl.hpp"
 #include <atomic>
 #include <thread>
 
 namespace RTC
 {
 
-class FileReader : public FileDevice<MediaSource>
+class FileReader : public FileDevice<MediaSourceImpl>
 {
     class StartEndNotifier;
+    using Base = FileDevice<MediaSourceImpl>;
 public:
 	FileReader(const std::string_view& fileNameUtf8,
                bool loop = true, size_t chunkSize = 1024U * 1024U, // 1mb
@@ -20,8 +21,8 @@ public:
     bool IsOpen() const final;
 protected:
     // overrides of MediaSource
-    void OnFirstSinkAdded() final;
-    void OnLastSinkRemoved() final;
+    void OnSinkWasAdded(MediaSink* sink, bool first) final;
+    void OnSinkWasRemoved(MediaSink* sink, bool last) final;
 private:
     bool IsStopRequested() const { return _stopRequested.load(); }
     void Stop();

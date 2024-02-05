@@ -11,6 +11,10 @@
 #include "RTC/Consumer.hpp"
 #include "Logger.hpp"
 
+// for tests
+#include "RTC/MediaTranslate/FileWriter.hpp"
+#include "RTC/MediaTranslate/MediaFrameSerializer.hpp"
+
 namespace {
 
 using namespace RTC;
@@ -19,7 +23,7 @@ class MediaInfo
 {
 public:
     MediaFrameDeserializeResult SetResult(uint32_t ssrc, MediaFrameDeserializeResult result,
-                                          const std::string_view& operationName = "");
+                                          const char* operationName = "");
 protected:
     MediaInfo(const RtpPacketsInfoProvider* packetsInfoProvider);
     const RtpPacketsInfoProvider* GetPacketsInfoProvider() const { return _packetsInfoProvider; }
@@ -47,6 +51,7 @@ public:
                  RtpPacketsCollector* packetsCollector,
                  const RtpPacketsInfoProvider* packetsInfoProvider);
     void ProcessMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& payload);
+    void SetSerializer(std::unique_ptr<MediaFrameSerializer> serializer);
 protected:
     // overrides of MediaInfo
     std::string_view GetDescription() const final { return _audio ? "audio grabber" : "video grabber"; }
@@ -60,6 +65,10 @@ private:
     const std::vector<RtpCodecParameters>& _codecParameters;
     RtpPacketsCollector* const _packetsCollector;
     absl::flat_hash_map<RtpCodecMimeType::Subtype, std::unique_ptr<CodecInfo>> _codecs;
+    // for tests
+    static inline std::atomic<uint64_t> _outputCounter = 1ULL;
+    std::unique_ptr<FileWriter> _output;
+    std::unique_ptr<MediaFrameSerializer> _serializer;
 };
 
 class ConsumerTranslator::CodecInfo : public MediaInfo
@@ -144,6 +153,8 @@ void ConsumerTranslator::StartMediaWriting(bool restart)
                                                            _consumer->GetRtpParameters().codecs,
                                                            _packetsCollector,
                                                            _packetsInfoProvider);
+        const RtpCodecMimeType mime(RtpCodecMimeType::Type::AUDIO, RtpCodecMimeType::Subtype::OPUS);
+        mediaGrabber->SetSerializer(_serializationFactory->CreateSerializer(1, 48000, mime));
         std::atomic_store(&_mediaGrabber, std::move(mediaGrabber));
         InvokeObserverMethod(&ConsumerObserver::OnConsumerMediaStreamStarted, true);
     }
@@ -207,6 +218,21 @@ void ConsumerTranslator::MediaGrabber::ProcessMediaPayload(uint32_t ssrc,
     }
 }
 
+void ConsumerTranslator::MediaGrabber::SetSerializer(std::unique_ptr<MediaFrameSerializer> serializer)
+{
+    _serializer = std::move(serializer);
+    _output.reset();
+    if (_serializer) {
+        const auto fileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/testMediaGrabber" +
+            std::to_string(_outputCounter.fetch_add(1U)) + ".webm";
+        auto fileWriter = std::make_unique<FileWriter>(fileName);
+        if (fileWriter->IsOpen()) {
+            _output = std::move(fileWriter);
+            _serializer->AddSink(_output.get());
+        }
+    }
+}
+
 bool ConsumerTranslator::MediaGrabber::FetchMediaInfo()
 {
     if (_codecs.empty()) {
@@ -244,13 +270,16 @@ void ConsumerTranslator::MediaGrabber::DeserializeMediaFrames(uint32_t ssrc)
         if (!codec->HasSequenceNumber()) {
             _deserializer->SetClockRate(codec->GetTrackIndex(), GetClockRate(ssrc));
         }
-        MediaFrameDeserializeResult result;
+        MediaFrameDeserializeResult result = MediaFrameDeserializeResult::Success;
         for (const auto& frame : _deserializer->ReadNextFrames(codec->GetTrackIndex(), &result)) {
             if (const auto packet = codec->AddFrame(ssrc, frame)) {
                 if (const auto cp = GetCodecParameters(frame->GetMimeType())) {
                     packet->SetPayloadType(cp->payloadType);
                 }
                 _packetsCollector->AddPacket(packet);
+            }
+            if (_serializer) {
+                MS_ASSERT(_serializer->Push(frame), "failed to push audio frame");
             }
         }
         codec->SetResult(ssrc, result, "read of deserialized frames");
@@ -311,19 +340,12 @@ MediaInfo::MediaInfo(const RtpPacketsInfoProvider* packetsInfoProvider)
 }
 
 MediaFrameDeserializeResult MediaInfo::SetResult(uint32_t ssrc, MediaFrameDeserializeResult result,
-                                                 const std::string_view& operationName)
+                                                 const char* operationName)
 {
-    if (result != _lastResult.exchange(result) && !IsOk(result)) {
-        if (MaybeOk(result)) {
-            MS_WARN_DEV_STD("%s (SSRC = %u) had a problem in result of %s: %s",
-                            GetDescription().data(), ssrc, operationName.data(),
-                            ToString(result));
-        }
-        else {
-            MS_ERROR_STD("%s (SSRC = %u) operation %s failed: %s",
-                         GetDescription().data(), ssrc, operationName.data(),
-                         ToString(result));
-        }
+    if (result != _lastResult.exchange(result) && !MaybeOk(result)) {
+        MS_ERROR_STD("%s (SSRC = %u) operation %s failed: %s",
+                     GetDescription().data(), ssrc, operationName,
+                     ToString(result));
     }
     return result;
 }

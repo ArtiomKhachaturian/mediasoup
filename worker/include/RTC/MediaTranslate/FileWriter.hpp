@@ -13,6 +13,7 @@ public:
     // false on write error. Note: Flushing when closing, is not required.
     bool Flush();
     // impl. of MediaSink
+    bool IsLiveMode() const final { return false; }
     void StartMediaWriting(bool restart) final;
     void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer) final;
 };

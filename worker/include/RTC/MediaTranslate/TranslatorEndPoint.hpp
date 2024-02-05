@@ -49,6 +49,7 @@ private:
     bool WriteJson(const nlohmann::json& data) const;
     void OpenSocket();
     // impl. of MediaSink
+    bool IsLiveMode() const final { return true; }
     void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer) final;
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;

@@ -11,8 +11,6 @@ namespace RTC
 class MediaFrame;
 class OutputDevice;
 class MemoryBuffer;
-class AudioFrameConfig;
-class VideoFrameConfig;
 
 class MediaFrameSerializer : public MediaSource
 {
@@ -20,22 +18,17 @@ public:
     MediaFrameSerializer(const MediaFrameSerializer&) = delete;
     MediaFrameSerializer(MediaFrameSerializer&&) = delete;
     virtual ~MediaFrameSerializer() = default;
-    virtual std::string_view GetFileExtension(const RtpCodecMimeType& mimeType) const;
-    // both 'RegisterAudio' & 'RegisterVideo' maybe called before and after 1st invoke of 'Push',
-    // implementation should try to re-create media container if needed and send
-    // restart event via 'MediaSink::StartStream' (with restart=true)
-    virtual bool AddAudio(uint32_t ssrc, uint32_t clockRate,
-                          RtpCodecMimeType::Subtype codec,
-                          const std::shared_ptr<const AudioFrameConfig>& config = nullptr) = 0;
-    virtual bool AddVideo(uint32_t ssrc, uint32_t clockRate,
-                          RtpCodecMimeType::Subtype codec,
-                          const std::shared_ptr<const VideoFrameConfig>& config = nullptr) = 0;
-    virtual void RemoveMedia(uint32_t ssrc) = 0;
-    virtual bool Push(uint32_t ssrc, const std::shared_ptr<const MediaFrame>& mediaFrame) = 0;
-    virtual bool IsCompatible(const RtpCodecMimeType& mimeType) const = 0;
-    virtual void SetLiveMode(bool /*liveMode*/ = true) {}
+    virtual std::string_view GetFileExtension() const;
+    virtual bool Push(const std::shared_ptr<const MediaFrame>& mediaFrame) = 0;
+    uint32_t GetSsrc() const { return _ssrc; }
+    uint32_t GetClockRate() const { return _clockRate; }
+    const RtpCodecMimeType& GetMimeType() const { return _mime; }
 protected:
-    MediaFrameSerializer() = default;
+    MediaFrameSerializer(uint32_t ssrc, uint32_t clockRate, const RtpCodecMimeType& mime);
+private:
+    const uint32_t _ssrc;
+    const uint32_t _clockRate;
+    const RtpCodecMimeType _mime;
 };
 
 } // namespace RTC

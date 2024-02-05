@@ -141,22 +141,22 @@ namespace RTC
 			{
 				return;
 			}
+            
+            // Modify the RtpPacket payload in order to always have two byte pictureId.
+            if (payloadDescriptor->hasOneBytePictureId)
+            {
+                // Shift the RTP payload one byte from the begining of the pictureId field.
+                packet->ShiftPayload(2, 1, true /*expand*/);
+
+                // Set the two byte pictureId marker bit.
+                data[2] = 0x80;
+
+                // Update the payloadDescriptor.
+                payloadDescriptor->hasOneBytePictureId  = false;
+                payloadDescriptor->hasTwoBytesPictureId = true;
+            }
 
 			packet->SetPayloadDescriptorHandler(std::make_shared<PayloadDescriptorHandler>(std::move(payloadDescriptor)));
-
-			// Modify the RtpPacket payload in order to always have two byte pictureId.
-			if (payloadDescriptor->hasOneBytePictureId)
-			{
-				// Shift the RTP payload one byte from the begining of the pictureId field.
-				packet->ShiftPayload(2, 1, true /*expand*/);
-
-				// Set the two byte pictureId marker bit.
-				data[2] = 0x80;
-
-				// Update the payloadDescriptor.
-				payloadDescriptor->hasOneBytePictureId  = false;
-				payloadDescriptor->hasTwoBytesPictureId = true;
-			}
 		}
 
 		/* Instance methods. */

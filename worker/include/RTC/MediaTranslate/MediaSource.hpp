@@ -1,32 +1,20 @@
 #pragma once
-#include "RTC/Listeners.hpp"
-#include <memory>
-#include <vector>
+#include <cstdint>
 
 namespace RTC
 {
 
 class MediaSink;
-class MemoryBuffer;
 
 class MediaSource
 {
 public:
     virtual ~MediaSource() = default;
-    void AddSink(MediaSink* sink);
-    void RemoveSink(MediaSink* sink);
-    void RemoveAllSinks();
-    bool HasSinks() const { return !_sinks.IsEmpty(); }
-protected:
-    MediaSource() = default;
-    virtual bool IsSinkValid(const MediaSink* sink) const { return nullptr != sink; }
-    virtual void OnFirstSinkAdded() {}
-    virtual void OnLastSinkRemoved() {}
-    void StartMediaSinksWriting(bool restart);
-    void WriteMediaSinksPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer);
-    void EndMediaSinksWriting();
-private:
-    Listeners<MediaSink*> _sinks;
+    virtual bool AddSink(MediaSink* sink) = 0;
+    virtual bool RemoveSink(MediaSink* sink) = 0;
+    virtual void RemoveAllSinks() = 0;
+    virtual bool HasSinks() const = 0;
+    virtual size_t GetSinksCout() const = 0;
 };
 
 } // namespace RTC

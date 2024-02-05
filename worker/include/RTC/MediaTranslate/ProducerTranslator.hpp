@@ -4,10 +4,11 @@
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/MediaTranslate/RtpPacketsInfoProvider.hpp"
 #include "RTC/MediaTranslate/TranslatorUnit.hpp"
-#include "RTC/MediaTranslate/MediaSink.hpp"
-#include "RTC/MediaTranslate/MediaSource.hpp"
 #include "RTC/MediaTranslate/ProducerObserver.hpp"
+#include "RTC/MediaTranslate/MediaSource.hpp"
+#include "RTC/Listeners.hpp"
 #include <absl/container/flat_hash_map.h>
+#include <list>
 
 //#define WRITE_PRODUCER_RECV_TO_FILE // add MEDIASOUP_DEPACKETIZER_PATH env variable for reference to output folder
 #define READ_PRODUCER_RECV_FROM_FILE
@@ -15,17 +16,16 @@
 namespace RTC
 {
 
-class MediaFrameSerializer;
+class MediaSink;
 class MediaFrameSerializationFactory;
 class ProducerObserver;
 class RtpStream;
 class Producer;
 
 class ProducerTranslator : public TranslatorUnit,
-                           public MediaSource,
                            public RtpPacketsCollector,
                            public RtpPacketsInfoProvider,
-                           private MediaSink
+                           public MediaSource
 {
     class StreamInfo;
 public:
@@ -54,6 +54,12 @@ public:
     uint32_t GetClockRate(uint32_t ssrc) const final;
     // impl. of TranslatorUnit
     std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
+    // impl. of MediaSource
+    bool AddSink(MediaSink* sink) final;
+    bool RemoveSink(MediaSink* sink) final;
+    void RemoveAllSinks() final;
+    bool HasSinks() const final;
+    size_t GetSinksCout() const final;
 protected:
     // SSRC maybe mapped or original
     std::shared_ptr<StreamInfo> GetStream(uint32_t ssrc) const;
@@ -61,15 +67,6 @@ protected:
     void InvokeObserverMethod(const Method& method, Args&&... args) const;
     // override of TranslatorUnit
     void OnPauseChanged(bool pause) final;
-    // impl. of MediaSource
-    bool IsSinkValid(const MediaSink* sink) const final;
-    void OnFirstSinkAdded() final;
-    void OnLastSinkRemoved() final;
-private:
-    // impl. of MediaSink
-    void StartMediaWriting(bool restart) final;
-    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<const MemoryBuffer>& buffer) final;
-    void EndMediaWriting() final;
 private:
     Producer* const _producer;
     const std::shared_ptr<MediaFrameSerializationFactory> _serializationFactory;
@@ -78,6 +75,7 @@ private:
     ProtectedObj<absl::flat_hash_map<uint32_t, std::shared_ptr<StreamInfo>>> _streams;
     // key is original SSRC, value - mapped media SSRC
     ProtectedObj<absl::flat_hash_map<uint32_t, uint32_t>> _originalToMappedSsrcs;
+    ProtectedObj<std::list<MediaSink*>> _sinks;
 };
 
 } // namespace RTC
