@@ -21,7 +21,7 @@ public:
     OpusHeadBuffer(uint8_t channelCount, uint32_t sampleRate);
     uint8_t GetChannelCount() const { return _head._channelCount; }
     // impl. of MemoryBuffer
-    size_t GetSize() const final { return sizeof(_head); }
+    uint64_t GetSize() const final { return sizeof(_head); }
     uint8_t* GetData() final { return reinterpret_cast<uint8_t*>(&_head); }
     const uint8_t* GetData() const final { return reinterpret_cast<const uint8_t*>(&_head); }
 private:

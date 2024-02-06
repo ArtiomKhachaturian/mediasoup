@@ -79,7 +79,7 @@ WebMDeserializer::~WebMDeserializer()
     delete _segment;
 }
 
-MediaFrameDeserializeResult WebMDeserializer::AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer)
+MediaFrameDeserializeResult WebMDeserializer::AddBuffer(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     auto result = _reader->AddBuffer(buffer);
     if (MediaFrameDeserializeResult::Success == result) {

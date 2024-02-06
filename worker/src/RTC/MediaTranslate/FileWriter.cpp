@@ -23,7 +23,7 @@ void FileWriter::WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer)
             const auto expected = buffer->GetSize();
             const auto actual = ::fwrite(buffer->GetData(), 1U, expected, handle);
             if (expected != actual) {
-                MS_ERROR_STD("file write error, expected %lu but "
+                MS_ERROR_STD("file write error, expected %llu but "
                              "written only %lu bytes, error code: %d",
                              expected, actual, errno);
             }

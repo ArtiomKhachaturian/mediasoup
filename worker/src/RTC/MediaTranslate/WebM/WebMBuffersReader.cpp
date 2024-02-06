@@ -6,34 +6,32 @@
 namespace RTC
 {
 
-MediaFrameDeserializeResult WebMBuffersReader::AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer)
+WebMBuffersReader::WebMBuffersReader()
+    : _buffer(_maxBufferSize)
 {
+}
+
+MediaFrameDeserializeResult WebMBuffersReader::AddBuffer(const std::shared_ptr<MemoryBuffer>& buffer)
+{
+    MediaFrameDeserializeResult result = MediaFrameDeserializeResult::InvalidArg;
     if (buffer && !buffer->IsEmpty()) {
-        const auto size = buffer->GetSize();
-        if (size > _maxBufferSize) {
-            MS_WARN_DEV("size of data buffer (%d) is too big for WebM decoding", size);
-            return MediaFrameDeserializeResult::OutOfMemory;
+        result = MediaFrameDeserializeResult::OutOfMemory;
+        PRId64;
+        if (buffer->GetSize() > _buffer.GetCapacity()) {
+            MS_WARN_DEV_STD("size of input data buffer (%llu bytes) is too big "
+                            "for WebM decoding, max allowed size is %llu bytes",
+                            buffer->GetSize(), _buffer.GetCapacity());
         }
-        uint8_t* target = nullptr;
-        if (size + _bufferSize >= _maxBufferSize) {
-            target = _buffer.data();
-            _bufferSize = 0UL;
+        else if (_buffer.Add(buffer)) {
+            result = MediaFrameDeserializeResult::Success;
         }
-        else {
-            target = _buffer.data() + _bufferSize;
-        }
-        std::memcpy(target, buffer->GetData(), size);
-        _bufferSize += size;
-        ++_buffersCount;
-        return MediaFrameDeserializeResult::Success;
     }
-    return MediaFrameDeserializeResult::InvalidArg;
+    return result;
 }
 
 int WebMBuffersReader::Read(long long pos, long len, unsigned char* buf)
 {
-    if (len >= 0 && pos + len <= _bufferSize) {
-        std::memcpy(buf, _buffer.data() + pos, len);
+    if (len >= 0 && _buffer.GetData(pos, len, buf)) {
         return 0;
     }
     return -1;
@@ -47,7 +45,7 @@ int WebMBuffersReader::Length(long long* total, long long* available)
         //*total = _bufferSize; // std::numeric_limits<long long>::max();
     }
     if (available) {
-        *available = _bufferSize;
+        *available = _buffer.GetSize();
     }
     return 0;
 }

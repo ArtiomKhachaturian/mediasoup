@@ -11,7 +11,7 @@ class MemoryBuffer;
 class MkvReader : public mkvparser::IMkvReader
 {
 public:
-	virtual MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) = 0;
+	virtual MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<MemoryBuffer>& buffer) = 0;
 };
 
 }

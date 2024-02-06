@@ -30,7 +30,7 @@ public:
                                                       const std::allocator<uint8_t>& allocator = {});
     static std::shared_ptr<SimpleMemoryBuffer> Create(std::vector<uint8_t> buffer);
     // impl. of MemoryBuffer
-    size_t GetSize() const final { return _buffer.size(); }
+    uint64_t GetSize() const final { return _buffer.size(); }
     uint8_t* GetData() { return _buffer.data(); }
     const uint8_t* GetData() const { return _buffer.data(); }
 private:

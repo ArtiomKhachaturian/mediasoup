@@ -22,7 +22,7 @@ public:
     WebMDeserializer(std::unique_ptr<MkvReader> reader);
     ~WebMDeserializer() final;
     // impl. of RtpMediaFrameDeserializer
-    MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<const MemoryBuffer>& buffer) final;
+    MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<MemoryBuffer>& buffer) final;
     std::vector<std::shared_ptr<const MediaFrame>> ReadNextFrames(size_t trackIndex,
                                                                   MediaFrameDeserializeResult* result) final;
     size_t GetTracksCount() const final;

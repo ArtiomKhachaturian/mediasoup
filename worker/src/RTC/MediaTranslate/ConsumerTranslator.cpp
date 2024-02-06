@@ -18,6 +18,7 @@ using namespace RTC;
 class MediaInfo
 {
 public:
+    virtual ~MediaInfo() = default;
     MediaFrameDeserializeResult SetResult(uint32_t ssrc, MediaFrameDeserializeResult result,
                                           const char* operationName = "");
 protected:
@@ -46,7 +47,7 @@ public:
                  const std::vector<RtpCodecParameters>& codecParameters,
                  RtpPacketsCollector* packetsCollector,
                  const RtpPacketsInfoProvider* packetsInfoProvider);
-    void ProcessMediaPayload(const std::shared_ptr<const MemoryBuffer>& payload);
+    void ProcessMediaPayload(const std::shared_ptr<MemoryBuffer>& payload);
 protected:
     // overrides of MediaInfo
     std::string_view GetDescription() const final { return _audio ? "audio grabber" : "video grabber"; }
@@ -192,7 +193,7 @@ ConsumerTranslator::MediaGrabber::MediaGrabber(uint32_t ssrc, Media::Kind kind,
 {
 }
 
-void ConsumerTranslator::MediaGrabber::ProcessMediaPayload(const std::shared_ptr<const MemoryBuffer>& payload)
+void ConsumerTranslator::MediaGrabber::ProcessMediaPayload(const std::shared_ptr<MemoryBuffer>& payload)
 {
     if (payload) {
         const auto result = SetResult(_ssrc, _deserializer->AddBuffer(payload),

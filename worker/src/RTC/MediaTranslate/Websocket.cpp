@@ -15,7 +15,7 @@ class StringMemoryBuffer : public RTC::MemoryBuffer
 {
 public:
     StringMemoryBuffer(std::string payload);
-    size_t GetSize() const final { return _payload.size(); }
+    uint64_t GetSize() const final { return _payload.size(); }
     uint8_t* GetData() final;
     const uint8_t* GetData() const final;
 private:
