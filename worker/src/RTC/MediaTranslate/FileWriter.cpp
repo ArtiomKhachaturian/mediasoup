@@ -11,6 +11,11 @@ FileWriter::FileWriter(const std::string_view& fileNameUtf8, int* error)
 {
 }
 
+FileWriter::~FileWriter()
+{
+    Flush();
+}
+
 bool FileWriter::Flush()
 {
     return GetHandle() && 0 == ::fflush(GetHandle());

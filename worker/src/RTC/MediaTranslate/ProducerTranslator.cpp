@@ -32,7 +32,6 @@ class MediaSinkWrapper : public RTC::MediaSink
 {
 public:
     MediaSinkWrapper(RTC::MediaSink* impl, const SsrcProvider* ssrcProvider);
-    bool IsLiveMode() const final;
     void StartMediaWriting(uint32_t ssrc) final;
     void WriteMediaPayload(const std::shared_ptr<RTC::MemoryBuffer>& buffer) final;
     void EndMediaWriting() final;
@@ -585,11 +584,6 @@ MediaSinkWrapper::MediaSinkWrapper(RTC::MediaSink* impl, const SsrcProvider* ssr
     : _impl(impl)
     , _ssrcProvider(ssrcProvider)
 {
-}
-
-bool MediaSinkWrapper::IsLiveMode() const
-{
-    return _impl->IsLiveMode();
 }
 
 void MediaSinkWrapper::StartMediaWriting(uint32_t ssrc)

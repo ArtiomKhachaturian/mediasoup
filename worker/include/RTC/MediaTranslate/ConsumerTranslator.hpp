@@ -39,7 +39,6 @@ public:
     std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
     std::optional<FBS::TranslationPack::Voice> GetVoice() const final;
     // impl. of MediaSink
-    bool IsLiveMode() const final { return true; }
     void StartMediaWriting(uint32_t ssrc) final;
     void WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer) final;
     void EndMediaWriting() final;

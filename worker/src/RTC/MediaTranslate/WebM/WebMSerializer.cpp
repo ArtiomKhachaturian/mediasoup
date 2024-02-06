@@ -79,8 +79,7 @@ private:
                                  const std::shared_ptr<const MemoryBuffer>& specific);
     void WriteMediaPayloadToSink(bool force = false);
     bool HasWroteMedia() const { return _wroteMedia; }
-    void ReserveBuffer() { EnsureBufferSize(1024UL, true); }
-    void EnsureBufferSize(size_t len, bool reserve);
+    void ReserveBuffer() { _buffer.Reserve(1024); } // 1kb chunk reserved
     mkvmuxer::Track* GetTrack(int32_t number) const;
     bool IsValidForTracksAdding() const;
     EnqueueResult EnqueueFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
@@ -90,7 +89,7 @@ private:
     mkvmuxer::int32 Write(const void* buf, mkvmuxer::uint32 len) final;
     mkvmuxer::int64 Position() const final;
     mkvmuxer::int32 Position(mkvmuxer::int64 position) final;
-    bool Seekable() const final { return true; }
+    bool Seekable() const final;
     void ElementStartNotify(mkvmuxer::uint64 element_id, mkvmuxer::int64 position) final;
 private:
     const uint32_t _ssrc;
@@ -105,13 +104,12 @@ private:
     uint64_t _mkvAudioLastTimestamp = 0ULL;
     std::vector<MkvFrame> _mkvFrames;
     SimpleMemoryBuffer _buffer;
-    mkvmuxer::int64 _position = 0LL;
 };
 
 WebMSerializer::WebMSerializer(uint32_t ssrc, uint32_t clockRate,
                                const RtpCodecMimeType& mime, const char* app)
     : MediaFrameSerializer(ssrc, clockRate, mime)
-    , _app(app)
+    , _writer(CreateWriter(ssrc, clockRate, mime, this, app))
 {
 }
 
@@ -155,17 +153,43 @@ const char* WebMSerializer::GetCodecId(const RtpCodecMimeType& mime)
     return GetCodecId(mime.GetSubtype());
 }
 
-bool WebMSerializer::AddSink(MediaSink* sink)
+bool WebMSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFrame)
 {
-    if (sink && _sinks.end() == _sinks.find(sink)) {
-        auto writer = std::make_unique<BufferedWriter>(GetSsrc(), sink, _app);
+    bool ok = false;
+    if (mediaFrame && _writer && HasSinks() && IsAccepted(mediaFrame)) {
+        const auto mkvTimestamp = UpdateTimeStamp(mediaFrame->GetTimestamp());
+        switch (GetMimeType().GetType()) {
+            case RtpCodecMimeType::Type::AUDIO:
+                _writer->SetTrackSettings(_trackNumber, mediaFrame->GetAudioConfig());
+                break;
+            case RtpCodecMimeType::Type::VIDEO:
+                _writer->SetTrackSettings(_trackNumber, mediaFrame->GetVideoConfig());
+                break;
+        }
+        ok = _writer->AddFrame(mediaFrame, mkvTimestamp, _trackNumber);
+        if (!ok) {
+            const auto frameInfo = GetMediaFrameInfoString(mediaFrame, GetSsrc());
+            MS_ERROR_STD("unable write frame to MKV data [%s]", frameInfo.c_str());
+        }
+    }
+    return ok;
+}
+
+std::unique_ptr<WebMSerializer::BufferedWriter> WebMSerializer::CreateWriter(uint32_t ssrc,
+                                                                             uint32_t clockRate,
+                                                                             const RtpCodecMimeType& mime,
+                                                                             MediaSink* sink,
+                                                                             const char* app)
+{
+    if (sink) {
+        auto writer = std::make_unique<BufferedWriter>(ssrc, sink, app);
         if (writer->IsInitialized()) {
             bool ok = false;
-            switch (GetMimeType().GetType()) {
+            switch (mime.GetType()) {
                 case RtpCodecMimeType::Type::AUDIO:
                     ok = writer->AddAudioTrack(_trackNumber);
                     if (ok) {
-                        ok = writer->SetAudioSampleRate(_trackNumber, GetClockRate(), IsOpus(GetMimeType()));
+                        ok = writer->SetAudioSampleRate(_trackNumber, clockRate, IsOpus(mime));
                         if (!ok) {
                             MS_ERROR_STD("failed to set intial MKV audio sample rate");
                         }
@@ -182,71 +206,17 @@ bool WebMSerializer::AddSink(MediaSink* sink)
                     break;
             }
             if (ok) {
-                ok = writer->SetTrackCodec(_trackNumber, GetCodecId(GetMimeType()));
-                if (ok) {
-                    _sinks[sink] = std::move(writer);
+                ok = writer->SetTrackCodec(_trackNumber, GetCodecId(mime));
+                if (!ok) {
+                    MS_ERROR_STD("failed to set MKV codec ID: %s", mime.ToString().c_str());
+                    writer.reset();
                 }
-                else {
-                    MS_ERROR_STD("failed to set MKV codec ID: %s", GetMimeType().ToString().c_str());
-                }
-            }
-            return ok;
-        }
-    }
-    return false;
-}
-
-bool WebMSerializer::RemoveSink(MediaSink* sink)
-{
-    if (sink) {
-        const auto it = _sinks.find(sink);
-        if (it != _sinks.end()) {
-            _sinks.erase(it);
-            return true;
-        }
-    }
-    return false;
-}
-
-void WebMSerializer::RemoveAllSinks()
-{
-    _sinks.clear();
-}
-
-bool WebMSerializer::HasSinks() const
-{
-    return !_sinks.empty();
-}
-
-size_t WebMSerializer::GetSinksCout() const
-{
-    return _sinks.size();
-}
-
-bool WebMSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFrame)
-{
-    if (mediaFrame && HasSinks() && IsAccepted(mediaFrame)) {
-        const auto mkvTimestamp = UpdateTimeStamp(mediaFrame->GetTimestamp());
-        for (auto it = _sinks.begin(); it != _sinks.end(); ++it) {
-            switch (GetMimeType().GetType()) {
-                case RtpCodecMimeType::Type::AUDIO:
-                    it->second->SetTrackSettings(_trackNumber, mediaFrame->GetAudioConfig());
-                    break;
-                case RtpCodecMimeType::Type::VIDEO:
-                    it->second->SetTrackSettings(_trackNumber, mediaFrame->GetVideoConfig());
-                    break;
-            }
-            if (!it->second->AddFrame(mediaFrame, mkvTimestamp, _trackNumber)) {
-                const auto frameInfo = GetMediaFrameInfoString(mediaFrame, GetSsrc());
-                MS_ERROR_STD("unable write frame to MKV data [%s]", frameInfo.c_str());
-                return false;
+                return writer;
             }
         }
-        return true;
     }
-    return false;
+    return nullptr;
 }
-
 
 bool WebMSerializer::IsAccepted(const std::shared_ptr<const MediaFrame>& mediaFrame) const
 {
@@ -269,6 +239,21 @@ uint64_t WebMSerializer::UpdateTimeStamp(uint32_t timestamp)
     return ValueToNano(_granule) / GetClockRate();
 }
 
+void WebMSerializer::StartMediaWriting(uint32_t ssrc)
+{
+    StartMediaSinksWriting(ssrc);
+}
+
+void WebMSerializer::WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer)
+{
+    WriteMediaSinksPayload(buffer);
+}
+
+void WebMSerializer::EndMediaWriting()
+{
+    EndMediaSinksWriting();
+}
+
 WebMSerializer::BufferedWriter::BufferedWriter(uint32_t ssrc, MediaSink* sink,
                                                const char* app)
     : _ssrc(ssrc)
@@ -277,16 +262,9 @@ WebMSerializer::BufferedWriter::BufferedWriter(uint32_t ssrc, MediaSink* sink,
 {
     if (IsInitialized()) {
         ReserveBuffer();
-        if (_sink->IsLiveMode()) {
-            _segment.set_mode(mkvmuxer::Segment::kLive);
-            _segment.set_estimate_file_duration(false);
-            _segment.OutputCues(false);
-        }
-        else {
-            _segment.set_mode(mkvmuxer::Segment::kFile);
-            _segment.set_estimate_file_duration(true);
-            _segment.OutputCues(true);
-        }
+        _segment.set_mode(mkvmuxer::Segment::kLive);
+        _segment.set_estimate_file_duration(false);
+        _segment.OutputCues(false);
         if (const auto segmentInfo = _segment.GetSegmentInfo()) {
             segmentInfo->set_writing_app(app);
             segmentInfo->set_muxing_app(app);
@@ -449,20 +427,8 @@ bool WebMSerializer::BufferedWriter::SetCodecSpecific(mkvmuxer::Track* track,
 void WebMSerializer::BufferedWriter::WriteMediaPayloadToSink(bool force)
 {
     if (const auto buffer = _buffer.Take()) {
-        _position = 0LL;
         _sink->WriteMediaPayload(buffer);
         ReserveBuffer();
-    }
-}
-
-void WebMSerializer::BufferedWriter::EnsureBufferSize(size_t len, bool reserve)
-{
-    const auto size = static_cast<size_t>(_position) + len;
-    if (reserve) {
-        _buffer.Reserve(size);
-    }
-    else if (size > _buffer.GetSize()) {
-        _buffer.Resize(size);
     }
 }
 
@@ -549,10 +515,7 @@ bool WebMSerializer::BufferedWriter::WriteFrames(uint64_t mkvTimestamp)
 
 mkvmuxer::int32 WebMSerializer::BufferedWriter::Write(const void* buf, mkvmuxer::uint32 len)
 {
-    if (buf && len) {
-        EnsureBufferSize(len, false);
-        std::memcpy(_buffer.GetData() + _position, buf, len);
-        _position += len;
+    if (_buffer.Append(buf, len)) {
         _wroteMedia = true;
         return 0;
     }
@@ -561,7 +524,17 @@ mkvmuxer::int32 WebMSerializer::BufferedWriter::Write(const void* buf, mkvmuxer:
 
 mkvmuxer::int64 WebMSerializer::BufferedWriter::Position() const
 {
-    return _position;
+    return static_cast<mkvmuxer::int64>(_buffer.GetSize());
+}
+
+mkvmuxer::int32 WebMSerializer::BufferedWriter::Position(mkvmuxer::int64 /*position*/)
+{
+    return -1;
+}
+
+bool WebMSerializer::BufferedWriter::Seekable() const
+{
+    return false;
 }
 
 void WebMSerializer::BufferedWriter::ElementStartNotify(mkvmuxer::uint64 /*element_id*/,
@@ -574,18 +547,6 @@ void WebMSerializer::BufferedWriter::ElementStartNotify(mkvmuxer::uint64 /*eleme
     // Note: the |MkvId| enumeration in webmids.hpp defines element values.
 }
 
-mkvmuxer::int32 WebMSerializer::BufferedWriter::Position(mkvmuxer::int64 position)
-{
-    if (position >= 0) {
-        if (_position != position) {
-            _position = position;
-            EnsureBufferSize(0UL, true);
-        }
-        return 0;
-    }
-    return -1;
-}
-
 } // namespace RTC
 
 namespace {
@@ -596,7 +557,6 @@ MkvFrame::MkvFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
 {
     if (_mediaFrame && !_mediaFrame->IsEmpty()) {
         _mvkFrame = std::make_unique<mkvmuxer::Frame>();
-        //_mvkFrame->Init(payload->GetData(), payload->GetSize());
         _mvkFrame->set_track_number(trackNumber);
         _mvkFrame->set_timestamp(mkvTimestamp);
         _mvkFrame->set_is_key(IsKeyFrame(mediaFrame));
@@ -609,7 +569,7 @@ bool MkvFrame::WriteToSegment(mkvmuxer::Segment& segment) const
     if (IsValid()) {
         const auto payload = _mediaFrame->GetPayload();
         if (payload && !payload->IsEmpty()) {
-            ok = _mvkFrame->Init(payload->GetData(), payload->GetSize());
+            ok = _mvkFrame->IsValid() || _mvkFrame->Init(payload->GetData(), payload->GetSize());
             if (ok) {
                 ok = segment.AddGenericFrame(_mvkFrame.get());
             }
@@ -620,7 +580,8 @@ bool MkvFrame::WriteToSegment(mkvmuxer::Segment& segment) const
 
 bool MkvFrame::IsKeyFrame(const std::shared_ptr<const MediaFrame>& mediaFrame)
 {
-    return mediaFrame && mediaFrame->IsKeyFrame();
+    // is_key: -- always true for audio
+    return mediaFrame && (mediaFrame->IsKeyFrame() || mediaFrame->IsAudio());
 }
 
 }
