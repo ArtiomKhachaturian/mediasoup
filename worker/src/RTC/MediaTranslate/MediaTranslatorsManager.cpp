@@ -55,6 +55,24 @@ private:
     ProtectedObj<TranslationEndPointsMap> _endPoints;
 };
 
+
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
+class MediaTranslatorsManager::UVAsyncHandle
+{
+public:
+    UVAsyncHandle(uv_async_t* handle);
+    ~UVAsyncHandle();
+    bool InLoop() const { return DepLibUV::GetLoop() == _handle->loop; }
+    void Invoke() const { uv_async_send(_handle); }
+    static std::unique_ptr<UVAsyncHandle> Create(uv_loop_t* loop, uv_async_cb asyncCb, void* data);
+    static std::unique_ptr<UVAsyncHandle> Create(uv_async_cb asyncCb, void* data);
+private:
+    static void OnClosed(uv_handle_t* handle);
+private:
+    uv_async_t* _handle;
+};
+#endif
+
 MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
                                                  const std::string& serviceUri,
                                                  const std::string& serviceUser,
@@ -65,21 +83,19 @@ MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
     , _servicePassword(servicePassword)
     , _serializationFactory(std::make_shared<WebMMediaFrameSerializationFactory>())
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
-    , _ownerLoop(DepLibUV::GetLoop())
+    , _async(UVAsyncHandle::Create(PlaybackDefferedRtpPackets, this))
 #endif
 {
     MS_ASSERT(nullptr != _router, "router must be non-null");
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
-    uv_async_init(_ownerLoop, &_asynHandle, PlaybackDefferedRtpPackets);
-    _asynHandle.data = (void*)this;
+    if (!_async) {
+        MS_WARN_DEV_STD("failed to create asyn packets dispatcher");
+    }
 #endif
 }
 
 MediaTranslatorsManager::~MediaTranslatorsManager()
 {
-#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
-    uv_close((uv_handle_t*)&_asynHandle, nullptr);
-#endif
 }
 
 void MediaTranslatorsManager::OnTransportConnected(Transport* transport)
@@ -381,7 +397,6 @@ void MediaTranslatorsManager::PlaybackDefferedRtpPackets()
 void MediaTranslatorsManager::PlaybackDefferedRtpPackets(Producer* producer, PacketsList packets)
 {
     if (producer && !packets.empty()) {
-        MS_ASSERT(_ownerLoop == DepLibUV::GetLoop(), "incorrect calling thread");
         for (const auto packet : packets) {
             if (!PlaybackRtpPacket(producer, packet)) {
                 delete packet;
@@ -417,19 +432,24 @@ bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packe
     bool ok = false;
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     if (packet) {
-        if (_ownerLoop == DepLibUV::GetLoop()) {
-            ok = PlaybackRtpPacket(producer, packet);
-        }
-        else if (HasConnectedTransport()) {
-            LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
-            const auto it = _defferedPackets.Ref().find(producer);
-            if (it != _defferedPackets.Ref().end()) {
-                it->second.push_back(packet);
-                if (it->second.size() == _defferedPacketsBatchSize) {
-                    uv_async_send(&_asynHandle);
-                }
-                ok = true;
+        if (_async) {
+            if (_async->InLoop()) {
+                ok = PlaybackRtpPacket(producer, packet);
             }
+            else {
+                LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
+                const auto it = _defferedPackets.Ref().find(producer);
+                if (it != _defferedPackets.Ref().end()) {
+                    it->second.push_back(packet);
+                    if (it->second.size() == _defferedPacketsBatchSize) {
+                        _async->Invoke();
+                    }
+                    ok = true;
+                }
+            }
+        }
+        else {
+            ok = PlaybackRtpPacket(producer, packet);
         }
     }
 #else
@@ -440,6 +460,42 @@ bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packe
     }
     return ok;
 }
+
+#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
+MediaTranslatorsManager::UVAsyncHandle::UVAsyncHandle(uv_async_t* handle)
+    : _handle(handle)
+{
+}
+
+MediaTranslatorsManager::UVAsyncHandle::~UVAsyncHandle()
+{
+    uv_close(reinterpret_cast<uv_handle_t*>(_handle), OnClosed);
+}
+
+std::unique_ptr<MediaTranslatorsManager::UVAsyncHandle> MediaTranslatorsManager::
+    UVAsyncHandle::Create(uv_loop_t* loop, uv_async_cb asyncCb, void* data)
+{
+    if (loop) {
+        auto handle = std::make_unique<uv_async_t>();
+        if (0 == uv_async_init(loop, handle.get(), asyncCb)) {
+            handle->data = data;
+            return std::make_unique<UVAsyncHandle>(handle.release());
+        }
+    }   
+    return nullptr;
+}
+
+std::unique_ptr<MediaTranslatorsManager::UVAsyncHandle> MediaTranslatorsManager::
+    UVAsyncHandle::Create(uv_async_cb asyncCb, void* data)
+{
+    return Create(DepLibUV::GetLoop(), asyncCb, data);
+}
+
+void MediaTranslatorsManager::UVAsyncHandle::OnClosed(uv_handle_t* handle)
+{
+    delete reinterpret_cast<uv_async_t*>(handle);
+}
+#endif
 
 void TranslatorUnit::Pause(bool pause)
 {

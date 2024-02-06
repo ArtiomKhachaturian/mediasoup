@@ -10,7 +10,7 @@
 #include <atomic>
 
 #define SINGLE_TRANSLATION_POINT_CONNECTION
-#define NO_TRANSLATION_SERVICE
+//#define NO_TRANSLATION_SERVICE
 #define USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
 
 namespace RTC
@@ -23,6 +23,7 @@ class MediaTranslatorsManager : public TransportListener
     class Translator;
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     using PacketsList = std::list<RtpPacket*>;
+    class UVAsyncHandle;
 #endif
 public:
     MediaTranslatorsManager(TransportListener* router,
@@ -94,8 +95,7 @@ private:
     const std::string _servicePassword;
     const std::shared_ptr<MediaFrameSerializationFactory> _serializationFactory;
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
-    uv_loop_t* const _ownerLoop;
-    uv_async_t _asynHandle;
+    const std::unique_ptr<UVAsyncHandle> _async;
     ProtectedObj<absl::flat_hash_map<Producer*, PacketsList>> _defferedPackets;
 #endif
     // key is audio producer ID
