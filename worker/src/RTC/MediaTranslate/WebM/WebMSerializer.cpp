@@ -191,28 +191,32 @@ std::unique_ptr<WebMSerializer::BufferedWriter> WebMSerializer::CreateWriter(uin
                     if (ok) {
                         ok = writer->SetAudioSampleRate(_trackNumber, clockRate, IsOpus(mime));
                         if (!ok) {
-                            MS_ERROR_STD("failed to set intial MKV audio sample rate");
+                            MS_ERROR_STD("failed to set intial MKV audio sample rate for %u SSRC", ssrc);
                         }
                     }
                     else {
-                        MS_ERROR_STD("failed to add MKV audio track");
+                        MS_ERROR_STD("failed to add MKV audio track for %u SSRC", ssrc);
                     }
                     break;
                 case RtpCodecMimeType::Type::VIDEO:
                     ok = writer->AddVideoTrack(_trackNumber);
                     if (!ok) {
-                        MS_ERROR_STD("failed to add MKV video track");
+                        MS_ERROR_STD("failed to add MKV video track for %u SSRC", ssrc);
                     }
                     break;
             }
             if (ok) {
                 ok = writer->SetTrackCodec(_trackNumber, GetCodecId(mime));
                 if (!ok) {
-                    MS_ERROR_STD("failed to set MKV codec ID: %s", mime.ToString().c_str());
+                    MS_ERROR_STD("failed to set MKV codec %s for %u SSRC",
+                                 mime.ToString().c_str(), ssrc);
                     writer.reset();
                 }
                 return writer;
             }
+        }
+        else {
+            MS_ERROR_STD("failed to initialize MKV writer for %u SSRC", ssrc);
         }
     }
     return nullptr;
