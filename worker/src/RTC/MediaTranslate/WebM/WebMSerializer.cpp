@@ -77,7 +77,7 @@ public:
 private:
     static bool SetCodecSpecific(mkvmuxer::Track* track,
                                  const std::shared_ptr<const MemoryBuffer>& specific);
-    void WriteMediaPayloadToSink(bool force = false);
+    void WriteMediaPayloadToSink();
     bool HasWroteMedia() const { return _wroteMedia; }
     void ReserveBuffer() { _buffer.Reserve(1024); } // 1kb chunk reserved
     mkvmuxer::Track* GetTrack(int32_t number) const;
@@ -280,7 +280,7 @@ WebMSerializer::BufferedWriter::~BufferedWriter()
 {
     if (IsInitialized()) {
         _segment.Finalize();
-        WriteMediaPayloadToSink(true);
+        WriteMediaPayloadToSink();
         if (HasWroteMedia()) {
             _sink->EndMediaWriting();
         }
@@ -428,7 +428,7 @@ bool WebMSerializer::BufferedWriter::SetCodecSpecific(mkvmuxer::Track* track,
     return true;
 }
 
-void WebMSerializer::BufferedWriter::WriteMediaPayloadToSink(bool force)
+void WebMSerializer::BufferedWriter::WriteMediaPayloadToSink()
 {
     if (const auto buffer = _buffer.Take()) {
         _sink->WriteMediaPayload(buffer);
