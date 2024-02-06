@@ -25,7 +25,7 @@ public:
                        const std::string& serviceUser = std::string(),
                        const std::string& servicePassword = std::string(),
                        const std::string& userAgent = std::string(),
-                       uint32_t timeSliceMs = 200U);
+                       uint32_t timeSliceMs = 400U);
     ~TranslatorEndPoint();
     void SetProducerLanguage(const std::optional<FBS::TranslationPack::Language>& language);
     void SetConsumerLanguageAndVoice(const std::optional<FBS::TranslationPack::Language>& language,
@@ -40,18 +40,22 @@ private:
     static nlohmann::json TargetLanguageCmd(FBS::TranslationPack::Language languageTo,
                                             FBS::TranslationPack::Voice voice,
                                             const std::optional<FBS::TranslationPack::Language>& languageFrom = std::nullopt);
+    static void SendDataToMediaSink(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& data,
+                                    MediaSink* sink);
     bool HasValidTranslationSettings() const;
     std::optional<FBS::TranslationPack::Language> GetConsumerLanguage() const;
     std::optional<FBS::TranslationPack::Voice> GetConsumerVoice() const;
     std::optional<FBS::TranslationPack::Language> GetProducerLanguage() const;
+    std::optional<nlohmann::json> TargetLanguageCmd() const;
     void SetConnected(bool connected);
     void ConnectToMediaInput(bool connect);
     void ConnectToMediaInput(MediaSource* input, bool connect);
     void UpdateTranslationChanges();
     bool SendTranslationChanges();
     bool WriteJson(const nlohmann::json& data) const;
-    bool WriteBinary(const MemoryBuffer* buffer) const;
+    bool WriteBinary(const MemoryBuffer& buffer) const;
     void OpenSocket();
+    void CloseSocket();
     // impl. of MediaSink
     bool IsLiveMode() const final { return true; }
     void StartMediaWriting(uint32_t ssrc) final;

@@ -433,7 +433,7 @@ bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packe
         }
     }
 #else
-    ok = PlaybackRtpPacket(producer, packet, toRouter);
+    ok = PlaybackRtpPacket(producer, packet);
 #endif
     if (!ok) {
         delete packet;

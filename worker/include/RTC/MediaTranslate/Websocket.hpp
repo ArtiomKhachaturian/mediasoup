@@ -36,7 +36,7 @@ public:
     void Close();
     WebsocketState GetState() const;
     uint64_t GetId() const;
-    bool WriteBinary(const MemoryBuffer* buffer);
+    bool WriteBinary(const MemoryBuffer& buffer);
     bool WriteText(const std::string& text);
     void AddListener(WebsocketListener* listener);
     void RemoveListener(WebsocketListener* listener);

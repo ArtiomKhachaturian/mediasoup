@@ -38,7 +38,7 @@ TranslatorEndPoint::TranslatorEndPoint(const std::string& serviceUri,
     _socket->AddListener(this);
 }
 
-TranslatorEndPoint::~TranslatorEndPoint()
+TranslatorEndPoint::~TranslatorEndPoint()   
 {
     SetInput(nullptr);
     _socket->RemoveListener(this);
@@ -102,7 +102,7 @@ void TranslatorEndPoint::SetInput(MediaSource* input)
             OpenSocket();
         }
         else {
-            _socket->Close();
+            CloseSocket();
         }
     }
 }
@@ -195,6 +195,16 @@ nlohmann::json TranslatorEndPoint::TargetLanguageCmd(FBS::TranslationPack::Langu
     return command;
 }
 
+void TranslatorEndPoint::SendDataToMediaSink(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& data,
+                                             MediaSink* sink)
+{
+    if (data && sink) {
+        sink->StartMediaWriting(ssrc);
+        sink->WriteMediaPayload(data);
+        sink->EndMediaWriting();
+    }
+}
+
 bool TranslatorEndPoint::HasValidTranslationSettings() const
 {
     return GetConsumerVoice().has_value() && GetConsumerLanguage().has_value();
@@ -218,6 +228,16 @@ std::optional<FBS::TranslationPack::Language> TranslatorEndPoint::GetProducerLan
     return _producerLanguage.ConstRef();
 }
 
+std::optional<nlohmann::json> TranslatorEndPoint::TargetLanguageCmd() const
+{
+    if (const auto languageTo = GetConsumerLanguage()) {
+        if (const auto voice = GetConsumerVoice()) {
+            return TargetLanguageCmd(languageTo.value(), voice.value(), GetProducerLanguage());
+        }
+    }
+    return std::nullopt;
+}
+
 void TranslatorEndPoint::SetConnected(bool connected)
 {
     if (connected) {
@@ -231,6 +251,9 @@ void TranslatorEndPoint::SetConnected(bool connected)
             _inputSlice->Reset(false);
         }
     }
+    MS_DEBUG_DEV_STD("%s translation service %s",
+                     connected ? "connected to" : "disconnected from",
+                     _serviceUri.c_str());
 }
 
 void TranslatorEndPoint::ConnectToMediaInput(bool connect)
@@ -262,19 +285,15 @@ void TranslatorEndPoint::UpdateTranslationChanges()
         }
     }
     else {
-        _socket->Close();
+        CloseSocket();
     }
 }
 
 bool TranslatorEndPoint::SendTranslationChanges()
 {
     if (IsConnected()) {
-        if (const auto languageTo = GetConsumerLanguage()) {
-            if (const auto voice = GetConsumerVoice()) {
-                const auto jsonData = TargetLanguageCmd(languageTo.value(), voice.value(),
-                                                        GetProducerLanguage());
-                return WriteJson(jsonData);
-            }
+        if (const auto cmd = TargetLanguageCmd()) {
+            return WriteJson(cmd.value());
         }
     }
     return false;
@@ -282,24 +301,26 @@ bool TranslatorEndPoint::SendTranslationChanges()
 
 bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
 {
-    const auto jsonAsText = nlohmann::to_string(data);
-    const auto ok = _socket->WriteText(jsonAsText);
-    if (!ok) {
-        MS_ERROR_STD("failed write JSON command '%s' into translation service", jsonAsText.c_str());
+    bool ok = false;
+    if (IsConnected()) {
+        const auto jsonAsText = nlohmann::to_string(data);
+        ok = _socket->WriteText(jsonAsText);
+        if (!ok) {
+            MS_ERROR_STD("failed write JSON '%s' into translation service %s",
+                         jsonAsText.c_str(), _serviceUri.c_str());
+        }
     }
     return ok;
 }
 
-bool TranslatorEndPoint::WriteBinary(const MemoryBuffer* buffer) const
+bool TranslatorEndPoint::WriteBinary(const MemoryBuffer& buffer) const
 {
     bool ok = false;
-    if (buffer) {
+    if (IsConnected()) {
         ok = _socket->WriteBinary(buffer);
         if (!ok) {
-            MS_ERROR_STD("failed write binary packet (%ld bytes)' into translation service", buffer->GetSize());
-        }
-        else { // TODO: remove it for production
-            MS_ERROR_STD("Written data to WS, size = %ld", buffer->GetSize());
+            MS_ERROR_STD("failed write binary (%llu bytes)' into translation service %s",
+                         buffer.GetSize(), _serviceUri.c_str());
         }
     }
     return ok;
@@ -311,13 +332,22 @@ void TranslatorEndPoint::OpenSocket()
         switch (_socket->GetState()) {
             case WebsocketState::Disconnected:
                 if (!_socket->Open(_userAgent)) {
-                    // TODO: log error
+                    MS_ERROR_STD("failed open websocket connection with %s", _serviceUri.c_str());
                 }
                 break;
             default:
                 break;
         }
     }
+}
+
+void TranslatorEndPoint::CloseSocket()
+{
+    if (IsConnected()) {
+        SimpleMemoryBuffer bye;
+        _socket->WriteBinary(bye);
+    }
+    _socket->Close();
 }
 
 void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
@@ -336,7 +366,7 @@ void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& 
             _inputSlice->Add(buffer, this);
         }
         else {
-            WriteBinary(buffer.get());
+            WriteBinary(*buffer);
         }
     }
 }
@@ -365,27 +395,22 @@ void TranslatorEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
     }
 }
 
-void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t /*socketId*/,
-                                                const std::shared_ptr<MemoryBuffer>& message)
+void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<MemoryBuffer>& message)
 {
     if (message) {
         if (const auto ssrc = _ssrc.load()) {
             LOCK_READ_PROTECTED_OBJ(_output);
             if (const auto output = _output.ConstRef()) {
-                MS_ERROR_STD("Received translation for %u SSRC", ssrc);
-                output->StartMediaWriting(ssrc);
-                output->WriteMediaPayload(message);
-                output->EndMediaWriting();
+                MS_ERROR_STD("Received translation for %u SSRC", ssrc); // TODO: remove it for production
+                SendDataToMediaSink(ssrc, message, output);
 #ifdef WRITE_TRANSLATION_TO_FILE
                 const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
                 if (depacketizerPath && std::strlen(depacketizerPath)) {
                     std::string fileName = "received_translation_" + std::to_string(ssrc) + "_"
-                    + std::to_string(++_translationsCounter) + ".webm";
+                        + std::to_string(++_translationsCounter) + ".webm";
                     FileWriter file(std::string(depacketizerPath) + "/" + fileName);
                     if (file.IsOpen()) {
-                        file.StartMediaWriting(ssrc);
-                        file.WriteMediaPayload(message);
-                        file.EndMediaWriting();
+                        SendDataToMediaSink(ssrc, message, &file);
                     }
                 }
 #endif
@@ -408,12 +433,12 @@ void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<MemoryBuffe
             const auto now = DepLibUV::GetTimeMs();
             if (now > _sliceOriginTimestamp + _timeSliceMs) {
                 _sliceOriginTimestamp = now;
-                endPoint->WriteBinary(&_impl.ConstRef());
+                endPoint->WriteBinary(_impl.ConstRef());
                 _impl->Clear();
             }
         }
         else {
-            // TODO: add log for this error
+            MS_ERROR_STD("unable to add memory buffer (%llu bytes) to input slice", buffer->GetSize());
         }
     }
 }
