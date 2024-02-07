@@ -192,6 +192,7 @@ common_sources = [
   'src/RTC/MediaTranslate/SimpleMemoryBuffer.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint.cpp',
   'src/RTC/MediaTranslate/TranslatorUtils.cpp',
+  'src/RTC/MediaTranslate/WebM/MkvBufferedWriter.cpp',
   'src/RTC/MediaTranslate/WebM/WebMBuffersReader.cpp',
   'src/RTC/MediaTranslate/WebM/WebMDeserializer.cpp',
   'src/RTC/MediaTranslate/WebM/WebMSerializer.cpp',
