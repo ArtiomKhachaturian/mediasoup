@@ -1,7 +1,7 @@
 #pragma once
 
 #include "RTC/RtpDictionaries.hpp"
-#include "RTC/MediaTranslate/MediaSourceImpl.hpp"
+#include "RTC/MediaTranslate/MediaSource.hpp"
 #include <memory>
 #include <string>
 
@@ -12,7 +12,7 @@ class MediaFrame;
 class OutputDevice;
 class MemoryBuffer;
 
-class MediaFrameSerializer : public MediaSourceImpl
+class MediaFrameSerializer : public MediaSource
 {
 public:
     MediaFrameSerializer(const MediaFrameSerializer&) = delete;

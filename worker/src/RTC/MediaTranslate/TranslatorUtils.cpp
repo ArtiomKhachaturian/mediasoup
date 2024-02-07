@@ -17,10 +17,10 @@ namespace RTC
 {
 
 std::string GetMediaFrameInfoString(const std::shared_ptr<const MediaFrame>& mediaFrame,
-                                    uint32_t mappedSsrc)
+                                    uint32_t ssrc)
 {
     if (mediaFrame) {
-        auto streamInfo = GetStreamInfoString(mediaFrame->GetMimeType(), mappedSsrc);
+        auto streamInfo = GetStreamInfoString(mediaFrame->GetMimeType(), ssrc);
         if (!streamInfo.empty()) {
             std::string configInfo;
             if (const auto config = mediaFrame->GetAudioConfig()) {
@@ -38,18 +38,18 @@ std::string GetMediaFrameInfoString(const std::shared_ptr<const MediaFrame>& med
     return std::string();
 }
 
-std::string GetStreamInfoString(const RtpCodecMimeType& mime, uint32_t mappedSsrc)
+std::string GetStreamInfoString(const RtpCodecMimeType& mime, uint32_t ssrc)
 {
-    if (mappedSsrc) {
-        return mime.ToString() + ", mapped SSRC = " + std::to_string(mappedSsrc);
+    if (ssrc) {
+        return mime.ToString() + ", SSRC = " + std::to_string(ssrc);
     }
     return std::string();
 }
 
-std::string GetStreamInfoString(uint32_t mappedSsrc, const RtpStream* stream)
+std::string GetStreamInfoString(uint32_t ssrc, const RtpStream* stream)
 {
     if (stream) {
-        return GetStreamInfoString(stream->GetMimeType(), mappedSsrc);
+        return GetStreamInfoString(stream->GetMimeType(), ssrc);
     }
     return std::string();
 }
