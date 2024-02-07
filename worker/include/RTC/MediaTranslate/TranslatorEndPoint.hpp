@@ -8,6 +8,7 @@
 #include <string>
 #include <optional>
 
+//#define PLAY_MOCK_FILE_AFTER_CONNECTION
 #define WRITE_TRANSLATION_TO_FILE
 
 namespace RTC
@@ -16,6 +17,9 @@ namespace RTC
 class ConsumerTranslatorSettings;
 class MediaSource;
 class Websocket;
+#ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
+class FileReader;
+#endif
 
 class TranslatorEndPoint : private WebsocketListener, private MediaSink
 {
@@ -64,6 +68,9 @@ private:
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
     void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message) final;
 private:
+#ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
+    static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/producer_test.webm";
+#endif
     const std::string _userAgent;
     const std::unique_ptr<Websocket> _socket;
     const std::string _serviceUri; // for logs
@@ -74,6 +81,9 @@ private:
     ProtectedObj<MediaSource*> _input;
     ProtectedObj<MediaSink*> _output;
     std::atomic<uint32_t> _ssrc = 0U;
+#ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
+    ProtectedUniquePtr<FileReader> _mockInputFile;
+#endif
 #ifdef WRITE_TRANSLATION_TO_FILE
     std::atomic<uint32_t> _translationsCounter = 0ULL;
 #endif

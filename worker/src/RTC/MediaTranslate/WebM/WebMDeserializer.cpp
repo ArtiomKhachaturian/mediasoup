@@ -1,7 +1,7 @@
 #define MS_CLASS "RTC::WebMDeserializer"
 #include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
 #include "RTC/MediaTranslate/WebM/WebMSerializer.hpp"
-#include "RTC/MediaTranslate/WebM/MkvReader.hpp"
+#include "RTC/MediaTranslate/WebM/MkvBufferedReader.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
@@ -43,7 +43,7 @@ public:
                                              mkvparser::Segment* segment,
                                              unsigned long trackIndex);
 private:
-    MkvResult GetNextBlock(const mkvparser::Block*& block);
+    MkvReadResult GetNextBlock(const mkvparser::Block*& block);
     std::optional<uint32_t> GetBlockTime(const mkvparser::Block* block) const;
     uint32_t GetClockRate() const { return _clockRate; }
     void SetNextBlockIterationResult(long result, const char* operationName);
@@ -59,43 +59,38 @@ private:
     uint32_t _clockRate = 0U;
 };
 
-enum class WebMDeserializer::MkvResult {
-    UnknownError =  mkvparser::E_PARSE_FAILED - 1L,
-    ParseFailed = mkvparser::E_PARSE_FAILED,
-    FileFormatInvalid = mkvparser::E_FILE_FORMAT_INVALID,
-    BufferNotFull = mkvparser::E_BUFFER_NOT_FULL,
-    Success = 0L,
-    NoMoreClusters = 1L // EOF ?
-};
-
-WebMDeserializer::WebMDeserializer(std::unique_ptr<MkvReader> reader)
-    : _reader(std::move(reader))
+WebMDeserializer::WebMDeserializer()
+    : _reader(std::make_unique<MkvBufferedReader>())
 {
-    MS_ASSERT(_reader, "MKV reader must not be null");
 }
 
 WebMDeserializer::~WebMDeserializer()
 {
-    delete _segment;
 }
 
 MediaFrameDeserializeResult WebMDeserializer::AddBuffer(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     auto result = _reader->AddBuffer(buffer);
-    if (MediaFrameDeserializeResult::Success == result) {
-        result = ParseEBMLHeader();
-        if (MediaFrameDeserializeResult::Success == result) {
-            result = ParseSegment();
+    if (MaybeOk(result) && _tracks.empty()) {
+        if (const auto tracks = _reader->GetTracks()) {
+            if (const auto tracksCount = tracks->GetTracksCount()) {
+                for (unsigned long i = 0UL; i < tracksCount; ++i) {
+                    if (auto trackInfo = TrackInfo::Create(tracks, _reader->GetSegment(), i)) {
+                        _tracks[i] = std::move(trackInfo);
+                    }
+                }
+                result = MkvReadResult::Success;
+            }
         }
     }
-    return result;
+    return FromMkvReadResult(result);
 }
 
 std::vector<std::shared_ptr<const MediaFrame>> WebMDeserializer::ReadNextFrames(size_t trackIndex,
                                                                                 MediaFrameDeserializeResult* outResult)
 {
     std::vector<std::shared_ptr<const MediaFrame>> output;
-    if (_segment) {
+    if (_reader->GetSegment()) {
         const auto it = _tracks.find(trackIndex);
         if (it != _tracks.end()) {
             const auto& track = it->second;
@@ -105,14 +100,12 @@ std::vector<std::shared_ptr<const MediaFrame>> WebMDeserializer::ReadNextFrames(
             }
             // lookup the next blocks if any
             if (MediaFrameDeserializeResult::NeedMoreData == result) {
-                const auto eos = StreamState::End == track->GetState();
-                long long total = 0LL, available = 0LL;
-                // check if not live stream
-                if (0L == _reader->Length(&total, &available) && total > 0LL) {
+                if (!MkvBufferedReader::IsLive()) { // check if not live stream
                     track->Reset();
                 }
-                if (eos) {
-                    result = MediaFrameDeserializeResult::Success; // read all frames
+                if (StreamState::End == track->GetState()) {
+                    // reading of all frames was completed
+                    result = MediaFrameDeserializeResult::Success;
                 }
             }
             if (outResult) {
@@ -152,121 +145,22 @@ void WebMDeserializer::SetClockRate(size_t trackIndex, uint32_t clockRate)
     }
 }
 
-MediaFrameDeserializeResult WebMDeserializer::ParseEBMLHeader()
-{
-    if (!_ebmlHeader) {
-        auto ebmlHeader = std::make_unique<mkvparser::EBMLHeader>();
-        long long pos = 0LL;
-        const auto mkvResult = ToMkvResult(ebmlHeader->Parse(_reader.get(), pos));
-        if (IsOk(mkvResult)) {
-            _ebmlHeader = std::move(ebmlHeader);
-        }
-        return FromMkvResult(mkvResult);
-    }
-    return MediaFrameDeserializeResult::Success;
-}
-
-MediaFrameDeserializeResult WebMDeserializer::ParseSegment()
-{
-    if (!_segment) {
-        mkvparser::Segment* segment = nullptr;
-        long long pos = 0LL;
-        auto mkvResult = ToMkvResult(mkvparser::Segment::CreateInstance(_reader.get(), pos, segment));
-        if (IsOk(mkvResult)) {
-            mkvResult = ToMkvResult(segment->Load());
-            if (MaybeOk(mkvResult)) {
-                if (const auto tracks = segment->GetTracks()) {
-                    if (const auto tracksCount = tracks->GetTracksCount()) {
-                        std::swap(_segment, segment);
-                        for (unsigned long i = 0UL; i < tracksCount; ++i) {
-                            if (auto trackInfo = TrackInfo::Create(tracks, _segment, i)) {
-                                _tracks[i] = std::move(trackInfo);
-                            }
-                        }
-                        mkvResult = MkvResult::Success;
-                    }
-                }
-            }
-        }
-        delete segment;
-        return FromMkvResult(mkvResult);
-    }
-    return MediaFrameDeserializeResult::Success;
-}
-
-WebMDeserializer::MkvResult WebMDeserializer::ToMkvResult(long ret)
-{
-    switch (ret) {
-        case mkvparser::E_PARSE_FAILED:
-            return MkvResult::ParseFailed;
-        case mkvparser::E_FILE_FORMAT_INVALID:
-            return MkvResult::FileFormatInvalid;
-        case mkvparser::E_BUFFER_NOT_FULL:
-            return MkvResult::BufferNotFull;
-        case 1:
-            return MkvResult::NoMoreClusters;
-        default:
-            if (ret >= 0) {
-                return MkvResult::Success;
-            }
-            break;
-    }
-    return MkvResult::UnknownError;
-}
-
-MediaFrameDeserializeResult WebMDeserializer::FromMkvResult(MkvResult result)
+MediaFrameDeserializeResult WebMDeserializer::FromMkvReadResult(MkvReadResult result)
 {
     switch (result) {
-        case MkvResult::BufferNotFull:
-        case MkvResult::NoMoreClusters:
+        case MkvReadResult::InvalidInputArg:
+            return MediaFrameDeserializeResult::InvalidArg;
+        case MkvReadResult::OutOfMemory:
+            return MediaFrameDeserializeResult::OutOfMemory;
+        case MkvReadResult::BufferNotFull:
+        case MkvReadResult::NoMoreClusters:
             return MediaFrameDeserializeResult::NeedMoreData;
-        case MkvResult::Success:
+        case MkvReadResult::Success:
             return MediaFrameDeserializeResult::Success;
         default:
             break;
     }
     return MediaFrameDeserializeResult::ParseError;
-}
-
-bool WebMDeserializer::IsOk(MkvResult result)
-{
-    return MkvResult::Success == result;
-}
-
-bool WebMDeserializer::MaybeOk(MkvResult result)
-{
-    switch (result) {
-        case MkvResult::BufferNotFull:
-        case MkvResult::NoMoreClusters:
-            return true;
-        default:
-            break;
-    }
-    return IsOk(result);
-}
-
-const char* WebMDeserializer::MkvResultToString(MkvResult result)
-{
-    switch (result) {
-        case MkvResult::ParseFailed:
-            return "parse failed";
-        case MkvResult::FileFormatInvalid:
-            return "invalid file format";
-        case MkvResult::BufferNotFull:
-            return "buffer not full";
-        case MkvResult::Success:
-            return "ok";
-        case MkvResult::NoMoreClusters:
-            return "no more clusters";
-        default:
-            break;
-    }
-    return "unknown error";
-}
-
-const char* WebMDeserializer::MkvResultToString(long result)
-{
-    return MkvResultToString(ToMkvResult(result));
 }
 
 WebMDeserializer::TrackInfo::TrackInfo(RtpCodecMimeType::Type type,
@@ -308,7 +202,7 @@ void WebMDeserializer::TrackInfo::SetClockRate(uint32_t clockRate)
 MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
     ReadFrames(std::vector<std::shared_ptr<const MediaFrame>>& output)
 {
-    MkvResult mkvResult = MkvResult::Success;
+    MkvReadResult mkvResult = MkvReadResult::Success;
     output.clear();
     while (IsOk(mkvResult)) {
         const mkvparser::Block* block = nullptr;
@@ -319,7 +213,7 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
             for (int i = 0; i < block->GetFrameCount(); ++i) {
                 const auto& frame = block->GetFrame(i);
                 std::vector<uint8_t> buffer(frame.len);
-                mkvResult = ToMkvResult(frame.Read(_segment->m_pReader, buffer.data()));
+                mkvResult = ToMkvReadResult(frame.Read(_segment->m_pReader, buffer.data()));
                 if (MaybeOk(mkvResult)) {
                     auto mediaFrame = std::make_shared<MediaFrame>(GetMime());
                     if (mediaFrame->AddPayload(std::move(buffer))) {
@@ -340,7 +234,7 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
             break;
         }
     }
-    return FromMkvResult(mkvResult);
+    return FromMkvReadResult(mkvResult);
 }
 
 std::unique_ptr<WebMDeserializer::TrackInfo> WebMDeserializer::TrackInfo::
@@ -413,12 +307,12 @@ std::unique_ptr<WebMDeserializer::TrackInfo> WebMDeserializer::TrackInfo::
     return nullptr;
 }
 
-WebMDeserializer::MkvResult WebMDeserializer::TrackInfo::GetNextBlock(const mkvparser::Block*& block)
+MkvReadResult WebMDeserializer::TrackInfo::GetNextBlock(const mkvparser::Block*& block)
 {
     if (_cluster) {
         for (;;) {
             long res = _cluster->GetEntry(_blockEntryIndex, _blockEntry);
-            MS_DEBUG_DEV("Cluster::GetEntry returned: %s", WebMDeserializer::MkvResultToString(res));
+            MS_DEBUG_DEV("Cluster::GetEntry returned: %s", MkvReadResultToString(res));
             if (1L == res) {
                 res = 0L;
                 goto block_exit;
@@ -429,30 +323,30 @@ WebMDeserializer::MkvResult WebMDeserializer::TrackInfo::GetNextBlock(const mkvp
                 // Need to parse this cluster some more
                 if (mkvparser::E_BUFFER_NOT_FULL == res) {
                     res = _cluster->Parse(pos, len);
-                    MS_DEBUG_DEV("Cluster::Parse returned: %s", MkvResultToString(res));
+                    MS_DEBUG_DEV("Cluster::Parse returned: %s", MkvReadResultToString(res));
                 }
                 SetNextBlockIterationResult(res, "Cluster::Parse");
                 if (res < 0L) { // I/O error
-                    return ToMkvResult(res);
+                    return ToMkvReadResult(res);
                 }
                 continue;
             } else if (res == 0L) {
                 // We're done with this cluster
                 const mkvparser::Cluster* nextCluster = nullptr;
                 res = _segment->ParseNext(_cluster, nextCluster, pos, len);
-                MS_DEBUG_DEV("Segment::ParseNext returned: %s", WebMDeserializer::MkvResultToString(res));
+                MS_DEBUG_DEV("Segment::ParseNext returned: %s", MkvReadResultToString(res));
                 SetNextBlockIterationResult(res, "Segment::ParseNext");
                 if (res != 0L) {
-                    return ToMkvResult(res);
+                    return ToMkvReadResult(res);
                 }
                 MS_ASSERT(nextCluster, "next WebM cluster must not be null");
                 MS_ASSERT(!nextCluster->EOS(), "next WebM cluster is end of the stream");
                 _cluster = nextCluster;
                 res = _cluster->Parse(pos, len);
-                MS_DEBUG_DEV("Cluster::Parse (2) returned: %s", WebMDeserializer::MkvResultToString(res));
+                MS_DEBUG_DEV("Cluster::Parse (2) returned: %s", MkvReadResultToString(res));
                 SetNextBlockIterationResult(res, "Cluster::Parse (2)");
                 if (res < 0L) {
-                    return ToMkvResult(res);
+                    return ToMkvReadResult(res);
                 }
                 _blockEntryIndex = 0L;
                 continue;
@@ -467,7 +361,7 @@ block_exit:
             }
         }
     }
-    return ToMkvResult(_nextBlockIterationResult);
+    return ToMkvReadResult(_nextBlockIterationResult);
 }
 
 std::optional<uint32_t> WebMDeserializer::TrackInfo::GetBlockTime(const mkvparser::Block* block) const
@@ -484,9 +378,9 @@ void WebMDeserializer::TrackInfo::SetNextBlockIterationResult(long result, const
 {
     if (_nextBlockIterationResult != result) {
         if (result < 0) {
-            const auto mkvResult = ToMkvResult(result);
-            if (MkvResult::BufferNotFull != mkvResult) {
-                MS_ERROR_STD("%s error: %s", operationName, MkvResultToString(mkvResult));
+            const auto mkvResult = ToMkvReadResult(result);
+            if (MkvReadResult::BufferNotFull != mkvResult) {
+                MS_ERROR_STD("%s error: %s", operationName, MkvReadResultToString(mkvResult));
                 _cluster = nullptr;
             }
         }
