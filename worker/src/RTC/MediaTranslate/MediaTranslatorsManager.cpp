@@ -6,8 +6,6 @@
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
-#include "RTC/MediaTranslate/ProducerObserver.hpp"
-#include "RTC/MediaTranslate/WebM/WebMMediaFrameSerializationFactory.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/Producer.hpp"
 #include "RTC/Consumer.hpp"
@@ -33,8 +31,7 @@ public:
                const std::string& serviceUser,
                const std::string& servicePassword);
     ~Translator() final;
-    void Pause(bool pause);
-    void AddConsumer(Consumer* consumer, const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory);
+    void AddConsumer(Consumer* consumer);
     bool RemoveConsumer(Consumer* consumer);
     void UpdateConsumerLanguageAndVoice(Consumer* consumer);
     void UpdateProducerLanguage();
@@ -81,7 +78,6 @@ MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
     , _serviceUri(serviceUri)
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
-    , _serializationFactory(std::make_shared<WebMMediaFrameSerializationFactory>())
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     , _async(UVAsyncHandle::Create(PlaybackDefferedRtpPackets, this))
 #endif
@@ -131,7 +127,7 @@ void MediaTranslatorsManager::OnTransportNewProducer(Transport* transport, Produ
     if (producer && Media::Kind::AUDIO == producer->GetKind() && !producer->id.empty()) {
         const auto it = _translators.find(producer->id);
         if (it == _translators.end()) {
-            if (auto producerTranslator = ProducerTranslator::Create(producer, _serializationFactory)) {
+            if (auto producerTranslator = ProducerTranslator::Create(producer)) {
                 auto translator = std::make_unique<Translator>(this,
                                                                std::move(producerTranslator),
                                                                _serviceUri,
@@ -187,24 +183,12 @@ void MediaTranslatorsManager::OnTransportProducerClosed(Transport* transport, Pr
 void MediaTranslatorsManager::OnTransportProducerPaused(Transport* transport, Producer* producer)
 {
     _router->OnTransportProducerPaused(transport, producer);
-    if (producer) {
-        const auto it = _translators.find(producer->id);
-        if (it != _translators.end()) {
-            it->second->Pause(true);
-        }
-    }
 }
 
 void MediaTranslatorsManager::OnTransportProducerResumed(Transport* transport,
                                                          Producer* producer)
 {
     _router->OnTransportProducerResumed(transport, producer);
-    if (producer) {
-        const auto it = _translators.find(producer->id);
-        if (it != _translators.end()) {
-            it->second->Pause(false);
-        }
-    }
 }
 
 void MediaTranslatorsManager::OnTransportProducerNewRtpStream(Transport* transport,
@@ -272,7 +256,7 @@ void MediaTranslatorsManager::OnTransportNewConsumer(Transport* transport, Consu
     if (consumer) {
         const auto it = _translators.find(producerId);
         if (it != _translators.end()) {
-            it->second->AddConsumer(consumer, _serializationFactory);
+            it->second->AddConsumer(consumer);
         }
     }
 }
@@ -497,13 +481,6 @@ void MediaTranslatorsManager::UVAsyncHandle::OnClosed(uv_handle_t* handle)
 }
 #endif
 
-void TranslatorUnit::Pause(bool pause)
-{
-    if (pause != _paused.exchange(pause)) {
-        OnPauseChanged(pause);
-    }
-}
-
 MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager,
                                                 std::unique_ptr<ProducerTranslator> producer,
                                                 const std::string& serviceUri,
@@ -542,20 +519,9 @@ bool MediaTranslatorsManager::Translator::AddPacket(RtpPacket* packet)
     return false;
 }
 
-void MediaTranslatorsManager::Translator::Pause(bool pause)
+void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer)
 {
-    if (pause) {
-        _producer->Pause();
-    }
-    else {
-        _producer->Resume();
-    }
-}
-
-void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer,
-                                                      const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory)
-{
-    if (consumer && serializationFactory) {
+    if (consumer) {
         {
             LOCK_WRITE_PROTECTED_OBJ(_consumers);
             auto& consumers = _consumers.Ref();
@@ -564,8 +530,7 @@ void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer,
                 const auto packetsCollector = static_cast<RtpPacketsCollector*>(this);
                 auto consumerTranslator = std::make_unique<ConsumerTranslator>(consumer,
                                                                                packetsCollector,
-                                                                               _producer.get(),
-                                                                               serializationFactory);
+                                                                               _producer.get());
 #ifdef NO_TRANSLATION_SERVICE
                 _producer->AddSink(consumerTranslator.get());
 #endif

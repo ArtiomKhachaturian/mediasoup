@@ -196,7 +196,6 @@ common_sources = [
   'src/RTC/MediaTranslate/WebM/MkvBufferedWriter.cpp',
   'src/RTC/MediaTranslate/WebM/WebMDeserializer.cpp',
   'src/RTC/MediaTranslate/WebM/WebMSerializer.cpp',
-  'src/RTC/MediaTranslate/WebM/WebMMediaFrameSerializationFactory.cpp',
   'src/RTC/MediaTranslate/Websocket.cpp',
 ]
 

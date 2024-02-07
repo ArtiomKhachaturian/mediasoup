@@ -201,10 +201,10 @@ void Listeners<TListener>::Impl::InvokeMethod(const Method& method, Args&&... ar
     if (!_listeners->empty()) {
         size_t i = 0UL;
         do {
-            const size_t sizeBefore = _listeners->size();
-            if (i < sizeBefore) {
+            const size_t size = _listeners->size();
+            if (i < size) {
                 (_listeners->at(i)->*method)(std::forward<Args>(args)...);
-                if (_listeners->size() >= sizeBefore) {
+                if (_listeners->size() >= size) {
                     ++i;
                 }
             }

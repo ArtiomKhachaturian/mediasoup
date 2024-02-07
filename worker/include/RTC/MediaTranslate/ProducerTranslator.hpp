@@ -4,21 +4,17 @@
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/MediaTranslate/RtpPacketsInfoProvider.hpp"
 #include "RTC/MediaTranslate/TranslatorUnit.hpp"
-#include "RTC/MediaTranslate/ProducerObserver.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
-#include "RTC/Listeners.hpp"
+#include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
-#include <list>
 
 //#define WRITE_PRODUCER_RECV_TO_FILE // add MEDIASOUP_DEPACKETIZER_PATH env variable for reference to output folder
-//#define READ_PRODUCER_RECV_FROM_FILE
+#define READ_PRODUCER_RECV_FROM_FILE
 
 namespace RTC
 {
 
 class MediaSink;
-class MediaFrameSerializationFactory;
-class ProducerObserver;
 class RtpStream;
 class Producer;
 
@@ -29,14 +25,11 @@ class ProducerTranslator : public TranslatorUnit,
 {
     class StreamInfo;
 public:
-    ProducerTranslator(Producer* producer, const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory);
+    ProducerTranslator(Producer* producer);
     ~ProducerTranslator() final;
-    static std::unique_ptr<ProducerTranslator> Create(Producer* producer,
-                                                      const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory);
+    static std::unique_ptr<ProducerTranslator> Create(Producer* producer);
     Producer* GetProducer() const { return _producer; }
     bool IsAudio() const;
-    void AddObserver(ProducerObserver* observer);
-    void RemoveObserver(ProducerObserver* observer);
     bool AddStream(const RtpStream* stream, uint32_t mappedSsrc);
     bool AddStream(const RtpCodecMimeType& mime, uint32_t clockRate, uint32_t mappedSsrc,
                    uint32_t originalSsrc, uint8_t payloadType);
@@ -60,17 +53,11 @@ public:
     void RemoveAllSinks() final;
     bool HasSinks() const final;
     size_t GetSinksCout() const final;
-protected:
+private:
     // SSRC maybe mapped or original
     std::shared_ptr<StreamInfo> GetStream(uint32_t ssrc) const;
-    template <class Method, typename... Args>
-    void InvokeObserverMethod(const Method& method, Args&&... args) const;
-    // override of TranslatorUnit
-    void OnPauseChanged(bool pause) final;
 private:
     Producer* const _producer;
-    const std::shared_ptr<MediaFrameSerializationFactory> _serializationFactory;
-    Listeners<ProducerObserver*> _observers;
     // key is mapped media SSRC
     ProtectedObj<absl::flat_hash_map<uint32_t, std::shared_ptr<StreamInfo>>> _streams;
     // key is original SSRC, value - mapped media SSRC

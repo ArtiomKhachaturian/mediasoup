@@ -10,13 +10,11 @@
 #include <atomic>
 
 #define SINGLE_TRANSLATION_POINT_CONNECTION
-//#define NO_TRANSLATION_SERVICE
+#define NO_TRANSLATION_SERVICE
 #define USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
 
 namespace RTC
 {
-
-class MediaFrameSerializationFactory;
 
 class MediaTranslatorsManager : public TransportListener
 {
@@ -93,7 +91,6 @@ private:
     const std::string _serviceUri;
     const std::string _serviceUser;
     const std::string _servicePassword;
-    const std::shared_ptr<MediaFrameSerializationFactory> _serializationFactory;
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     const std::unique_ptr<UVAsyncHandle> _async;
     ProtectedObj<absl::flat_hash_map<Producer*, PacketsList>> _defferedPackets;

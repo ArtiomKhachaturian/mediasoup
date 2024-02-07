@@ -1,8 +1,7 @@
 #define MS_CLASS "RTC::ProducerTranslator"
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
-#include "RTC/MediaTranslate/MediaFrameSerializer.hpp"
-#include "RTC/MediaTranslate/MediaFrameSerializationFactory.hpp"
+#include "RTC/MediaTranslate/WebM/WebMSerializer.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
@@ -49,15 +48,13 @@ class ProducerTranslator::StreamInfo : public RtpPacketsCollector,
                                        public SsrcProvider
 {
 public:
-    StreamInfo(uint32_t clockRate, uint32_t mappedSsrc,
-               const std::string& producerId,
+    StreamInfo(uint32_t clockRate, const std::string& producerId,
                std::unique_ptr<MediaFrameSerializer> serializer,
                std::unique_ptr<RtpDepacketizer> depacketizer);
     ~StreamInfo() final;
     static std::shared_ptr<StreamInfo> Create(const RtpCodecMimeType& mime,
                                               uint32_t clockRate, uint32_t mappedSsrc,
-                                              const std::string& producerId,
-                                              const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory);
+                                              const std::string& producerId);
     uint32_t GetClockRate() const { return _serializer->GetClockRate(); }
     void SetOriginalSsrc(uint32_t ssrc);
     uint8_t GetPayloadType() const { return _payloadType.load(); }
@@ -107,16 +104,10 @@ private:
     ProtectedObj<absl::flat_hash_map<MediaSink*, std::unique_ptr<MediaSinkWrapper>>> _sinkWrappers;
 };
 
-ProducerTranslator::ProducerTranslator(Producer* producer,
-                                       const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory)
+ProducerTranslator::ProducerTranslator(Producer* producer)
     : _producer(producer)
-    , _serializationFactory(serializationFactory)
 {
     MS_ASSERT(_producer, "producer must not be null");
-    MS_ASSERT(_serializationFactory, "media frame serialization factory must not be null");
-    if (_producer->IsPaused()) {
-        Pause();
-    }
 }
 
 ProducerTranslator::~ProducerTranslator()
@@ -127,11 +118,10 @@ ProducerTranslator::~ProducerTranslator()
     RemoveAllSinks();
 }
 
-std::unique_ptr<ProducerTranslator> ProducerTranslator::Create(Producer* producer,
-                                                               const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory)
+std::unique_ptr<ProducerTranslator> ProducerTranslator::Create(Producer* producer)
 {
-    if (producer && serializationFactory) {
-        return std::make_unique<ProducerTranslator>(producer, serializationFactory);
+    if (producer) {
+        return std::make_unique<ProducerTranslator>(producer);
     }
     return nullptr;
 }
@@ -139,16 +129,6 @@ std::unique_ptr<ProducerTranslator> ProducerTranslator::Create(Producer* produce
 bool ProducerTranslator::IsAudio() const
 {
     return Media::Kind::AUDIO == _producer->GetKind();
-}
-
-void ProducerTranslator::AddObserver(ProducerObserver* observer)
-{
-    _observers.Add(observer);
-}
-
-void ProducerTranslator::RemoveObserver(ProducerObserver* observer)
-{
-    _observers.Remove(observer);
 }
 
 bool ProducerTranslator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
@@ -164,7 +144,7 @@ bool ProducerTranslator::AddStream(const RtpCodecMimeType& mime, uint32_t clockR
                                    uint32_t mappedSsrc, uint32_t originalSsrc,
                                    uint8_t payloadType)
 {
-    bool ok = false, newStream = false;
+    bool ok = false;
     if (mappedSsrc && mime.IsMediaCodec()) {
         MS_ASSERT(mime.IsAudioCodec() == IsAudio(), "mime types mistmatch");
         MS_ASSERT(clockRate, "clock rate must be greater than zero");
@@ -172,7 +152,7 @@ bool ProducerTranslator::AddStream(const RtpCodecMimeType& mime, uint32_t clockR
         auto& streams = _streams.Ref();
         const auto it = streams.find(mappedSsrc);
         if (it == streams.end()) {
-            auto streamInfo = StreamInfo::Create(mime, clockRate, mappedSsrc, GetId(), _serializationFactory);
+            auto streamInfo = StreamInfo::Create(mime, clockRate, mappedSsrc, GetId());
             if (streamInfo) {
                 {
                     LOCK_READ_PROTECTED_OBJ(_sinks);
@@ -186,7 +166,7 @@ bool ProducerTranslator::AddStream(const RtpCodecMimeType& mime, uint32_t clockR
                 streamInfo->SetOriginalSsrc(originalSsrc);
                 streamInfo->SetPayloadType(payloadType);
                 streams[mappedSsrc] = std::move(streamInfo);
-                newStream = ok = true;
+                ok = true;
             }
             else {
                 const auto desc = GetStreamInfoString(mime, mappedSsrc);
@@ -202,15 +182,11 @@ bool ProducerTranslator::AddStream(const RtpCodecMimeType& mime, uint32_t clockR
             ok = true; // already registered
         }
     }
-    if (newStream) {
-        InvokeObserverMethod(&ProducerObserver::onStreamAdded, mappedSsrc, mime, clockRate);
-    }
     return ok;
 }
 
 bool ProducerTranslator::RemoveStream(uint32_t mappedSsrc)
 {
-    std::optional<RtpCodecMimeType> removed;
     if (mappedSsrc) {
         LOCK_WRITE_PROTECTED_OBJ(_streams);
         const auto its = _streams.Ref().find(mappedSsrc);
@@ -220,13 +196,9 @@ bool ProducerTranslator::RemoveStream(uint32_t mappedSsrc)
             if (it != _originalToMappedSsrcs.Ref().end()) {
                 _originalToMappedSsrcs.Ref().erase(it);
             }
-            removed = its->second->GetMime();
             _streams.Ref().erase(its);
+            return true;
         }
-    }
-    if (removed.has_value()) {
-        InvokeObserverMethod(&ProducerObserver::onStreamRemoved, mappedSsrc, removed.value());
-        return true;
     }
     return false;
 }
@@ -283,7 +255,7 @@ const std::string& ProducerTranslator::GetId() const
 
 bool ProducerTranslator::AddPacket(RtpPacket* packet)
 {
-    if (packet && !IsPaused()) {
+    if (packet && !_producer->IsPaused()) {
         if (const auto stream = GetStream(packet->GetSsrc())) {
             return stream->AddPacket(packet);
         }
@@ -372,19 +344,7 @@ std::shared_ptr<ProducerTranslator::StreamInfo> ProducerTranslator::GetStream(ui
     return nullptr;
 }
 
-template <class Method, typename... Args>
-void ProducerTranslator::InvokeObserverMethod(const Method& method, Args&&... args) const
-{
-    _observers.InvokeMethod(method, GetId(), std::forward<Args>(args)...);
-}
-
-void ProducerTranslator::OnPauseChanged(bool pause)
-{
-    InvokeObserverMethod(&ProducerObserver::OnPauseChanged, pause);
-}
-
-ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint32_t mappedSsrc,
-                                           const std::string& producerId,
+ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, const std::string& producerId,
                                            std::unique_ptr<MediaFrameSerializer> serializer,
                                            std::unique_ptr<RtpDepacketizer> depacketizer)
     : _serializer(std::move(serializer))
@@ -393,7 +353,7 @@ ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint32_t mappedSs
     , _fileReader(CreateFileReader())
 #endif
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-    , _fileWriter(CreateFileWriter(mappedSsrc, producerId, _serializer.get()))
+    , _fileWriter(CreateFileWriter(_serializer->GetSsrc(), producerId, _serializer.get()))
 #endif
 {
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
@@ -413,15 +373,14 @@ ProducerTranslator::StreamInfo::~StreamInfo()
 std::shared_ptr<ProducerTranslator::StreamInfo> ProducerTranslator::StreamInfo::Create(const RtpCodecMimeType& mime,
                                                                                        uint32_t clockRate,
                                                                                        uint32_t mappedSsrc,
-                                                                                       const std::string& producerId,
-                                                                                       const std::shared_ptr<MediaFrameSerializationFactory>& serializationFactory)
+                                                                                       const std::string& producerId)
 {
-    if (serializationFactory) {
-        if (auto serializer = serializationFactory->CreateSerializer(mappedSsrc, clockRate, mime)) {
-            if (auto depacketizer = RtpDepacketizer::create(mime, clockRate)) {
-                return std::make_shared<StreamInfo>(clockRate, mappedSsrc, producerId,
-                                                    std::move(serializer), std::move(depacketizer));
-            }
+    if (WebMSerializer::IsSupported(mime)) {
+        if (auto depacketizer = RtpDepacketizer::create(mime, clockRate)) {
+            auto serializer = std::make_unique<WebMSerializer>(mappedSsrc, clockRate, mime);
+            return std::make_shared<StreamInfo>(clockRate, producerId,
+                                                std::move(serializer),
+                                                std::move(depacketizer));
         }
     }
     return nullptr;
