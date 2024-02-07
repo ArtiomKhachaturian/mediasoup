@@ -5,11 +5,10 @@
 namespace RTC
 {
 
-class MkvBufferedWriter;
-
 // https://www.webmproject.org/docs/container/#muxer-guidelines
 class WebMSerializer : public MediaFrameSerializer
 {
+    class Writer;
 public:
     WebMSerializer(uint32_t ssrc, uint32_t clockRate, const RtpCodecMimeType& mime,
                    const char* app = "SpeakShiftSFU");
@@ -27,13 +26,12 @@ public:
     std::string_view GetFileExtension() const final { return "webm"; }
     bool Push(const std::shared_ptr<const MediaFrame>& mediaFrame) final;
 private:
-    std::unique_ptr<MkvBufferedWriter> CreateWriter(MediaSink* sink) const;
+    std::unique_ptr<Writer> CreateWriter(MediaSink* sink) const;
     bool IsAccepted(const std::shared_ptr<const MediaFrame>& mediaFrame) const;
     uint64_t UpdateTimeStamp(uint32_t timestamp);
 private:
-    static inline constexpr int32_t _trackNumber = 1;
     const char* const _app;
-    absl::flat_hash_map<MediaSink*, std::unique_ptr<MkvBufferedWriter>> _writers;
+    absl::flat_hash_map<MediaSink*, std::unique_ptr<Writer>> _writers;
     uint32_t _lastTimestamp = 0UL;
     uint64_t _granule = 0ULL;
 };

@@ -7,6 +7,8 @@
 #include "Logger.hpp"
 #include <algorithm> // for stable_sort
 
+//#define CUES_NEW_ADDED_TRACK
+
 namespace RTC
 {
 
@@ -20,7 +22,7 @@ class MkvBufferedWriter::MkvFrame
 {
 public:
     MkvFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
-             uint64_t mkvTimestamp, int32_t trackNumber);
+             uint64_t mkvTimestamp, uint64_t trackNumber);
     MkvFrame(const MkvFrame&) = delete;
     MkvFrame(MkvFrame&&) = default;
     MkvFrame& operator = (const MkvFrame&) = delete;
@@ -62,14 +64,55 @@ MkvBufferedWriter::~MkvBufferedWriter()
     if (IsInitialized()) {
         _segment.Finalize();
         WriteMediaPayloadToSink();
-        if (HasWroteMedia()) {
+        if (_startMediaSinkWriting) {
             _sink->EndMediaWriting();
         }
     }
 }
 
-bool MkvBufferedWriter::AddFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
-                                 uint64_t mkvTimestamp, int32_t trackNumber)
+uint64_t MkvBufferedWriter::AddAudioTrack(int32_t sampleRate, int32_t channels)
+{
+    uint64_t trackNumber = 0ULL;
+    if (IsValidForTracksAdding()) {
+        trackNumber = _segment.AddAudioTrack(sampleRate, channels, _nextNumber);
+        if (trackNumber) {
+            const auto track = dynamic_cast<mkvmuxer::AudioTrack*>(_segment.GetTrackByNumber(trackNumber));
+            MS_ASSERT(track, "wrong type of newly added MKV audio track");
+            _audioTracks[trackNumber] = track;
+#ifdef CUES_NEW_ADDED_TRACK
+            if (_videoTracks.empty()) {
+                _segment.CuesTrack(trackNumber);
+            }
+#endif
+            ++_nextNumber;
+        }
+    }
+    return trackNumber;
+}
+
+uint64_t MkvBufferedWriter::AddVideoTrack(int32_t width, int32_t height)
+{
+    uint64_t trackNumber = 0ULL;
+    if (IsValidForTracksAdding()) {
+        trackNumber = _segment.AddVideoTrack(width, height, _nextNumber);
+        if (trackNumber) {
+            const auto track = dynamic_cast<mkvmuxer::VideoTrack*>(_segment.GetTrackByNumber(trackNumber));
+            MS_ASSERT(track, "wrong type of newly added MKV video track");
+            _videoTracks[trackNumber] = track;
+#ifdef CUES_NEW_ADDED_TRACK
+            if (1UL == _videoTracks.size()) {
+                _segment.CuesTrack(trackNumber);
+            }
+#endif
+            ++_nextNumber;
+        }
+    }
+    return trackNumber;
+}
+
+bool MkvBufferedWriter::AddFrame(uint64_t trackNumber,
+                                 const std::shared_ptr<const MediaFrame>& mediaFrame,
+                                 uint64_t mkvTimestamp)
 {
     const auto result = EnqueueFrame(mediaFrame, mkvTimestamp, trackNumber);
     bool ok = EnqueueResult::Failure != result;
@@ -94,53 +137,10 @@ bool MkvBufferedWriter::AddFrame(const std::shared_ptr<const MediaFrame>& mediaF
     return ok;
 }
 
-bool MkvBufferedWriter::AddAudioTrack(int32_t number, int32_t sampleRate, int32_t channels)
-{
-    bool ok = false;
-    if (IsValidForTracksAdding()) {
-        if (!GetTrack(number)) {
-            const auto refNumber = _segment.AddAudioTrack(sampleRate, channels, number);
-            if (refNumber) {
-                _tracksReference[number] = refNumber;
-                ok = true;
-                ++_audioTracksCount;
-                if (0ULL == _videoTracksCount) {
-                    _segment.CuesTrack(refNumber);
-                }
-            }
-        }
-        else {
-            ok = true;
-        }
-    }
-    return ok;
-}
-
-bool MkvBufferedWriter::AddVideoTrack(int32_t number, int32_t width, int32_t height)
-{
-    bool ok = false;
-    if (IsValidForTracksAdding()) {
-        if (!GetTrack(number)) {
-            const auto refNumber = _segment.AddVideoTrack(width, height, number);
-            if (refNumber) {
-                _tracksReference[number] = refNumber;
-                ok = true;
-                if (0ULL == _videoTracksCount++) {
-                    _segment.CuesTrack(refNumber);
-                }
-            }
-        }
-        else {
-            ok = true;
-        }
-    }
-    return ok;
-}
-
-bool MkvBufferedWriter::SetTrackCodec(int32_t number, const char* codec)
+bool MkvBufferedWriter::SetTrackCodec(uint64_t trackNumber, const char* codec)
 {
     if (codec && std::strlen(codec)) {
-        if (const auto track = GetTrack(number)) {
+        if (const auto track = _segment.GetTrackByNumber(trackNumber)) {
             track->set_codec_id(codec);
             return true;
         }
@@ -148,9 +148,9 @@ bool MkvBufferedWriter::SetTrackCodec(int32_t number, const char* codec)
     return false;
 }
 
-bool MkvBufferedWriter::SetAudioSampleRate(int32_t number, uint32_t sampleRate, bool opusCodec)
+bool MkvBufferedWriter::SetAudioSampleRate(uint64_t trackNumber, uint32_t sampleRate, bool opusCodec)
 {
-    if (const auto track = static_cast<mkvmuxer::AudioTrack*>(GetTrack(number))) {
+    if (const auto track = GetAudioTrack(trackNumber)) {
         track->set_sample_rate(sampleRate);
         // https://wiki.xiph.org/MatroskaOpus
         if (opusCodec && 48000U == sampleRate) {
@@ -161,23 +161,26 @@ bool MkvBufferedWriter::SetAudioSampleRate(int32_t number, uint32_t sampleRate, 
     return false;
 }
 
-void MkvBufferedWriter::SetTrackSettings(int32_t number, const std::shared_ptr<const AudioFrameConfig>& config)
+void MkvBufferedWriter::SetTrackSettings(uint64_t trackNumber,
+                                         const std::shared_ptr<const AudioFrameConfig>& config)
 {
     if (config) {
-        if (const auto track = static_cast<mkvmuxer::AudioTrack*>(GetTrack(number))) {
+        if (const auto track = GetAudioTrack(trackNumber)) {
             track->set_channels(config->GetChannelCount());
             track->set_bit_depth(config->GetBitsPerSample());
             if (!SetCodecSpecific(track, config->GetCodecSpecificData())) {
-                MS_ERROR_STD("failed to setup of MKV writer audio codec data for track #%d", number);
+                MS_ERROR_STD("failed to setup of MKV writer audio codec data for track #%llu",
+                             trackNumber);
             }
         }
     }
 }
 
-void MkvBufferedWriter::SetTrackSettings(int32_t number, const std::shared_ptr<const VideoFrameConfig>& config)
+void MkvBufferedWriter::SetTrackSettings(uint64_t trackNumber,
+                                         const std::shared_ptr<const VideoFrameConfig>& config)
 {
     if (config) {
-        if (const auto track = static_cast<mkvmuxer::VideoTrack*>(GetTrack(number))) {
+        if (const auto track = GetVideoTrack(trackNumber)) {
             track->set_frame_rate(config->GetFrameRate());
             if (config->HasResolution()) {
                 track->set_width(config->GetWidth());
@@ -186,10 +189,12 @@ void MkvBufferedWriter::SetTrackSettings(int32_t number, const std::shared_ptr<c
                 track->set_display_height(config->GetHeight());
             }
             else {
-                MS_WARN_DEV_STD("video resolution is not available or wrong for track #%d", number);
+                MS_WARN_DEV_STD("video resolution is not available or wrong for track #%llu",
+                                trackNumber);
             }
             if (!SetCodecSpecific(track, config->GetCodecSpecificData())) {
-                MS_ERROR_STD("failed to setup of MKV writer video codec data for track #%d", number);
+                MS_ERROR_STD("failed to setup of MKV writer video codec data for track #%llu",
+                             trackNumber);
             }
         }
     }
@@ -212,17 +217,6 @@ void MkvBufferedWriter::WriteMediaPayloadToSink()
     }
 }
 
-mkvmuxer::Track* MkvBufferedWriter::GetTrack(int32_t number) const
-{
-    if (IsInitialized()) {
-        const auto it = _tracksReference.find(number);
-        if (it != _tracksReference.end()) {
-            return _segment.GetTrackByNumber(it->second);
-        }
-    }
-    return nullptr;
-}
-
 bool MkvBufferedWriter::IsValidForTracksAdding() const
 {
     if (IsInitialized()) {
@@ -233,16 +227,22 @@ bool MkvBufferedWriter::IsValidForTracksAdding() const
 }
 
 MkvBufferedWriter::EnqueueResult MkvBufferedWriter::EnqueueFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
-                                                                 uint64_t mkvTimestamp, int32_t trackNumber)
+                                                                 uint64_t mkvTimestamp, uint64_t trackNumber)
 {
     EnqueueResult result = EnqueueResult::Failure;
     if (mediaFrame && IsInitialized()) {
-        const auto it = _tracksReference.find(trackNumber);
-        if (it != _tracksReference.end()) {
+        bool hasTrack = false;
+        if (mediaFrame->IsAudio()) {
+            hasTrack = _audioTracks.count(trackNumber) > 0UL;
+        }
+        else {
+            hasTrack = _videoTracks.count(trackNumber) > 0UL;
+        }
+        if (hasTrack) {
             auto& mkvLastTimestamp = mediaFrame->IsAudio() ? _mkvAudioLastTimestamp : _mkvVideoLastTimestamp;
             /*if (mkvTimestamp < mkvLastTimestamp) { // timestamp is too old
                 mkvTimestamp = mkvLastTimestamp;
-            }*/
+             }*/
             if (mkvTimestamp >= mkvLastTimestamp) {
                 MkvFrame frame(mediaFrame, mkvTimestamp, trackNumber);
                 if (frame.IsValid()) {
@@ -269,8 +269,9 @@ bool MkvBufferedWriter::WriteFrames(uint64_t mkvTimestamp)
         size_t addedCount = 0UL;
         for (auto& mkvFrame : _mkvFrames) {
             if (mkvFrame.GetMkvTimestamp() <= mkvTimestamp) {
-                if (!HasWroteMedia()) {
+                if (!HasWroteMedia() && !_startMediaSinkWriting) {
                     _sink->StartMediaWriting(_ssrc);
+                    _startMediaSinkWriting = true;
                 }
                 ok = mkvFrame.InitPayload(_ssrc);
                 if (ok) {
@@ -296,6 +297,24 @@ bool MkvBufferedWriter::WriteFrames(uint64_t mkvTimestamp)
     return ok;
 }
 
+mkvmuxer::AudioTrack* MkvBufferedWriter::GetAudioTrack(uint64_t trackNumber) const
+{
+    const auto it = _audioTracks.find(trackNumber);
+    if (it != _audioTracks.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+
+mkvmuxer::VideoTrack* MkvBufferedWriter::GetVideoTrack(uint64_t trackNumber) const
+{
+    const auto it = _videoTracks.find(trackNumber);
+    if (it != _videoTracks.end()) {
+        return it->second;
+    }
+    return nullptr;
+}
+
 mkvmuxer::int32 MkvBufferedWriter::Write(const void* buf, mkvmuxer::uint32 len)
 {
     if (_buffer.Append(buf, len)) {
@@ -311,7 +330,7 @@ mkvmuxer::int64 MkvBufferedWriter::Position() const
 }
 
 MkvBufferedWriter::MkvFrame::MkvFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
-                                      uint64_t mkvTimestamp, int32_t trackNumber)
+                                      uint64_t mkvTimestamp, uint64_t trackNumber)
     : _mediaFrame(mediaFrame)
 {
     if (_mediaFrame && !_mediaFrame->IsEmpty()) {

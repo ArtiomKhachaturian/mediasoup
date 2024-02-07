@@ -27,6 +27,18 @@ inline bool IsOpus(const RtpCodecMimeType& mime) {
 namespace RTC
 {
 
+class WebMSerializer::Writer : public MkvBufferedWriter
+{
+public:
+    Writer(uint32_t ssrc, MediaSink* sink, const char* app);
+    bool AddFrame(const std::shared_ptr<const MediaFrame>& mediaFrame, uint64_t mkvTimestamp);
+    void SetTrackSettings(const std::shared_ptr<const AudioFrameConfig>& config);
+    void SetTrackSettings(const std::shared_ptr<const VideoFrameConfig>& config);
+    void SetSingleTrackNumber(uint64_t trackNumber) { _singleTrackNumber = trackNumber; }
+private:
+    uint64_t _singleTrackNumber = 0ULL;
+};
+
 WebMSerializer::WebMSerializer(uint32_t ssrc, uint32_t clockRate,
                                const RtpCodecMimeType& mime, const char* app)
     : MediaFrameSerializer(ssrc, clockRate, mime)
@@ -126,13 +138,13 @@ bool WebMSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFrame)
         for (auto it = _writers.begin(); it != _writers.end(); ++it) {
             switch (GetMimeType().GetType()) {
                 case RtpCodecMimeType::Type::AUDIO:
-                    it->second->SetTrackSettings(_trackNumber, mediaFrame->GetAudioConfig());
+                    it->second->SetTrackSettings(mediaFrame->GetAudioConfig());
                     break;
                 case RtpCodecMimeType::Type::VIDEO:
-                    it->second->SetTrackSettings(_trackNumber, mediaFrame->GetVideoConfig());
+                    it->second->SetTrackSettings(mediaFrame->GetVideoConfig());
                     break;
             }
-            ok = it->second->AddFrame(mediaFrame, mkvTimestamp, _trackNumber);
+            ok = it->second->AddFrame(mediaFrame, mkvTimestamp);
             if (!ok) {
                 const auto frameInfo = GetMediaFrameInfoString(mediaFrame, GetSsrc());
                 MS_ERROR_STD("unable write frame to MKV data [%s]", frameInfo.c_str());
@@ -143,20 +155,21 @@ bool WebMSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFrame)
     return ok;
 }
 
-std::unique_ptr<MkvBufferedWriter> WebMSerializer::CreateWriter(MediaSink* sink) const
+std::unique_ptr<WebMSerializer::Writer> WebMSerializer::CreateWriter(MediaSink* sink) const
 {
     if (sink) {
         const auto& mime = GetMimeType();
         const auto ssrc = GetSsrc();
-        auto writer = std::make_unique<MkvBufferedWriter>(ssrc, sink, _app);
+        auto writer = std::make_unique<Writer>(ssrc, sink, _app);
         if (writer->IsInitialized()) {
-            bool ok = false;
             const auto clockRate = GetClockRate();
+            uint64_t trackNumber = 0ULL;
+            bool ok = false;
             switch (mime.GetType()) {
                 case RtpCodecMimeType::Type::AUDIO:
-                    ok = writer->AddAudioTrack(_trackNumber, clockRate);
-                    if (ok) {
-                        ok = writer->SetAudioSampleRate(_trackNumber, clockRate, IsOpus(mime));
+                    trackNumber = writer->AddAudioTrack(clockRate);
+                    if (trackNumber) {
+                        ok = writer->SetAudioSampleRate(trackNumber, clockRate, IsOpus(mime));
                         if (!ok) {
                             MS_ERROR_STD("failed to set intial MKV audio sample rate for %s",
                                          GetStreamInfoString(mime, ssrc).c_str());
@@ -168,7 +181,7 @@ std::unique_ptr<MkvBufferedWriter> WebMSerializer::CreateWriter(MediaSink* sink)
                     }
                     break;
                 case RtpCodecMimeType::Type::VIDEO:
-                    ok = writer->AddVideoTrack(_trackNumber);
+                    trackNumber = writer->AddVideoTrack();
                     if (!ok) {
                         MS_ERROR_STD("failed to add MKV video track for %s",
                                      GetStreamInfoString(mime, ssrc).c_str());
@@ -176,11 +189,14 @@ std::unique_ptr<MkvBufferedWriter> WebMSerializer::CreateWriter(MediaSink* sink)
                     break;
             }
             if (ok) {
-                ok = writer->SetTrackCodec(_trackNumber, GetCodecId(mime));
+                ok = writer->SetTrackCodec(trackNumber, GetCodecId(mime));
                 if (!ok) {
                     MS_ERROR_STD("failed to set MKV codec for %s",
                                  GetStreamInfoString(mime, ssrc).c_str());
                     writer.reset();
+                }
+                else {
+                    writer->SetSingleTrackNumber(trackNumber);
                 }
                 return writer;
             }
@@ -212,6 +228,27 @@ uint64_t WebMSerializer::UpdateTimeStamp(uint32_t timestamp)
         _lastTimestamp = timestamp;
     }
     return ValueToNano(_granule) / GetClockRate();
+}
+
+WebMSerializer::Writer::Writer(uint32_t ssrc, MediaSink* sink, const char* app)
+    : MkvBufferedWriter(ssrc, sink, app)
+{
+}
+
+bool WebMSerializer::Writer::AddFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
+                                      uint64_t mkvTimestamp)
+{
+    return MkvBufferedWriter::AddFrame(_singleTrackNumber, mediaFrame, mkvTimestamp);
+}
+
+void WebMSerializer::Writer::SetTrackSettings(const std::shared_ptr<const AudioFrameConfig>& config)
+{
+    MkvBufferedWriter::SetTrackSettings(_singleTrackNumber, config);
+}
+
+void WebMSerializer::Writer::SetTrackSettings(const std::shared_ptr<const VideoFrameConfig>& config)
+{
+    MkvBufferedWriter::SetTrackSettings(_singleTrackNumber, config);
 }
 
 } // namespace RTC
