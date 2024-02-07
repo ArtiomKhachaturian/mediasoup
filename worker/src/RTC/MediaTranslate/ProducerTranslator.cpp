@@ -507,16 +507,18 @@ void ProducerTranslator::StreamInfo::RemoveAllSinks()
 
 bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
 {
-    if (packet && !packet->IsSynthenized()) {
+    if (packet) {
         SetLastOriginalRtpTimestamp(packet->GetTimestamp());
         SetLastOriginalRtpSeqNumber(packet->GetSequenceNumber());
+        if (!packet->IsSynthenized()) {
 #ifdef READ_PRODUCER_RECV_FROM_FILE
-        if (_fileReader) {
-            return true;
-        }
+            if (_fileReader) {
+                return true;
+            }
 #endif
-        if (const auto frame = _depacketizer->AddPacket(packet)) {
-            return _serializer->Push(frame);
+            if (const auto frame = _depacketizer->AddPacket(packet)) {
+                return _serializer->Push(frame);
+            }
         }
     }
     return false;
