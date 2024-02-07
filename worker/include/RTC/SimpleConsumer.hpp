@@ -38,7 +38,6 @@ namespace RTC
 			);
 			// clang-format on
 		}
-        bool IsTranslationRequired() const override { return true; }
 		void ProducerRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc) override;
 		void ProducerNewRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc) override;
 		void ProducerRtpStreamScore(

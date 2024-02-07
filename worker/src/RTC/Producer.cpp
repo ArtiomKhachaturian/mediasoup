@@ -832,11 +832,11 @@ namespace RTC
 		this->keyFrameRequestManager->KeyFrameNeeded(ssrc);
 	}
 
-    void Producer::SetLanguage(const std::optional<FBS::TranslationPack::Language>& language)
+    void Producer::SetLanguageId(const std::string& languageId)
     {
         MS_TRACE();
-        if (this->language != language) {
-            this->language = language;
+        if (this->languageId != languageId) {
+            this->languageId = languageId;
             this->listener->OnProducerLanguageChanged(this);
         }
     }

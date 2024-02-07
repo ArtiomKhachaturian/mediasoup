@@ -36,8 +36,8 @@ public:
     // impl. of TranslatorUnit
     const std::string& GetId() const final;
     // impl. of ConsumerTranslatorSettings
-    std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
-    std::optional<FBS::TranslationPack::Voice> GetVoice() const final;
+    const std::string& GetLanguageId() const final;
+    const std::string& GetVoiceId() const final;
     // impl. of MediaSink
     void StartMediaWriting(uint32_t ssrc) final;
     void WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer) final;

@@ -617,12 +617,17 @@ void MediaTranslatorsManager::Translator::UpdateConsumerLanguageAndVoice(Consume
                 const auto endPoint = std::make_shared<TranslatorEndPoint>(_serviceUri,
                                                                            _serviceUser,
                                                                            _servicePassword);
-                endPoint->SetProducerLanguage(_producer->GetLanguage());
+                endPoint->SetInputLanguageId(_producer->GetLanguageId());
+                endPoint->SetOutputLanguageId(consumer->GetLanguageId());
+                endPoint->SetOutputVoiceId(consumer->GetVoiceId());
                 endPoint->SetInput(_producer.get());
                 endPoint->SetOutput(it->second.get());
                 ite = _endPoints.Ref().insert({consumer, endPoint}).first;
             }
-            ite->second->SetConsumerLanguageAndVoice(it->second->GetLanguage(), it->second->GetVoice());
+            else {
+                ite->second->SetOutputLanguageId(consumer->GetLanguageId());
+                ite->second->SetOutputVoiceId(consumer->GetVoiceId());
+            }
         }
     }
 }
@@ -631,7 +636,7 @@ void MediaTranslatorsManager::Translator::UpdateProducerLanguage()
 {
     LOCK_READ_PROTECTED_OBJ(_endPoints);
     for (auto it = _endPoints.ConstRef().begin(); it != _endPoints.ConstRef().end(); ++it) {
-        it->second->SetProducerLanguage(_producer->GetLanguage());
+        it->second->SetInputLanguageId(_producer->GetLanguageId());
     }
 }
 

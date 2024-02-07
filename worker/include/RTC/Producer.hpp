@@ -2,7 +2,6 @@
 #define MS_RTC_PRODUCER_HPP
 
 #include "common.hpp"
-#include "FBS/translationPack.h"
 #include "Channel/ChannelRequest.hpp"
 #include "Channel/ChannelSocket.hpp"
 #include "RTC/KeyFrameRequestManager.hpp"
@@ -142,8 +141,8 @@ namespace RTC
 		void ReceiveRtcpXrDelaySinceLastRr(RTC::RTCP::DelaySinceLastRr::SsrcInfo* ssrcInfo);
 		bool GetRtcp(RTC::RTCP::CompoundPacket* packet, uint64_t nowMs);
 		void RequestKeyFrame(uint32_t mappedSsrc);
-        const std::optional<FBS::TranslationPack::Language>& GetLanguage() const { return language; }
-        void SetLanguage(const std::optional<FBS::TranslationPack::Language>& language);
+        const std::string& GetLanguageId() const { return this->languageId; }
+        void SetLanguageId(const std::string& languageId);
 		/* Methods inherited from Channel::ChannelSocket::RequestHandler. */
 	public:
 		void HandleRequest(Channel::ChannelRequest* request) override;
@@ -188,8 +187,7 @@ namespace RTC
 		// Passed by argument.
 		RTC::Shared* shared{ nullptr };
 		RTC::Producer::Listener* listener{ nullptr };
-        // any source language if not defined explicitly
-        std::optional<FBS::TranslationPack::Language> language;
+        std::string languageId;
 		// Allocated by this.
 		absl::flat_hash_map<uint32_t, RTC::RtpStreamRecv*> mapSsrcRtpStream;
 		RTC::KeyFrameRequestManager* keyFrameRequestManager{ nullptr };

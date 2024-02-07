@@ -2,7 +2,6 @@ include "common.fbs";
 include "rtpPacket.fbs";
 include "rtpParameters.fbs";
 include "rtpStream.fbs";
-include "translationPack.fbs";
 
 namespace FBS.Consumer;
 
@@ -126,11 +125,10 @@ table TraceNotification {
 
 table LanguageChangesRequest {
     consumer_id: string (required);
-    target_language: FBS.TranslationPack.Language = null;
+    language_id: string;
 }
 
 table VoiceChangesRequest {
     consumer_id: string (required);
-    target_voice: FBS.TranslationPack.Voice = null;
+    voice_id: string;
 }
-

@@ -291,9 +291,9 @@ bool ProducerTranslator::AddPacket(RtpPacket* packet)
     return false;
 }
 
-std::optional<FBS::TranslationPack::Language> ProducerTranslator::GetLanguage() const
+const std::string& ProducerTranslator::GetLanguageId() const
 {
-    return _producer->GetLanguage();
+    return _producer->GetLanguageId();
 }
 
 bool ProducerTranslator::AddSink(MediaSink* sink)

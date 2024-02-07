@@ -127,14 +127,14 @@ bool ConsumerTranslator::HadIncomingMedia() const
     return nullptr != std::atomic_load(&_mediaGrabber);
 }
 
-std::optional<FBS::TranslationPack::Language> ConsumerTranslator::GetLanguage() const
+const std::string& ConsumerTranslator::GetLanguageId() const
 {
-    return _consumer->GetLanguage();
+    return _consumer->GetLanguageId();
 }
 
-std::optional<FBS::TranslationPack::Voice> ConsumerTranslator::GetVoice() const
+const std::string& ConsumerTranslator::GetVoiceId() const
 {
-    return _consumer->GetVoice();
+    return _consumer->GetVoiceId();
 }
 
 void ConsumerTranslator::StartMediaWriting(uint32_t ssrc)

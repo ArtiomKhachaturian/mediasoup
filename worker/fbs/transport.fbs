@@ -5,7 +5,6 @@ include "rtpParameters.fbs";
 include "sctpAssociation.fbs";
 include "sctpParameters.fbs";
 include "srtpParameters.fbs";
-include "translationPack.fbs";
 
 namespace FBS.Transport;
 
@@ -42,7 +41,7 @@ table ProduceRequest {
     rtp_mapping: FBS.RtpParameters.RtpMapping (required);
     key_frame_request_delay: uint32;
     paused: bool = false;
-    producer_source_language: FBS.TranslationPack.Language = null;
+    language_id: string;
 }
 
 table ProduceResponse {
@@ -59,8 +58,8 @@ table ConsumeRequest {
     paused: bool = false;
     preferred_layers: FBS.Consumer.ConsumerLayers;
     ignore_dtx: bool = false;
-    consumer_target_language: FBS.TranslationPack.Language = null;
-    consumer_target_voice: FBS.TranslationPack.Voice = null;
+    language_id: string;
+    voice_id: string;
 }
 
 table ConsumeResponse {
@@ -249,4 +248,3 @@ table TraceNotification {
     direction: FBS.Common.TraceDirection;
     info: TraceInfo;
 }
-

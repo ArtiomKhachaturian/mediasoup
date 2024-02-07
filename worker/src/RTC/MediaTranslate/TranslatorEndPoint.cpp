@@ -52,44 +52,6 @@ TranslatorEndPoint::~TranslatorEndPoint()
 #endif
 }
 
-void TranslatorEndPoint::SetProducerLanguage(const std::optional<FBS::TranslationPack::Language>& language)
-{
-    bool changed = false;
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_producerLanguage);
-        if (language != _producerLanguage.ConstRef()) {
-            _producerLanguage = language;
-            changed = true;
-        }
-    }
-    if (changed) {
-        UpdateTranslationChanges();
-    }
-}
-
-void TranslatorEndPoint::SetConsumerLanguageAndVoice(const std::optional<FBS::TranslationPack::Language>& language,
-                                                     const std::optional<FBS::TranslationPack::Voice>& voice)
-{
-    bool changed = false;
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_consumerLanguage);
-        if (language != _consumerLanguage.ConstRef()) {
-            _consumerLanguage = language;
-            changed = true;
-        }
-    }
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_consumerVoice);
-        if (voice != _consumerVoice.ConstRef()) {
-            _consumerVoice = voice;
-            changed = true;
-        }
-    }
-    if (changed) {
-        UpdateTranslationChanges();
-    }
-}
-
 void TranslatorEndPoint::SetInput(MediaSource* input)
 {
     bool changed = false;
@@ -106,7 +68,9 @@ void TranslatorEndPoint::SetInput(MediaSource* input)
     }
     if (changed) {
         if (input) {
-            OpenSocket();
+            if (HasValidTranslationSettings()) {
+                OpenSocket();
+            }
         }
         else {
             CloseSocket();
@@ -126,75 +90,35 @@ void TranslatorEndPoint::SetOutput(MediaSink* output)
     _output = output;
 }
 
+void TranslatorEndPoint::SetInputLanguageId(const std::string& languageId)
+{
+    ChangeTranslationSettings(languageId, _inputLanguageId);
+}
+
+void TranslatorEndPoint::SetOutputLanguageId(const std::string& languageId)
+{
+    ChangeTranslationSettings(languageId, _outputLanguageId);
+}
+
+void TranslatorEndPoint::SetOutputVoiceId(const std::string& voiceId)
+{
+    ChangeTranslationSettings(voiceId, _outputVoiceId);
+}
+
 bool TranslatorEndPoint::IsConnected() const
 {
     return WebsocketState::Connected == _socket->GetState();
 }
 
-std::string_view TranslatorEndPoint::LanguageToId(const std::optional<FBS::TranslationPack::Language>& language)
-{
-    if (language.has_value()) {
-        switch (language.value()) {
-            case FBS::TranslationPack::Language::English:
-                return "en";
-            case FBS::TranslationPack::Language::Italian:
-                return "it";
-            case FBS::TranslationPack::Language::Spain:
-                return "es";
-            case FBS::TranslationPack::Language::Thai:
-                return "th";
-            case FBS::TranslationPack::Language::French:
-                return "fr";
-            case FBS::TranslationPack::Language::German:
-                return "de";
-            case FBS::TranslationPack::Language::Russian:
-                return "ru";
-            case FBS::TranslationPack::Language::Arabic:
-                return "ar";
-            case FBS::TranslationPack::Language::Farsi:
-                return "fa";
-            default:
-                MS_ASSERT(false, "unhandled language type");
-                break;
-        }
-        return "";
-    }
-    return "auto";
-}
-
-std::string_view TranslatorEndPoint::VoiceToId(FBS::TranslationPack::Voice voice)
-{
-    switch (voice) {
-        case FBS::TranslationPack::Voice::Abdul:
-            return "YkxA6GRXs4A6i5cwfm1E";
-        case FBS::TranslationPack::Voice::JesusRodriguez:
-            return "ovxyZ1ldY23QpYBvkKx5";
-        case FBS::TranslationPack::Voice::TestIrina:
-            return "ovxyZ1ldY23QpYBvkKx5";
-        case FBS::TranslationPack::Voice::Serena:
-            return "pMsXgVXv3BLzUgSXRplE";
-        case FBS::TranslationPack::Voice::Ryan:
-            return "wViXBPUzp2ZZixB1xQuM";
-        case FBS::TranslationPack::Voice::Male:
-            return "Male";
-        case FBS::TranslationPack::Voice::Female:
-            return "Female";
-        default:
-            MS_ASSERT(false, "unhandled voice type");
-            break;
-    }
-    return "";
-}
-
-nlohmann::json TranslatorEndPoint::TargetLanguageCmd(FBS::TranslationPack::Language languageTo,
-                                                     FBS::TranslationPack::Voice voice,
-                                                     const std::optional<FBS::TranslationPack::Language>& languageFrom)
+nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLanguageId,
+                                                     const std::string& outputLanguageId,
+                                                     const std::string& outputVoiceId)
 {
     // language settings
     nlohmann::json languageSettings;
-    languageSettings["from"] = LanguageToId(languageFrom);
-    languageSettings["to"] = LanguageToId(languageTo);
-    languageSettings["voiceID"] = VoiceToId(voice);
+    languageSettings["from"] = inputLanguageId;
+    languageSettings["to"] = outputLanguageId;
+    languageSettings["voiceID"] = outputVoiceId;
     // command
     nlohmann::json command;
     command["type"] = "set_target_language";
@@ -212,34 +136,73 @@ void TranslatorEndPoint::SendDataToMediaSink(uint32_t ssrc, const std::shared_pt
     }
 }
 
+void TranslatorEndPoint::ChangeTranslationSettings(const std::string& to,
+                                                   ProtectedObj<std::string>& object)
+{
+    bool changed = false;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(object);
+        if (to != object.ConstRef()) {
+            object = to;
+            changed = true;
+        }
+    }
+    if (changed) {
+        UpdateTranslationChanges();
+    }
+}
+
 bool TranslatorEndPoint::HasValidTranslationSettings() const
 {
-    return GetConsumerVoice().has_value() && GetConsumerLanguage().has_value();
+    return HasOutputLanguageId() && HasOutputLanguageId() && HasOutputVoiceId();
 }
 
-std::optional<FBS::TranslationPack::Voice> TranslatorEndPoint::GetConsumerVoice() const
+std::string TranslatorEndPoint::GetInputLanguageId() const
 {
-    LOCK_READ_PROTECTED_OBJ(_consumerVoice);
-    return _consumerVoice.ConstRef();
+    LOCK_READ_PROTECTED_OBJ(_inputLanguageId);
+    return _inputLanguageId.ConstRef();
 }
 
-std::optional<FBS::TranslationPack::Language> TranslatorEndPoint::GetConsumerLanguage() const
+std::string TranslatorEndPoint::GetOutputLanguageId() const
 {
-    LOCK_READ_PROTECTED_OBJ(_consumerLanguage);
-    return _consumerLanguage.ConstRef();
+    LOCK_READ_PROTECTED_OBJ(_outputLanguageId);
+    return _outputLanguageId.ConstRef();
 }
 
-std::optional<FBS::TranslationPack::Language> TranslatorEndPoint::GetProducerLanguage() const
+std::string TranslatorEndPoint::GetOutputVoiceId() const
 {
-    LOCK_READ_PROTECTED_OBJ(_producerLanguage);
-    return _producerLanguage.ConstRef();
+    LOCK_READ_PROTECTED_OBJ(_outputVoiceId);
+    return _outputVoiceId.ConstRef();
+}
+
+bool TranslatorEndPoint::HasInputLanguageId() const
+{
+    LOCK_READ_PROTECTED_OBJ(_inputLanguageId);
+    return !_inputLanguageId->empty();
+}
+
+bool TranslatorEndPoint::HasOutputLanguageId() const
+{
+    LOCK_READ_PROTECTED_OBJ(_outputLanguageId);
+    return !_outputLanguageId->empty();
+}
+
+bool TranslatorEndPoint::HasOutputVoiceId() const
+{
+    LOCK_READ_PROTECTED_OBJ(_outputVoiceId);
+    return !_outputVoiceId->empty();
 }
 
 std::optional<nlohmann::json> TranslatorEndPoint::TargetLanguageCmd() const
 {
-    if (const auto languageTo = GetConsumerLanguage()) {
-        if (const auto voice = GetConsumerVoice()) {
-            return TargetLanguageCmd(languageTo.value(), voice.value(), GetProducerLanguage());
+    const auto inputLanguageId = GetInputLanguageId();
+    if (!inputLanguageId.empty()) {
+        const auto outputLanguageId = GetOutputLanguageId();
+        if (!outputLanguageId.empty()) {
+            const auto outputVoiceId = GetOutputVoiceId();
+            if (!outputVoiceId.empty()) {
+                return TargetLanguageCmd(inputLanguageId, outputLanguageId, outputVoiceId);
+            }
         }
     }
     return std::nullopt;

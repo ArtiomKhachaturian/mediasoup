@@ -136,11 +136,10 @@ namespace RTC
 		}
 		void ProducerPaused();
 		void ProducerResumed();
-        const std::optional<FBS::TranslationPack::Language>& GetLanguage() const { return language; }
-        void SetLanguage(const std::optional<FBS::TranslationPack::Language>& language);
-        const std::optional<FBS::TranslationPack::Voice>& GetVoice() const { return voice; }
-        void SetVoice(const std::optional<FBS::TranslationPack::Voice>& voice);
-        virtual bool IsTranslationRequired() const { return false; }
+        const std::string& GetLanguageId() const { return this->languageId; }
+        void SetLanguageId(const std::string& languageId);
+        const std::string& GetVoiceId() const { return this->voiceId; }
+        void SetVoiceId(const std::string& voiceId);
 		virtual void ProducerRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc)    = 0;
 		virtual void ProducerNewRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc) = 0;
 		void ProducerRtpStreamScores(const std::vector<uint8_t>* scores);
@@ -200,8 +199,8 @@ namespace RTC
 		RTC::RtpParameters::Type type;
         // both language & voice should be defined explictly for translation service,
         // otherwise translation is not available
-        std::optional<FBS::TranslationPack::Language> language;
-        std::optional<FBS::TranslationPack::Voice> voice;
+        std::string languageId;
+        std::string voiceId;
 		std::vector<RTC::RtpEncodingParameters> consumableRtpEncodings;
 		struct RTC::RtpHeaderExtensionIds rtpHeaderExtensionIds;
 		const std::vector<uint8_t>* producerRtpStreamScores{ nullptr };

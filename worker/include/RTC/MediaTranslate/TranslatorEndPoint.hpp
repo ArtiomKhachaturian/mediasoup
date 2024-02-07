@@ -1,6 +1,4 @@
 #pragma once
-
-#include "FBS/translationPack.h"
 #include "RTC/MediaTranslate/WebsocketListener.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
 #include "ProtectedObj.hpp"
@@ -31,25 +29,27 @@ public:
                        const std::string& userAgent = std::string(),
                        uint32_t timeSliceMs = 400U);
     ~TranslatorEndPoint();
-    void SetProducerLanguage(const std::optional<FBS::TranslationPack::Language>& language);
-    void SetConsumerLanguageAndVoice(const std::optional<FBS::TranslationPack::Language>& language,
-                                     const std::optional<FBS::TranslationPack::Voice>& voice);
     void SetInput(MediaSource* input);
     bool HasInput() const;
     void SetOutput(MediaSink* output);
+    void SetInputLanguageId(const std::string& languageId);
+    void SetOutputLanguageId(const std::string& languageId);
+    void SetOutputVoiceId(const std::string& voiceId);
     bool IsConnected() const;
 private:
-    static std::string_view LanguageToId(const std::optional<FBS::TranslationPack::Language>& language);
-    static std::string_view VoiceToId(FBS::TranslationPack::Voice voice);
-    static nlohmann::json TargetLanguageCmd(FBS::TranslationPack::Language languageTo,
-                                            FBS::TranslationPack::Voice voice,
-                                            const std::optional<FBS::TranslationPack::Language>& languageFrom = std::nullopt);
+    static nlohmann::json TargetLanguageCmd(const std::string& inputLanguageId,
+                                            const std::string& outputLanguageId,
+                                            const std::string& outputVoiceId);
     static void SendDataToMediaSink(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& data,
                                     MediaSink* sink);
+    void ChangeTranslationSettings(const std::string& to, ProtectedObj<std::string>& object);
     bool HasValidTranslationSettings() const;
-    std::optional<FBS::TranslationPack::Language> GetConsumerLanguage() const;
-    std::optional<FBS::TranslationPack::Voice> GetConsumerVoice() const;
-    std::optional<FBS::TranslationPack::Language> GetProducerLanguage() const;
+    std::string GetInputLanguageId() const;
+    std::string GetOutputLanguageId() const;
+    std::string GetOutputVoiceId() const;
+    bool HasInputLanguageId() const;
+    bool HasOutputLanguageId() const;
+    bool HasOutputVoiceId() const;
     std::optional<nlohmann::json> TargetLanguageCmd() const;
     void SetConnected(bool connected);
     void ConnectToMediaInput(bool connect);
@@ -75,9 +75,9 @@ private:
     const std::unique_ptr<Websocket> _socket;
     const std::string _serviceUri; // for logs
     const std::unique_ptr<InputSliceBuffer> _inputSlice;
-    ProtectedOptional<FBS::TranslationPack::Language> _consumerLanguage;
-    ProtectedOptional<FBS::TranslationPack::Voice> _consumerVoice;
-    ProtectedOptional<FBS::TranslationPack::Language> _producerLanguage;
+    ProtectedObj<std::string> _inputLanguageId;
+    ProtectedObj<std::string> _outputLanguageId;
+    ProtectedObj<std::string> _outputVoiceId;
     ProtectedObj<MediaSource*> _input;
     ProtectedObj<MediaSink*> _output;
     std::atomic<uint32_t> _ssrc = 0U;

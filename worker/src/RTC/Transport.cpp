@@ -644,9 +644,9 @@ namespace RTC
 				try
 				{
 #ifdef MEDIA_TRANSLATIONS_TEST
-                    producer->SetLanguage(FBS::TranslationPack::Language::Russian);
+                    producer->SetLanguageId("ru");
 #else
-                    producer->SetLanguage(body->producerSourceLanguage());
+                    producer->SetLanguageId(body->languageId()->c_str());
 #endif
 					this->listener->OnTransportNewProducer(this, producer);
 				}
@@ -836,13 +836,16 @@ namespace RTC
 				// This may throw if no Producer is found.
 				try
 				{
+                    if (RTC::RtpParameters::Type::SIMPLE == type) { // audio consumer
 #ifdef MEDIA_TRANSLATIONS_TEST
-                    consumer->SetLanguage(FBS::TranslationPack::Language::English);
-                    consumer->SetVoice(FBS::TranslationPack::Voice::Female);
+                        consumer->SetLanguageId("en");
+                        consumer->SetVoiceId("Female");
 #else
-                    consumer->SetLanguage(body->consumerTargetLanguage());
-                    consumer->SetVoice(body->consumerTargetVoice());
+                        consumer->SetLanguageId(body->languageId()->c_str());
+                        consumer->SetVoiceId(body->voiceId()->c_str());
 #endif
+
+                    }
 					this->listener->OnTransportNewConsumer(this, consumer, producerId);
 				}
 				catch (const MediaSoupError& error)
@@ -1429,7 +1432,7 @@ namespace RTC
                 
                 RTC::Producer* producer = GetProducerById(body->producerId()->c_str());
                 
-                producer->SetLanguage(body->sourceLanguage());
+                producer->SetLanguageId(body->languageId()->c_str());
                 
                 request->Accept();
                 
@@ -1442,7 +1445,7 @@ namespace RTC
                 
                 RTC::Consumer* consumer = GetConsumerById(body->consumerId()->c_str());
                 
-                consumer->SetLanguage(body->targetLanguage());
+                consumer->SetLanguageId(body->languageId()->c_str());
                 
                 request->Accept();
                 
@@ -1455,7 +1458,7 @@ namespace RTC
                 
                 RTC::Consumer* consumer = GetConsumerById(body->consumerId()->c_str());
                 
-                consumer->SetVoice(body->targetVoice());
+                consumer->SetVoiceId(body->voiceId()->c_str());
                 
                 request->Accept();
                 

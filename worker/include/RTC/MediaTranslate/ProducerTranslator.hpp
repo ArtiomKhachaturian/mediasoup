@@ -10,7 +10,7 @@
 #include <absl/container/flat_hash_map.h>
 #include <list>
 
-#define WRITE_PRODUCER_RECV_TO_FILE // add MEDIASOUP_DEPACKETIZER_PATH env variable for reference to output folder
+//#define WRITE_PRODUCER_RECV_TO_FILE // add MEDIASOUP_DEPACKETIZER_PATH env variable for reference to output folder
 //#define READ_PRODUCER_RECV_FROM_FILE
 
 namespace RTC
@@ -53,7 +53,7 @@ public:
     uint32_t GetLastOriginalRtpTimestamp(uint32_t ssrc) const final;
     uint32_t GetClockRate(uint32_t ssrc) const final;
     // impl. of TranslatorUnit
-    std::optional<FBS::TranslationPack::Language> GetLanguage() const final;
+    const std::string& GetLanguageId() const final;
     // impl. of MediaSource
     bool AddSink(MediaSink* sink) final;
     bool RemoveSink(MediaSink* sink) final;
