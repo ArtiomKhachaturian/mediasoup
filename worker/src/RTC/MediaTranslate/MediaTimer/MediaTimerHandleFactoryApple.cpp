@@ -119,9 +119,9 @@ std::unique_ptr<MediaTimerHandle> MediaTimerHandleFactoryApple::
     return nullptr;
 }
 
-std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactory::Create()
+std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactory::Create(const std::string& timerName)
 {
-    auto queue = dispatch_queue_create("MediaTimer", DISPATCH_QUEUE_SERIAL);
+    auto queue = dispatch_queue_create(timerName.c_str(), DISPATCH_QUEUE_SERIAL);
     if (queue) {
         return std::make_unique<MediaTimerHandleFactoryApple>(queue);
     }

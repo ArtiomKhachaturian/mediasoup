@@ -103,6 +103,7 @@ private:
 };
 
 RtpPacketsPlayer::RtpPacketsPlayer()
+    : _timer("RtpPacketsPlayer")
 {
 }
 
