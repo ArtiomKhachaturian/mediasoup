@@ -3,7 +3,7 @@
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/Websocket.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
-#ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
+#ifdef PLAY_MOCK_FILE_INSTEAD_OF_TRANSLATION
 #include "RTC/MediaTranslate/FileReader.hpp"
 #endif
 #ifdef WRITE_TRANSLATION_TO_FILE
@@ -46,10 +46,6 @@ TranslatorEndPoint::~TranslatorEndPoint()
     SetInput(nullptr);
     _socket->RemoveListener(this);
     SetConnected(false);
-#ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
-    LOCK_WRITE_PROTECTED_OBJ(_mockInputFile);
-    _mockInputFile->reset();
-#endif
 }
 
 void TranslatorEndPoint::SetInput(MediaSource* input)
@@ -124,6 +120,16 @@ nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLan
     command["type"] = "set_target_language";
     command["cmd"] = languageSettings;
     return command;
+}
+
+void TranslatorEndPoint::Playback(uint32_t ssrc, MediaSink* output,
+                                  const std::shared_ptr<MemoryBuffer>& buffer)
+{
+    if (ssrc && output && buffer) {
+        output->StartMediaWriting(ssrc);
+        output->WriteMediaPayload(ssrc, buffer);
+        output->EndMediaWriting(ssrc);
+    }
 }
 
 void TranslatorEndPoint::ChangeTranslationSettings(const std::string& to,
@@ -316,28 +322,7 @@ void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
     if (_inputSlice) {
         _inputSlice->Reset(true);
     }
-    if (0U == _ssrc.exchange(ssrc)) {
-#ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
-        if (const auto ssrc = _ssrc.load()) {
-            LOCK_READ_PROTECTED_OBJ(_output);
-            if (const auto output = _output.ConstRef()) {
-                auto mockInputFile = std::make_unique<FileReader>(_testFileName, ssrc, false);
-                if (mockInputFile->IsOpen()) {
-                    if (mockInputFile->AddSink(output)) {
-                        LOCK_WRITE_PROTECTED_OBJ(_mockInputFile);
-                        _mockInputFile = std::move(mockInputFile);
-                    }
-                    else {
-                        MS_WARN_DEV_STD("Failed to add output sink to open translation mock file");
-                    }
-                }
-                else {
-                    MS_WARN_DEV_STD("Failed to open translation mock file %s", _testFileName);
-                }
-            }
-        }
-#endif
-    }
+    _ssrc = ssrc;
 }
 
 void TranslatorEndPoint::WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer)
@@ -358,12 +343,7 @@ void TranslatorEndPoint::EndMediaWriting(uint32_t ssrc)
     if (_inputSlice) {
         _inputSlice->Reset(false);
     }
-    if (_ssrc.compare_exchange_strong(ssrc, 0U)) {
-#ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
-        LOCK_WRITE_PROTECTED_OBJ(_mockInputFile);
-        _mockInputFile->reset();
-#endif
-    }
+    _ssrc.compare_exchange_strong(ssrc, 0U);
 }
 
 void TranslatorEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
@@ -388,18 +368,25 @@ void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<
             MS_ERROR_STD("Received translation for %u SSRC", _ssrc.load()); // TODO: remove it for production
             LOCK_READ_PROTECTED_OBJ(_output);
             if (const auto output = _output.ConstRef()) {
-                output->StartMediaWriting(ssrc);
-                output->WriteMediaPayload(ssrc, message);
-                output->EndMediaWriting(ssrc);
-#ifdef WRITE_TRANSLATION_TO_FILE
-                const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
-                if (depacketizerPath && std::strlen(depacketizerPath)) {
-                    std::string fileName = std::string(depacketizerPath) + "/"
-                        + "received_translation_" + std::to_string(ssrc) + "_"
-                        + std::to_string(DepLibUV::GetTimeMs()) + ".webm";
-                    FileWriter::WriteAll(fileName, message);
+                bool playTranslation = true;
+#ifdef PLAY_MOCK_FILE_INSTEAD_OF_TRANSLATION
+                if (const auto mockData = FileReader::ReadAllAsBuffer(_testFileName)) {
+                    Playback(ssrc, output, mockData);
+                    playTranslation = false;
                 }
 #endif
+                if (playTranslation) {
+                    Playback(ssrc, output, message);
+#ifdef WRITE_TRANSLATION_TO_FILE
+                    const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
+                    if (depacketizerPath && std::strlen(depacketizerPath)) {
+                        std::string fileName = std::string(depacketizerPath) + "/"
+                            + "received_translation_" + std::to_string(ssrc) + "_"
+                            + std::to_string(DepLibUV::GetTimeMs()) + ".webm";
+                        FileWriter::WriteAll(fileName, message);
+                    }
+#endif
+                }
             }
         }
     }
