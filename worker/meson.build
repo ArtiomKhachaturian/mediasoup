@@ -207,12 +207,16 @@ media_translate_sources = [
 if host_machine.system() == 'darwin'
   media_translate_sources += [
     'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryApple.cpp',
-  ]
+]
 elif host_machine.system() == 'linux'
   media_translate_sources += [
     'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUnix.cpp',
-  ]
+]
 endif
+
+#media_translate_sources += [
+#   'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUnix.cpp',
+#]
 
 libwebm_sources = [
   'external/libwebm/common/file_util.cc',

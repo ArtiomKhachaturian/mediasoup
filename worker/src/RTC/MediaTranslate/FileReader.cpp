@@ -35,48 +35,49 @@ bool FileReader::IsOpen() const
     return Base::IsOpen() && _fileSize > 0LL;
 }
 
-void FileReader::OnSinkWasAdded(MediaSink* sink, bool first)
+void FileReader::Start(bool backgroundMode)
 {
-    Base::OnSinkWasAdded(sink, first);
-    if (first && IsOpen() && !_thread.joinable()) {
-        _thread = std::thread([this]() {
-            if (!IsStopRequested()) {
-                bool operationDone = false, ok = true;
-                for(; (!operationDone || _loop) && !IsStopRequested();) {
-                    ok = ReadContent();
-                    if (ok) {
-                        operationDone = true;
-                        if (_loop) {
-                            ok = SeekToStart();
-                            if (!ok) { // seek to start
-                                MS_WARN_DEV_STD("Failed seek to beginning of file");
-                            }
-                        }
-                    }
-                    if (!ok) {
-                        break;
-                    }
-                }
-            }
-            SeekToStart();
-        });
+    if (IsOpen()) {
+        if (!backgroundMode) {
+            Run();
+        }
+        else if (!_thread.joinable()) {
+            _thread = std::thread(std::bind(&FileReader::Run, this));
+        }
     }
-}
-
-void FileReader::OnSinkWasRemoved(MediaSink* sink, bool last)
-{
-    if (last) {
-        Stop();
-    }
-    Base::OnSinkWasRemoved(sink, last);
 }
 
 void FileReader::Stop()
 {
-    if (_thread.joinable() && !_stopRequested.exchange(true)) {
-        _thread.join();
+    if (!_stopRequested.exchange(true)) {
+        if (_thread.joinable()) {
+            _thread.join();
+        }
         _stopRequested = false;
     }
+}   
+
+void FileReader::Run()
+{
+   if (!IsStopRequested()) {
+        bool operationDone = false, ok = true;
+        for(; (!operationDone || _loop) && !IsStopRequested();) {
+            ok = ReadContent();
+            if (ok) {
+                operationDone = true;
+                if (_loop) {
+                    ok = SeekToStart();
+                    if (!ok) { // seek to start
+                        MS_WARN_DEV_STD("Failed seek to beginning of file");
+                    }
+                }
+            }
+            if (!ok) {
+                break;
+            }
+        }
+    }
+    SeekToStart();
 }
 
 bool FileReader::ReadContent()

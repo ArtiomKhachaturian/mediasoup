@@ -208,7 +208,7 @@ void RtpPacketsPlayer::TrackPlayer::Enque(const std::shared_ptr<const MediaFrame
             _frames->push(frame);
         }
         if (startTimer) {
-            _timer->SetTimeout(GetTimerEventId(), 0ULL);
+            _timer->SetTimeout(GetTimerEventId(), 20ULL);
             _timer->Start(GetTimerEventId(), false);
         }
     }
@@ -247,9 +247,9 @@ void RtpPacketsPlayer::TrackPlayer::OnEvent()
             GetPacketsCollector()->AddPacket(packet);
         }
         // TODO: review timestamp type, must me more clarified (ms/us/nanosecs)
-        const auto diff = (frame->GetTimestamp()  - _playoutOffset) * 1000;
+        /*const auto diff = (frame->GetTimestamp()  - _playoutOffset) * 1000;
         _playoutOffset = frame->GetTimestamp();
-        _timer->SetTimeout(GetTimerEventId(), diff / GetClockRate());
+        _timer->SetTimeout(GetTimerEventId(), diff / GetClockRate());*/
     }
 }
 

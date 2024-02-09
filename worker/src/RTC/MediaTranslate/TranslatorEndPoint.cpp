@@ -46,10 +46,6 @@ TranslatorEndPoint::~TranslatorEndPoint()
     SetInput(nullptr);
     _socket->RemoveListener(this);
     SetConnected(false);
-#ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
-    LOCK_WRITE_PROTECTED_OBJ(_mockInputFile);
-    _mockInputFile->reset();
-#endif
 }
 
 void TranslatorEndPoint::SetInput(MediaSource* input)
@@ -331,10 +327,18 @@ void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
         if (const auto ssrc = _ssrc.load()) {
             LOCK_READ_PROTECTED_OBJ(_output);
             if (const auto output = _output.ConstRef()) {
-                auto mockInputFile = std::make_unique<FileReader>(_testFileName, ssrc, false);
-                if (mockInputFile->IsOpen() && mockInputFile->AddSink(output)) {
-                    LOCK_WRITE_PROTECTED_OBJ(_mockInputFile);
-                    _mockInputFile = std::move(mockInputFile);
+                FileReader mockInputFile(_testFileName, ssrc, false);
+                if (mockInputFile.IsOpen()) {
+                    if (mockInputFile.AddSink(output)) {
+                        mockInputFile.Start(false); // sync read
+                        mockInputFile.RemoveSink(output);
+                    }
+                    else {
+                        MS_WARN_DEV_STD("Failed to add output sink to open translation mock file");
+                    }
+                }
+                else {
+                    MS_WARN_DEV_STD("Failed to open translation mock file %s", _testFileName);
                 }
             }
         }
@@ -360,12 +364,7 @@ void TranslatorEndPoint::EndMediaWriting(uint32_t ssrc)
     if (_inputSlice) {
         _inputSlice->Reset(false);
     }
-    if (_ssrc.exchange(0U)) {
-#ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
-        LOCK_WRITE_PROTECTED_OBJ(_mockInputFile);
-        _mockInputFile->reset();
-#endif
-    }
+    _ssrc.compare_exchange_strong(ssrc, 0U);
 }
 
 void TranslatorEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)

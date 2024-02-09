@@ -7,20 +7,22 @@
 #include <string>
 #include <unistd.h>
 
-//#include "RTC/MediaTranslate/RtpPacketsPlayer/MediaTimer.hpp"
-//#include "RTC/MediaTranslate/RtpPacketsPlayer/MediaTimerCallback.hpp"
-
 static constexpr int ConsumerChannelFd{ 3 };
 static constexpr int ProducerChannelFd{ 4 };
 
-/*class FakeCallBack : public RTC::MediaTimerCallback
+
+/*#include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
+#include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
+
+class FakeCallBack : public RTC::MediaTimerCallback
 {
 public:
     FakeCallBack(RTC::MediaTimer* timer) : _timer(timer) {}
     void SetTimerId(uint64_t timerId) { _timerId = timerId; }
     void OnEvent() final {
         MS_ERROR_STD("FakeCallBack::OnEvent: %zu", _counter++);
-        _timer->Schedule(_timerId, 20, true);
+        _timer->SetTimeout(_timerId, 20ULL);
+        _timer->Start(_timerId, true);
     }
 private:
     RTC::MediaTimer* _timer;
@@ -34,7 +36,8 @@ int main(int argc, char* argv[])
     auto callback = std::make_shared<FakeCallBack>(&timer);
     if (const auto timerId = timer.RegisterTimer(callback)) {
         callback->SetTimerId(timerId);
-        timer.Schedule(timerId, 0, true);
+        timer.SetTimeout(timerId, 0ULL);
+        timer.Start(timerId, true);
         sleep(100); // TODO: remove this sleep for production
         timer.UnregisterTimer(timerId);
     }*/

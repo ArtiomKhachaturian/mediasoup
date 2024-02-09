@@ -17,8 +17,9 @@ public:
     virtual void Stop() = 0;
 protected:
     MediaTimerHandle(const std::weak_ptr<MediaTimerCallback>& callbackRef);
-    std::shared_ptr<MediaTimerCallback> GetCallback() const { return _callbackRef.lock(); }
-    bool IsCallbackValid() const { return !_callbackRef.expired(); }
+    std::shared_ptr<MediaTimerCallback> GetCallback() const;
+    const std::weak_ptr<MediaTimerCallback>& GetCallbackRef() const;
+    bool IsCallbackValid() const;
     virtual void OnTimeoutChanged(uint64_t /*timeoutMs*/) {}
 private:
     const std::weak_ptr<MediaTimerCallback> _callbackRef;

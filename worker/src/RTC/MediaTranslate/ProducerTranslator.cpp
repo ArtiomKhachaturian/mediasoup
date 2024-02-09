@@ -92,8 +92,8 @@ private:
 private:
 #ifdef READ_PRODUCER_RECV_FROM_FILE
     //static inline const char* _testFileName = "/Users/user/Downloads/1b0cefc4-abdb-48d0-9c50-f5050755be94.webm";
-    static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/producer_test.webm";
-    //static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_1701890162_1.webm";
+    //static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/producer_test.webm";
+    static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_stereo_example.webm";
 #endif
     const std::unique_ptr<MediaFrameSerializer> _serializer;
     const std::unique_ptr<RtpDepacketizer> _depacketizer;
@@ -419,6 +419,12 @@ void ProducerTranslator::StreamInfo::AddSink(MediaSink* sink)
                 auto sinkWrapper = std::make_unique<MediaSinkWrapper>(sink, this);
                 if (source->AddSink(sinkWrapper.get())) {
                     sinkWrappers[sink] = std::move(sinkWrapper);
+#ifdef READ_PRODUCER_RECV_FROM_FILE
+                    if (source == _fileReader.get() && 1UL == sinkWrappers.size()) {
+                        _fileReader->Start(true);
+                    }
+#endif
+
                 }
             }
         }
@@ -433,6 +439,11 @@ void ProducerTranslator::StreamInfo::RemoveSink(MediaSink* sink)
             auto& sinkWrappers = _sinkWrappers.Ref();
             const auto it = sinkWrappers.find(sink);
             if (it != sinkWrappers.end() && source->RemoveSink(it->second.get())) {
+#ifdef READ_PRODUCER_RECV_FROM_FILE
+                if (source == _fileReader.get() && 1UL == sinkWrappers.size()) {
+                    _fileReader->Stop();
+                }
+#endif
                 sinkWrappers.erase(it);
             }
         }
@@ -442,6 +453,11 @@ void ProducerTranslator::StreamInfo::RemoveSink(MediaSink* sink)
 void ProducerTranslator::StreamInfo::RemoveAllSinks()
 {
     if (const auto source = GetMediaSource()) {
+#ifdef READ_PRODUCER_RECV_FROM_FILE
+        if (source == _fileReader.get()) {
+            _fileReader->Stop();
+        }
+#endif
         LOCK_WRITE_PROTECTED_OBJ(_sinkWrappers);
         auto& sinkWrappers = _sinkWrappers.Ref();
         for (auto it = sinkWrappers.begin(); it != sinkWrappers.end(); ++it) {

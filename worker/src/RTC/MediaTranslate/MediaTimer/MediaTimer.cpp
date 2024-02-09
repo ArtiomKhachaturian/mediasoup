@@ -100,4 +100,19 @@ void MediaTimerHandle::SetTimeout(uint64_t timeoutMs)
     }
 }
 
+std::shared_ptr<MediaTimerCallback> MediaTimerHandle::GetCallback() const
+{
+    return GetCallbackRef().lock();
+}
+
+const std::weak_ptr<MediaTimerCallback>& MediaTimerHandle::GetCallbackRef() const
+{
+    return _callbackRef;
+}
+
+bool MediaTimerHandle::IsCallbackValid() const
+{
+    return !GetCallbackRef().expired();
+}
+
 } // namespace RTC

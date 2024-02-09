@@ -17,15 +17,13 @@ public:
                int* error = nullptr);
     ~FileReader() final;
     uint32_t GetSsrc() const { return _ssrc; }
+    void Start(bool backgroundMode);
+    void Stop();
     // overrides of FileDevice<>
     bool IsOpen() const final;
-protected:
-    // overrides of MediaSource
-    void OnSinkWasAdded(MediaSink* sink, bool first) final;
-    void OnSinkWasRemoved(MediaSink* sink, bool last) final;
 private:
     bool IsStopRequested() const { return _stopRequested.load(); }
-    void Stop();
+    void Run();
     bool ReadContent(); // return false if error or stop requested
     bool SeekToStart();
     std::shared_ptr<MemoryBuffer> ReadBuffer(bool& eof, bool& ok) const;
