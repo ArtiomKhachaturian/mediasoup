@@ -425,8 +425,8 @@ bool MediaTranslatorsManager::SendRtpPacket(Producer* producer, RtpPacket* packe
             }
             else {
                 LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
-                const auto it = _defferedPackets.Ref().find(producer);
-                if (it != _defferedPackets.Ref().end()) {
+                const auto it = _defferedPackets->find(producer);
+                if (it != _defferedPackets->end()) {
                     it->second.push_back(packet);
                     if (it->second.size() == _defferedPacketsBatchSize) {
                         _async->Invoke();
@@ -612,7 +612,7 @@ void MediaTranslatorsManager::Translator::UpdateConsumerVoice(Consumer* consumer
 void MediaTranslatorsManager::Translator::AddNewRtpStream(RtpStreamRecv* rtpStream,
                                                           uint32_t mappedSsrc)
 {
-    if (_producer->AddStream(rtpStream, mappedSsrc)) {
+    if (_producer->AddStream(mappedSsrc, rtpStream)) {
         _manager->_packetsPlayer.AddStream(rtpStream->GetSsrc(), rtpStream->GetMimeType(), this, _producer.get());
     }
     else {

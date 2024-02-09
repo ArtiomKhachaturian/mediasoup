@@ -24,15 +24,15 @@ class ProducerTranslator : public TranslatorUnit,
                            public MediaSource
 {
     class StreamInfo;
+    template <typename T>
+    using Map = absl::flat_hash_map<uint32_t, T>;
 public:
     ProducerTranslator(Producer* producer);
     ~ProducerTranslator() final;
     static std::unique_ptr<ProducerTranslator> Create(Producer* producer);
     Producer* GetProducer() const { return _producer; }
     bool IsAudio() const;
-    bool AddStream(const RtpStream* stream, uint32_t mappedSsrc);
-    bool AddStream(const RtpCodecMimeType& mime, uint32_t clockRate, uint32_t mappedSsrc,
-                   uint32_t originalSsrc, uint8_t payloadType);
+    bool AddStream(uint32_t mappedSsrc, const RtpStream* stream);
     bool RemoveStream(uint32_t mappedSsrc);
     // list of mapped or original ssrcs for added streams
     std::list<uint32_t> GetSsrcs(bool mapped) const;
@@ -59,9 +59,9 @@ private:
 private:
     Producer* const _producer;
     // key is mapped media SSRC
-    ProtectedObj<absl::flat_hash_map<uint32_t, std::shared_ptr<StreamInfo>>> _streams;
-    // key is original SSRC, value - mapped media SSRC
-    ProtectedObj<absl::flat_hash_map<uint32_t, uint32_t>> _originalToMappedSsrcs;
+    ProtectedObj<Map<std::shared_ptr<StreamInfo>>> _mappedSsrcToStreams;
+    // key is original media SSRC, under protection of [_mappedSsrcToStreams]
+    Map<std::weak_ptr<StreamInfo>> _originalSsrcToStreams;
     ProtectedObj<std::list<MediaSink*>> _sinks;
 };
 
