@@ -459,6 +459,7 @@ void ProducerTranslator::StreamInfo::RemoveAllSinks()
 
 bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
 {
+    bool handled = false;
     if (packet) {
         SetLastOriginalRtpTimestamp(packet->GetTimestamp());
         SetLastOriginalRtpSeqNumber(packet->GetSequenceNumber());
@@ -469,11 +470,15 @@ bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
             }
 #endif
             if (const auto frame = _depacketizer->AddPacket(packet)) {
-                return _serializer->Push(frame);
+                handled = _serializer->Push(frame);
+            }
+            else if (GetMime().IsAudioCodec() && _serializer->HasSinks()) {
+                // maybe empty packet if silence
+                handled = nullptr == packet->GetPayload() || 0U == packet->GetPayloadLength();
             }
         }
     }
-    return false;
+    return handled;
 }
 
 MediaSource* ProducerTranslator::StreamInfo::GetMediaSource() const
