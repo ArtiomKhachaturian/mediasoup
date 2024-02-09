@@ -6,11 +6,12 @@
 namespace RTC
 {
 
-class CompoundMemoryBuffer : public MemoryBuffer
+class SegmentsMemoryBuffer : public MemoryBuffer
 {
     using BuffersList = std::list<std::shared_ptr<MemoryBuffer>>;
 public:
-    CompoundMemoryBuffer(uint64_t capacity = std::numeric_limits<uint64_t>::max());
+    // capacity in bytes
+    SegmentsMemoryBuffer(uint64_t capacity = std::numeric_limits<uint64_t>::max());
     bool Add(std::vector<uint8_t> data);
     bool Add(const void* buf, size_t len, const std::allocator<uint8_t>& allocator = {});
     bool Add(const std::shared_ptr<MemoryBuffer>& buffer);
@@ -22,7 +23,7 @@ public:
     uint8_t* GetData() final;
     const uint8_t* GetData() const final;
 private:
-    BuffersList::const_iterator GetBuffer(uint64_t& offset) const;
+    auto GetBuffer(uint64_t& offset) const;
     // expensive operation
     uint8_t* Merge() const;
 private:

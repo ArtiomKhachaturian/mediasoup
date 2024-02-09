@@ -1,6 +1,6 @@
 #define MS_CLASS "RTC::MediaFrame"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
-#include "RTC/MediaTranslate/CompoundMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/SegmentsMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
@@ -11,7 +11,7 @@ namespace RTC
 
 MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType)
     : _mimeType(mimeType)
-    , _payload(std::make_shared<CompoundMemoryBuffer>())
+    , _payload(std::make_shared<SegmentsMemoryBuffer>())
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
 }

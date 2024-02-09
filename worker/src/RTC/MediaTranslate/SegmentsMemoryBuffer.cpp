@@ -1,28 +1,28 @@
-#define MS_CLASS "RTC::CompoundMemoryBuffer"
-#include "RTC/MediaTranslate/CompoundMemoryBuffer.hpp"
+#define MS_CLASS "RTC::SegmentsMemoryBuffer"
+#include "RTC/MediaTranslate/SegmentsMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
 
-CompoundMemoryBuffer::CompoundMemoryBuffer(uint64_t capacity)
+SegmentsMemoryBuffer::SegmentsMemoryBuffer(uint64_t capacity)
     : _capacity(capacity)
 {
     MS_ASSERT(_capacity, "capacity should be greater than zero");
 }
 
-bool CompoundMemoryBuffer::Add(std::vector<uint8_t> data)
+bool SegmentsMemoryBuffer::Add(std::vector<uint8_t> data)
 {
     return Add(SimpleMemoryBuffer::Create(std::move(data)));
 }
 
-bool CompoundMemoryBuffer::Add(const void* buf, size_t len, const std::allocator<uint8_t>& allocator)
+bool SegmentsMemoryBuffer::Add(const void* buf, size_t len, const std::allocator<uint8_t>& allocator)
 {
     return Add(SimpleMemoryBuffer::Create(buf, len, allocator));
 }
 
-bool CompoundMemoryBuffer::Add(const std::shared_ptr<MemoryBuffer>& buffer)
+bool SegmentsMemoryBuffer::Add(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (buffer && !buffer->IsEmpty()) {
         MS_ASSERT(buffer.get() != this, "passed buffer is this instance");
@@ -44,14 +44,30 @@ bool CompoundMemoryBuffer::Add(const std::shared_ptr<MemoryBuffer>& buffer)
     return false;
 }
 
-void CompoundMemoryBuffer::Clear()
+void SegmentsMemoryBuffer::Clear()
 {
     _buffers.clear();
     _size = 0UL;
     _merged.reset();
 }
 
-size_t CompoundMemoryBuffer::GetData(uint64_t offset, size_t len, uint8_t* output) const
+auto SegmentsMemoryBuffer::GetBuffer(uint64_t& offset) const
+{
+    if (!_buffers.empty()) {
+        uint64_t current = 0ULL;
+        for (auto it = _buffers.begin(); it != _buffers.end(); ++it) {
+            const auto size = it->get()->GetSize();
+            if (current + size >= offset) {
+                offset -= current;
+                return it;
+            }
+            current += size;
+        }
+    }
+    return _buffers.end();
+}
+
+size_t SegmentsMemoryBuffer::GetData(uint64_t offset, size_t len, uint8_t* output) const
 {
     size_t actual = 0UL;
     if (output && len && offset + len <= GetSize()) {
@@ -69,33 +85,17 @@ size_t CompoundMemoryBuffer::GetData(uint64_t offset, size_t len, uint8_t* outpu
     return actual;
 }
 
-uint8_t* CompoundMemoryBuffer::GetData()
+uint8_t* SegmentsMemoryBuffer::GetData()
 {
     return Merge();
 }
 
-const uint8_t* CompoundMemoryBuffer::GetData() const
+const uint8_t* SegmentsMemoryBuffer::GetData() const
 {
     return Merge();
 }
 
-CompoundMemoryBuffer::BuffersList::const_iterator CompoundMemoryBuffer::GetBuffer(uint64_t& offset) const
-{
-    if (!_buffers.empty()) {
-        uint64_t current = 0ULL;
-        for (auto it = _buffers.begin(); it != _buffers.end(); ++it) {
-            const auto size = it->get()->GetSize();
-            if (current + size >= offset) {
-                offset -= current;
-                return it;
-            }
-            current += size;
-        }
-    }
-    return _buffers.end();
-}
-
-uint8_t* CompoundMemoryBuffer::Merge() const
+uint8_t* SegmentsMemoryBuffer::Merge() const
 {
     if (const auto count = _buffers.size()) {
         if (1UL == count) {
