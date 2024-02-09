@@ -394,9 +394,9 @@ void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<
 #ifdef WRITE_TRANSLATION_TO_FILE
                 const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
                 if (depacketizerPath && std::strlen(depacketizerPath)) {
-                    const auto ssrc = _ssrc.load();
-                    std::string fileName = "received_translation_" + std::to_string(ssrc) + "_"
-                        + std::to_string(++_translationsCounter) + ".webm";
+                    std::string fileName = std::string(depacketizerPath) + "/"
+                        + "received_translation_" + std::to_string(ssrc) + "_"
+                        + std::to_string(DepLibUV::GetTimeMs()) + ".webm";
                     FileWriter::WriteAll(fileName, message);
                 }
 #endif

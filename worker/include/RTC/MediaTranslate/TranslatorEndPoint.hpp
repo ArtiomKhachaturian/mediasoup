@@ -82,9 +82,6 @@ private:
 #ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
     ProtectedUniquePtr<FileReader> _mockInputFile;
 #endif
-#ifdef WRITE_TRANSLATION_TO_FILE
-    std::atomic<uint32_t> _translationsCounter = 0ULL;
-#endif
 };
 
 } // namespace RTC
