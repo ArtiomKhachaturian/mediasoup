@@ -16,11 +16,11 @@ MkvReadResult MkvBufferedReader::AddBuffer(const std::shared_ptr<MemoryBuffer>& 
     if (buffer && !buffer->IsEmpty()) {
         result = MkvReadResult::OutOfMemory;
         if (buffer->GetSize() > _buffer.GetCapacity()) {
-            MS_ERROR_STD("size of input data buffer (%llu bytes) is too big "
-                         "for WebM decoding, max allowed size is %llu bytes",
+            MS_ERROR_STD("size of input data buffer (%zu bytes) is too big "
+                         "for WebM decoding, max allowed size is %zu bytes",
                          buffer->GetSize(), _buffer.GetCapacity());
         }
-        else if (_buffer.Add(buffer)) {
+        else if (_buffer.Append(buffer)) {
             result = ParseEBMLHeader();
             if (IsOk(result)) {
                 result = ParseSegment();
@@ -79,8 +79,12 @@ MkvReadResult MkvBufferedReader::ParseSegment()
 
 int MkvBufferedReader::Read(long long pos, long len, unsigned char* buf)
 {
-    if (len >= 0 && _buffer.GetData(pos, len, buf)) {
-        return 0;
+    if (len >= 0 && pos >= 0) {
+        const auto expected = static_cast<size_t>(len);
+        const auto actual = _buffer.GetData(static_cast<size_t>(pos), expected, buf);
+        if (expected == actual) {
+            return 0;
+        }
     }
     return -1;
 }

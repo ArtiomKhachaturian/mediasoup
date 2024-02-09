@@ -6,23 +6,23 @@
 namespace RTC
 {
 
-SegmentsMemoryBuffer::SegmentsMemoryBuffer(uint64_t capacity)
+SegmentsMemoryBuffer::SegmentsMemoryBuffer(size_t capacity)
     : _capacity(capacity)
 {
     MS_ASSERT(_capacity, "capacity should be greater than zero");
 }
 
-bool SegmentsMemoryBuffer::Add(std::vector<uint8_t> data)
+bool SegmentsMemoryBuffer::Append(std::vector<uint8_t> data)
 {
-    return Add(SimpleMemoryBuffer::Create(std::move(data)));
+    return Append(SimpleMemoryBuffer::Create(std::move(data)));
 }
 
-bool SegmentsMemoryBuffer::Add(const void* buf, size_t len, const std::allocator<uint8_t>& allocator)
+bool SegmentsMemoryBuffer::Append(const void* buf, size_t len, const std::allocator<uint8_t>& allocator)
 {
-    return Add(SimpleMemoryBuffer::Create(buf, len, allocator));
+    return Append(SimpleMemoryBuffer::Create(buf, len, allocator));
 }
 
-bool SegmentsMemoryBuffer::Add(const std::shared_ptr<MemoryBuffer>& buffer)
+bool SegmentsMemoryBuffer::Append(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (buffer && !buffer->IsEmpty()) {
         MS_ASSERT(buffer.get() != this, "passed buffer is this instance");
@@ -51,10 +51,10 @@ void SegmentsMemoryBuffer::Clear()
     _merged.reset();
 }
 
-auto SegmentsMemoryBuffer::GetBuffer(uint64_t& offset) const
+auto SegmentsMemoryBuffer::GetBuffer(size_t& offset) const
 {
     if (!_buffers.empty()) {
-        uint64_t current = 0ULL;
+        size_t current = 0ULL;
         for (auto it = _buffers.begin(); it != _buffers.end(); ++it) {
             const auto size = it->get()->GetSize();
             if (current + size >= offset) {
@@ -67,7 +67,7 @@ auto SegmentsMemoryBuffer::GetBuffer(uint64_t& offset) const
     return _buffers.end();
 }
 
-size_t SegmentsMemoryBuffer::GetData(uint64_t offset, size_t len, uint8_t* output) const
+size_t SegmentsMemoryBuffer::GetData(size_t offset, size_t len, uint8_t* output) const
 {
     size_t actual = 0UL;
     if (output && len && offset + len <= GetSize()) {
@@ -105,7 +105,7 @@ uint8_t* SegmentsMemoryBuffer::Merge() const
             auto merged = std::make_unique<SimpleMemoryBuffer>();
             merged->Reserve(_size);
             for (const auto& buffer : _buffers) {
-                merged->Append(*buffer);
+                merged->Append(buffer);
             }
             MS_ASSERT(_size == merged->GetSize(), "merged size is incorrect");
             _merged = std::move(merged);

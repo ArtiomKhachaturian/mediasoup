@@ -10,16 +10,18 @@ namespace RTC
 class SimpleMemoryBuffer : public MemoryBuffer
 {
 public:
+    explicit SimpleMemoryBuffer(size_t capacity);
     SimpleMemoryBuffer(std::vector<uint8_t> buffer = {});
     bool Append(const void* buf, size_t len);
-    bool Append(const MemoryBuffer& buffer);
+    bool Append(const std::shared_ptr<MemoryBuffer>& buffer);
     bool Prepend(const void* buf, size_t len);
-    bool Prepend(const MemoryBuffer& buffer);
+    bool Prepend(const std::shared_ptr<MemoryBuffer>& buffer);
     void Clear();
     void Reserve(size_t size) { _buffer.reserve(size); }
     void Resize(size_t size) { _buffer.resize(size); }
     std::vector<uint8_t> TakeData() { return std::move(_buffer); }
     size_t GetCapacity() const { return _buffer.capacity(); }
+    size_t GetData(size_t offset, size_t len, uint8_t* output) const;
     // return a deep copy
     std::shared_ptr<SimpleMemoryBuffer> Detach() const;
     // return null if this buffer is empty
@@ -30,7 +32,7 @@ public:
                                                       const std::allocator<uint8_t>& allocator = {});
     static std::shared_ptr<SimpleMemoryBuffer> Create(std::vector<uint8_t> buffer);
     // impl. of MemoryBuffer
-    uint64_t GetSize() const final { return _buffer.size(); }
+    size_t GetSize() const final { return _buffer.size(); }
     uint8_t* GetData() { return _buffer.data(); }
     const uint8_t* GetData() const { return _buffer.data(); }
 private:

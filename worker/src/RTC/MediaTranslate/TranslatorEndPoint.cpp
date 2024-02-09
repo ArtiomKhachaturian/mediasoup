@@ -417,7 +417,7 @@ void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<MemoryBuffe
 {
     if (buffer && endPoint) {
         LOCK_WRITE_PROTECTED_OBJ(_impl);
-        if (_impl->Append(*buffer)) {
+        if (_impl->Append(buffer)) {
             const auto now = DepLibUV::GetTimeMs();
             if (now > _sliceOriginTimestamp + _timeSliceMs) {
                 _sliceOriginTimestamp = now;

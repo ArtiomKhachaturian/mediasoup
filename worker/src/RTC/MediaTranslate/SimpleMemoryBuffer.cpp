@@ -3,6 +3,11 @@
 namespace RTC
 {
 
+SimpleMemoryBuffer::SimpleMemoryBuffer(size_t capacity)
+{
+    Reserve(capacity);
+}
+
 SimpleMemoryBuffer::SimpleMemoryBuffer(std::vector<uint8_t> buffer)
     : _buffer(std::move(buffer))
 {
@@ -13,9 +18,9 @@ bool SimpleMemoryBuffer::Append(const void* buf, size_t len)
     return Insert(_buffer.end(), buf, len);
 }
 
-bool SimpleMemoryBuffer::Append(const MemoryBuffer& buffer)
+bool SimpleMemoryBuffer::Append(const std::shared_ptr<MemoryBuffer>& buffer)
 {
-    return Append(buffer.GetData(), buffer.GetSize());
+    return buffer && Append(buffer->GetData(), buffer->GetSize());
 }
 
 bool SimpleMemoryBuffer::Prepend(const void* buf, size_t len)
@@ -23,14 +28,26 @@ bool SimpleMemoryBuffer::Prepend(const void* buf, size_t len)
     return Insert(_buffer.begin(), buf, len);
 }
 
-bool SimpleMemoryBuffer::Prepend(const MemoryBuffer& buffer)
+bool SimpleMemoryBuffer::Prepend(const std::shared_ptr<MemoryBuffer>& buffer)
 {
-    return Prepend(buffer.GetData(), buffer.GetSize());
+    return buffer && Prepend(buffer->GetData(), buffer->GetSize());
 }
 
 void SimpleMemoryBuffer::Clear()
 {
     _buffer.clear();
+}
+
+size_t SimpleMemoryBuffer::GetData(size_t offset, size_t len, uint8_t* output) const
+{
+    if (len && output && offset < _buffer.size()) {
+        len = std::min<size_t>(len, _buffer.size() - offset);
+        if (len) {
+            std::memcpy(output, _buffer.data() + offset, len);
+            return len;
+        }
+    }
+    return 0UL;
 }
 
 std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Detach() const

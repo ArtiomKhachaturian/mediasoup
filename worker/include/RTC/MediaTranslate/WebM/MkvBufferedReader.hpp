@@ -9,6 +9,7 @@ namespace RTC
 
 class MkvBufferedReader : private mkvparser::IMkvReader
 {
+    using Buffer = SegmentsMemoryBuffer;
 public:
     MkvBufferedReader();
     ~MkvBufferedReader() final = default;
@@ -27,7 +28,7 @@ private:
     static inline constexpr uint64_t _maxBufferSize = 1024UL * 1024UL; // 1 Mb
     std::unique_ptr<mkvparser::EBMLHeader> _ebmlHeader;
     std::unique_ptr<mkvparser::Segment> _segment;
-    SegmentsMemoryBuffer _buffer;
+    Buffer _buffer;
 };
 
 } // namespace RTC
