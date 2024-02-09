@@ -46,6 +46,10 @@ TranslatorEndPoint::~TranslatorEndPoint()
     SetInput(nullptr);
     _socket->RemoveListener(this);
     SetConnected(false);
+#ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
+    LOCK_WRITE_PROTECTED_OBJ(_mockInputFile);
+    _mockInputFile->reset();
+#endif
 }
 
 void TranslatorEndPoint::SetInput(MediaSource* input)
@@ -120,16 +124,6 @@ nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLan
     command["type"] = "set_target_language";
     command["cmd"] = languageSettings;
     return command;
-}
-
-void TranslatorEndPoint::SendDataToMediaSink(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& data,
-                                             MediaSink* sink)
-{
-    if (data && sink) {
-        sink->StartMediaWriting(ssrc);
-        sink->WriteMediaPayload(ssrc, data);
-        sink->EndMediaWriting(ssrc);
-    }
 }
 
 void TranslatorEndPoint::ChangeTranslationSettings(const std::string& to,
@@ -285,7 +279,7 @@ bool TranslatorEndPoint::WriteBinary(const MemoryBuffer& buffer) const
     if (IsConnected()) {
         ok = _socket->WriteBinary(buffer);
         if (!ok) {
-            MS_ERROR_STD("failed write binary (%llu bytes)' into translation service %s",
+            MS_ERROR_STD("failed write binary (%zu bytes)' into translation service %s",
                          buffer.GetSize(), _serviceUri.c_str());
         }
     }
@@ -327,11 +321,11 @@ void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
         if (const auto ssrc = _ssrc.load()) {
             LOCK_READ_PROTECTED_OBJ(_output);
             if (const auto output = _output.ConstRef()) {
-                FileReader mockInputFile(_testFileName, ssrc, false);
-                if (mockInputFile.IsOpen()) {
-                    if (mockInputFile.AddSink(output)) {
-                        mockInputFile.Start(false); // sync read
-                        mockInputFile.RemoveSink(output);
+                auto mockInputFile = std::make_unique<FileReader>(_testFileName, ssrc, false);
+                if (mockInputFile->IsOpen()) {
+                    if (mockInputFile->AddSink(output)) {
+                        LOCK_WRITE_PROTECTED_OBJ(_mockInputFile);
+                        _mockInputFile = std::move(mockInputFile);
                     }
                     else {
                         MS_WARN_DEV_STD("Failed to add output sink to open translation mock file");
@@ -364,7 +358,12 @@ void TranslatorEndPoint::EndMediaWriting(uint32_t ssrc)
     if (_inputSlice) {
         _inputSlice->Reset(false);
     }
-    _ssrc.compare_exchange_strong(ssrc, 0U);
+    if (_ssrc.compare_exchange_strong(ssrc, 0U)) {
+#ifdef PLAY_MOCK_FILE_AFTER_CONNECTION
+        LOCK_WRITE_PROTECTED_OBJ(_mockInputFile);
+        _mockInputFile->reset();
+#endif
+    }
 }
 
 void TranslatorEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
@@ -389,17 +388,16 @@ void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<
             MS_ERROR_STD("Received translation for %u SSRC", _ssrc.load()); // TODO: remove it for production
             LOCK_READ_PROTECTED_OBJ(_output);
             if (const auto output = _output.ConstRef()) {
-                SendDataToMediaSink(ssrc, message, output);
+                output->StartMediaWriting(ssrc);
+                output->WriteMediaPayload(ssrc, message);
+                output->EndMediaWriting(ssrc);
 #ifdef WRITE_TRANSLATION_TO_FILE
                 const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
                 if (depacketizerPath && std::strlen(depacketizerPath)) {
                     const auto ssrc = _ssrc.load();
                     std::string fileName = "received_translation_" + std::to_string(ssrc) + "_"
-                    + std::to_string(++_translationsCounter) + ".webm";
-                    FileWriter file(std::string(depacketizerPath) + "/" + fileName);
-                    if (file.IsOpen()) {
-                        SendDataToMediaSink(ssrc, message, &file);
-                    }
+                        + std::to_string(++_translationsCounter) + ".webm";
+                    FileWriter::WriteAll(fileName, message);
                 }
 #endif
             }
@@ -426,7 +424,7 @@ void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<MemoryBuffe
             }
         }
         else {
-            MS_ERROR_STD("unable to add memory buffer (%llu bytes) to input slice", buffer->GetSize());
+            MS_ERROR_STD("unable to add memory buffer (%zu bytes) to input slice", buffer->GetSize());
         }
     }
 }

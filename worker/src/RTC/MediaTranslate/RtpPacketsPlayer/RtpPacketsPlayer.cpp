@@ -351,6 +351,7 @@ bool RtpPacketsPlayer::Stream::FetchMediaInfo(const std::shared_ptr<MediaFrameDe
                                                                         std::move(packetizer));
                             const auto timerId = _timer->RegisterTimer(player);
                             if (timerId) {
+                                deserializer->SetClockRate(trackIndex, GetClockRate());
                                 player->SetTimerEventId(timerId);
                                 _activePlayers->insert(std::move(player));
                             }

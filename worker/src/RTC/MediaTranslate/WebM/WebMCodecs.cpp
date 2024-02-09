@@ -1,5 +1,25 @@
 #include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
 #include <mkvmuxer/mkvmuxer.h>
+#include <cstring>
+
+namespace {
+
+// emulation of non-standard [::strcmpi] function, return true if both strings are identical
+inline bool CompareCaseInsensitive(const std::string_view& s1,
+                                   const std::string_view& s2) {
+    const size_t size = s1.size();
+    if (size == s2.size()) {
+        for (size_t i = 0UL; i < size; ++i) {
+            if (std::tolower(s1[i]) != std::tolower(s2[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+}
 
 namespace RTC
 {
@@ -7,6 +27,44 @@ namespace RTC
 bool WebMCodecs::IsSupported(const RtpCodecMimeType& mimeType)
 {
     return nullptr != GetCodecId(mimeType);
+}
+
+bool WebMCodecs::IsSupported(const char* codecId)
+{
+    return codecId && IsSupported(std::string_view(codecId));
+}
+
+bool WebMCodecs::IsSupported(const std::string& codecId)
+{
+    if (!codecId.empty()) {
+        return IsSupported(std::string_view(codecId.data(), codecId.size()));
+    }
+    return false;
+}
+
+bool WebMCodecs::IsSupported(const std::string_view& codecId)
+{
+    if (!codecId.empty()) {
+        if (CompareCaseInsensitive(codecId, mkvmuxer::Tracks::kVp8CodecId)) {
+            return true;
+        }
+        if (CompareCaseInsensitive(codecId, mkvmuxer::Tracks::kVp9CodecId)) {
+            return true;
+        }
+        if (CompareCaseInsensitive(codecId, mkvmuxer::Tracks::kOpusCodecId)) {
+            return true;
+        }
+        if (CompareCaseInsensitive(codecId, _h264CodecId)) {
+            return true;
+        }
+        if (CompareCaseInsensitive(codecId, _h265CodecId)) {
+            return true;
+        }
+        if (CompareCaseInsensitive(codecId, _pcmCodecId)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 const char* WebMCodecs::GetCodecId(RtpCodecMimeType::Subtype codec)
@@ -20,12 +78,12 @@ const char* WebMCodecs::GetCodecId(RtpCodecMimeType::Subtype codec)
             return mkvmuxer::Tracks::kVp9CodecId;
         case RtpCodecMimeType::Subtype::H264:
         case RtpCodecMimeType::Subtype::H264_SVC:
-            return "V_MPEG4/ISO/AVC"; // matroska
+            return _h264CodecId;
         case RtpCodecMimeType::Subtype::H265:
-            return "V_MPEGH/ISO/HEVC";
+            return _h265CodecId;
         case RtpCodecMimeType::Subtype::PCMA:
         case RtpCodecMimeType::Subtype::PCMU:
-            return "A_PCM/FLOAT/IEEE";
+            return _pcmCodecId;
         case RtpCodecMimeType::Subtype::OPUS:
             return mkvmuxer::Tracks::kOpusCodecId;
         default:

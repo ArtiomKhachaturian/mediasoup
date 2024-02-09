@@ -35,27 +35,52 @@ bool FileReader::IsOpen() const
     return Base::IsOpen() && _fileSize > 0LL;
 }
 
-void FileReader::Start(bool backgroundMode)
+void FileReader::OnSinkWasAdded(MediaSink* sink, bool first)
 {
-    if (IsOpen()) {
-        if (!backgroundMode) {
-            Run();
-        }
-        else if (!_thread.joinable()) {
-            _thread = std::thread(std::bind(&FileReader::Run, this));
-        }
+    Base::OnSinkWasAdded(sink, first);
+    if (first && IsOpen() && !_thread.joinable()) {
+        _thread = std::thread(std::bind(&FileReader::Run, this));
     }
 }
 
-void FileReader::Stop()
+void FileReader::OnSinkWasRemoved(MediaSink* sink, bool last)
 {
-    if (!_stopRequested.exchange(true)) {
-        if (_thread.joinable()) {
-            _thread.join();
-        }
-        _stopRequested = false;
+    if (last) {
+        Stop();
     }
-}   
+    Base::OnSinkWasRemoved(sink, last);
+}
+
+std::vector<uint8_t> FileReader::ReadAllAsBinary(const std::string_view& fileNameUtf8)
+{
+    std::vector<uint8_t> data;
+    if (auto handle = Base::Open(fileNameUtf8, true)) {
+        auto size = GetFileSize(handle);
+        if (size > 0) {
+            try {
+                data.resize(size);
+                size = FileRead(handle, data);
+                if (size != data.size()) {
+                    data.resize(size);
+                }
+            }
+            catch (const std::bad_alloc& e) {
+                MS_ERROR_STD("unable to allocate %lld bytes for file data", size);
+                data.clear();
+            }
+        }
+        else {
+            MS_WARN_DEV_STD("no data for read because file %s is empty", fileNameUtf8.c_str());
+        }
+        Close(handle);
+    }
+    return data;
+}
+
+std::shared_ptr<MemoryBuffer> FileReader::ReadAllAsBuffer(const std::string_view& fileNameUtf8)
+{
+    return SimpleMemoryBuffer::Create(ReadAllAsBinary(fileNameUtf8));
+}
 
 void FileReader::Run()
 {
@@ -78,6 +103,16 @@ void FileReader::Run()
         }
     }
     SeekToStart();
+}
+
+void FileReader::Stop()
+{
+    if (!_stopRequested.exchange(true)) {
+        if (_thread.joinable()) {
+            _thread.join();
+        }
+        _stopRequested = false;
+    }
 }
 
 bool FileReader::ReadContent()
@@ -108,7 +143,7 @@ std::shared_ptr<MemoryBuffer> FileReader::ReadBuffer(bool& eof, bool& ok) const
     if (const auto handle = GetHandle()) {
         std::vector<uint8_t> chunk;
         chunk.resize(_chunkSize, 0);
-        const auto size = ::fread(chunk.data(), 1UL, chunk.size(), handle);
+        const auto size = FileRead(handle, chunk);
         if (size) {
             chunk.resize(size);
             buffer = SimpleMemoryBuffer::Create(std::move(chunk));
@@ -167,6 +202,14 @@ bool FileReader::FileSeek(FILE* handle, int command, long offset)
 #endif
     }
     return false;
+}
+
+size_t FileReader::FileRead(FILE* handle, std::vector<uint8_t>& to)
+{
+    if (handle && !to.empty()) {
+        return ::fread(to.data(), 1UL, to.size(), handle);
+    }
+    return 0UL;
 }
 
 FileReader::StartEndNotifier::StartEndNotifier(FileReader* source)

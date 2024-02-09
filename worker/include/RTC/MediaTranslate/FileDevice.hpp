@@ -34,6 +34,7 @@ protected:
     // Calling Close on an already closed file does nothing and returns success.
     bool Close();
     static FILE* Open(const std::string_view& fileNameUtf8, bool readOnly, int* error = nullptr);
+    static bool Close(FILE* handle);
 private:
     FILE* _handle = nullptr;
 };
@@ -54,7 +55,7 @@ template<class TBase>
 bool FileDevice<TBase>::Close()
 {
     if (_handle) {
-        const auto success = 0 == ::fclose(_handle);
+        const auto success = Close(_handle);
         _handle = nullptr;
         return success;
     }
@@ -77,6 +78,12 @@ FILE* FileDevice<TBase>::Open(const std::string_view& fileNameUtf8, bool readOnl
         *error = errno;
     }
     return handle;
+}
+
+template<class TBase>
+bool FileDevice<TBase>::Close(FILE* handle)
+{
+    return handle && 0 == ::fclose(handle);
 }
 
 } // namespace RTC
