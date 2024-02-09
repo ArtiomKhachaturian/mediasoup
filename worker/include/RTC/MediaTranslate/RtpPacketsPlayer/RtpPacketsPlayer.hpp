@@ -1,7 +1,7 @@
 #pragma once
 #include "ProtectedObj.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
-#include "RTC/MediaTranslate/RtpPacketsPlayer/MediaTimer.hpp"
+#include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "absl/container/flat_hash_map.h"
 
 namespace RTC

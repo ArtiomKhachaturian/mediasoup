@@ -30,7 +30,7 @@ protected:
     virtual ~SsrcProvider() = default;
 };
 
-class MediaSinkWrapper : public RTC::MediaSink
+class MediaSinkWrapper : public MediaSink
 {
 public:
     MediaSinkWrapper(MediaSink* impl, const SsrcProvider* ssrcProvider);
@@ -93,6 +93,7 @@ private:
 #ifdef READ_PRODUCER_RECV_FROM_FILE
     //static inline const char* _testFileName = "/Users/user/Downloads/1b0cefc4-abdb-48d0-9c50-f5050755be94.webm";
     static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/producer_test.webm";
+    //static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_1701890162_1.webm";
 #endif
     const std::unique_ptr<MediaFrameSerializer> _serializer;
     const std::unique_ptr<RtpDepacketizer> _depacketizer;

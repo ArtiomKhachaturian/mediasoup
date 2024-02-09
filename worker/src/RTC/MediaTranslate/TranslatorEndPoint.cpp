@@ -331,13 +331,10 @@ void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
         if (const auto ssrc = _ssrc.load()) {
             LOCK_READ_PROTECTED_OBJ(_output);
             if (const auto output = _output.ConstRef()) {
-                auto mockInputFile = std::make_unique<FileReader>(_testFileName, false);
-                if (mockInputFile->IsOpen()) {
-                    mockInputFile->SetSsrc(ssrc);
-                    if (mockInputFile->AddSink(output)) {
-                        LOCK_WRITE_PROTECTED_OBJ(_mockInputFile);
-                        _mockInputFile = std::move(mockInputFile);
-                    }
+                auto mockInputFile = std::make_unique<FileReader>(_testFileName, ssrc, false);
+                if (mockInputFile->IsOpen() && mockInputFile->AddSink(output)) {
+                    LOCK_WRITE_PROTECTED_OBJ(_mockInputFile);
+                    _mockInputFile = std::move(mockInputFile);
                 }
             }
         }

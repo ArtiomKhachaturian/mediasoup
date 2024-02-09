@@ -7,11 +7,11 @@ namespace RTC
 {
 
 class MediaTimerCallback;
+class MediaTimerHandle;
+class MediaTimerHandleFactory;
 
 class MediaTimer
 {
-    class PlatformHandle;
-    class PlatformHandleFactory;
 public:
     MediaTimer();
     ~MediaTimer();
@@ -22,9 +22,9 @@ public:
     void Start(uint64_t timerId, bool singleshot);
     void Stop(uint64_t timerId);
 private:
-	const std::unique_ptr<PlatformHandleFactory> _factory;
+	const std::unique_ptr<MediaTimerHandleFactory> _factory;
 	// key is timer ID
-	ProtectedObj<absl::flat_hash_map<uint64_t, std::unique_ptr<PlatformHandle>>> _handles;
+	ProtectedObj<absl::flat_hash_map<uint64_t, std::unique_ptr<MediaTimerHandle>>> _handles;
 };
 
 } // namespace RTC

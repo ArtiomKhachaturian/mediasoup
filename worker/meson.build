@@ -191,7 +191,7 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/RtpDepacketizerVpx.cpp',
   'src/RTC/MediaTranslate/RtpMediaFrame.cpp',
   'src/RTC/MediaTranslate/RtpPacketizerOpus.cpp',
-  'src/RTC/MediaTranslate/RtpPacketsPlayer/MediaTimer.cpp',
+  'src/RTC/MediaTranslate/MediaTimer/MediaTimer.cpp',
   'src/RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.cpp',
   'src/RTC/MediaTranslate/SimpleMemoryBuffer.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint.cpp',
@@ -203,6 +203,16 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/WebM/WebMSerializer.cpp',
   'src/RTC/MediaTranslate/Websocket.cpp',
 ]
+
+if host_machine.system() == 'darwin'
+  media_translate_sources += [
+    'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryApple.cpp',
+  ]
+elif host_machine.system() == 'linux'
+  media_translate_sources += [
+    'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUnix.cpp',
+  ]
+endif
 
 libwebm_sources = [
   'external/libwebm/common/file_util.cc',
