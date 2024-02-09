@@ -35,7 +35,7 @@ public:
     void UpdateConsumerLanguage(Consumer* consumer);
     void UpdateConsumerVoice(Consumer* consumer);
     void AddNewRtpStream(RtpStreamRecv* rtpStream, uint32_t mappedSsrc);
-    void DispatchProducerPacket(RtpPacket* packet);
+    bool DispatchProducerPacket(RtpPacket* packet);
 private:
     // impl. of RtpPacketsCollector
     bool AddPacket(RtpPacket* packet) final;
@@ -225,13 +225,19 @@ void MediaTranslatorsManager::OnTransportProducerRtpPacketReceived(Transport* tr
                                                                    Producer* producer,
                                                                    RtpPacket* packet)
 {
+    bool dispatched = false;
     if (producer && packet && !packet->IsSynthenized()) {
         const auto it = _translators.find(producer->id);
         if (it != _translators.end()) {
-            it->second->DispatchProducerPacket(packet);
+            dispatched = it->second->DispatchProducerPacket(packet);
+        }
+        else {
+            dispatched = true; // drop packet if producer is not registered
         }
     }
-    _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
+    if (!dispatched) {
+        _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
+    }
 }
 
 void MediaTranslatorsManager::OnTransportNeedWorstRemoteFractionLost(Transport* transport,
@@ -615,7 +621,7 @@ void MediaTranslatorsManager::Translator::AddNewRtpStream(RtpStreamRecv* rtpStre
     }
 }
 
-void MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* packet)
+bool MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* packet)
 {
     if (packet && !packet->IsSynthenized() && _producer->AddPacket(packet)) {
         LOCK_READ_PROTECTED_OBJ(_endPoints);
@@ -629,7 +635,9 @@ void MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* pack
                 packet->AddRejectedConsumer(it->first);
             }
         }
+        return true;
     }
+    return false;
 }
 
 } // namespace RTC
