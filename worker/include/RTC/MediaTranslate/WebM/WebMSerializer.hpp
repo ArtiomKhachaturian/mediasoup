@@ -13,9 +13,6 @@ public:
     WebMSerializer(uint32_t ssrc, uint32_t clockRate, const RtpCodecMimeType& mime,
                    const char* app = "SpeakShiftSFU");
     ~WebMSerializer() final;
-    static bool IsSupported(const RtpCodecMimeType& mimeType);
-    static const char* GetCodecId(RtpCodecMimeType::Subtype codec);
-    static const char* GetCodecId(const RtpCodecMimeType& mime);
     // impl. of MediaSource
     bool AddSink(MediaSink* sink) final;
     bool RemoveSink(MediaSink* sink) final;

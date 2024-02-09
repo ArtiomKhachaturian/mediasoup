@@ -7,19 +7,9 @@
 
 namespace {
 
-using namespace RTC;
-
 template<typename T>
 inline constexpr uint64_t ValueToNano(T value) {
     return value * 1000ULL * 1000ULL * 1000ULL;
-}
-
-inline bool IsOpus(RtpCodecMimeType::Subtype codec) {
-    return RtpCodecMimeType::Subtype::OPUS == codec;
-}
-
-inline bool IsOpus(const RtpCodecMimeType& mime) {
-    return IsOpus(mime.GetSubtype());
 }
 
 }
@@ -50,42 +40,6 @@ WebMSerializer::WebMSerializer(uint32_t ssrc, uint32_t clockRate,
 WebMSerializer::~WebMSerializer()
 {
     WebMSerializer::RemoveAllSinks();
-}
-
-bool WebMSerializer::IsSupported(const RtpCodecMimeType& mimeType)
-{
-    return nullptr != GetCodecId(mimeType);
-}
-
-const char* WebMSerializer::GetCodecId(RtpCodecMimeType::Subtype codec)
-{
-    // EMBL header for H264 & H265 will be 'matroska' and 'webm' for other codec types
-    // https://www.matroska.org/technical/codec_specs.html
-    switch (codec) {
-        case RtpCodecMimeType::Subtype::VP8:
-            return mkvmuxer::Tracks::kVp8CodecId;
-        case RtpCodecMimeType::Subtype::VP9:
-            return mkvmuxer::Tracks::kVp9CodecId;
-        case RtpCodecMimeType::Subtype::H264:
-        case RtpCodecMimeType::Subtype::H264_SVC:
-            return "V_MPEG4/ISO/AVC"; // matroska
-        case RtpCodecMimeType::Subtype::H265:
-            return "V_MPEGH/ISO/HEVC";
-        case RtpCodecMimeType::Subtype::PCMA:
-        case RtpCodecMimeType::Subtype::PCMU:
-            return "A_PCM/FLOAT/IEEE";
-        default:
-            if (IsOpus(codec)) {
-                return mkvmuxer::Tracks::kOpusCodecId;
-            }
-            break;
-    }
-    return nullptr;
-}
-
-const char* WebMSerializer::GetCodecId(const RtpCodecMimeType& mime)
-{
-    return GetCodecId(mime.GetSubtype());
 }
 
 bool WebMSerializer::AddSink(MediaSink* sink)
@@ -169,7 +123,8 @@ std::unique_ptr<WebMSerializer::Writer> WebMSerializer::CreateWriter(MediaSink* 
                 case RtpCodecMimeType::Type::AUDIO:
                     trackNumber = writer->AddAudioTrack(clockRate);
                     if (trackNumber) {
-                        ok = writer->SetAudioSampleRate(trackNumber, clockRate, IsOpus(mime));
+                        const auto opusAudio = RtpCodecMimeType::Subtype::OPUS == mime.GetSubtype();
+                        ok = writer->SetAudioSampleRate(trackNumber, clockRate, opusAudio);
                         if (!ok) {
                             MS_ERROR_STD("failed to set intial MKV audio sample rate for %s",
                                          GetStreamInfoString(mime, ssrc).c_str());
@@ -189,7 +144,7 @@ std::unique_ptr<WebMSerializer::Writer> WebMSerializer::CreateWriter(MediaSink* 
                     break;
             }
             if (ok) {
-                ok = writer->SetTrackCodec(trackNumber, GetCodecId(mime));
+                ok = writer->SetTrackCodec(trackNumber, mime);
                 if (!ok) {
                     MS_ERROR_STD("failed to set MKV codec for %s",
                                  GetStreamInfoString(mime, ssrc).c_str());

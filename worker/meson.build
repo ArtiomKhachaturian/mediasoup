@@ -174,8 +174,10 @@ common_sources = [
   'src/RTC/RTCP/XR.cpp',
   'src/RTC/RTCP/XrDelaySinceLastRr.cpp',
   'src/RTC/RTCP/XrReceiverReferenceTime.cpp',
+]
+
+media_translate_sources = [
   'src/RTC/MediaTranslate/CompoundMemoryBuffer.cpp',
-  'src/RTC/MediaTranslate/ConsumerTranslator.cpp',
   'src/RTC/MediaTranslate/FileReader.cpp',
   'src/RTC/MediaTranslate/FileWriter.cpp',
   'src/RTC/MediaTranslate/MediaFrame.cpp',
@@ -189,11 +191,14 @@ common_sources = [
   'src/RTC/MediaTranslate/RtpDepacketizerVpx.cpp',
   'src/RTC/MediaTranslate/RtpMediaFrame.cpp',
   'src/RTC/MediaTranslate/RtpPacketizerOpus.cpp',
+  'src/RTC/MediaTranslate/RtpPacketsPlayer/MediaTimer.cpp',
+  'src/RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.cpp',
   'src/RTC/MediaTranslate/SimpleMemoryBuffer.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint.cpp',
   'src/RTC/MediaTranslate/TranslatorUtils.cpp',
   'src/RTC/MediaTranslate/WebM/MkvBufferedReader.cpp',
   'src/RTC/MediaTranslate/WebM/MkvBufferedWriter.cpp',
+  'src/RTC/MediaTranslate/WebM/WebMCodecs.cpp',
   'src/RTC/MediaTranslate/WebM/WebMDeserializer.cpp',
   'src/RTC/MediaTranslate/WebM/WebMSerializer.cpp',
   'src/RTC/MediaTranslate/Websocket.cpp',
@@ -394,6 +399,8 @@ if host_machine.system() == 'linux' and not get_option('ms_disable_liburing')
     ]
   endif
 endif
+
+common_sources += media_translate_sources 
 
 libmediasoup_worker = library(
   'libmediasoup-worker',

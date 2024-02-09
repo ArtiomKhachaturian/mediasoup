@@ -8,6 +8,7 @@ namespace RTC
 
 class MediaSink;
 class MediaFrame;
+class RtpCodecMimeType;
 class AudioFrameConfig;
 class VideoFrameConfig;
 
@@ -28,6 +29,7 @@ public:
                   const std::shared_ptr<const MediaFrame>& mediaFrame,
                   uint64_t mkvTimestamp);
     bool SetTrackCodec(uint64_t trackNumber, const char* codec);
+    bool SetTrackCodec(uint64_t trackNumber, const RtpCodecMimeType& mime);
     bool SetAudioSampleRate(uint64_t trackNumber, uint32_t sampleRate, bool opusCodec);
     void SetTrackSettings(uint64_t trackNumber, const std::shared_ptr<const AudioFrameConfig>& config);
     void SetTrackSettings(uint64_t trackNumber, const std::shared_ptr<const VideoFrameConfig>& config);

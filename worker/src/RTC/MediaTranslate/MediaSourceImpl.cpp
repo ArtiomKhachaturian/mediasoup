@@ -32,16 +32,16 @@ void MediaSourceImpl::StartMediaSinksWriting(uint32_t ssrc)
     _sinks.InvokeMethod(&MediaSink::StartMediaWriting, ssrc);
 }
 
-void MediaSourceImpl::WriteMediaSinksPayload(const std::shared_ptr<MemoryBuffer>& buffer)
+void MediaSourceImpl::WriteMediaSinksPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (buffer) {
-        _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, buffer);
+        _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, ssrc, buffer);
     }
 }
 
-void MediaSourceImpl::EndMediaSinksWriting()
+void MediaSourceImpl::EndMediaSinksWriting(uint32_t ssrc)
 {
-    _sinks.InvokeMethod(&MediaSink::EndMediaWriting);
+    _sinks.InvokeMethod(&MediaSink::EndMediaWriting, ssrc);
 }
 
 

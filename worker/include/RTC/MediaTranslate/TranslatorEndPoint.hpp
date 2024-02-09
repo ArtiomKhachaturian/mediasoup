@@ -62,8 +62,8 @@ private:
     void CloseSocket();
     // impl. of MediaSink
     void StartMediaWriting(uint32_t ssrc) final;
-    void WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer) final;
-    void EndMediaWriting() final;
+    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer) final;
+    void EndMediaWriting(uint32_t ssrc) final;
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
     void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message) final;

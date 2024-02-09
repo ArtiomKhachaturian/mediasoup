@@ -14,7 +14,7 @@ public:
     // false on write error. Note: Flushing when closing, is not required.
     bool Flush();
     // impl. of MediaSink
-    void WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer) final;
+    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer) final;
 };
 
 } // namespace RTC

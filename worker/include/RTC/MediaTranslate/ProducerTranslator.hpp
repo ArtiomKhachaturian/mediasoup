@@ -34,8 +34,8 @@ public:
     bool AddStream(const RtpCodecMimeType& mime, uint32_t clockRate, uint32_t mappedSsrc,
                    uint32_t originalSsrc, uint8_t payloadType);
     bool RemoveStream(uint32_t mappedSsrc);
-    // list of mapped ssrcs
-    std::list<uint32_t> GetAddedStreams() const;
+    // list of mapped or original ssrcs for added streams
+    std::list<uint32_t> GetSsrcs(bool mapped) const;
     // impl. of TranslatorUnit
     const std::string& GetId() const final;
     // impl. of RtpPacketsCollector

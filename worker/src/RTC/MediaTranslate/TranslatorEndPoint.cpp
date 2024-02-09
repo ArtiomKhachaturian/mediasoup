@@ -131,8 +131,8 @@ void TranslatorEndPoint::SendDataToMediaSink(uint32_t ssrc, const std::shared_pt
 {
     if (data && sink) {
         sink->StartMediaWriting(ssrc);
-        sink->WriteMediaPayload(data);
-        sink->EndMediaWriting();
+        sink->WriteMediaPayload(ssrc, data);
+        sink->EndMediaWriting(ssrc);
     }
 }
 
@@ -345,7 +345,7 @@ void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
     }
 }
 
-void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer)
+void TranslatorEndPoint::WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (buffer && !buffer->IsEmpty() && IsConnected()) {
         if (_inputSlice) {
@@ -357,9 +357,9 @@ void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& 
     }
 }
 
-void TranslatorEndPoint::EndMediaWriting()
+void TranslatorEndPoint::EndMediaWriting(uint32_t ssrc)
 {
-    MediaSink::EndMediaWriting();
+    MediaSink::EndMediaWriting(ssrc);
     if (_inputSlice) {
         _inputSlice->Reset(false);
     }

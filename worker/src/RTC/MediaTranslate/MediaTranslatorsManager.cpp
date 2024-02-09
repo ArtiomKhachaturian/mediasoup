@@ -2,7 +2,6 @@
 #include "RTC/MediaTranslate/MediaTranslatorsManager.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
-#include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
@@ -22,7 +21,6 @@ namespace RTC
 
 class MediaTranslatorsManager::Translator : private RtpPacketsCollector
 {
-    using ConsumersMap = absl::flat_hash_map<Consumer*, std::unique_ptr<ConsumerTranslator>>;
     using TranslationEndPointsMap = absl::flat_hash_map<Consumer*, std::shared_ptr<TranslatorEndPoint>>;
 public:
     Translator(MediaTranslatorsManager* manager,
@@ -33,8 +31,9 @@ public:
     ~Translator() final;
     void AddConsumer(Consumer* consumer);
     bool RemoveConsumer(Consumer* consumer);
-    void UpdateConsumerLanguageAndVoice(Consumer* consumer);
     void UpdateProducerLanguage();
+    void UpdateConsumerLanguage(Consumer* consumer);
+    void UpdateConsumerVoice(Consumer* consumer);
     void AddNewRtpStream(RtpStreamRecv* rtpStream, uint32_t mappedSsrc);
     bool DispatchProducerPacket(RtpPacket* packet);
 private:
@@ -46,7 +45,6 @@ private:
     const std::string& _serviceUri;
     const std::string& _serviceUser;
     const std::string& _servicePassword;
-    ProtectedObj<ConsumersMap> _consumers;
     // key is consumer instance, simple model - each consumer has own channer for translation
     // TODO: revise this logic for better resources consumption if more than 1 consumers has the same language and voice
     ProtectedObj<TranslationEndPointsMap> _endPoints;
@@ -153,12 +151,14 @@ void MediaTranslatorsManager::OnTransportProducerLanguageChanged(Transport* tran
                                                                  Producer* producer)
 {
     _router->OnTransportProducerLanguageChanged(transport, producer);
+#ifndef NO_TRANSLATION_SERVICE
     if (producer) {
         const auto it = _translators.find(producer->id);
         if (it != _translators.end()) {
             it->second->UpdateProducerLanguage();
         }
     }
+#endif
 }
 
 void MediaTranslatorsManager::OnTransportProducerClosed(Transport* transport, Producer* producer)
@@ -265,18 +265,22 @@ void MediaTranslatorsManager::OnTransportConsumerLanguageChanged(Transport* tran
                                                                  Consumer* consumer)
 {
     _router->OnTransportConsumerLanguageChanged(transport, consumer);
+#ifndef NO_TRANSLATION_SERVICE
     for (auto it = _translators.begin(); it != _translators.end(); ++it) {
-        it->second->UpdateConsumerLanguageAndVoice(consumer);
+        it->second->UpdateConsumerLanguage(consumer);
     }
+#endif
 }
 
 void MediaTranslatorsManager::OnTransportConsumerVoiceChanged(Transport* transport,
                                                               Consumer* consumer)
 {
     _router->OnTransportConsumerVoiceChanged(transport, consumer);
+#ifndef NO_TRANSLATION_SERVICE
     for (auto it = _translators.begin(); it != _translators.end(); ++it) {
-        it->second->UpdateConsumerLanguageAndVoice(consumer);
+        it->second->UpdateConsumerVoice(consumer);
     }
+#endif
 }
 
 void MediaTranslatorsManager::OnTransportConsumerClosed(Transport* transport,
@@ -394,7 +398,6 @@ bool MediaTranslatorsManager::HasConnectedTransport() const
     LOCK_READ_PROTECTED_OBJ(_connectedTransport);
     return nullptr != _connectedTransport.ConstRef();
 }
-
 #endif
 
 bool MediaTranslatorsManager::PlaybackRtpPacket(Producer* producer, RtpPacket* packet)
@@ -497,17 +500,22 @@ MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager
 
 MediaTranslatorsManager::Translator::~Translator()
 {
+    for(auto ssrc : _producer->GetSsrcs(false)) {
+        _manager->_packetsPlayer.RemoveStream(ssrc);
+    }
 #ifdef NO_TRANSLATION_SERVICE
-    LOCK_READ_PROTECTED_OBJ(_consumers);
-    for (auto it = _consumers.ConstRef().begin(); it != _consumers.ConstRef().end(); ++it) {
-        _producer->RemoveSink(it->second.get());
-    }
+    _producer->RemoveSink(&_manager->_packetsPlayer);
+    LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+    _endPoints->clear();
 #else
-    LOCK_READ_PROTECTED_OBJ(_endPoints);
-    for (auto it = _endPoints.ConstRef().begin(); it != _endPoints.ConstRef().end(); ++it) {
+    LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+    for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
         it->second->SetInput(nullptr);
+        it->second->SetOutput(nullptr);
     }
+    _endPoints->clear();
 #endif
+    _endPoints->clear();
 }
 
 bool MediaTranslatorsManager::Translator::AddPacket(RtpPacket* packet)
@@ -522,23 +530,24 @@ bool MediaTranslatorsManager::Translator::AddPacket(RtpPacket* packet)
 void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer)
 {
     if (consumer) {
-        {
-            LOCK_WRITE_PROTECTED_OBJ(_consumers);
-            auto& consumers = _consumers.Ref();
-            const auto it = consumers.find(consumer);
-            if (it == consumers.end()) {
-                const auto packetsCollector = static_cast<RtpPacketsCollector*>(this);
-                auto consumerTranslator = std::make_unique<ConsumerTranslator>(consumer,
-                                                                               packetsCollector,
-                                                                               _producer.get());
+        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+        auto& endPoints = _endPoints.Ref();
+        if (endPoints.end() == endPoints.find(consumer)) {
+            auto endPoint = std::make_shared<TranslatorEndPoint>(_serviceUri,
+                                                                 _serviceUser,
+                                                                 _servicePassword);
 #ifdef NO_TRANSLATION_SERVICE
-                _producer->AddSink(consumerTranslator.get());
-#endif
-                consumers[consumer] = std::move(consumerTranslator);
+            if (_endPoints->empty()) {
+                _producer->AddSink(&_manager->_packetsPlayer);
             }
-#ifndef NO_TRANSLATION_SERVICE
-            UpdateConsumerLanguageAndVoice(consumer);
+#else
+            endPoint->SetInputLanguageId(_producer->GetLanguageId());
+            endPoint->SetOutputLanguageId(consumer->GetLanguageId());
+            endPoint->SetOutputVoiceId(consumer->GetVoiceId());
+            endPoint->SetInput(_producer.get());
+            endPoint->SetOutput(&_manager->_packetsPlayer);
 #endif
+            endPoints[consumer] = std::move(endPoint);
         }
     }
 }
@@ -546,69 +555,67 @@ void MediaTranslatorsManager::Translator::AddConsumer(Consumer* consumer)
 bool MediaTranslatorsManager::Translator::RemoveConsumer(Consumer* consumer)
 {
     if (consumer) {
-        LOCK_WRITE_PROTECTED_OBJ(_consumers);
-        auto& consumers = _consumers.Ref();
-        const auto it = consumers.find(consumer);
-        if (it != consumers.end()) {
+        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+        const auto it = _endPoints->find(consumer);
+        if (it != _endPoints->end()) {
 #ifdef NO_TRANSLATION_SERVICE
-            _producer->RemoveSink(it->second.get());
-#else
-            {
-                LOCK_WRITE_PROTECTED_OBJ(_endPoints);
-                const auto ite = _endPoints.Ref().find(consumer);
-                if (ite != _endPoints.Ref().end()) {
-                    ite->second->SetInput(nullptr);
-                    ite->second->SetOutput(nullptr);
-                    _endPoints.Ref().erase(ite);
-                }
+            if (1UL == _endPoints->size()) {
+                _producer->RemoveSink(&_manager->_packetsPlayer);
             }
+#else
+            it->second->SetInput(nullptr);
+            it->second->SetOutput(nullptr);
 #endif
-            consumers.erase(it);
+            _endPoints->erase(it);
             return true;
         }
     }
     return false;
 }
 
-void MediaTranslatorsManager::Translator::UpdateConsumerLanguageAndVoice(Consumer* consumer)
-{
-    if (consumer) {
-        LOCK_READ_PROTECTED_OBJ(_consumers);
-        const auto it = _consumers.ConstRef().find(consumer);
-        if (it != _consumers.ConstRef().end()) {
-            LOCK_WRITE_PROTECTED_OBJ(_endPoints);
-            auto ite = _endPoints.Ref().find(consumer);
-            if (ite == _endPoints.Ref().end()) {
-                const auto endPoint = std::make_shared<TranslatorEndPoint>(_serviceUri,
-                                                                           _serviceUser,
-                                                                           _servicePassword);
-                endPoint->SetInputLanguageId(_producer->GetLanguageId());
-                endPoint->SetOutputLanguageId(consumer->GetLanguageId());
-                endPoint->SetOutputVoiceId(consumer->GetVoiceId());
-                endPoint->SetInput(_producer.get());
-                endPoint->SetOutput(it->second.get());
-                ite = _endPoints.Ref().insert({consumer, endPoint}).first;
-            }
-            else {
-                ite->second->SetOutputLanguageId(consumer->GetLanguageId());
-                ite->second->SetOutputVoiceId(consumer->GetVoiceId());
-            }
-        }
-    }
-}
-
 void MediaTranslatorsManager::Translator::UpdateProducerLanguage()
 {
+#ifndef NO_TRANSLATION_SERVICE
     LOCK_READ_PROTECTED_OBJ(_endPoints);
     for (auto it = _endPoints.ConstRef().begin(); it != _endPoints.ConstRef().end(); ++it) {
         it->second->SetInputLanguageId(_producer->GetLanguageId());
     }
+#endif
+}
+
+void MediaTranslatorsManager::Translator::UpdateConsumerLanguage(Consumer* consumer)
+{
+#ifndef NO_TRANSLATION_SERVICE
+    if (consumer) {
+        LOCK_READ_PROTECTED_OBJ(_endPoints);
+        const auto it = _endPoints->find(consumer);
+        if (it != _endPoints->end()) {
+            it->second->SetOutputLanguageId(consumer->GetLanguageId());
+        }
+    }
+#endif
+}
+
+void MediaTranslatorsManager::Translator::UpdateConsumerVoice(Consumer* consumer)
+{
+#ifndef NO_TRANSLATION_SERVICE
+    if (consumer) {
+        LOCK_READ_PROTECTED_OBJ(_endPoints);
+        const auto it = _endPoints->find(consumer);
+        if (it != _endPoints->end()) {
+            it->second->SetOutputVoiceId(consumer->GetVoiceId());
+        }
+    }
+#endif
 }
 
 void MediaTranslatorsManager::Translator::AddNewRtpStream(RtpStreamRecv* rtpStream,
                                                           uint32_t mappedSsrc)
 {
-    if (!_producer->AddStream(rtpStream, mappedSsrc)) {
+    if (_producer->AddStream(rtpStream, mappedSsrc)) {
+        _manager->_packetsPlayer.AddStream(rtpStream->GetSsrc(), rtpStream->GetMimeType(), this, _producer.get());
+    }
+    else {
         const auto desc = GetStreamInfoString(mappedSsrc, rtpStream);
         MS_ERROR("failed to register stream [%s] for producer %s", desc.c_str(), _producer->GetId().c_str());
     }
@@ -617,9 +624,13 @@ void MediaTranslatorsManager::Translator::AddNewRtpStream(RtpStreamRecv* rtpStre
 bool MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* packet)
 {
     if (packet && !packet->IsSynthenized() && _producer->AddPacket(packet)) {
-        LOCK_READ_PROTECTED_OBJ(_consumers);
-        for (auto it = _consumers.ConstRef().begin(); it != _consumers.ConstRef().end(); ++it) {
-            if (it->second->HadIncomingMedia()) {
+        LOCK_READ_PROTECTED_OBJ(_endPoints);
+        for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+#ifdef NO_TRANSLATION_SERVICE
+            if (it->second->IsConnected()) {
+#else
+            if (true) { // always
+#endif
                 // drop packet's dispatching if connection with translation service was established
                 packet->AddRejectedConsumer(it->first);
             }

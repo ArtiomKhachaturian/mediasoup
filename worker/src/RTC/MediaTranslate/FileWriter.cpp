@@ -21,7 +21,8 @@ bool FileWriter::Flush()
     return GetHandle() && 0 == ::fflush(GetHandle());
 }
 
-void FileWriter::WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer)
+void FileWriter::WriteMediaPayload(uint32_t /*ssrc*/,
+                                   const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (const auto handle = GetHandle()) {
         if (buffer && !buffer->IsEmpty()) {

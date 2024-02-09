@@ -16,8 +16,9 @@ private:
 };
 
 FileReader::FileReader(const std::string_view& fileNameUtf8,
-                       bool loop, size_t chunkSize, int* error)
+                       uint32_t ssrc, bool loop, size_t chunkSize, int* error)
     : Base(fileNameUtf8, true, error)
+    , _ssrc(ssrc)
     , _loop(loop)
     , _fileSize(GetFileSize(GetHandle()))
     , _chunkSize(std::min<size_t>(_fileSize, std::max(chunkSize, 1024UL)))
@@ -40,22 +41,24 @@ void FileReader::OnSinkWasAdded(MediaSink* sink, bool first)
     if (first && IsOpen() && !_thread.joinable()) {
         _thread = std::thread([this]() {
             if (!IsStopRequested()) {
-                bool operationDone = false;
+                bool operationDone = false, ok = true;
                 for(; (!operationDone || _loop) && !IsStopRequested();) {
-                    if (ReadContent()) {
+                    ok = ReadContent();
+                    if (ok) {
                         operationDone = true;
-                        if (_loop) { // seek to start
-                            if (!FileSeek(GetHandle(), SEEK_SET, 0L)) {
+                        if (_loop) {
+                            ok = SeekToStart();
+                            if (!ok) { // seek to start
                                 MS_WARN_DEV_STD("Failed seek to beginning of file");
-                                break;
                             }
                         }
                     }
-                    else {
+                    if (!ok) {
                         break;
                     }
                 }
             }
+            SeekToStart();
         });
     }
 }
@@ -83,7 +86,7 @@ bool FileReader::ReadContent()
         bool eof = false, ok = true;
         while (!IsStopRequested() && ok && !eof) {
             if (const auto buffer = ReadBuffer(eof, ok)) {
-                WriteMediaSinksPayload(buffer);
+                WriteMediaSinksPayload(GetSsrc(), buffer);
             }
         }
         if (!ok) {
@@ -91,6 +94,11 @@ bool FileReader::ReadContent()
         }
     }
     return !IsStopRequested();
+}
+
+bool FileReader::SeekToStart()
+{
+    return FileSeek(GetHandle(), SEEK_SET, 0L);
 }
 
 std::shared_ptr<MemoryBuffer> FileReader::ReadBuffer(bool& eof, bool& ok) const
@@ -163,12 +171,12 @@ bool FileReader::FileSeek(FILE* handle, int command, long offset)
 FileReader::StartEndNotifier::StartEndNotifier(FileReader* source)
     : _source(source)
 {
-    _source->StartMediaSinksWriting(_source->_ssrc.load());
+    _source->StartMediaSinksWriting(_source->GetSsrc());
 }
 
 FileReader::StartEndNotifier::~StartEndNotifier()
 {
-    _source->EndMediaSinksWriting();
+    _source->EndMediaSinksWriting(_source->GetSsrc());
 }
 
 } // namespace RTC

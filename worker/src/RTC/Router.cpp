@@ -14,7 +14,6 @@
 #include "RTC/PlainTransport.hpp"
 #include "RTC/WebRtcTransport.hpp"
 #include "RTC/MediaTranslate/MediaTranslatorsManager.hpp"
-#include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 
 namespace RTC
 {

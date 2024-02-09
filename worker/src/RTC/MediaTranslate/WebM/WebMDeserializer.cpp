@@ -1,6 +1,6 @@
 #define MS_CLASS "RTC::WebMDeserializer"
 #include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
-#include "RTC/MediaTranslate/WebM/WebMSerializer.hpp"
+#include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
 #include "RTC/MediaTranslate/WebM/MkvBufferedReader.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
@@ -258,7 +258,7 @@ std::unique_ptr<WebMDeserializer::TrackInfo> WebMDeserializer::TrackInfo::
                 std::optional<RtpCodecMimeType::Subtype> subtype;
                 for (auto it = RtpCodecMimeType::subtype2String.begin();
                      it != RtpCodecMimeType::subtype2String.end(); ++it) {
-                    const auto codecId = WebMSerializer::GetCodecId(it->first);
+                    const auto codecId = WebMCodecs::GetCodecId(it->first);
                     if (codecId && 0 == std::strcmp(track->GetCodecId(), codecId)) {
                         subtype = it->first;
                         break;

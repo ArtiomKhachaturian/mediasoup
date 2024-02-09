@@ -47,6 +47,10 @@ public:
     const T& ConstRef() const { return _obj; }
     T& Ref() { return _obj; }
     T Take() { return std::move(_obj); }
+    T Exchange(T obj) {
+        std::swap(_obj, obj);
+        return obj; // old
+    }
     T* operator -> () noexcept { return &_obj; }
     const T* operator -> () const noexcept { return &_obj; }
 

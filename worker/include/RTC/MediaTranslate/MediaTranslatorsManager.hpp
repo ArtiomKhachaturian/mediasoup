@@ -3,6 +3,7 @@
 #include "common.hpp"
 #include "DepLibUV.hpp"
 #include "ProtectedObj.hpp"
+#include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
 #include "RTC/TransportListener.hpp"
 #include "absl/container/flat_hash_map.h"
 #include <string>
@@ -95,6 +96,7 @@ private:
     const std::unique_ptr<UVAsyncHandle> _async;
     ProtectedObj<absl::flat_hash_map<Producer*, PacketsList>> _defferedPackets;
 #endif
+    RtpPacketsPlayer _packetsPlayer;
     // key is audio producer ID
     absl::flat_hash_map<std::string, std::unique_ptr<Translator>> _translators;
     ProtectedObj<Transport*> _connectedTransport = nullptr;

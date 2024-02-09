@@ -1,5 +1,6 @@
 #define MS_CLASS "RTC::MkvBufferedWriter"
 #include "RTC/MediaTranslate/WebM/MkvBufferedWriter.hpp"
+#include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
@@ -65,7 +66,7 @@ MkvBufferedWriter::~MkvBufferedWriter()
         _segment.Finalize();
         WriteMediaPayloadToSink();
         if (_startMediaSinkWriting) {
-            _sink->EndMediaWriting();
+            _sink->EndMediaWriting(_ssrc);
         }
     }
 }
@@ -148,6 +149,11 @@ bool MkvBufferedWriter::SetTrackCodec(uint64_t trackNumber, const char* codec)
     return false;
 }
 
+bool MkvBufferedWriter::SetTrackCodec(uint64_t trackNumber, const RtpCodecMimeType& mime)
+{
+    return SetTrackCodec(trackNumber, WebMCodecs::GetCodecId(mime));
+}
+
 bool MkvBufferedWriter::SetAudioSampleRate(uint64_t trackNumber, uint32_t sampleRate, bool opusCodec)
 {
     if (const auto track = GetAudioTrack(trackNumber)) {
@@ -212,7 +218,7 @@ bool MkvBufferedWriter::SetCodecSpecific(mkvmuxer::Track* track,
 void MkvBufferedWriter::WriteMediaPayloadToSink()
 {
     if (const auto buffer = _buffer.Take()) {
-        _sink->WriteMediaPayload(buffer);
+        _sink->WriteMediaPayload(_ssrc, buffer);
         ReserveBuffer();
     }
 }
