@@ -38,7 +38,7 @@ void SimpleMemoryBuffer::Clear()
     _buffer.clear();
 }
 
-size_t SimpleMemoryBuffer::GetData(size_t offset, size_t len, uint8_t* output) const
+size_t SimpleMemoryBuffer::CopyTo(size_t offset, size_t len, uint8_t* output) const
 {
     if (len && output && offset < _buffer.size()) {
         len = std::min<size_t>(len, _buffer.size() - offset);

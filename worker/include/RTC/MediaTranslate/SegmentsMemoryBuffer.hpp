@@ -10,13 +10,19 @@ class SegmentsMemoryBuffer : public MemoryBuffer
 {
     using BuffersList = std::list<std::shared_ptr<MemoryBuffer>>;
 public:
+    enum AppendResult {
+        Failed = 0, // error
+        Front,      // added to beginning of segments list
+        Back        // added to the end of segments list
+    };
+public:
     // capacity in bytes
     SegmentsMemoryBuffer(size_t capacity = std::numeric_limits<size_t>::max());
-    bool Append(std::vector<uint8_t> data);
-    bool Append(const void* buf, size_t len, const std::allocator<uint8_t>& allocator = {});
-    bool Append(const std::shared_ptr<MemoryBuffer>& buffer);
+    AppendResult Append(std::vector<uint8_t> data);
+    AppendResult Append(const void* buf, size_t len, const std::allocator<uint8_t>& allocator = {});
+    AppendResult Append(const std::shared_ptr<MemoryBuffer>& buffer);
     void Clear();
-    size_t GetData(size_t offset, size_t len, uint8_t* output) const;
+    size_t CopyTo(size_t offset, size_t len, uint8_t* output) const;
     size_t GetCapacity() const { return _capacity; }
     // impl. of MemoryBuffer
     size_t GetSize() const final { return _size; }

@@ -12,18 +12,19 @@ SegmentsMemoryBuffer::SegmentsMemoryBuffer(size_t capacity)
     MS_ASSERT(_capacity, "capacity should be greater than zero");
 }
 
-bool SegmentsMemoryBuffer::Append(std::vector<uint8_t> data)
+SegmentsMemoryBuffer::AppendResult SegmentsMemoryBuffer::Append(std::vector<uint8_t> data)
 {
     return Append(SimpleMemoryBuffer::Create(std::move(data)));
 }
 
-bool SegmentsMemoryBuffer::Append(const void* buf, size_t len, const std::allocator<uint8_t>& allocator)
+SegmentsMemoryBuffer::AppendResult SegmentsMemoryBuffer::Append(const void* buf, size_t len, const std::allocator<uint8_t>& allocator)
 {
     return Append(SimpleMemoryBuffer::Create(buf, len, allocator));
 }
 
-bool SegmentsMemoryBuffer::Append(const std::shared_ptr<MemoryBuffer>& buffer)
+SegmentsMemoryBuffer::AppendResult SegmentsMemoryBuffer::Append(const std::shared_ptr<MemoryBuffer>& buffer)
 {
+    AppendResult result = AppendResult::Failed;
     if (buffer && !buffer->IsEmpty()) {
         MS_ASSERT(buffer.get() != this, "passed buffer is this instance");
         MS_ASSERT(buffer->GetSize() <= _capacity, "buffer is too huge");
@@ -33,15 +34,16 @@ bool SegmentsMemoryBuffer::Append(const std::shared_ptr<MemoryBuffer>& buffer)
                 _buffers.pop_front();
             }
             _buffers.push_front(buffer);
+            result = AppendResult::Front;
         }
         else {
             _buffers.push_back(buffer);
+            result = AppendResult::Back;
         }
         _size += buffer->GetSize();
         _merged = nullptr;
-        return true;
     }
-    return false;
+    return result;
 }
 
 void SegmentsMemoryBuffer::Clear()
@@ -67,10 +69,10 @@ auto SegmentsMemoryBuffer::GetBuffer(size_t& offset) const
     return _buffers.end();
 }
 
-size_t SegmentsMemoryBuffer::GetData(size_t offset, size_t len, uint8_t* output) const
+size_t SegmentsMemoryBuffer::CopyTo(size_t offset, size_t len, uint8_t* output) const
 {
     size_t actual = 0UL;
-    if (output && len && offset + len <= GetSize()) {
+    if (output && len) {
         auto it = GetBuffer(offset);
         if (it != _buffers.end()) {
             for (; it != _buffers.end() && actual < len; ++it) {

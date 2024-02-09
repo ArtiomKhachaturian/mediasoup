@@ -81,7 +81,7 @@ int MkvBufferedReader::Read(long long pos, long len, unsigned char* buf)
 {
     if (len >= 0 && pos >= 0) {
         const auto expected = static_cast<size_t>(len);
-        const auto actual = _buffer.GetData(static_cast<size_t>(pos), expected, buf);
+        const auto actual = _buffer.CopyTo(static_cast<size_t>(pos), expected, buf);
         if (expected == actual) {
             return 0;
         }
