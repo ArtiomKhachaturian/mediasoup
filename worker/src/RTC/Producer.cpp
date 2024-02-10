@@ -835,10 +835,7 @@ namespace RTC
     void Producer::SetLanguageId(const std::string& languageId)
     {
         MS_TRACE();
-        if (this->languageId != languageId) {
-            this->languageId = languageId;
-            this->listener->OnProducerLanguageChanged(this);
-        }
+        this->languageId = languageId;
     }
 
 	RTC::RtpStreamRecv* Producer::GetRtpStream(RTC::RtpPacket* packet)

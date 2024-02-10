@@ -7,60 +7,40 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
+#include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
 #endif
 #ifdef READ_PRODUCER_RECV_FROM_FILE
 #include "RTC/MediaTranslate/FileReader.hpp"
 #endif
+#include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/RtpStream.hpp"
 #include "RTC/Producer.hpp"
+#include "RTC/Consumer.hpp"
 #include "Logger.hpp"
 
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
 namespace {
 
-using namespace RTC;
-
-class SsrcProvider
-{
-public:
-    virtual uint32_t GetMappedSsrc() const = 0;
-    virtual uint32_t GetOriginalSsrc() const = 0;
-protected:
-    virtual ~SsrcProvider() = default;
-};
-
-class MediaSinkWrapper : public MediaSink
-{
-public:
-    MediaSinkWrapper(MediaSink* impl, const SsrcProvider* ssrcProvider);
-    void StartMediaWriting(uint32_t ssrc) final;
-    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer) final;
-    void EndMediaWriting(uint32_t ssrc) final;
-private:
-    uint32_t GetOriginalSsrc(uint32_t ssrc) const;
-private:
-    MediaSink* const _impl;
-    const SsrcProvider* const _ssrcProvider;
-};
+std::atomic<uint64_t> g_InstancesCounter = 0ULL;
 
 }
+#endif
 
 namespace RTC
 {
 
-class ProducerTranslator::StreamInfo : public RtpPacketsCollector,
-                                       public SsrcProvider
+class ProducerTranslator::StreamInfo : public RtpPacketsCollector
 {
 public:
-    StreamInfo(uint32_t clockRate, uint32_t originalSsrc, uint8_t payloadType,
-               const std::string& producerId,
+    StreamInfo(uint32_t clockRate, uint8_t payloadType, const std::string& producerId,
                std::unique_ptr<MediaFrameSerializer> serializer,
                std::unique_ptr<RtpDepacketizer> depacketizer);
     ~StreamInfo() final;
     static std::shared_ptr<StreamInfo> Create(const RtpCodecMimeType& mime,
                                               uint32_t clockRate,
-                                              uint32_t mappedSsrc,
                                               uint32_t originalSsrc,
                                               uint8_t payloadType,
                                               const std::string& producerId);
@@ -71,17 +51,13 @@ public:
     uint16_t GetLastOriginalRtpSeqNumber() const { return _lastOriginalRtpSeqNumber.load(); }
     void SetLastOriginalRtpSeqNumber(uint16_t seqNumber);
     const RtpCodecMimeType& GetMime() const { return _depacketizer->GetMimeType(); }
-    // impl. of MediaSource
+    uint32_t GetOriginalSsrc() const { return _serializer->GetSsrc(); }
     void AddSink(MediaSink* sink);
     void RemoveSink(MediaSink* sink);
     void RemoveAllSinks();
     // impl. of RtpPacketsCollector
     bool AddPacket(RtpPacket* packet) final;
-    // impl. of SsrcProvider
-    uint32_t GetMappedSsrc() const final { return _serializer->GetSsrc(); }
-    uint32_t GetOriginalSsrc() const final { return _originalSsrc; }
 private:
-    MediaSource* GetMediaSource() const;
 #ifdef READ_PRODUCER_RECV_FROM_FILE
     static std::unique_ptr<FileReader> CreateFileReader(uint32_t ssrc);
 #endif
@@ -97,7 +73,6 @@ private:
     //static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/producer_test.webm";
     static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_stereo_example.webm";
 #endif
-    const uint32_t _originalSsrc;
     const uint8_t _payloadType = 0U;
     const std::unique_ptr<MediaFrameSerializer> _serializer;
     const std::unique_ptr<RtpDepacketizer> _depacketizer;
@@ -105,31 +80,68 @@ private:
     const std::unique_ptr<FileReader> _fileReader;
 #endif
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-    const std::unique_ptr<FileWriter> _fileWriter;
+    std::unique_ptr<FileWriter> _fileWriter;
 #endif
     std::atomic<uint32_t> _lastOriginalRtpTimestamp = 0U;
     std::atomic<uint16_t> _lastOriginalRtpSeqNumber = 0U;
-    ProtectedObj<absl::flat_hash_map<MediaSink*, std::unique_ptr<MediaSinkWrapper>>> _sinkWrappers;
 };
 
-ProducerTranslator::ProducerTranslator(Producer* producer)
+ProducerTranslator::ProducerTranslator(const Producer* producer,
+                                       RtpPacketsPlayer* translationsOutput,
+                                       const std::string& serviceUri,
+                                       const std::string& serviceUser,
+                                       const std::string& servicePassword)
     : _producer(producer)
+    , _translationsOutput(translationsOutput)
+    , _serviceUri(serviceUri)
+    , _serviceUser(serviceUser)
+    , _servicePassword(servicePassword)
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+    , _instanceIndex(g_InstancesCounter.fetch_add(1U))
+#endif
 {
-    MS_ASSERT(_producer, "producer must not be null");
 }
 
 ProducerTranslator::~ProducerTranslator()
 {
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+#ifdef NO_TRANSLATION_SERVICE
+        if (!_endPoints->empty()) {
+            RemoveSink(_translationsOutput);
+        }
+#else
+        for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+            it->second->SetInput(nullptr);
+            it->second->SetOutput(nullptr);
+        }
+#endif
+        _endPoints->clear();
+    }
     for (const auto mappedSsrc : GetSsrcs(true)) {
         RemoveStream(mappedSsrc);
     }
     RemoveAllSinks();
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+    g_InstancesCounter.fetch_sub(1U);
+#endif
 }
 
-std::unique_ptr<ProducerTranslator> ProducerTranslator::Create(Producer* producer)
+std::unique_ptr<ProducerTranslator> ProducerTranslator::Create(const Producer* producer,
+                                                               RtpPacketsPlayer* translationsOutput,
+                                                               const std::string& serviceUri,
+                                                               const std::string& serviceUser,
+                                                               const std::string& servicePassword)
 {
-    if (producer && Media::Kind::AUDIO == producer->GetKind()) {
-        return std::unique_ptr<ProducerTranslator>(new ProducerTranslator(producer));
+    if (producer && translationsOutput && Media::Kind::AUDIO == producer->GetKind()) {
+        auto translator = new ProducerTranslator(producer, translationsOutput,
+                                                 serviceUri, serviceUser, servicePassword);
+        // add streams
+        const auto& streams = producer->GetRtpStreams();
+        for (auto it = streams.begin(); it != streams.end(); ++it) {
+            translator->AddStream(it->second, it->first);
+        }
+        return std::unique_ptr<ProducerTranslator>(translator);
     }
     return nullptr;
 }
@@ -149,14 +161,11 @@ bool ProducerTranslator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
             LOCK_WRITE_PROTECTED_OBJ(_mappedSsrcToStreams);
             const auto it = _mappedSsrcToStreams->find(mappedSsrc);
             if (it == _mappedSsrcToStreams->end()) {
-                auto streamInfo = StreamInfo::Create(mime,
-                                                     clockRate,
-                                                     mappedSsrc,
-                                                     originalSsrc,
-                                                     payloadType,
-                                                     GetId());
+                auto streamInfo = StreamInfo::Create(mime, clockRate, originalSsrc,
+                                                     payloadType, _producer->id);
                 if (streamInfo) {
                     AddSinksToStream(streamInfo);
+                    _translationsOutput->AddStream(originalSsrc, mime, this);
                     _originalSsrcToStreams[originalSsrc] = streamInfo;
                     _mappedSsrcToStreams->insert({mappedSsrc, std::move(streamInfo)});
                     ok = true;
@@ -184,12 +193,33 @@ bool ProducerTranslator::RemoveStream(uint32_t mappedSsrc)
         LOCK_WRITE_PROTECTED_OBJ(_mappedSsrcToStreams);
         const auto it = _mappedSsrcToStreams->find(mappedSsrc);
         if (it != _mappedSsrcToStreams->end()) {
+            _translationsOutput->RemoveStream(it->second->GetOriginalSsrc());
             _originalSsrcToStreams.erase(it->second->GetOriginalSsrc());
             _mappedSsrcToStreams->erase(it);
             return true;
         }
     }
     return false;
+}
+
+bool ProducerTranslator::DispatchIncomingRtpPacket(RtpPacket* packet)
+{
+    if (packet && !_producer->IsPaused()) {
+        if (const auto stream = GetStream(packet->GetSsrc())) {
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+            if (_instanceIndex) {
+                return true;
+            }
+#endif
+            return stream->AddPacket(packet);
+        }
+    }
+    return false;
+}
+
+const std::string& ProducerTranslator::GetId() const
+{
+    return _producer->id;
 }
 
 std::list<uint32_t> ProducerTranslator::GetSsrcs(bool mapped) const
@@ -202,56 +232,122 @@ std::list<uint32_t> ProducerTranslator::GetSsrcs(bool mapped) const
     return ssrcs;
 }
 
-uint8_t ProducerTranslator::GetPayloadType(uint32_t ssrc) const
+void ProducerTranslator::AddConsumer(Consumer* consumer)
 {
-    if (const auto stream = GetStream(ssrc)) {
-        return stream->GetPayloadType();
-    }
-    return 0U;
-}
-
-uint16_t ProducerTranslator::GetLastOriginalRtpSeqNumber(uint32_t ssrc) const
-{
-    if (const auto stream = GetStream(ssrc)) {
-        return stream->GetLastOriginalRtpSeqNumber();
-    }
-    return 0U;
-}
-
-uint32_t ProducerTranslator::GetLastOriginalRtpTimestamp(uint32_t ssrc) const
-{
-    if (const auto stream = GetStream(ssrc)) {
-        return stream->GetLastOriginalRtpTimestamp();
-    }
-    return 0U;
-}
-
-uint32_t ProducerTranslator::GetClockRate(uint32_t ssrc) const
-{
-    if (const auto stream = GetStream(ssrc)) {
-        return stream->GetClockRate();
-    }
-    return 0U;
-}
-
-const std::string& ProducerTranslator::GetId() const
-{
-    return _producer->id;
-}
-
-bool ProducerTranslator::AddPacket(RtpPacket* packet)
-{
-    if (packet && !_producer->IsPaused()) {
-        if (const auto stream = GetStream(packet->GetSsrc())) {
-            return stream->AddPacket(packet);
+    if (consumer) {
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+        if (_instanceIndex) {
+            return;
+        }
+#endif
+        MS_ASSERT(consumer->producerId == GetId(), "wrong producer ID");
+        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+        if (!_endPoints->count(consumer)) {
+            auto endPoint = std::make_unique<TranslatorEndPoint>(_serviceUri,
+                                                                 _serviceUser,
+                                                                 _servicePassword);
+#ifdef NO_TRANSLATION_SERVICE
+            if (_endPoints->empty()) {
+                AddSink(_translationsOutput);
+            }
+#else
+            endPoint->SetInput(this);
+            endPoint->SetOutput(_translationsOutput);
+            endPoint->SetInputLanguageId(_producer->GetLanguageId());
+            endPoint->SetOutputLanguageId(consumer->GetLanguageId());
+            endPoint->SetOutputVoiceId(consumer->GetVoiceId());
+#endif
+            _endPoints->insert({consumer, std::move(endPoint)});
         }
     }
-    return false;
 }
 
-const std::string& ProducerTranslator::GetLanguageId() const
+void ProducerTranslator::RemoveConsumer(Consumer* consumer)
 {
-    return _producer->GetLanguageId();
+    if (consumer) {
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+        if (_instanceIndex) {
+            return;
+        }
+#endif
+        MS_ASSERT(consumer->producerId == GetId(), "wrong producer ID");
+        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+        const auto it = _endPoints->find(consumer);
+        if (it != _endPoints->end()) {
+#ifdef NO_TRANSLATION_SERVICE
+            if (1UL == _endPoints->size()) {
+                RemoveSink(_translationsOutput);
+            }
+#else
+            it->second->SetInput(nullptr);
+            it->second->SetOutput(nullptr);
+#endif
+            _endPoints->erase(it);
+        }
+    }
+}
+
+void ProducerTranslator::UpdateProducerLanguage()
+{
+#ifndef NO_TRANSLATION_SERVICE
+    LOCK_READ_PROTECTED_OBJ(_endPoints);
+    for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+        it->second->SetInputLanguageId(_producer->GetLanguageId());
+    }
+#endif
+}
+
+void ProducerTranslator::UpdateConsumerLanguage(Consumer* consumer)
+{
+    if (consumer) {
+#ifndef NO_TRANSLATION_SERVICE
+        LOCK_READ_PROTECTED_OBJ(_endPoints);
+        const auto it = _endPoints->find(consumer);
+        if (it != _endPoints->end()) {
+            it->second->SetOutputLanguageId(consumer->GetLanguageId());
+        }
+#endif
+    }
+}
+
+void ProducerTranslator::UpdateConsumerVoice(Consumer* consumer)
+{
+    if (consumer) {
+#ifndef NO_TRANSLATION_SERVICE
+        LOCK_READ_PROTECTED_OBJ(_endPoints);
+        const auto it = _endPoints->find(consumer);
+        if (it != _endPoints->end()) {
+            it->second->SetOutputVoiceId(consumer->GetVoiceId());
+        }
+#endif
+    }
+}
+
+std::shared_ptr<ProducerTranslator::StreamInfo> ProducerTranslator::GetStream(uint32_t ssrc) const
+{
+    if (ssrc) {
+        LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
+        const auto itm = _mappedSsrcToStreams->find(ssrc);
+        if (itm != _mappedSsrcToStreams->end()) {
+            return itm->second;
+        }
+        const auto ito = _originalSsrcToStreams.find(ssrc);
+        if (ito != _originalSsrcToStreams.end()) {
+            MS_ASSERT(!ito->second.expired(), "something went wrong with streams management");
+            return ito->second.lock();
+        }
+    }
+    return nullptr;
+}
+
+void ProducerTranslator::AddSinksToStream(const std::shared_ptr<StreamInfo>& stream) const
+{
+    if (stream) {
+        LOCK_READ_PROTECTED_OBJ(_sinks);
+        for (const auto sink : _sinks.ConstRef()) {
+            stream->AddSink(sink);
+        }
+    }
 }
 
 bool ProducerTranslator::AddSink(MediaSink* sink)
@@ -312,39 +408,44 @@ size_t ProducerTranslator::GetSinksCout() const
     return _sinks.ConstRef().size();
 }
 
-void ProducerTranslator::AddSinksToStream(const std::shared_ptr<StreamInfo>& stream) const
+uint8_t ProducerTranslator::GetPayloadType(uint32_t ssrc) const
 {
-    if (stream) {
-        LOCK_READ_PROTECTED_OBJ(_sinks);
-        for (const auto sink : _sinks.ConstRef()) {
-            stream->AddSink(sink);
-        }
+    if (const auto stream = GetStream(ssrc)) {
+        return stream->GetPayloadType();
     }
+    return 0U;
 }
 
-std::shared_ptr<ProducerTranslator::StreamInfo> ProducerTranslator::GetStream(uint32_t ssrc) const
+uint16_t ProducerTranslator::GetLastOriginalRtpSeqNumber(uint32_t ssrc) const
 {
-    if (ssrc) {
-        LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
-        const auto itm = _mappedSsrcToStreams->find(ssrc);
-        if (itm != _mappedSsrcToStreams->end()) {
-            return itm->second;
-        }
-        const auto ito = _originalSsrcToStreams.find(ssrc);
-        if (ito != _originalSsrcToStreams.end()) {
-            MS_ASSERT(!ito->second.expired(), "something went wrong with streams management");
-            return ito->second.lock();
-        }
+    if (const auto stream = GetStream(ssrc)) {
+        return stream->GetLastOriginalRtpSeqNumber();
     }
-    return nullptr;
+    return 0U;
 }
 
-ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint32_t originalSsrc,
-                                           uint8_t payloadType, const std::string& producerId,
+uint32_t ProducerTranslator::GetLastOriginalRtpTimestamp(uint32_t ssrc) const
+{
+    if (const auto stream = GetStream(ssrc)) {
+        return stream->GetLastOriginalRtpTimestamp();
+    }
+    return 0U;
+}
+
+uint32_t ProducerTranslator::GetClockRate(uint32_t ssrc) const
+{
+    if (const auto stream = GetStream(ssrc)) {
+        return stream->GetClockRate();
+    }
+    return 0U;
+}
+
+
+ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint8_t payloadType,
+                                           const std::string& producerId,
                                            std::unique_ptr<MediaFrameSerializer> serializer,
                                            std::unique_ptr<RtpDepacketizer> depacketizer)
-    : _originalSsrc(originalSsrc)
-    , _payloadType(payloadType)
+    : _payloadType(payloadType)
     , _serializer(std::move(serializer))
     , _depacketizer(std::move(depacketizer))
 #ifdef READ_PRODUCER_RECV_FROM_FILE
@@ -355,10 +456,10 @@ ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint32_t original
 #endif
 {
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-    if (_fileWriter) {
-        if (const auto source = GetMediaSource()) {
-            source->AddSink(_fileWriter.get());
-        }
+    if (_fileWriter && !_serializer->AddTestSink(_fileWriter.get())) {
+        // TODO: log error
+        _fileWriter->DeleteFromStorage();
+        _fileWriter.reset();
     }
 #endif
 }
@@ -366,21 +467,24 @@ ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint32_t original
 ProducerTranslator::StreamInfo::~StreamInfo()
 {
     RemoveAllSinks();
+#ifdef WRITE_PRODUCER_RECV_TO_FILE
+    if (_fileWriter) {
+        _serializer->RemoveTestSink();
+    }
+#endif
 }
 
 std::shared_ptr<ProducerTranslator::StreamInfo> ProducerTranslator::StreamInfo::Create(const RtpCodecMimeType& mime,
                                                                                        uint32_t clockRate,
-                                                                                       uint32_t mappedSsrc,
                                                                                        uint32_t originalSsrc,
                                                                                        uint8_t payloadType,
                                                                                        const std::string& producerId)
 {
     if (WebMCodecs::IsSupported(mime)) {
         if (auto depacketizer = RtpDepacketizer::create(mime, clockRate)) {
-            auto serializer = std::make_unique<WebMSerializer>(mappedSsrc, clockRate, mime);
-            return std::make_shared<StreamInfo>(clockRate, originalSsrc, payloadType,
-                                                producerId, std::move(serializer),
-                                                std::move(depacketizer));
+            auto serializer = std::make_unique<WebMSerializer>(originalSsrc, clockRate, mime);
+            return std::make_shared<StreamInfo>(clockRate, payloadType, producerId,
+                                                std::move(serializer), std::move(depacketizer));
         }
     }
     return nullptr;
@@ -399,49 +503,38 @@ void ProducerTranslator::StreamInfo::SetLastOriginalRtpSeqNumber(uint16_t seqNum
 void ProducerTranslator::StreamInfo::AddSink(MediaSink* sink)
 {
     if (sink) {
-        if (const auto source = GetMediaSource()) {
-            LOCK_WRITE_PROTECTED_OBJ(_sinkWrappers);
-            auto& sinkWrappers = _sinkWrappers.Ref();
-            if (sinkWrappers.end() == sinkWrappers.find(sink)) {
-                auto sinkWrapper = std::make_unique<MediaSinkWrapper>(sink, this);
-                if (source->AddSink(sinkWrapper.get())) {
-                    sinkWrappers[sink] = std::move(sinkWrapper);
-
-                }
-            }
+        MediaSource* source = _serializer.get();
+#ifdef READ_PRODUCER_RECV_FROM_FILE
+        if (_fileReader) {
+            source = _fileReader.get();
         }
+#endif
+        source->AddSink(sink);
     }
 }
 
 void ProducerTranslator::StreamInfo::RemoveSink(MediaSink* sink)
 {
     if (sink) {
-        if (const auto source = GetMediaSource()) {
-            LOCK_WRITE_PROTECTED_OBJ(_sinkWrappers);
-            auto& sinkWrappers = _sinkWrappers.Ref();
-            const auto it = sinkWrappers.find(sink);
-            if (it != sinkWrappers.end() && source->RemoveSink(it->second.get())) {
-                sinkWrappers.erase(it);
-            }
+        MediaSource* source = _serializer.get();
+#ifdef READ_PRODUCER_RECV_FROM_FILE
+        if (_fileReader) {
+            source = _fileReader.get();
         }
+#endif
+        source->RemoveSink(sink);
     }
 }
 
 void ProducerTranslator::StreamInfo::RemoveAllSinks()
 {
-    if (const auto source = GetMediaSource()) {
-        LOCK_WRITE_PROTECTED_OBJ(_sinkWrappers);
-        auto& sinkWrappers = _sinkWrappers.Ref();
-        for (auto it = sinkWrappers.begin(); it != sinkWrappers.end(); ++it) {
-            source->RemoveSink(it->second.get());
-        }
-        sinkWrappers.clear();
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-        if (_fileWriter) {
-            source->RemoveSink(_fileWriter.get());
-        }
-#endif
+    MediaSource* source = _serializer.get();
+#ifdef READ_PRODUCER_RECV_FROM_FILE
+    if (_fileReader) {
+        source = _fileReader.get();
     }
+#endif
+    source->RemoveAllSinks();
 }
 
 bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
@@ -450,33 +543,20 @@ bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
     if (packet) {
         SetLastOriginalRtpTimestamp(packet->GetTimestamp());
         SetLastOriginalRtpSeqNumber(packet->GetSequenceNumber());
-        if (!packet->IsSynthenized()) {
 #ifdef READ_PRODUCER_RECV_FROM_FILE
-            if (_fileReader) {
-                return true;
-            }
+        if (_fileReader) {
+            return true;
+        }
 #endif
-            if (const auto frame = _depacketizer->AddPacket(packet)) {
-                handled = _serializer->Push(frame);
-            }
-            else if (GetMime().IsAudioCodec() && _serializer->HasSinks()) {
-                // maybe empty packet if silence
-                handled = nullptr == packet->GetPayload() || 0U == packet->GetPayloadLength();
-            }
+        if (const auto frame = _depacketizer->AddPacket(packet)) {
+            handled = _serializer->Push(frame);
+        }
+        else if (GetMime().IsAudioCodec() && _serializer->HasSinks()) {
+            // maybe empty packet if silence
+            handled = nullptr == packet->GetPayload() || 0U == packet->GetPayloadLength();
         }
     }
     return handled;
-}
-
-MediaSource* ProducerTranslator::StreamInfo::GetMediaSource() const
-{
-    MediaSource* source = _serializer.get();
-#ifdef READ_PRODUCER_RECV_FROM_FILE
-    if (_fileReader) {
-        source = _fileReader.get();
-    }
-#endif
-    return source;
 }
 
 #ifdef READ_PRODUCER_RECV_FROM_FILE
@@ -524,40 +604,3 @@ std::unique_ptr<FileWriter> ProducerTranslator::StreamInfo::CreateFileWriter(uin
 #endif
 
 } // namespace RTC
-
-namespace {
-
-MediaSinkWrapper::MediaSinkWrapper(MediaSink* impl, const SsrcProvider* ssrcProvider)
-    : _impl(impl)
-    , _ssrcProvider(ssrcProvider)
-{
-}
-
-void MediaSinkWrapper::StartMediaWriting(uint32_t ssrc)
-{
-    MediaSink::StartMediaWriting(ssrc);
-    _impl->StartMediaWriting(GetOriginalSsrc(ssrc));
-}
-
-void MediaSinkWrapper::WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer)
-{
-    if (buffer) {
-        _impl->WriteMediaPayload(GetOriginalSsrc(ssrc), buffer);
-    }
-}
-
-void MediaSinkWrapper::EndMediaWriting(uint32_t ssrc)
-{
-    MediaSink::EndMediaWriting(ssrc);
-    _impl->EndMediaWriting(GetOriginalSsrc(ssrc));
-}
-
-uint32_t MediaSinkWrapper::GetOriginalSsrc(uint32_t ssrc) const
-{
-    if (ssrc == _ssrcProvider->GetMappedSsrc()) {
-        ssrc = _ssrcProvider->GetOriginalSsrc();
-    }
-    return ssrc;
-}
-
-}

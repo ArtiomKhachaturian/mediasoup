@@ -12,6 +12,7 @@ public:
     ~FileWriter() final;
     static bool WriteAll(const std::string_view& fileNameUtf8, const std::vector<uint8_t>& buffer);
     static bool WriteAll(const std::string_view& fileNameUtf8, const std::shared_ptr<MemoryBuffer>& buffer);
+    bool DeleteFromStorage();
     // Write any buffered data to the underlying file. Returns true on success,
     // false on write error. Note: Flushing when closing, is not required.
     bool Flush();

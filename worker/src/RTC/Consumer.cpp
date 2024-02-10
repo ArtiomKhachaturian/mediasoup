@@ -441,19 +441,13 @@ namespace RTC
     void Consumer::SetLanguageId(const std::string& languageId)
     {
         MS_TRACE();
-        if (this->languageId != languageId) {
-            this->languageId = languageId;
-            this->listener->OnConsumerLanguageChanged(this);
-        }
+        this->languageId = languageId;
     }
 
     void Consumer::SetVoiceId(const std::string& voiceId)
     {
         MS_TRACE();
-        if (this->voiceId != voiceId) {
-            this->voiceId = voiceId;
-            this->listener->OnConsumerVoiceChanged(this);
-        }
+        this->voiceId = voiceId;
     }
 
 	void Consumer::ProducerRtpStreamScores(const std::vector<uint8_t>* scores)

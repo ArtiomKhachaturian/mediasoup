@@ -19,7 +19,7 @@
 namespace RTC
 {
 
-class MediaTranslatorsManager::Translator : private RtpPacketsCollector
+/*class MediaTranslatorsManager::Translator : private RtpPacketsCollector
 {
     using TranslationEndPointsMap = absl::flat_hash_map<Consumer*, std::shared_ptr<TranslatorEndPoint>>;
 public:
@@ -48,7 +48,7 @@ private:
     // key is consumer instance, simple model - each consumer has own channer for translation
     // TODO: revise this logic for better resources consumption if more than 1 consumers has the same language and voice
     ProtectedObj<TranslationEndPointsMap> _endPoints;
-};
+};*/
 
 
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
@@ -76,6 +76,7 @@ MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
     , _serviceUri(serviceUri)
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
+    , _packetsPlayer(nullptr)
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     , _async(UVAsyncHandle::Create(PlaybackDefferedRtpPackets, this))
 #endif
@@ -117,7 +118,7 @@ void MediaTranslatorsManager::OnTransportDisconnected(Transport* transport)
 void MediaTranslatorsManager::OnTransportNewProducer(Transport* transport, Producer* producer)
 {
     _router->OnTransportNewProducer(transport, producer);
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+/*#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
     if (!_translators.empty()) {
         return;
     }
@@ -144,26 +145,27 @@ void MediaTranslatorsManager::OnTransportNewProducer(Transport* transport, Produ
 #endif
             }
         }
-    }
+    }*/
 }
 
 void MediaTranslatorsManager::OnTransportProducerLanguageChanged(Transport* transport,
                                                                  Producer* producer)
 {
     _router->OnTransportProducerLanguageChanged(transport, producer);
-#ifndef NO_TRANSLATION_SERVICE
+/*#ifndef NO_TRANSLATION_SERVICE
     if (producer) {
         const auto it = _translators.find(producer->id);
         if (it != _translators.end()) {
             it->second->UpdateProducerLanguage();
         }
     }
-#endif
+#endif*/
 }
 
 void MediaTranslatorsManager::OnTransportProducerClosed(Transport* transport, Producer* producer)
 {
-#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
+    _router->OnTransportProducerClosed(transport, producer);
+/*#ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     LOCK_WRITE_PROTECTED_OBJ(_defferedPackets);
     const auto itd = _defferedPackets.Ref().find(producer);
     if (itd != _defferedPackets.Ref().end()) {
@@ -171,13 +173,12 @@ void MediaTranslatorsManager::OnTransportProducerClosed(Transport* transport, Pr
         _defferedPackets.Ref().erase(itd);
     }
 #endif
-    _router->OnTransportProducerClosed(transport, producer);
     if (producer) {
         const auto it = _translators.find(producer->id);
         if (it != _translators.end()) {
             _translators.erase(it);
         }
-    }
+    }*/
 }
 
 void MediaTranslatorsManager::OnTransportProducerPaused(Transport* transport, Producer* producer)
@@ -197,12 +198,12 @@ void MediaTranslatorsManager::OnTransportProducerNewRtpStream(Transport* transpo
                                                               uint32_t mappedSsrc)
 {
     _router->OnTransportProducerNewRtpStream(transport, producer, rtpStream, mappedSsrc);
-    if (producer && rtpStream) {
+    /*if (producer && rtpStream) {
         const auto it = _translators.find(producer->id);
         if (it != _translators.end()) {
             it->second->AddNewRtpStream(rtpStream, mappedSsrc);
         }
-    }
+    }*/
 }
 
 void MediaTranslatorsManager::OnTransportProducerRtpStreamScore(Transport* transport,
@@ -226,7 +227,7 @@ void MediaTranslatorsManager::OnTransportProducerRtpPacketReceived(Transport* tr
                                                                    RtpPacket* packet)
 {
     bool dispatched = false;
-    if (producer && packet && !packet->IsSynthenized()) {
+    /*if (producer && packet && !packet->IsSynthenized()) {
         const auto it = _translators.find(producer->id);
         if (it != _translators.end()) {
             dispatched = it->second->DispatchProducerPacket(packet);
@@ -234,7 +235,7 @@ void MediaTranslatorsManager::OnTransportProducerRtpPacketReceived(Transport* tr
         else {
             dispatched = true; // drop packet if producer is not registered
         }
-    }
+    }*/
     if (!dispatched) {
         _router->OnTransportProducerRtpPacketReceived(transport, producer, packet);
     }
@@ -253,43 +254,43 @@ void MediaTranslatorsManager::OnTransportNewConsumer(Transport* transport, Consu
                                                      const std::string& producerId)
 {
     _router->OnTransportNewConsumer(transport, consumer, producerId);
-    if (consumer) {
+    /*if (consumer) {
         const auto it = _translators.find(producerId);
         if (it != _translators.end()) {
             it->second->AddConsumer(consumer);
         }
-    }
+    }*/
 }
 
 void MediaTranslatorsManager::OnTransportConsumerLanguageChanged(Transport* transport,
                                                                  Consumer* consumer)
 {
     _router->OnTransportConsumerLanguageChanged(transport, consumer);
-#ifndef NO_TRANSLATION_SERVICE
+/*#ifndef NO_TRANSLATION_SERVICE
     for (auto it = _translators.begin(); it != _translators.end(); ++it) {
         it->second->UpdateConsumerLanguage(consumer);
     }
-#endif
+#endif*/
 }
 
 void MediaTranslatorsManager::OnTransportConsumerVoiceChanged(Transport* transport,
                                                               Consumer* consumer)
 {
     _router->OnTransportConsumerVoiceChanged(transport, consumer);
-#ifndef NO_TRANSLATION_SERVICE
+/*#ifndef NO_TRANSLATION_SERVICE
     for (auto it = _translators.begin(); it != _translators.end(); ++it) {
         it->second->UpdateConsumerVoice(consumer);
     }
-#endif
+#endif*/
 }
 
 void MediaTranslatorsManager::OnTransportConsumerClosed(Transport* transport,
                                                         Consumer* consumer)
 {
     _router->OnTransportConsumerClosed(transport, consumer);
-    for (auto it = _translators.begin(); it != _translators.end(); ++it) {
+    /*for (auto it = _translators.begin(); it != _translators.end(); ++it) {
         it->second->RemoveConsumer(consumer);
-    }
+    }*/
 }
 
 void MediaTranslatorsManager::OnTransportConsumerProducerClosed(Transport* transport,
@@ -405,9 +406,9 @@ bool MediaTranslatorsManager::PlaybackRtpPacket(Producer* producer, RtpPacket* p
     if (packet && producer) {
         LOCK_READ_PROTECTED_OBJ(_connectedTransport);
         if (const auto transport = _connectedTransport.ConstRef()) {
-            if (transport->ReceiveRtpPacket(packet, producer)) {
+            /*if (transport->ReceiveRtpPacket(packet, producer)) {
                 ++_sendPackets;
-            }
+            }*/
             return true;
         }
     }
@@ -484,7 +485,7 @@ void MediaTranslatorsManager::UVAsyncHandle::OnClosed(uv_handle_t* handle)
 }
 #endif
 
-MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager,
+/*MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager,
                                                 std::unique_ptr<ProducerTranslator> producer,
                                                 const std::string& serviceUri,
                                                 const std::string& serviceUser,
@@ -623,7 +624,7 @@ void MediaTranslatorsManager::Translator::AddNewRtpStream(RtpStreamRecv* rtpStre
 
 bool MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* packet)
 {
-    if (packet && !packet->IsSynthenized() && _producer->AddPacket(packet)) {
+    /if (packet && !packet->IsSynthenized() && _producer->AddPacket(packet)) {
         LOCK_READ_PROTECTED_OBJ(_endPoints);
         for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
 #ifdef NO_TRANSLATION_SERVICE
@@ -638,6 +639,6 @@ bool MediaTranslatorsManager::Translator::DispatchProducerPacket(RtpPacket* pack
         return true;
     }
     return false;
-}
+}*/
 
 } // namespace RTC

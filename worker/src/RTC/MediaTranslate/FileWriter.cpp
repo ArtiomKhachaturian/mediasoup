@@ -2,6 +2,13 @@
 #include "RTC/MediaTranslate/FileWriter.hpp"
 #include "MemoryBuffer.hpp"
 #include "Logger.hpp"
+#include <stdio.h>
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <sys/syslimits.h>
+#include <fcntl.h>
+#endif
 
 namespace {
 
@@ -50,6 +57,27 @@ bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const std::share
         }
     }
     return written;
+}
+
+bool FileWriter::DeleteFromStorage()
+{
+    bool ok = false;
+    if (const auto handle = GetHandle()) {
+        char filePath[PATH_MAX] = {0};
+#ifdef _WIN32
+        const auto fileHandle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(handle)));
+        if (INVALID_HANDLE_VALUE != fileHandle) {
+            // TODO: get file name from WinAPI handle
+        }
+#else
+        ok = -1 != fcntl(fileno(handle), F_GETPATH, filePath);
+#endif
+        if (ok) {
+            Close();
+            ok = 0 == ::remove(filePath);
+        }
+    }
+    return ok;
 }
 
 bool FileWriter::Flush()

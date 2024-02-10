@@ -19,7 +19,7 @@ namespace RTC
 
 class MediaTranslatorsManager : public TransportListener
 {
-    class Translator;
+    //class Translator;
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     using PacketsList = std::list<RtpPacket*>;
     class UVAsyncHandle;
@@ -98,7 +98,7 @@ private:
 #endif
     RtpPacketsPlayer _packetsPlayer;
     // key is audio producer ID
-    absl::flat_hash_map<std::string, std::unique_ptr<Translator>> _translators;
+    //absl::flat_hash_map<std::string, std::unique_ptr<Translator>> _translators;
     ProtectedObj<Transport*> _connectedTransport = nullptr;
     uint64_t _sendPackets = 0ULL;
 };

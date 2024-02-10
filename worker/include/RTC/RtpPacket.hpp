@@ -153,7 +153,6 @@ namespace RTC
         void AddRejectedConsumer(Consumer* consumer);
         void RemoveRejectedConsumer(Consumer* consumer);
         bool ConsumerIsRejected(Consumer* consumer) const;
-        bool IsSynthenized() const { return this->synthenized; }
         
 		void Dump() const;
 		flatbuffers::Offset<FBS::RtpPacket::Dump> FillBuffer(flatbuffers::FlatBufferBuilder& builder) const;
@@ -658,8 +657,6 @@ namespace RTC
 	public:
 		RtcLogger::RtpPacket logger;
 #endif
-    protected:
-        void SetSynthenized(bool synthenized) { this->synthenized = synthenized; }
 
 	private:
 		void ParseExtensions();
@@ -693,7 +690,6 @@ namespace RTC
 		// parsed from externally provided buffer.
 		uint8_t* buffer{ nullptr };
         absl::flat_hash_set<Consumer*> rejectedConsumers;
-        bool synthenized = false;
 	};
 } // namespace RTC
 

@@ -13,7 +13,6 @@ RtpMemoryBufferPacket::RtpMemoryBufferPacket(std::unique_ptr<uint8_t[]> headerBu
     , _headerBuffer(std::move(headerBuffer))
     , _payload(payload)
 {
-    SetSynthenized(true);
     const auto header = reinterpret_cast<Header*>(const_cast<uint8_t*>(_headerBuffer.get()));
     std::memset(header, 0, HeaderSize);
     header->version = Version; // default

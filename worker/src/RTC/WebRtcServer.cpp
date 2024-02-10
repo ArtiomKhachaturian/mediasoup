@@ -230,7 +230,7 @@ namespace RTC
 
 		for (auto* webRtcTransport : this->webRtcTransports)
 		{
-			webRtcTransportIds.emplace_back(builder.CreateString(webRtcTransport->GetId()));
+			webRtcTransportIds.emplace_back(builder.CreateString(webRtcTransport->id));
 		}
 
 		// Add localIceUsernameFragments.
@@ -242,7 +242,7 @@ namespace RTC
 			const auto* webRtcTransport          = kv.second;
 
 			localIceUsernameFragments.emplace_back(FBS::WebRtcServer::CreateIceUserNameFragmentDirect(
-			  builder, localIceUsernameFragment.c_str(), webRtcTransport->GetId().c_str()));
+			  builder, localIceUsernameFragment.c_str(), webRtcTransport->id.c_str()));
 		}
 
 		// Add tupleHashes.
@@ -254,7 +254,7 @@ namespace RTC
 			const auto* webRtcTransport = kv.second;
 
 			tupleHashes.emplace_back(
-			  FBS::WebRtcServer::CreateTupleHashDirect(builder, tupleHash, webRtcTransport->GetId().c_str()));
+			  FBS::WebRtcServer::CreateTupleHashDirect(builder, tupleHash, webRtcTransport->id.c_str()));
 		}
 
 		return FBS::WebRtcServer::CreateDumpResponseDirect(

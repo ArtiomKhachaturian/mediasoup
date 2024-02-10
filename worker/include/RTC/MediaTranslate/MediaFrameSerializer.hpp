@@ -20,6 +20,8 @@ public:
     virtual ~MediaFrameSerializer() = default;
     virtual std::string_view GetFileExtension() const;
     virtual bool Push(const std::shared_ptr<const MediaFrame>& mediaFrame) = 0;
+    virtual bool AddTestSink(MediaSink* sink) { return false; }
+    virtual bool RemoveTestSink() { return false; }
     uint32_t GetSsrc() const { return _ssrc; }
     uint32_t GetClockRate() const { return _clockRate; }
     const RtpCodecMimeType& GetMimeType() const { return _mime; }
