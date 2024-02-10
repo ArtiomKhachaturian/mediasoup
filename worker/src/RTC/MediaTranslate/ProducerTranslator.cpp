@@ -128,15 +128,10 @@ ProducerTranslator::~ProducerTranslator()
 
 std::unique_ptr<ProducerTranslator> ProducerTranslator::Create(Producer* producer)
 {
-    if (producer) {
-        return std::make_unique<ProducerTranslator>(producer);
+    if (producer && Media::Kind::AUDIO == producer->GetKind()) {
+        return std::unique_ptr<ProducerTranslator>(new ProducerTranslator(producer));
     }
     return nullptr;
-}
-
-bool ProducerTranslator::IsAudio() const
-{
-    return Media::Kind::AUDIO == _producer->GetKind();
 }
 
 bool ProducerTranslator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
@@ -144,26 +139,24 @@ bool ProducerTranslator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
     bool ok = false;
     if (stream && mappedSsrc) {
         const auto& mime = stream->GetMimeType();
-        if (mime.IsMediaCodec()) {
+        if (mime.IsAudioCodec()) {
             const auto clockRate = stream->GetClockRate();
             const auto originalSsrc = stream->GetSsrc();
             const auto payloadType = stream->GetPayloadType();
-            MS_ASSERT(mime.IsAudioCodec() == IsAudio(), "mime types mistmatch");
             MS_ASSERT(clockRate, "clock rate must be greater than zero");
             MS_ASSERT(originalSsrc, "original SSRC must be greater than zero");
             MS_ASSERT(payloadType, "payload type must be greater than zero");
             LOCK_WRITE_PROTECTED_OBJ(_mappedSsrcToStreams);
             const auto it = _mappedSsrcToStreams->find(mappedSsrc);
             if (it == _mappedSsrcToStreams->end()) {
-                auto streamInfo = StreamInfo::Create(mime, clockRate, mappedSsrc,
-                                                     originalSsrc, payloadType, GetId());
+                auto streamInfo = StreamInfo::Create(mime,
+                                                     clockRate,
+                                                     mappedSsrc,
+                                                     originalSsrc,
+                                                     payloadType,
+                                                     GetId());
                 if (streamInfo) {
-                    {
-                        LOCK_READ_PROTECTED_OBJ(_sinks);
-                        for (const auto sink : _sinks.ConstRef()) {
-                            streamInfo->AddSink(sink);
-                        }
-                    }
+                    AddSinksToStream(streamInfo);
                     _originalSsrcToStreams[originalSsrc] = streamInfo;
                     _mappedSsrcToStreams->insert({mappedSsrc, std::move(streamInfo)});
                     ok = true;
@@ -317,6 +310,16 @@ size_t ProducerTranslator::GetSinksCout() const
 {
     LOCK_READ_PROTECTED_OBJ(_sinks);
     return _sinks.ConstRef().size();
+}
+
+void ProducerTranslator::AddSinksToStream(const std::shared_ptr<StreamInfo>& stream) const
+{
+    if (stream) {
+        LOCK_READ_PROTECTED_OBJ(_sinks);
+        for (const auto sink : _sinks.ConstRef()) {
+            stream->AddSink(sink);
+        }
+    }
 }
 
 std::shared_ptr<ProducerTranslator::StreamInfo> ProducerTranslator::GetStream(uint32_t ssrc) const

@@ -27,11 +27,9 @@ class ProducerTranslator : public TranslatorUnit,
     template <typename T>
     using Map = absl::flat_hash_map<uint32_t, T>;
 public:
-    ProducerTranslator(Producer* producer);
     ~ProducerTranslator() final;
     static std::unique_ptr<ProducerTranslator> Create(Producer* producer);
     Producer* GetProducer() const { return _producer; }
-    bool IsAudio() const;
     bool AddStream(uint32_t mappedSsrc, const RtpStream* stream);
     bool RemoveStream(uint32_t mappedSsrc);
     // list of mapped or original ssrcs for added streams
@@ -54,6 +52,8 @@ public:
     bool HasSinks() const final;
     size_t GetSinksCout() const final;
 private:
+    ProducerTranslator(Producer* producer);
+    void AddSinksToStream(const std::shared_ptr<StreamInfo>& stream) const;
     // SSRC maybe mapped or original
     std::shared_ptr<StreamInfo> GetStream(uint32_t ssrc) const;
 private:
