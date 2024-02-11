@@ -1,5 +1,5 @@
 #pragma once
-#include "RTC/MediaTranslate/TranslationEndPoint/TranslatorEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
 #include <string_view>
 
 namespace RTC

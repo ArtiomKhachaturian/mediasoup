@@ -3,7 +3,7 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/MediaTranslate/RtpPacketsInfoProvider.hpp"
-#include "RTC/MediaTranslate/TranslationEndPoint/TranslatorEndPointListener.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointListener.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
@@ -24,21 +24,17 @@ class Consumer;
 class TranslatorEndPoint;
 class RtpPacket;
 
-class ProducerTranslator : private MediaSource,
-                           private TranslatorEndPointListener, // for receiving of translated packets
-                           private RtpPacketsInfoProvider
+class Translator : private MediaSource,
+                   private TranslatorEndPointListener, // for receiving of translated packets
+                   private RtpPacketsInfoProvider
 {
     class StreamInfo;
     template <typename T>
     using StreamsMap = absl::flat_hash_map<uint32_t, T>;
-    using TranslationEndPointsMap = absl::flat_hash_map<Consumer*, std::unique_ptr<TranslatorEndPoint>>;
+    using TranslatorEndPointsMap = absl::flat_hash_map<Consumer*, std::unique_ptr<TranslatorEndPoint>>;
 public:
-    ~ProducerTranslator() final;
-    static std::unique_ptr<ProducerTranslator> Create(const Producer* producer,
-                                                      RtpPacketsPlayer* translationsOutput,
-                                                      const std::string& serviceUri,
-                                                      const std::string& serviceUser,
-                                                      const std::string& servicePassword);
+    ~Translator() final;
+    static std::unique_ptr<Translator> Create(const Producer* producer, RtpPacketsPlayer* translationsOutput);
     bool AddStream(uint32_t mappedSsrc, const RtpStream* stream);
     bool RemoveStream(uint32_t mappedSsrc);
     void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
@@ -51,10 +47,7 @@ public:
     void UpdateConsumerLanguage(Consumer* consumer);
     void UpdateConsumerVoice(Consumer* consumer);
 private:
-    ProducerTranslator(const Producer* producer, RtpPacketsPlayer* translationsOutput,
-                       const std::string& serviceUri,
-                       const std::string& serviceUser,
-                       const std::string& servicePassword);
+    Translator(const Producer* producer, RtpPacketsPlayer* translationsOutput);
     // SSRC maybe mapped or original
     std::shared_ptr<StreamInfo> GetStream(uint32_t ssrc) const;
     void AddSinksToStream(const std::shared_ptr<StreamInfo>& stream) const;
@@ -80,9 +73,6 @@ private:
 #endif
     const Producer* const _producer;
     RtpPacketsPlayer* const _translationsOutput;
-    const std::string _serviceUri;
-    const std::string _serviceUser;
-    const std::string _servicePassword;
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
     const uint64_t _instanceIndex;
 #endif
@@ -92,7 +82,7 @@ private:
     StreamsMap<std::weak_ptr<StreamInfo>> _originalSsrcToStreams;
     ProtectedObj<std::list<MediaSink*>> _sinks;
     // TODO: revise this logic for better resources consumption if more than 1 consumers has the same language and voice
-    ProtectedObj<TranslationEndPointsMap> _endPoints;
+    ProtectedObj<TranslatorEndPointsMap> _endPoints;
 };
 
 } // namespace RTC

@@ -1,8 +1,9 @@
-#include "RTC/MediaTranslate/TranslationEndPoint/MockEndPoint.hpp"
-#include "RTC/MediaTranslate/TranslationEndPoint/WebsocketState.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/MockEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketState.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "RTC/MediaTranslate/FileReader.hpp"
+#include "MemoryBuffer.hpp"
 #include "ProtectedObj.hpp"
 
 namespace RTC

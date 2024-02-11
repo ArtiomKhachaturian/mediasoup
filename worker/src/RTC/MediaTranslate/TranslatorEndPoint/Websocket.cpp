@@ -1,7 +1,7 @@
 #define MS_CLASS "Websocket"
-#include "RTC/MediaTranslate/TranslationEndPoint/Websocket.hpp"
-#include "RTC/MediaTranslate/TranslationEndPoint/WebsocketListener.hpp"
-#include "RTC/MediaTranslate/TranslationEndPoint/WebsocketState.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/Websocket.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketListener.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketState.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include <websocketpp/config/asio_client.hpp>

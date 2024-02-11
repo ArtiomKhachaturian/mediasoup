@@ -15,7 +15,7 @@
 #include "RTC/Transport.hpp"
 #include "RTC/WebRtcServer.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
-#include "RTC/MediaTranslate/ProducerTranslator.hpp"
+#include "RTC/MediaTranslate/Translator.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <string>
@@ -27,7 +27,7 @@ namespace RTC
                    public RTC::RtpObserver::Listener,
                    public Channel::ChannelSocket::RequestHandler
     {
-        using TranslatorsMap = absl::flat_hash_map<RTC::Producer*, std::unique_ptr<ProducerTranslator>>;
+        using TranslatorsMap = absl::flat_hash_map<RTC::Producer*, std::unique_ptr<Translator>>;
     public:
         class Listener
         {
@@ -125,13 +125,10 @@ namespace RTC
         const std::string id;
         
     private:
-        ProducerTranslator* GetTranslator(const RTC::Producer* producer) const;
-        ProducerTranslator* GetTranslator(const std::string& producerId) const;
+        Translator* GetTranslator(const RTC::Producer* producer) const;
+        Translator* GetTranslator(const std::string& producerId) const;
 
     private:
-        static inline const std::string _tsUri = "wss://20.218.159.203:8080/record";
-        static inline const std::string _tsUser = "user";
-        static inline const std::string _tsUserPassword = "password";
         // Passed by argument.
         RTC::Shared* shared{ nullptr };
         Listener* listener{ nullptr };

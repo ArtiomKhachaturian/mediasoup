@@ -1,6 +1,6 @@
 #pragma once
-#include "RTC/MediaTranslate/TranslationEndPoint/TranslatorEndPoint.hpp"
-#include "RTC/MediaTranslate/TranslationEndPoint/WebsocketListener.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketListener.hpp"
 
 namespace RTC
 {
@@ -12,12 +12,8 @@ class Websocket;
 class WebsocketEndPoint : public TranslatorEndPoint, private WebsocketListener
 {
 public:
-    WebsocketEndPoint(uint64_t id, const std::string& serviceUri,
-                      const std::string& serviceUser = std::string(),
-                      const std::string& servicePassword = std::string(),
-                      const std::string& userAgent = std::string(),
-                      uint32_t timeSliceMs = 400U);
-    ~WebsocketEndPoint();
+    WebsocketEndPoint(uint64_t id, uint32_t timeSliceMs = 400U);
+    ~WebsocketEndPoint() final;
 protected:
 #ifdef WRITE_TRANSLATION_TO_FILE
     void StartMediaWriting(uint32_t ssrc) final;
@@ -30,10 +26,14 @@ protected:
     bool SendBinary(const MemoryBuffer& buffer) const final;
     bool SendText(const std::string& text) const final;
 private:
+    std::string GetFullUrl() const;
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
     void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message) final;
 private:
+    static inline const std::string _tsUri = "wss://20.218.159.203:8080/record";
+    static inline const std::string _tsUser = "user";
+    static inline const std::string _tsUserPassword = "password";
     const std::string _userAgent;
     const std::unique_ptr<Websocket> _socket;
 #ifdef WRITE_TRANSLATION_TO_FILE

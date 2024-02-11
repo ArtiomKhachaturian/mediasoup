@@ -1,6 +1,6 @@
 #define MS_CLASS "RTC::TranslatorEndPoint"
-#include "RTC/MediaTranslate/TranslationEndPoint/TranslatorEndPoint.hpp"
-#include "RTC/MediaTranslate/TranslationEndPoint/TranslatorEndPointListener.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointListener.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "DepLibUV.hpp"

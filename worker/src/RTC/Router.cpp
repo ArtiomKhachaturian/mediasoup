@@ -521,8 +521,7 @@ namespace RTC
         if (itp != itt->second.end()) {
             MS_THROW_ERROR("Producer translator already present in mapTransportTranslators [producerId:%s]", producer->id.c_str());
         }
-        if (auto translator = ProducerTranslator::Create(producer, &translatedPacketsPlayer,
-                                                         _tsUri, _tsUser, _tsUserPassword)) {
+        if (auto translator = Translator::Create(producer, &translatedPacketsPlayer)) {
             itt->second[producer] = std::move(translator);
         }
     }
@@ -1118,12 +1117,12 @@ namespace RTC
         this->mapProducerRtpObservers[producer].erase(rtpObserver);
     }
     
-    ProducerTranslator* Router::GetTranslator(const RTC::Producer* producer) const
+    Translator* Router::GetTranslator(const RTC::Producer* producer) const
     {
         return producer ? GetTranslator(producer->id) : nullptr;
     }
     
-    ProducerTranslator* Router::GetTranslator(const std::string& producerId) const
+    Translator* Router::GetTranslator(const std::string& producerId) const
     {
         for (auto itt = this->mapTransportTranslators.begin(); itt != this->mapTransportTranslators.end(); ++itt) {
             for (auto it = itt->second.begin(); it != itt->second.end(); ++it) {

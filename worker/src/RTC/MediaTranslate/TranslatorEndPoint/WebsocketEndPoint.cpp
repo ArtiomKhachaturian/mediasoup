@@ -1,7 +1,7 @@
 #define MS_CLASS "RTC::WebsocketEndPoint"
-#include "RTC/MediaTranslate/TranslationEndPoint/WebsocketEndPoint.hpp"
-#include "RTC/MediaTranslate/TranslationEndPoint/Websocket.hpp"
-#include "RTC/MediaTranslate/TranslationEndPoint/WebsocketState.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/Websocket.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketState.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #ifdef WRITE_TRANSLATION_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
@@ -12,14 +12,9 @@
 namespace RTC
 {
 
-WebsocketEndPoint::WebsocketEndPoint(uint64_t id, const std::string& serviceUri,
-                                     const std::string& serviceUser,
-                                     const std::string& servicePassword,
-                                     const std::string& userAgent,
-                                     uint32_t timeSliceMs)
+WebsocketEndPoint::WebsocketEndPoint(uint64_t id, uint32_t timeSliceMs)
     : TranslatorEndPoint(id, timeSliceMs)
-    , _userAgent(userAgent)
-    , _socket(std::make_unique<Websocket>(serviceUri, serviceUser, servicePassword))
+    , _socket(std::make_unique<Websocket>(_tsUri, _tsUser, _tsUserPassword))
 {
     _socket->AddListener(this);
 }
@@ -53,9 +48,8 @@ void WebsocketEndPoint::Connect()
 {
     switch (_socket->GetState()) {
         case WebsocketState::Disconnected:
-            if (!_socket->Open(_userAgent)) {
-                MS_ERROR_STD("failed to connect with translation service %s",
-                             _socket->GetUrl().c_str());
+            if (!_socket->Open()) {
+                MS_ERROR_STD("failed to connect with translation service %s", GetFullUrl().c_str());
             }
             break;
         default:
@@ -77,7 +71,7 @@ bool WebsocketEndPoint::SendBinary(const MemoryBuffer& buffer) const
     const auto ok = _socket->WriteBinary(buffer);
     if (!ok) {
         MS_ERROR_STD("failed write binary (%zu bytes)' into translation service %s",
-                     buffer.GetSize(), _socket->GetUrl().c_str());
+                     buffer.GetSize(), GetFullUrl().c_str());
     }
     return ok;
 }
@@ -87,9 +81,14 @@ bool WebsocketEndPoint::SendText(const std::string& text) const
     const auto ok = _socket->WriteText(text);
     if (!ok) {
         MS_ERROR_STD("failed write text '%s' into translation service %s",
-                     text.c_str(), _socket->GetUrl().c_str());
+                     text.c_str(), GetFullUrl().c_str());
     }
     return ok;
+}
+
+std::string WebsocketEndPoint::GetFullUrl() const
+{
+    return _socket->GetUrl();
 }
 
 void WebsocketEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)

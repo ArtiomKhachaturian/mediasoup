@@ -1,7 +1,7 @@
 #define MS_CLASS "RTC::MediaTranslatorsManager"
 #include "RTC/MediaTranslate/MediaTranslatorsManager.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
-#include "RTC/MediaTranslate/ProducerTranslator.hpp"
+#include "RTC/MediaTranslate/Translator.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 //#include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
@@ -24,7 +24,7 @@ namespace RTC
     using TranslationEndPointsMap = absl::flat_hash_map<Consumer*, std::shared_ptr<TranslatorEndPoint>>;
 public:
     Translator(MediaTranslatorsManager* manager,
-               std::unique_ptr<ProducerTranslator> producer,
+               std::unique_ptr<Translator> producer,
                const std::string& serviceUri,
                const std::string& serviceUser,
                const std::string& servicePassword);
@@ -41,7 +41,7 @@ private:
     bool AddPacket(RtpPacket* packet) final;
 private:
     MediaTranslatorsManager* const _manager;
-    const std::unique_ptr<ProducerTranslator> _producer;
+    const std::unique_ptr<Translator> _producer;
     const std::string& _serviceUri;
     const std::string& _serviceUser;
     const std::string& _servicePassword;
@@ -125,7 +125,7 @@ void MediaTranslatorsManager::OnTransportNewProducer(Transport* transport, Produ
     if (producer && Media::Kind::AUDIO == producer->GetKind() && !producer->id.empty()) {
         const auto it = _translators.find(producer->id);
         if (it == _translators.end()) {
-            if (auto producerTranslator = ProducerTranslator::Create(producer)) {
+            if (auto producerTranslator = Translator::Create(producer)) {
                 auto translator = std::make_unique<Translator>(this,
                                                                std::move(producerTranslator),
                                                                _serviceUri,
@@ -485,7 +485,7 @@ void MediaTranslatorsManager::UVAsyncHandle::OnClosed(uv_handle_t* handle)
 #endif
 
 /*MediaTranslatorsManager::Translator::Translator(MediaTranslatorsManager* manager,
-                                                std::unique_ptr<ProducerTranslator> producer,
+                                                std::unique_ptr<Translator> producer,
                                                 const std::string& serviceUri,
                                                 const std::string& serviceUser,
                                                 const std::string& servicePassword)
