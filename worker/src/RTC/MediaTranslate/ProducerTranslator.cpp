@@ -260,7 +260,9 @@ void ProducerTranslator::AddConsumer(Consumer* consumer)
             const auto endPointId = reinterpret_cast<uint64_t>(consumer);
             std::unique_ptr<TranslatorEndPoint> endPoint;
 #ifdef NO_TRANSLATION_SERVICE
-            endPoint = std::make_unique<MockEndPoint>(endPointId);
+            endPoint = std::make_unique<MockEndPoint>(endPointId,
+                                                      _mockTranslationFileName,
+                                                      _mockTranslationFileNameLenMs + 1000U);
 #else
             endPoint = std::make_unique<WebsocketEndPoint>(endPointId,
                                                            _serviceUri,

@@ -75,6 +75,7 @@ private:
 private:
 #ifdef NO_TRANSLATION_SERVICE
     static inline const char* _mockTranslationFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_stereo_example.webm";
+    static inline constexpr uint32_t _mockTranslationFileNameLenMs = 3000; // 3 sec
 #endif
     const Producer* const _producer;
     RtpPacketsPlayer* const _translationsOutput;

@@ -51,17 +51,15 @@ bool WebsocketEndPoint::IsConnected() const
 
 void WebsocketEndPoint::Connect()
 {
-    if (HasInput() && HasValidTranslationSettings()) {
-        switch (_socket->GetState()) {
-            case WebsocketState::Disconnected:
-                if (!_socket->Open(_userAgent)) {
-                    MS_ERROR_STD("failed to connect with translation service %s",
-                                 _socket->GetUrl().c_str());
-                }
-                break;
-            default:
-                break;
-        }
+    switch (_socket->GetState()) {
+        case WebsocketState::Disconnected:
+            if (!_socket->Open(_userAgent)) {
+                MS_ERROR_STD("failed to connect with translation service %s",
+                             _socket->GetUrl().c_str());
+            }
+            break;
+        default:
+            break;
     }
 }
 
