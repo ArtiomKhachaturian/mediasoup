@@ -135,9 +135,15 @@ void TranslatorEndPoint::NotifyThatTranslatedMediaReceived(const std::shared_ptr
         const auto num = _receivedMediaCounter.fetch_add(1U);
         LOCK_READ_PROTECTED_OBJ(_output);
         if (const auto output = _output.ConstRef()) {
-            output->OnTranslatedMediaReceived(_id, num, media);
+            output->OnTranslatedMediaReceived(_id, num, GetActiveSsrcs(), media);
         }
     }
+}
+
+std::set<uint32_t> TranslatorEndPoint::GetActiveSsrcs() const
+{
+    LOCK_READ_PROTECTED_OBJ(_activeSsrcs);
+    return _activeSsrcs.ConstRef();
 }
 
 void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
@@ -146,6 +152,7 @@ void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
     if (_inputSlice) {
         _inputSlice->Reset(true);
     }
+    AddRemoveActiveSsrc(ssrc, true);
 }
 
 void TranslatorEndPoint::WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer)
@@ -166,6 +173,7 @@ void TranslatorEndPoint::EndMediaWriting(uint32_t ssrc)
     if (_inputSlice) {
         _inputSlice->Reset(false);
     }
+    AddRemoveActiveSsrc(ssrc, false);
 }
 
 nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLanguageId,
@@ -308,6 +316,18 @@ bool TranslatorEndPoint::WriteBinary(const MemoryBuffer& buffer) const
         return SendBinary(buffer);
     }
     return false;
+}
+
+void TranslatorEndPoint::AddRemoveActiveSsrc(uint32_t ssrc, bool add)
+{
+    MS_ASSERT(ssrc, "invalid SSRC");
+    LOCK_WRITE_PROTECTED_OBJ(_activeSsrcs);
+    if (add) {
+        _activeSsrcs->insert(ssrc);
+    }
+    else {
+        _activeSsrcs->erase(ssrc);
+    }
 }
 
 TranslatorEndPoint::InputSliceBuffer::InputSliceBuffer(uint32_t timeSliceMs)

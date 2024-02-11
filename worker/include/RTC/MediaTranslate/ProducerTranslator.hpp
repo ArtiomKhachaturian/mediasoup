@@ -66,6 +66,7 @@ private:
     size_t GetSinksCout() const final;
     // impl. of TranslatorEndPointListener
     void OnTranslatedMediaReceived(uint64_t endPointId, uint64_t mediaSeqNum,
+                                   const std::set<uint32_t>& ssrcs,
                                    const std::shared_ptr<MemoryBuffer>& media) final;
     // impl. of RtpPacketsInfoProvider
     uint8_t GetPayloadType(uint32_t ssrc) const final;

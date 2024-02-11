@@ -14,14 +14,17 @@ public:
     virtual ~Impl() = default;
     virtual bool IsConnected() const = 0;
     virtual void Connect() = 0;
-    virtual void Disconnect() = 0;
+    virtual bool Disconnect() = 0;
     void SetOwner(MockEndPoint* owner);
+    void SetHasWrittenInputMedia(bool has) { _hasWrittenInputMedia = has; }
+    bool HasWrittenInputMedia() const { return _hasWrittenInputMedia.load(); }
 protected:
     Impl() = default;
     void NotifyThatConnectionEstablished(bool connected);
     void NotifyThatTranslatedMediaReceived(const std::shared_ptr<MemoryBuffer>& media);
 private:
     ProtectedObj<MockEndPoint*> _owner = nullptr;
+    std::atomic_bool _hasWrittenInputMedia = false;
 };
 
 class MockEndPoint::TrivialImpl : public Impl
@@ -31,7 +34,7 @@ public:
     // impl. of Impl
     bool IsConnected() const final { return _connected.load(); }
     void Connect() final;
-    void Disconnect() final;
+    bool Disconnect() final;
 private:
     std::atomic_bool _connected = false;
 };
@@ -40,19 +43,19 @@ class MockEndPoint::FileImpl : public Impl, public MediaTimerCallback,
                                public std::enable_shared_from_this<FileImpl>
 {
 public:
-    FileImpl(std::shared_ptr<MemoryBuffer> media, uint32_t intervalBetweenTranslationsMs);
+    FileImpl(std::shared_ptr<MemoryBuffer> outputMedia, uint32_t intervalBetweenTranslationsMs);
     static std::shared_ptr<Impl> Create(const std::string_view& fileNameUtf8,
                                         uint32_t intervalBetweenTranslationsMs);
     // impl. of Impl
     bool IsConnected() const final { return WebsocketState::Connected == GetState(); }
     void Connect() final;
-    void Disconnect() final;
+    bool Disconnect() final;
     // impl. of MediaTimerCallback
     void OnEvent() final;
 private:
     WebsocketState GetState() const { return _state.load(); }
 private:
-    const std::shared_ptr<MemoryBuffer> _media;
+    const std::shared_ptr<MemoryBuffer> _outputMedia;
     const uint32_t _intervalBetweenTranslationsMs;
     MediaTimer _timer;
     std::atomic<uint64_t> _timerId = 0ULL;
@@ -91,17 +94,23 @@ void MockEndPoint::Connect()
 
 void MockEndPoint::Disconnect()
 {
-    _impl->Disconnect();
+    if (_impl->Disconnect()) {
+        _impl->SetHasWrittenInputMedia(false);
+    }
 }
 
-bool MockEndPoint::SendBinary(const MemoryBuffer&) const
+bool MockEndPoint::SendBinary(const MemoryBuffer& buffer) const
 {
-    return IsConnected();
+    if (IsConnected() && !buffer.IsEmpty()) {
+        _impl->SetHasWrittenInputMedia(true);
+        return true;
+    }
+    return false;
 }
 
-bool MockEndPoint::SendText(const std::string&) const
+bool MockEndPoint::SendText(const std::string& text) const
 {
-    return IsConnected();
+    return IsConnected() && !text.empty();
 }
 
 void MockEndPoint::Impl::SetOwner(MockEndPoint* owner)
@@ -135,16 +144,18 @@ void MockEndPoint::TrivialImpl::Connect()
     }
 }
 
-void MockEndPoint::TrivialImpl::Disconnect()
+bool MockEndPoint::TrivialImpl::Disconnect()
 {
     if (_connected.exchange(false)) {
         NotifyThatConnectionEstablished(false);
+        return true;
     }
+    return false;
 }
 
-MockEndPoint::FileImpl::FileImpl(std::shared_ptr<MemoryBuffer> media,
+MockEndPoint::FileImpl::FileImpl(std::shared_ptr<MemoryBuffer> outputMedia,
                                  uint32_t intervalBetweenTranslationsMs)
-    : _media(std::move(media))
+    : _outputMedia(std::move(outputMedia))
     , _intervalBetweenTranslationsMs(intervalBetweenTranslationsMs)
 {
 }
@@ -174,7 +185,9 @@ void MockEndPoint::FileImpl::OnEvent()
         }
     }
     else if (WebsocketState::Connected == GetState()) {
-        NotifyThatTranslatedMediaReceived(_media);
+        if (HasWrittenInputMedia()) {
+            NotifyThatTranslatedMediaReceived(_outputMedia);
+        }
     }
     else if (const auto timerId = _timerId.load()) {
         _timer.Stop(timerId);
@@ -194,14 +207,16 @@ void MockEndPoint::FileImpl::Connect()
     }
 }
 
-void MockEndPoint::FileImpl::Disconnect()
+bool MockEndPoint::FileImpl::Disconnect()
 {
     if (WebsocketState::Disconnected != _state.exchange(WebsocketState::Disconnected)) {
         if (const auto timerId = _timerId.exchange(0ULL)) {
             _timer.UnregisterTimer(timerId);
         }
         NotifyThatConnectionEstablished(false);
+        return true;
     }
+    return false;
 }
 
 }

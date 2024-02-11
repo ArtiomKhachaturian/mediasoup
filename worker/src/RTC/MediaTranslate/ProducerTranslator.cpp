@@ -411,8 +411,10 @@ size_t ProducerTranslator::GetSinksCout() const
 }
     
 void ProducerTranslator::OnTranslatedMediaReceived(uint64_t endPointId, uint64_t mediaSeqNum,
+                                                   const std::set<uint32_t>& ssrcs,
                                                    const std::shared_ptr<MemoryBuffer>& media)
 {
+    MS_ASSERT(!ssrcs.empty(), "no SSRC info");
     MS_ERROR_STD("Received media translation # %llu", mediaSeqNum);
 }
 

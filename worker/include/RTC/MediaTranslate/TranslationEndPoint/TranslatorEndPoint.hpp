@@ -5,6 +5,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <optional>
+#include <set>
 
 namespace RTC
 {
@@ -30,6 +31,7 @@ protected:
     bool HasValidTranslationSettings() const;
     void NotifyThatConnectionEstablished(bool connected);
     void NotifyThatTranslatedMediaReceived(const std::shared_ptr<MemoryBuffer>& media);
+    std::set<uint32_t> GetActiveSsrcs() const;
     virtual void Connect() = 0;
     virtual void Disconnect() = 0;
     virtual bool SendBinary(const MemoryBuffer& buffer) const = 0;
@@ -57,6 +59,7 @@ private:
     bool SendTranslationChanges();
     bool WriteJson(const nlohmann::json& data) const;
     bool WriteBinary(const MemoryBuffer& buffer) const;
+    void AddRemoveActiveSsrc(uint32_t ssrc, bool add);
 private:
     const uint64_t _id;
     const std::unique_ptr<InputSliceBuffer> _inputSlice;
@@ -65,6 +68,7 @@ private:
     ProtectedObj<std::string> _outputVoiceId;
     ProtectedObj<MediaSource*> _input;
     ProtectedObj<TranslatorEndPointListener*> _output;
+    ProtectedObj<std::set<uint32_t>> _activeSsrcs;
     std::atomic_uint64_t _receivedMediaCounter = 0ULL;
 };
 
