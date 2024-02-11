@@ -28,7 +28,7 @@ class Translator : private MediaSource,
                    private TranslatorEndPointListener, // for receiving of translated packets
                    private RtpPacketsInfoProvider
 {
-    class StreamInfo;
+    class SourceStream;
     template <typename T>
     using StreamsMap = absl::flat_hash_map<uint32_t, T>;
     using TranslatorEndPointsMap = absl::flat_hash_map<Consumer*, std::unique_ptr<TranslatorEndPoint>>;
@@ -49,8 +49,8 @@ public:
 private:
     Translator(const Producer* producer, RtpPacketsPlayer* translationsOutput);
     // SSRC maybe mapped or original
-    std::shared_ptr<StreamInfo> GetStream(uint32_t ssrc) const;
-    void AddSinksToStream(const std::shared_ptr<StreamInfo>& stream) const;
+    std::shared_ptr<SourceStream> GetStream(uint32_t ssrc) const;
+    void AddSinksToStream(const std::shared_ptr<SourceStream>& stream) const;
     // impl. of MediaSource
     bool AddSink(MediaSink* sink) final;
     bool RemoveSink(MediaSink* sink) final;
@@ -77,9 +77,9 @@ private:
     const uint64_t _instanceIndex;
 #endif
     // key is mapped media SSRC
-    ProtectedObj<StreamsMap<std::shared_ptr<StreamInfo>>> _mappedSsrcToStreams;
+    ProtectedObj<StreamsMap<std::shared_ptr<SourceStream>>> _mappedSsrcToStreams;
     // key is original media SSRC, under protection of [_mappedSsrcToStreams]
-    StreamsMap<std::weak_ptr<StreamInfo>> _originalSsrcToStreams;
+    StreamsMap<std::weak_ptr<SourceStream>> _originalSsrcToStreams;
     ProtectedObj<std::list<MediaSink*>> _sinks;
     // TODO: revise this logic for better resources consumption if more than 1 consumers has the same language and voice
     ProtectedObj<TranslatorEndPointsMap> _endPoints;

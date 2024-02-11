@@ -37,18 +37,18 @@ std::atomic<uint64_t> g_InstancesCounter = 0ULL;
 namespace RTC
 {
 
-class Translator::StreamInfo
+class Translator::SourceStream
 {
 public:
-    StreamInfo(uint32_t clockRate, uint8_t payloadType, const std::string& producerId,
-               std::unique_ptr<MediaFrameSerializer> serializer,
-               std::unique_ptr<RtpDepacketizer> depacketizer);
-    ~StreamInfo();
-    static std::shared_ptr<StreamInfo> Create(const RtpCodecMimeType& mime,
-                                              uint32_t clockRate,
-                                              uint32_t originalSsrc,
-                                              uint8_t payloadType,
-                                              const std::string& producerId);
+    SourceStream(uint32_t clockRate, uint8_t payloadType, const std::string& producerId,
+                 std::unique_ptr<MediaFrameSerializer> serializer,
+                 std::unique_ptr<RtpDepacketizer> depacketizer);
+    ~SourceStream();
+    static std::shared_ptr<SourceStream> Create(const RtpCodecMimeType& mime,
+                                                uint32_t clockRate,
+                                                uint32_t originalSsrc,
+                                                uint8_t payloadType,
+                                                const std::string& producerId);
     uint32_t GetClockRate() const { return _serializer->GetClockRate(); }
     uint8_t GetPayloadType() const { return _payloadType; }
     uint32_t GetLastOriginalRtpTimestamp() const { return _lastOriginalRtpTimestamp.load(); }
@@ -148,13 +148,13 @@ bool Translator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
             LOCK_WRITE_PROTECTED_OBJ(_mappedSsrcToStreams);
             const auto it = _mappedSsrcToStreams->find(mappedSsrc);
             if (it == _mappedSsrcToStreams->end()) {
-                auto streamInfo = StreamInfo::Create(mime, clockRate, originalSsrc,
-                                                     payloadType, _producer->id);
-                if (streamInfo) {
-                    AddSinksToStream(streamInfo);
+                auto sourceStream = SourceStream::Create(mime, clockRate, originalSsrc,
+                                                         payloadType, _producer->id);
+                if (sourceStream) {
+                    AddSinksToStream(sourceStream);
                     //_translationsOutput->AddStream(originalSsrc, mime, this,  this);
-                    _originalSsrcToStreams[originalSsrc] = streamInfo;
-                    _mappedSsrcToStreams->insert({mappedSsrc, std::move(streamInfo)});
+                    _originalSsrcToStreams[originalSsrc] = sourceStream;
+                    _mappedSsrcToStreams->insert({mappedSsrc, std::move(sourceStream)});
                     ok = true;
                 }
                 else {
@@ -308,7 +308,7 @@ void Translator::UpdateConsumerVoice(Consumer* consumer)
     }
 }
 
-std::shared_ptr<Translator::StreamInfo> Translator::GetStream(uint32_t ssrc) const
+std::shared_ptr<Translator::SourceStream> Translator::GetStream(uint32_t ssrc) const
 {
     if (ssrc) {
         LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
@@ -325,7 +325,7 @@ std::shared_ptr<Translator::StreamInfo> Translator::GetStream(uint32_t ssrc) con
     return nullptr;
 }
 
-void Translator::AddSinksToStream(const std::shared_ptr<StreamInfo>& stream) const
+void Translator::AddSinksToStream(const std::shared_ptr<SourceStream>& stream) const
 {
     if (stream) {
         LOCK_READ_PROTECTED_OBJ(_sinks);
@@ -433,10 +433,10 @@ uint32_t Translator::GetClockRate(uint32_t ssrc) const
     return 0U;
 }
 
-Translator::StreamInfo::StreamInfo(uint32_t clockRate, uint8_t payloadType,
-                                   const std::string& producerId,
-                                   std::unique_ptr<MediaFrameSerializer> serializer,
-                                   std::unique_ptr<RtpDepacketizer> depacketizer)
+Translator::SourceStream::SourceStream(uint32_t clockRate, uint8_t payloadType,
+                                       const std::string& producerId,
+                                       std::unique_ptr<MediaFrameSerializer> serializer,
+                                       std::unique_ptr<RtpDepacketizer> depacketizer)
     : _payloadType(payloadType)
     , _serializer(std::move(serializer))
     , _depacketizer(std::move(depacketizer))
@@ -456,7 +456,7 @@ Translator::StreamInfo::StreamInfo(uint32_t clockRate, uint8_t payloadType,
 #endif
 }
 
-Translator::StreamInfo::~StreamInfo()
+Translator::SourceStream::~SourceStream()
 {
     RemoveAllSinks();
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
@@ -466,33 +466,33 @@ Translator::StreamInfo::~StreamInfo()
 #endif
 }
 
-std::shared_ptr<Translator::StreamInfo> Translator::StreamInfo::Create(const RtpCodecMimeType& mime,
-                                                                       uint32_t clockRate,
-                                                                       uint32_t originalSsrc,
-                                                                       uint8_t payloadType,
-                                                                       const std::string& producerId)
+std::shared_ptr<Translator::SourceStream> Translator::SourceStream::Create(const RtpCodecMimeType& mime,
+                                                                           uint32_t clockRate,
+                                                                           uint32_t originalSsrc,
+                                                                           uint8_t payloadType,
+                                                                           const std::string& producerId)
 {
     if (WebMCodecs::IsSupported(mime)) {
         if (auto depacketizer = RtpDepacketizer::create(mime, clockRate)) {
             auto serializer = std::make_unique<WebMSerializer>(originalSsrc, clockRate, mime);
-            return std::make_shared<StreamInfo>(clockRate, payloadType, producerId,
-                                                std::move(serializer), std::move(depacketizer));
+            return std::make_shared<SourceStream>(clockRate, payloadType, producerId,
+                                                  std::move(serializer), std::move(depacketizer));
         }
     }
     return nullptr;
 }
 
-void Translator::StreamInfo::SetLastOriginalRtpTimestamp(uint32_t timestamp)
+void Translator::SourceStream::SetLastOriginalRtpTimestamp(uint32_t timestamp)
 {
     _lastOriginalRtpTimestamp = timestamp;
 }
 
-void Translator::StreamInfo::SetLastOriginalRtpSeqNumber(uint16_t seqNumber)
+void Translator::SourceStream::SetLastOriginalRtpSeqNumber(uint16_t seqNumber)
 {
     _lastOriginalRtpSeqNumber = seqNumber;
 }
 
-void Translator::StreamInfo::AddSink(MediaSink* sink)
+void Translator::SourceStream::AddSink(MediaSink* sink)
 {
     if (sink) {
         MediaSource* source = _serializer.get();
@@ -505,7 +505,7 @@ void Translator::StreamInfo::AddSink(MediaSink* sink)
     }
 }
 
-void Translator::StreamInfo::RemoveSink(MediaSink* sink)
+void Translator::SourceStream::RemoveSink(MediaSink* sink)
 {
     if (sink) {
         MediaSource* source = _serializer.get();
@@ -518,7 +518,7 @@ void Translator::StreamInfo::RemoveSink(MediaSink* sink)
     }
 }
 
-void Translator::StreamInfo::RemoveAllSinks()
+void Translator::SourceStream::RemoveAllSinks()
 {
     MediaSource* source = _serializer.get();
 #ifdef READ_PRODUCER_RECV_FROM_FILE
@@ -529,7 +529,7 @@ void Translator::StreamInfo::RemoveAllSinks()
     source->RemoveAllSinks();
 }
 
-bool Translator::StreamInfo::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
+bool Translator::SourceStream::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     bool handled = false;
     if (packet) {
@@ -552,7 +552,7 @@ bool Translator::StreamInfo::AddOriginalRtpPacketForTranslation(RtpPacket* packe
 }
 
 #ifdef READ_PRODUCER_RECV_FROM_FILE
-std::unique_ptr<FileReader> Translator::StreamInfo::CreateFileReader(uint32_t ssrc)
+std::unique_ptr<FileReader> Translator::SourceStream::CreateFileReader(uint32_t ssrc)
 {
     auto fileReader = std::make_unique<FileReader>(_testFileName, ssrc, false);
     if (!fileReader->IsOpen()) {
