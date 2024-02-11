@@ -7,7 +7,11 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
-#include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
+#ifdef NO_TRANSLATION_SERVICE
+#include "RTC/MediaTranslate/TranslationEndPoint/MockEndPoint.hpp"
+#else
+#include "RTC/MediaTranslate/TranslationEndPoint/WebsocketEndPoint.hpp"
+#endif
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
@@ -164,7 +168,7 @@ bool ProducerTranslator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
                                                      payloadType, _producer->id);
                 if (streamInfo) {
                     AddSinksToStream(streamInfo);
-                    _translationsOutput->AddStream(originalSsrc, mime, this,  this);
+                    //_translationsOutput->AddStream(originalSsrc, mime, this,  this);
                     _originalSsrcToStreams[originalSsrc] = streamInfo;
                     _mappedSsrcToStreams->insert({mappedSsrc, std::move(streamInfo)});
                     ok = true;
@@ -247,25 +251,29 @@ void ProducerTranslator::AddConsumer(Consumer* consumer)
         MS_ASSERT(consumer->producerId == GetId(), "wrong producer ID");
         LOCK_WRITE_PROTECTED_OBJ(_endPoints);
         if (!_endPoints->count(consumer)) {
-            auto endPoint = std::make_unique<TranslatorEndPoint>(_serviceUri,
-                                                                 _serviceUser,
-                                                                 _servicePassword);
-#ifdef NO_TRANSLATION_SERVICE
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-            if (0UL == _instanceIndex && _endPoints->empty()) {
-#else
-            if (_endPoints->empty()) {
-#endif
-                AddSink(_translationsOutput);
+            if (_instanceIndex || !_endPoints->empty()) {
+                return;
             }
+#endif
+            // TODO: more compliant logic required, but not for demo
+            const auto endPointId = reinterpret_cast<uint64_t>(consumer);
+            std::unique_ptr<TranslatorEndPoint> endPoint;
+#ifdef NO_TRANSLATION_SERVICE
+            endPoint = std::make_unique<MockEndPoint>(endPointId);
 #else
-            endPoint->SetInput(this);
-            endPoint->SetOutput(_translationsOutput);
+            endPoint = std::make_unique<WebsocketEndPoint>(endPointId,
+                                                           _serviceUri,
+                                                           _serviceUser,
+                                                           _servicePassword);
+#endif
+            TranslatorEndPoint* ref = endPoint.get();
             endPoint->SetInputLanguageId(_producer->GetLanguageId());
             endPoint->SetOutputLanguageId(consumer->GetLanguageId());
             endPoint->SetOutputVoiceId(consumer->GetVoiceId());
-#endif
             _endPoints->insert({consumer, std::move(endPoint)});
+            ref->SetInput(this);
+            ref->SetOutput(this);
         }
     }
 }
@@ -277,18 +285,8 @@ void ProducerTranslator::RemoveConsumer(Consumer* consumer)
         LOCK_WRITE_PROTECTED_OBJ(_endPoints);
         const auto it = _endPoints->find(consumer);
         if (it != _endPoints->end()) {
-#ifdef NO_TRANSLATION_SERVICE
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-            if (0UL == _instanceIndex && 1UL == _endPoints->size()) {
-#else
-            if (1UL == _endPoints->size()) {
-#endif
-                RemoveSink(_translationsOutput);
-            }
-#else
             it->second->SetInput(nullptr);
             it->second->SetOutput(nullptr);
-#endif
             _endPoints->erase(it);
         }
     }
@@ -296,37 +294,31 @@ void ProducerTranslator::RemoveConsumer(Consumer* consumer)
 
 void ProducerTranslator::UpdateProducerLanguage()
 {
-#ifndef NO_TRANSLATION_SERVICE
     LOCK_READ_PROTECTED_OBJ(_endPoints);
     for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
         it->second->SetInputLanguageId(_producer->GetLanguageId());
     }
-#endif
 }
 
 void ProducerTranslator::UpdateConsumerLanguage(Consumer* consumer)
 {
     if (consumer) {
-#ifndef NO_TRANSLATION_SERVICE
         LOCK_READ_PROTECTED_OBJ(_endPoints);
         const auto it = _endPoints->find(consumer);
         if (it != _endPoints->end()) {
             it->second->SetOutputLanguageId(consumer->GetLanguageId());
         }
-#endif
     }
 }
 
 void ProducerTranslator::UpdateConsumerVoice(Consumer* consumer)
 {
     if (consumer) {
-#ifndef NO_TRANSLATION_SERVICE
         LOCK_READ_PROTECTED_OBJ(_endPoints);
         const auto it = _endPoints->find(consumer);
         if (it != _endPoints->end()) {
             it->second->SetOutputVoiceId(consumer->GetVoiceId());
         }
-#endif
     }
 }
 
@@ -414,6 +406,12 @@ size_t ProducerTranslator::GetSinksCout() const
     LOCK_READ_PROTECTED_OBJ(_sinks);
     return _sinks.ConstRef().size();
 }
+    
+void ProducerTranslator::OnTranslatedMediaReceived(uint64_t endPointId, uint64_t mediaSeqNum,
+                                                   const std::shared_ptr<MemoryBuffer>& media)
+{
+    
+}
 
 uint8_t ProducerTranslator::GetPayloadType(uint32_t ssrc) const
 {
@@ -445,12 +443,6 @@ uint32_t ProducerTranslator::GetClockRate(uint32_t ssrc) const
         return stream->GetClockRate();
     }
     return 0U;
-}
-
-bool ProducerTranslator::AddPacket(RtpPacket* packet)
-{
-    // TODO: handle translated packets here
-    return false;
 }
 
 ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint8_t payloadType,

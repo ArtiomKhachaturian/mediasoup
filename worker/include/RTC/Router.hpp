@@ -125,7 +125,6 @@ namespace RTC
         const std::string id;
         
     private:
-        size_t GetTranslatorsCount() const;
         ProducerTranslator* GetTranslator(const RTC::Producer* producer) const;
         ProducerTranslator* GetTranslator(const std::string& producerId) const;
 

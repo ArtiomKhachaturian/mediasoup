@@ -638,6 +638,11 @@ namespace RTC
                     throw;
                 }
 
+#ifdef MEDIA_TRANSLATIONS_TEST
+                producer->SetLanguageId("ru");
+#else
+                producer->SetLanguageId(body->languageId()->c_str());
+#endif
                 // Notify the listener.
                 // This may throw if a Producer with same id already exists.
                 try
@@ -825,7 +830,13 @@ namespace RTC
                         break;
                     }
                 }
-                
+#ifdef MEDIA_TRANSLATIONS_TEST
+                consumer->SetLanguageId("en");
+                consumer->SetVoiceId("Female");
+#else
+                consumer->SetLanguageId(body->languageId()->c_str());
+                consumer->SetVoiceId(body->voiceId()->c_str());
+#endif
                 // Notify the listener.
                 // This may throw if no Producer is found.
                 try

@@ -1,12 +1,13 @@
 #pragma once
 
 #include "MemoryBuffer.hpp"
-#include "RTC/MediaTranslate/WebsocketState.hpp"
 #include <string>
 #include <memory>
 
 namespace RTC
 {
+
+enum class WebsocketState;
 
 class WebsocketListener
 {

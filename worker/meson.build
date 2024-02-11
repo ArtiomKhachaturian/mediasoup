@@ -194,14 +194,16 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.cpp',
   'src/RTC/MediaTranslate/SegmentsMemoryBuffer.cpp',
   'src/RTC/MediaTranslate/SimpleMemoryBuffer.cpp',
-  'src/RTC/MediaTranslate/TranslatorEndPoint.cpp',
+  'src/RTC/MediaTranslate/TranslationEndPoint/MockEndPoint.cpp',
+  'src/RTC/MediaTranslate/TranslationEndPoint/TranslatorEndPoint.cpp',
+  'src/RTC/MediaTranslate/TranslationEndPoint/Websocket.cpp',
+  'src/RTC/MediaTranslate/TranslationEndPoint/WebsocketEndPoint.cpp',
   'src/RTC/MediaTranslate/TranslatorUtils.cpp',
   'src/RTC/MediaTranslate/WebM/MkvBufferedReader.cpp',
   'src/RTC/MediaTranslate/WebM/MkvBufferedWriter.cpp',
   'src/RTC/MediaTranslate/WebM/WebMCodecs.cpp',
   'src/RTC/MediaTranslate/WebM/WebMDeserializer.cpp',
   'src/RTC/MediaTranslate/WebM/WebMSerializer.cpp',
-  'src/RTC/MediaTranslate/Websocket.cpp',
 ]
 
 if host_machine.system() == 'darwin'

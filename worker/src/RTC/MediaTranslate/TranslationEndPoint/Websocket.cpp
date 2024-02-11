@@ -1,6 +1,7 @@
 #define MS_CLASS "Websocket"
-#include "RTC/MediaTranslate/Websocket.hpp"
-#include "RTC/MediaTranslate/WebsocketListener.hpp"
+#include "RTC/MediaTranslate/TranslationEndPoint/Websocket.hpp"
+#include "RTC/MediaTranslate/TranslationEndPoint/WebsocketListener.hpp"
+#include "RTC/MediaTranslate/TranslationEndPoint/WebsocketState.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include <websocketpp/config/asio_client.hpp>
@@ -287,6 +288,11 @@ WebsocketState Websocket::GetState() const
 uint64_t Websocket::GetId() const
 {
     return reinterpret_cast<uint64_t>(this);
+}
+
+std::string Websocket::GetUrl() const
+{
+    return _config ? _config->GetUri()->str() : std::string();
 }
 
 bool Websocket::WriteBinary(const MemoryBuffer& buffer)

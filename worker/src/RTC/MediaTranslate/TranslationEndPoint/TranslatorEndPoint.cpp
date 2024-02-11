@@ -1,14 +1,8 @@
 #define MS_CLASS "RTC::TranslatorEndPoint"
-#include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslationEndPoint/TranslatorEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslationEndPoint/TranslatorEndPointListener.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
-#include "RTC/MediaTranslate/Websocket.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
-#ifdef PLAY_MOCK_FILE_INSTEAD_OF_TRANSLATION
-#include "RTC/MediaTranslate/FileReader.hpp"
-#endif
-#ifdef WRITE_TRANSLATION_TO_FILE
-#include "RTC/MediaTranslate/FileWriter.hpp"
-#endif
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
 
@@ -28,24 +22,15 @@ private:
     ProtectedObj<SimpleMemoryBuffer> _impl;
 };
 
-TranslatorEndPoint::TranslatorEndPoint(const std::string& serviceUri,
-                                       const std::string& serviceUser,
-                                       const std::string& servicePassword,
-                                       const std::string& userAgent,
-                                       uint32_t timeSliceMs)
-    : _userAgent(userAgent)
-    , _socket(std::make_unique<Websocket>(serviceUri, serviceUser, servicePassword))
-    , _serviceUri(serviceUri)
+TranslatorEndPoint::TranslatorEndPoint(uint64_t id, uint32_t timeSliceMs)
+    : _id(id)
     , _inputSlice(InputSliceBuffer::Create(timeSliceMs))
 {
-    _socket->AddListener(this);
 }
 
 TranslatorEndPoint::~TranslatorEndPoint()   
 {
-    SetInput(nullptr);
-    _socket->RemoveListener(this);
-    SetConnected(false);
+    NotifyThatConnectionEstablished(false);
 }
 
 void TranslatorEndPoint::SetInput(MediaSource* input)
@@ -64,26 +49,36 @@ void TranslatorEndPoint::SetInput(MediaSource* input)
     }
     if (changed) {
         if (input) {
-            if (HasValidTranslationSettings()) {
-                OpenSocket();
+            if (CanConnect()) {
+                Connect();
             }
         }
         else {
-            CloseSocket();
+            Disconnect();
         }
     }
 }
 
-bool TranslatorEndPoint::HasInput() const
+void TranslatorEndPoint::SetOutput(TranslatorEndPointListener* output)
 {
-    LOCK_READ_PROTECTED_OBJ(_input);
-    return nullptr != _input.ConstRef();
-}
-
-void TranslatorEndPoint::SetOutput(MediaSink* output)
-{
-    LOCK_WRITE_PROTECTED_OBJ(_output);
-    _output = output;
+    bool changed = false;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_output);
+        if (output != _output.ConstRef()) {
+            _output = output;
+            changed = true;
+        }
+    }
+    if (changed) {
+        if (output) {
+            if (CanConnect()) {
+                Connect();
+            }
+        }
+        else {
+            Disconnect();
+        }
+    }
 }
 
 void TranslatorEndPoint::SetInputLanguageId(const std::string& languageId)
@@ -101,9 +96,76 @@ void TranslatorEndPoint::SetOutputVoiceId(const std::string& voiceId)
     ChangeTranslationSettings(voiceId, _outputVoiceId);
 }
 
-bool TranslatorEndPoint::IsConnected() const
+bool TranslatorEndPoint::HasInput() const
 {
-    return WebsocketState::Connected == _socket->GetState();
+    LOCK_READ_PROTECTED_OBJ(_input);
+    return nullptr != _input.ConstRef();
+}
+
+bool TranslatorEndPoint::HasOutput() const
+{
+    LOCK_READ_PROTECTED_OBJ(_output);
+    return nullptr != _output.ConstRef();
+}
+
+bool TranslatorEndPoint::HasValidTranslationSettings() const
+{
+    return HasOutputLanguageId() && HasOutputLanguageId() && HasOutputVoiceId();
+}
+
+void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
+{
+    if (connected) {
+        if (SendTranslationChanges()) {
+            ConnectToMediaInput(true);
+        }
+    }
+    else {
+        ConnectToMediaInput(false);
+        if (_inputSlice) {
+            _inputSlice->Reset(false);
+        }
+        _receivedMediaCounter = 0ULL;
+    }
+}
+
+void TranslatorEndPoint::NotifyThatTranslatedMediaReceived(const std::shared_ptr<MemoryBuffer>& media)
+{
+    if (media) {
+        const auto num = _receivedMediaCounter.fetch_add(1U);
+        LOCK_READ_PROTECTED_OBJ(_output);
+        if (const auto output = _output.ConstRef()) {
+            output->OnTranslatedMediaReceived(_id, num, media);
+        }
+    }
+}
+
+void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
+{
+    MediaSink::StartMediaWriting(ssrc);
+    if (_inputSlice) {
+        _inputSlice->Reset(true);
+    }
+}
+
+void TranslatorEndPoint::WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer)
+{
+    if (buffer && !buffer->IsEmpty() && IsConnected()) {
+        if (_inputSlice) {
+            _inputSlice->Add(buffer, this);
+        }
+        else {
+            WriteBinary(*buffer);
+        }
+    }
+}
+
+void TranslatorEndPoint::EndMediaWriting(uint32_t ssrc)
+{
+    MediaSink::EndMediaWriting(ssrc);
+    if (_inputSlice) {
+        _inputSlice->Reset(false);
+    }
 }
 
 nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLanguageId,
@@ -122,16 +184,6 @@ nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLan
     return command;
 }
 
-void TranslatorEndPoint::Playback(uint32_t ssrc, MediaSink* output,
-                                  const std::shared_ptr<MemoryBuffer>& buffer)
-{
-    if (ssrc && output && buffer) {
-        output->StartMediaWriting(ssrc);
-        output->WriteMediaPayload(ssrc, buffer);
-        output->EndMediaWriting(ssrc);
-    }
-}
-
 void TranslatorEndPoint::ChangeTranslationSettings(const std::string& to,
                                                    ProtectedObj<std::string>& object)
 {
@@ -146,11 +198,6 @@ void TranslatorEndPoint::ChangeTranslationSettings(const std::string& to,
     if (changed) {
         UpdateTranslationChanges();
     }
-}
-
-bool TranslatorEndPoint::HasValidTranslationSettings() const
-{
-    return HasOutputLanguageId() && HasOutputLanguageId() && HasOutputVoiceId();
 }
 
 std::string TranslatorEndPoint::GetInputLanguageId() const
@@ -204,24 +251,6 @@ std::optional<nlohmann::json> TranslatorEndPoint::TargetLanguageCmd() const
     return std::nullopt;
 }
 
-void TranslatorEndPoint::SetConnected(bool connected)
-{
-    if (connected) {
-        if (SendTranslationChanges()) {
-            ConnectToMediaInput(true);
-        }
-    }
-    else {
-        ConnectToMediaInput(false);
-        if (_inputSlice) {
-            _inputSlice->Reset(false);
-        }
-    }
-    MS_DEBUG_DEV_STD("%s translation service %s",
-                     connected ? "connected to" : "disconnected from",
-                     _serviceUri.c_str());
-}
-
 void TranslatorEndPoint::ConnectToMediaInput(bool connect)
 {
     LOCK_READ_PROTECTED_OBJ(_input);
@@ -246,12 +275,12 @@ void TranslatorEndPoint::UpdateTranslationChanges()
         if (IsConnected()) {
             SendTranslationChanges();
         }
-        else {
-            OpenSocket();
+        else if (CanConnect()) {
+            Connect();
         }
     }
     else {
-        CloseSocket();
+        Disconnect();
     }
 }
 
@@ -267,129 +296,18 @@ bool TranslatorEndPoint::SendTranslationChanges()
 
 bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
 {
-    bool ok = false;
     if (IsConnected()) {
-        const auto jsonAsText = nlohmann::to_string(data);
-        ok = _socket->WriteText(jsonAsText);
-        if (!ok) {
-            MS_ERROR_STD("failed write JSON '%s' into translation service %s",
-                         jsonAsText.c_str(), _serviceUri.c_str());
-        }
+        return SendText(nlohmann::to_string(data));
     }
-    return ok;
+    return false;
 }
 
 bool TranslatorEndPoint::WriteBinary(const MemoryBuffer& buffer) const
 {
-    bool ok = false;
     if (IsConnected()) {
-        ok = _socket->WriteBinary(buffer);
-        if (!ok) {
-            MS_ERROR_STD("failed write binary (%zu bytes)' into translation service %s",
-                         buffer.GetSize(), _serviceUri.c_str());
-        }
+        return SendBinary(buffer);
     }
-    return ok;
-}
-
-void TranslatorEndPoint::OpenSocket()
-{
-    if (HasInput() && HasValidTranslationSettings()) {
-        switch (_socket->GetState()) {
-            case WebsocketState::Disconnected:
-                if (!_socket->Open(_userAgent)) {
-                    MS_ERROR_STD("failed open websocket connection with %s", _serviceUri.c_str());
-                }
-                break;
-            default:
-                break;
-        }
-    }
-}
-
-void TranslatorEndPoint::CloseSocket()
-{
-    if (IsConnected()) {
-        SimpleMemoryBuffer bye;
-        _socket->WriteBinary(bye);
-    }
-    _socket->Close();
-}
-
-void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
-{
-    MediaSink::StartMediaWriting(ssrc);
-    if (_inputSlice) {
-        _inputSlice->Reset(true);
-    }
-    _ssrc = ssrc;
-}
-
-void TranslatorEndPoint::WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer)
-{
-    if (buffer && !buffer->IsEmpty() && IsConnected()) {
-        if (_inputSlice) {
-            _inputSlice->Add(buffer, this);
-        }
-        else {
-            WriteBinary(*buffer);
-        }
-    }
-}
-
-void TranslatorEndPoint::EndMediaWriting(uint32_t ssrc)
-{
-    MediaSink::EndMediaWriting(ssrc);
-    if (_inputSlice) {
-        _inputSlice->Reset(false);
-    }
-    _ssrc.compare_exchange_strong(ssrc, 0U);
-}
-
-void TranslatorEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
-{
-    WebsocketListener::OnStateChanged(socketId, state);
-    switch (state) {
-        case WebsocketState::Connected:
-            SetConnected(true);
-            break;
-        case WebsocketState::Disconnected:
-            SetConnected(false);
-            break;
-        default:
-            break;
-    }
-}
-
-void TranslatorEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<MemoryBuffer>& message)
-{
-    if (message) {
-        if (const auto ssrc = _ssrc.load()) {
-            MS_ERROR_STD("Received translation for %u SSRC", _ssrc.load()); // TODO: remove it for production
-            LOCK_READ_PROTECTED_OBJ(_output);
-            if (const auto output = _output.ConstRef()) {
-                bool playTranslation = true;
-#ifdef PLAY_MOCK_FILE_INSTEAD_OF_TRANSLATION
-                if (const auto mockData = FileReader::ReadAllAsBuffer(_testFileName)) {
-                    Playback(ssrc, output, mockData);
-                    playTranslation = false;
-                }
-#endif
-                if (playTranslation) {
-                    Playback(ssrc, output, message);
-#ifdef WRITE_TRANSLATION_TO_FILE
-                    const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
-                    if (depacketizerPath && std::strlen(depacketizerPath)) {
-                        std::string fileName = std::string(depacketizerPath) + "/"
-                            + "received_translation_" + std::to_string(ssrc) + "_"
-                            + std::to_string(DepLibUV::GetTimeMs()) + ".webm";
-                        FileWriter::WriteAll(fileName, message);
-                    }
-#endif
-                }
-            }
-        }
-    }
+    return false;
 }
 
 TranslatorEndPoint::InputSliceBuffer::InputSliceBuffer(uint32_t timeSliceMs)

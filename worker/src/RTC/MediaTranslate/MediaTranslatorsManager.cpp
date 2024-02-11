@@ -4,7 +4,7 @@
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
-#include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
+//#include "RTC/MediaTranslate/TranslatorEndPoint.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/Producer.hpp"
 #include "RTC/Consumer.hpp"

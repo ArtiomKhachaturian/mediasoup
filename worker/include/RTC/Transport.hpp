@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 
+#define MEDIA_TRANSLATIONS_TEST // TODO: remove it for production
 
 namespace RTC
 {

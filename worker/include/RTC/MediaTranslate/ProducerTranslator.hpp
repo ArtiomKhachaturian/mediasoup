@@ -3,6 +3,7 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/MediaTranslate/RtpPacketsInfoProvider.hpp"
+#include "RTC/MediaTranslate/TranslationEndPoint/TranslatorEndPointListener.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
@@ -24,8 +25,8 @@ class TranslatorEndPoint;
 class RtpPacket;
 
 class ProducerTranslator : private MediaSource,
-                           private RtpPacketsInfoProvider,
-                           private RtpPacketsCollector // for receiving of translated packets
+                           private TranslatorEndPointListener, // for receiving of translated packets
+                           private RtpPacketsInfoProvider
 {
     class StreamInfo;
     template <typename T>
@@ -63,14 +64,18 @@ private:
     void RemoveAllSinks() final;
     bool HasSinks() const final;
     size_t GetSinksCout() const final;
+    // impl. of TranslatorEndPointListener
+    void OnTranslatedMediaReceived(uint64_t endPointId, uint64_t mediaSeqNum,
+                                   const std::shared_ptr<MemoryBuffer>& media) final;
     // impl. of RtpPacketsInfoProvider
     uint8_t GetPayloadType(uint32_t ssrc) const final;
     uint16_t GetLastOriginalRtpSeqNumber(uint32_t ssrc) const final;
     uint32_t GetLastOriginalRtpTimestamp(uint32_t ssrc) const final;
     uint32_t GetClockRate(uint32_t ssrc) const final;
-    // impl. of RtpPacketsCollector
-    bool AddPacket(RtpPacket* packet) final;
 private:
+#ifdef NO_TRANSLATION_SERVICE
+    static inline const char* _mockTranslationFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_stereo_example.webm";
+#endif
     const Producer* const _producer;
     RtpPacketsPlayer* const _translationsOutput;
     const std::string _serviceUri;

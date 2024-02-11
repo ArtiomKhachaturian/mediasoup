@@ -1117,15 +1117,6 @@ namespace RTC
         // Remove from the map.
         this->mapProducerRtpObservers[producer].erase(rtpObserver);
     }
-
-    size_t Router::GetTranslatorsCount() const
-    {
-        size_t count = 0UL;
-        for (auto it = this->mapTransportTranslators.begin(); it != this->mapTransportTranslators.end(); ++it) {
-            count += it->second.size();
-        }
-        return count;
-    }
     
     ProducerTranslator* Router::GetTranslator(const RTC::Producer* producer) const
     {

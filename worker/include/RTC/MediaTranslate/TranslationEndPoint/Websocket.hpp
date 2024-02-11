@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ProtectedObj.hpp"
-#include "RTC/MediaTranslate/WebsocketState.hpp"
 #include "RTC/Listeners.hpp"
 #include <string>
 #include <memory>
@@ -12,6 +11,7 @@ namespace RTC
 
 class WebsocketListener;
 class MemoryBuffer;
+enum class WebsocketState;
 
 class Websocket
 {
@@ -36,6 +36,7 @@ public:
     void Close();
     WebsocketState GetState() const;
     uint64_t GetId() const;
+    std::string GetUrl() const;
     bool WriteBinary(const MemoryBuffer& buffer);
     bool WriteText(const std::string& text);
     void AddListener(WebsocketListener* listener);
