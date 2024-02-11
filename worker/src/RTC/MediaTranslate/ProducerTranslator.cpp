@@ -7,9 +7,10 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
-#ifdef NO_TRANSLATION_SERVICE
+#if defined(NO_TRANSLATION_SERVICE) || defined(SINGLE_TRANSLATION_POINT_CONNECTION)
 #include "RTC/MediaTranslate/TranslationEndPoint/MockEndPoint.hpp"
-#else
+#endif
+#ifndef NO_TRANSLATION_SERVICE
 #include "RTC/MediaTranslate/TranslationEndPoint/WebsocketEndPoint.hpp"
 #endif
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
@@ -251,11 +252,6 @@ void ProducerTranslator::AddConsumer(Consumer* consumer)
         MS_ASSERT(consumer->producerId == GetId(), "wrong producer ID");
         LOCK_WRITE_PROTECTED_OBJ(_endPoints);
         if (!_endPoints->count(consumer)) {
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-            if (_instanceIndex || !_endPoints->empty()) {
-                return;
-            }
-#endif
             // TODO: more compliant logic required, but not for demo
             const auto endPointId = reinterpret_cast<uint64_t>(consumer);
             std::unique_ptr<TranslatorEndPoint> endPoint;
@@ -269,13 +265,18 @@ void ProducerTranslator::AddConsumer(Consumer* consumer)
                                                            _serviceUser,
                                                            _servicePassword);
 #endif
-            TranslatorEndPoint* ref = endPoint.get();
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+            if (_instanceIndex || !_endPoints->empty()) {
+                endPoint = std::make_unique<MockEndPoint>(endPointId);
+            }
+#endif
+            endPoint->SetInput(this);
+            endPoint->SetOutput(this);
             endPoint->SetInputLanguageId(_producer->GetLanguageId());
             endPoint->SetOutputLanguageId(consumer->GetLanguageId());
             endPoint->SetOutputVoiceId(consumer->GetVoiceId());
             _endPoints->insert({consumer, std::move(endPoint)});
-            ref->SetInput(this);
-            ref->SetOutput(this);
+            
         }
     }
 }
@@ -412,7 +413,7 @@ size_t ProducerTranslator::GetSinksCout() const
 void ProducerTranslator::OnTranslatedMediaReceived(uint64_t endPointId, uint64_t mediaSeqNum,
                                                    const std::shared_ptr<MemoryBuffer>& media)
 {
-    
+    MS_ERROR_STD("Received media translation # %llu", mediaSeqNum);
 }
 
 uint8_t ProducerTranslator::GetPayloadType(uint32_t ssrc) const
