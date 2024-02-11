@@ -14,7 +14,6 @@
 #include "RTC/Shared.hpp"
 #include "RTC/Transport.hpp"
 #include "RTC/WebRtcServer.hpp"
-#include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
 #include "RTC/MediaTranslate/ProducerTranslator.hpp"
 #include <absl/container/flat_hash_map.h>
@@ -26,8 +25,7 @@ namespace RTC
 {
     class Router : public RTC::Transport::Listener,
                    public RTC::RtpObserver::Listener,
-                   public Channel::ChannelSocket::RequestHandler,
-                   private RTC::RtpPacketsCollector // for receiving of translated packets
+                   public Channel::ChannelSocket::RequestHandler
     {
         using TranslatorsMap = absl::flat_hash_map<RTC::Producer*, std::unique_ptr<ProducerTranslator>>;
     public:
@@ -58,8 +56,6 @@ namespace RTC
         RTC::RtpObserver* GetRtpObserverById(const std::string& rtpObserverId) const;
         void CheckNoTransport(const std::string& transportId) const;
         void CheckNoRtpObserver(const std::string& rtpObserverId) const;
-        // imol. of RtpPacketsCollector
-        bool AddPacket(RtpPacket* packet) final;
 
         /* Pure virtual methods inherited from RTC::Transport::Listener. */
     public:
@@ -115,7 +111,7 @@ namespace RTC
         void OnTransportDataConsumerDataProducerClosed(
           RTC::Transport* transport, RTC::DataConsumer* dataConsumer) override;
         void OnTransportListenServerClosed(RTC::Transport* transport) override;
-        bool OnTransportProducerRtpPacketTranslationRequired(
+        void OnTransportProducerRtpPacketTranslationRequired(
           RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) override;
 
         /* Pure virtual methods inherited from RTC::RtpObserver::Listener. */

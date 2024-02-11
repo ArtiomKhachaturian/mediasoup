@@ -76,7 +76,6 @@ MediaTranslatorsManager::MediaTranslatorsManager(TransportListener* router,
     , _serviceUri(serviceUri)
     , _serviceUser(serviceUser)
     , _servicePassword(servicePassword)
-    , _packetsPlayer(nullptr)
 #ifdef USE_MAIN_THREAD_FOR_PACKETS_RETRANSMISSION
     , _async(UVAsyncHandle::Create(PlaybackDefferedRtpPackets, this))
 #endif

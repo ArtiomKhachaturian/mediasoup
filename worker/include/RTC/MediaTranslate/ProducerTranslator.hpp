@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RTC/RtpDictionaries.hpp"
+#include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/MediaTranslate/RtpPacketsInfoProvider.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "ProtectedObj.hpp"
@@ -9,7 +10,7 @@
 //#define WRITE_PRODUCER_RECV_TO_FILE // add MEDIASOUP_DEPACKETIZER_PATH env variable for reference to output folder
 //#define READ_PRODUCER_RECV_FROM_FILE
 #define NO_TRANSLATION_SERVICE
-//#define SINGLE_TRANSLATION_POINT_CONNECTION
+#define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC
 {
@@ -22,7 +23,9 @@ class Consumer;
 class TranslatorEndPoint;
 class RtpPacket;
 
-class ProducerTranslator : private MediaSource, private RtpPacketsInfoProvider
+class ProducerTranslator : private MediaSource,
+                           private RtpPacketsInfoProvider,
+                           private RtpPacketsCollector // for receiving of translated packets
 {
     class StreamInfo;
     template <typename T>
@@ -37,7 +40,7 @@ public:
                                                       const std::string& servicePassword);
     bool AddStream(uint32_t mappedSsrc, const RtpStream* stream);
     bool RemoveStream(uint32_t mappedSsrc);
-    bool DispatchIncomingRtpPacket(RtpPacket* packet);
+    void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
     const std::string& GetId() const;
     // list of mapped or original ssrcs for added streams
     std::list<uint32_t> GetSsrcs(bool mapped) const;
@@ -65,6 +68,8 @@ private:
     uint16_t GetLastOriginalRtpSeqNumber(uint32_t ssrc) const final;
     uint32_t GetLastOriginalRtpTimestamp(uint32_t ssrc) const final;
     uint32_t GetClockRate(uint32_t ssrc) const final;
+    // impl. of RtpPacketsCollector
+    bool AddPacket(RtpPacket* packet) final;
 private:
     const Producer* const _producer;
     RtpPacketsPlayer* const _translationsOutput;

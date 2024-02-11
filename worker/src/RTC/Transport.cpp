@@ -1579,38 +1579,40 @@ namespace RTC
             return;
         }
         
-        if (translated || !this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet)) {
-            
-            // Feed the TransportCongestionControlServer.
-            if (this->tccServer)
-            {
-                this->tccServer->IncomingPacket(DepLibUV::GetTimeMs(), packet);
-            }
-            
-            // MS_DEBUG_DEV(
-            //   "RTP packet received [ssrc:%" PRIu32 ", payloadType:%" PRIu8 ", producerId:%s]",
-            //   packet->GetSsrc(),
-            //   packet->GetPayloadType(),
-            //   producer->id.c_str());
-            
-            // Pass the RTP packet to the corresponding Producer.
-            auto result = producer->ReceiveRtpPacket(packet);
-            
-            switch (result)
-            {
-                case RTC::Producer::ReceiveRtpPacketResult::MEDIA:
-                    this->recvRtpTransmission.Update(packet);
-                    break;
-                case RTC::Producer::ReceiveRtpPacketResult::RETRANSMISSION:
-                    this->recvRtxTransmission.Update(packet);
-                    break;
-                case RTC::Producer::ReceiveRtpPacketResult::DISCARDED:
-                    // Tell the child class to remove this SSRC.
-                    RecvStreamClosed(packet->GetSsrc());
-                    break;
-                default:;
-            }
+        if (!translated) {
+            this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet);
         }
+        
+        // Feed the TransportCongestionControlServer.
+        if (this->tccServer)
+        {
+            this->tccServer->IncomingPacket(DepLibUV::GetTimeMs(), packet);
+        }
+        
+        // MS_DEBUG_DEV(
+        //   "RTP packet received [ssrc:%" PRIu32 ", payloadType:%" PRIu8 ", producerId:%s]",
+        //   packet->GetSsrc(),
+        //   packet->GetPayloadType(),
+        //   producer->id.c_str());
+        
+        // Pass the RTP packet to the corresponding Producer.
+        auto result = producer->ReceiveRtpPacket(packet);
+        
+        switch (result)
+        {
+            case RTC::Producer::ReceiveRtpPacketResult::MEDIA:
+                this->recvRtpTransmission.Update(packet);
+                break;
+            case RTC::Producer::ReceiveRtpPacketResult::RETRANSMISSION:
+                this->recvRtxTransmission.Update(packet);
+                break;
+            case RTC::Producer::ReceiveRtpPacketResult::DISCARDED:
+                // Tell the child class to remove this SSRC.
+                RecvStreamClosed(packet->GetSsrc());
+                break;
+            default:;
+        }
+        
         delete packet;
     }
 

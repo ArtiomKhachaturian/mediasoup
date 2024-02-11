@@ -102,9 +102,8 @@ private:
     ProtectedObj<PlayersList> _backgroundPlayers;
 };
 
-RtpPacketsPlayer::RtpPacketsPlayer(RtpPacketsCollector* packetsCollector)
-    : _packetsCollector(packetsCollector)
-    , _timer("RtpPacketsPlayer")
+RtpPacketsPlayer::RtpPacketsPlayer()
+    : _timer("RtpPacketsPlayer")
 {
 }
 
@@ -115,13 +114,14 @@ RtpPacketsPlayer::~RtpPacketsPlayer()
 }
 
 void RtpPacketsPlayer::AddStream(uint32_t ssrc, const RtpCodecMimeType& mime,
+                                 RtpPacketsCollector* packetsCollector,
                                  const RtpPacketsInfoProvider* packetsInfoProvider)
 {
-    if (ssrc && packetsInfoProvider) {
+    if (ssrc && packetsCollector && packetsInfoProvider) {
         LOCK_WRITE_PROTECTED_OBJ(_streams);
         if (_streams->end() == _streams->find(ssrc)) {
             if (WebMCodecs::IsSupported(mime)) {
-                auto stream = std::make_shared<Stream>(ssrc, mime, _packetsCollector,
+                auto stream = std::make_shared<Stream>(ssrc, mime, packetsCollector,
                                                        packetsInfoProvider, &_timer);
                 _streams.Ref()[ssrc] = std::move(stream);
             }

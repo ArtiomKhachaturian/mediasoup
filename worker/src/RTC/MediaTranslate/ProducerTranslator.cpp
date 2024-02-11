@@ -32,13 +32,13 @@ std::atomic<uint64_t> g_InstancesCounter = 0ULL;
 namespace RTC
 {
 
-class ProducerTranslator::StreamInfo : public RtpPacketsCollector
+class ProducerTranslator::StreamInfo
 {
 public:
     StreamInfo(uint32_t clockRate, uint8_t payloadType, const std::string& producerId,
                std::unique_ptr<MediaFrameSerializer> serializer,
                std::unique_ptr<RtpDepacketizer> depacketizer);
-    ~StreamInfo() final;
+    ~StreamInfo();
     static std::shared_ptr<StreamInfo> Create(const RtpCodecMimeType& mime,
                                               uint32_t clockRate,
                                               uint32_t originalSsrc,
@@ -55,8 +55,7 @@ public:
     void AddSink(MediaSink* sink);
     void RemoveSink(MediaSink* sink);
     void RemoveAllSinks();
-    // impl. of RtpPacketsCollector
-    bool AddPacket(RtpPacket* packet) final;
+    bool AddOriginalRtpPacketForTranslation(RtpPacket* packet);
 private:
 #ifdef READ_PRODUCER_RECV_FROM_FILE
     static std::unique_ptr<FileReader> CreateFileReader(uint32_t ssrc);
@@ -165,7 +164,7 @@ bool ProducerTranslator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
                                                      payloadType, _producer->id);
                 if (streamInfo) {
                     AddSinksToStream(streamInfo);
-                    _translationsOutput->AddStream(originalSsrc, mime, this);
+                    _translationsOutput->AddStream(originalSsrc, mime, this,  this);
                     _originalSsrcToStreams[originalSsrc] = streamInfo;
                     _mappedSsrcToStreams->insert({mappedSsrc, std::move(streamInfo)});
                     ok = true;
@@ -202,19 +201,29 @@ bool ProducerTranslator::RemoveStream(uint32_t mappedSsrc)
     return false;
 }
 
-bool ProducerTranslator::DispatchIncomingRtpPacket(RtpPacket* packet)
+void ProducerTranslator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     if (packet && !_producer->IsPaused()) {
         if (const auto stream = GetStream(packet->GetSsrc())) {
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-            if (_instanceIndex) {
-                return true;
-            }
+            const auto added = _instanceIndex > 0U || stream->AddOriginalRtpPacketForTranslation(packet);
+#else
+            const auto added = stream->AddOriginalRtpPacketForTranslation(packet);
 #endif
-            return stream->AddPacket(packet);
+            if (added) {
+                LOCK_READ_PROTECTED_OBJ(_endPoints);
+                for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+#ifdef NO_TRANSLATION_SERVICE
+                    packet->AddRejectedConsumer(it->first);
+#else
+                    if (it->second->IsConnected()) {
+                        packet->AddRejectedConsumer(it->first);
+                    }
+#endif
+                }
+            }
         }
     }
-    return false;
 }
 
 const std::string& ProducerTranslator::GetId() const
@@ -235,11 +244,6 @@ std::list<uint32_t> ProducerTranslator::GetSsrcs(bool mapped) const
 void ProducerTranslator::AddConsumer(Consumer* consumer)
 {
     if (consumer) {
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-        if (_instanceIndex) {
-            return;
-        }
-#endif
         MS_ASSERT(consumer->producerId == GetId(), "wrong producer ID");
         LOCK_WRITE_PROTECTED_OBJ(_endPoints);
         if (!_endPoints->count(consumer)) {
@@ -247,7 +251,11 @@ void ProducerTranslator::AddConsumer(Consumer* consumer)
                                                                  _serviceUser,
                                                                  _servicePassword);
 #ifdef NO_TRANSLATION_SERVICE
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+            if (0UL == _instanceIndex && _endPoints->empty()) {
+#else
             if (_endPoints->empty()) {
+#endif
                 AddSink(_translationsOutput);
             }
 #else
@@ -265,17 +273,16 @@ void ProducerTranslator::AddConsumer(Consumer* consumer)
 void ProducerTranslator::RemoveConsumer(Consumer* consumer)
 {
     if (consumer) {
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-        if (_instanceIndex) {
-            return;
-        }
-#endif
         MS_ASSERT(consumer->producerId == GetId(), "wrong producer ID");
         LOCK_WRITE_PROTECTED_OBJ(_endPoints);
         const auto it = _endPoints->find(consumer);
         if (it != _endPoints->end()) {
 #ifdef NO_TRANSLATION_SERVICE
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+            if (0UL == _instanceIndex && 1UL == _endPoints->size()) {
+#else
             if (1UL == _endPoints->size()) {
+#endif
                 RemoveSink(_translationsOutput);
             }
 #else
@@ -440,6 +447,11 @@ uint32_t ProducerTranslator::GetClockRate(uint32_t ssrc) const
     return 0U;
 }
 
+bool ProducerTranslator::AddPacket(RtpPacket* packet)
+{
+    // TODO: handle translated packets here
+    return false;
+}
 
 ProducerTranslator::StreamInfo::StreamInfo(uint32_t clockRate, uint8_t payloadType,
                                            const std::string& producerId,
@@ -537,7 +549,7 @@ void ProducerTranslator::StreamInfo::RemoveAllSinks()
     source->RemoveAllSinks();
 }
 
-bool ProducerTranslator::StreamInfo::AddPacket(RtpPacket* packet)
+bool ProducerTranslator::StreamInfo::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     bool handled = false;
     if (packet) {

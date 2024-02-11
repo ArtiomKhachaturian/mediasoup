@@ -17,9 +17,10 @@ class RtpPacketsPlayer : public MediaSink
     class TrackPlayer;
     class Stream;
 public:
-    RtpPacketsPlayer(RtpPacketsCollector* packetsCollector);
+    RtpPacketsPlayer();
     ~RtpPacketsPlayer() final;
     void AddStream(uint32_t ssrc, const RtpCodecMimeType& mime,
+                   RtpPacketsCollector* packetsCollector,
                    const RtpPacketsInfoProvider* packetsInfoProvider);
     void RemoveStream(uint32_t ssrc);
     // impl. of MediaSink
@@ -29,7 +30,6 @@ public:
 private:
     std::shared_ptr<Stream> GetStream(uint32_t ssrc) const;
 private:
-    RtpPacketsCollector* const _packetsCollector;
     MediaTimer _timer;
     ProtectedObj<absl::flat_hash_map<uint32_t, std::shared_ptr<Stream>>> _streams;
 };
