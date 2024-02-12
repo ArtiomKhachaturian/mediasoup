@@ -28,7 +28,8 @@ template <typename T, class TMutexType = std::recursive_mutex>
 class ProtectedObj
 {
 public:
-    using GuardTraits = MutextTraits<TMutexType>;
+    using ObjectMutexType = TMutexType;
+    using GuardTraits = MutextTraits<ObjectMutexType>;
 public:
     ProtectedObj() = default;
     explicit ProtectedObj(T val);
@@ -55,7 +56,7 @@ public:
     const T* operator -> () const noexcept { return &_obj; }
 
 private:
-    mutable TMutexType _mtx;
+    mutable ObjectMutexType _mtx;
     T _obj;
 };
 

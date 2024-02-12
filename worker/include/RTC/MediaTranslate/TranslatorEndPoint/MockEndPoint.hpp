@@ -11,9 +11,10 @@ class MockEndPoint : public TranslatorEndPoint
     class TrivialImpl;
     class FileImpl;
 public:
-    MockEndPoint(uint64_t id);
-    MockEndPoint(uint64_t id, const std::string_view& fileNameUtf8,
+    MockEndPoint(uint32_t ssrc);
+    MockEndPoint(uint32_t ssrc, const std::string_view& fileNameUtf8,
                  uint32_t intervalBetweenTranslationsMs);
+    MockEndPoint(const std::string_view& fileNameUtf8, uint32_t intervalBetweenTranslationsMs);
     ~MockEndPoint() final;
 protected:
     // impl. of TranslatorEndPoint

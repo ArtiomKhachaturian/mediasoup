@@ -22,10 +22,11 @@ private:
     ProtectedObj<SimpleMemoryBuffer> _impl;
 };
 
-TranslatorEndPoint::TranslatorEndPoint(uint64_t id, uint32_t timeSliceMs)
-    : _id(id)
+TranslatorEndPoint::TranslatorEndPoint(uint32_t ssrc, uint32_t timeSliceMs)
+    : _ssrc(ssrc)
     , _inputSlice(InputSliceBuffer::Create(timeSliceMs))
 {
+    MS_ASSERT(_ssrc, "SSRC must be greater than zero");
 }
 
 TranslatorEndPoint::~TranslatorEndPoint()   
@@ -125,7 +126,6 @@ void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
         if (_inputSlice) {
             _inputSlice->Reset(false);
         }
-        _receivedMediaCounter = 0ULL;
     }
 }
 
@@ -135,45 +135,9 @@ void TranslatorEndPoint::NotifyThatTranslatedMediaReceived(const std::shared_ptr
         const auto num = _receivedMediaCounter.fetch_add(1U);
         LOCK_READ_PROTECTED_OBJ(_output);
         if (const auto output = _output.ConstRef()) {
-            output->OnTranslatedMediaReceived(_id, num, GetActiveSsrcs(), media);
+            output->OnTranslatedMediaReceived(this, num, media);
         }
     }
-}
-
-std::set<uint32_t> TranslatorEndPoint::GetActiveSsrcs() const
-{
-    LOCK_READ_PROTECTED_OBJ(_activeSsrcs);
-    return _activeSsrcs.ConstRef();
-}
-
-void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
-{
-    MediaSink::StartMediaWriting(ssrc);
-    if (_inputSlice) {
-        _inputSlice->Reset(true);
-    }
-    AddRemoveActiveSsrc(ssrc, true);
-}
-
-void TranslatorEndPoint::WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer)
-{
-    if (buffer && !buffer->IsEmpty() && IsConnected()) {
-        if (_inputSlice) {
-            _inputSlice->Add(buffer, this);
-        }
-        else {
-            WriteBinary(*buffer);
-        }
-    }
-}
-
-void TranslatorEndPoint::EndMediaWriting(uint32_t ssrc)
-{
-    MediaSink::EndMediaWriting(ssrc);
-    if (_inputSlice) {
-        _inputSlice->Reset(false);
-    }
-    AddRemoveActiveSsrc(ssrc, false);
 }
 
 nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLanguageId,
@@ -318,17 +282,36 @@ bool TranslatorEndPoint::WriteBinary(const MemoryBuffer& buffer) const
     return false;
 }
 
-void TranslatorEndPoint::AddRemoveActiveSsrc(uint32_t ssrc, bool add)
+void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
 {
-    MS_ASSERT(ssrc, "invalid SSRC");
-    LOCK_WRITE_PROTECTED_OBJ(_activeSsrcs);
-    if (add) {
-        _activeSsrcs->insert(ssrc);
+    MediaSink::StartMediaWriting(ssrc);
+    if (_inputSlice) {
+        _inputSlice->Reset(true);
     }
-    else {
-        _activeSsrcs->erase(ssrc);
+    MS_ASSERT(_ssrc == ssrc, "start writing from incorrect media sender");
+}
+
+void TranslatorEndPoint::WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer)
+{
+    if (buffer && !buffer->IsEmpty() && IsConnected()) {
+        if (_inputSlice) {
+            _inputSlice->Add(buffer, this);
+        }
+        else {
+            WriteBinary(*buffer);
+        }
     }
 }
+
+void TranslatorEndPoint::EndMediaWriting(uint32_t ssrc)
+{
+    MediaSink::EndMediaWriting(ssrc);
+    if (_inputSlice) {
+        _inputSlice->Reset(false);
+    }
+    MS_ASSERT(_ssrc == ssrc, "end writing from incorrect media sender");
+}
+
 
 TranslatorEndPoint::InputSliceBuffer::InputSliceBuffer(uint32_t timeSliceMs)
     : _timeSliceMs(timeSliceMs)

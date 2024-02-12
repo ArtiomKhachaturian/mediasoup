@@ -30,8 +30,8 @@ protected:
               RtpPacketsCollector* packetsCollector,
               const RtpPacketsInfoProvider* packetsInfoProvider);
     void ResetResult() { _lastResult.store(MediaFrameDeserializeResult::Success); }
-    uint16_t GetLastOriginalRtpSeqNumber() const;
-    uint32_t GetLastOriginalRtpTimestamp() const;
+    //uint16_t GetLastOriginalRtpSeqNumber() const;
+    //uint32_t GetLastOriginalRtpTimestamp() const;
     uint32_t GetClockRate() const;
     virtual std::string GetDescription() const { return ""; }
 private:
@@ -218,14 +218,14 @@ RtpPacket* RtpPacketsPlayer::TrackPlayer::CreatePacket(const std::shared_ptr<con
 {
     if (frame) {
         if (const auto packet = _packetizer->AddFrame(frame)) {
-            if (!_initialRtpTimestamp) {
-                _initialRtpTimestamp = GetLastOriginalRtpTimestamp();
-            }
-            _sequenceNumber = std::max(_sequenceNumber, GetLastOriginalRtpSeqNumber());
+            //if (!_initialRtpTimestamp) {
+            //    _initialRtpTimestamp = GetLastOriginalRtpTimestamp();
+            //}
+            //_sequenceNumber = std::max(_sequenceNumber, GetLastOriginalRtpSeqNumber());
             const uint32_t timestamp = _initialRtpTimestamp + frame->GetTimestamp();
             packet->SetSsrc(GetSsrc());
-            packet->SetSequenceNumber(++_sequenceNumber);
-            packet->SetTimestamp(std::max(timestamp, GetLastOriginalRtpTimestamp()));
+            //packet->SetSequenceNumber(++_sequenceNumber);
+            //packet->SetTimestamp(std::max(timestamp, GetLastOriginalRtpTimestamp()));
             return packet;
         }
     }
@@ -405,7 +405,7 @@ void MediaInfo::SetResult(MediaFrameDeserializeResult result, const char* operat
     }
 }
 
-uint16_t MediaInfo::GetLastOriginalRtpSeqNumber() const
+/*uint16_t MediaInfo::GetLastOriginalRtpSeqNumber() const
 {
     return GetPacketsInfoProvider()->GetLastOriginalRtpSeqNumber(GetSsrc());
 }
@@ -413,7 +413,7 @@ uint16_t MediaInfo::GetLastOriginalRtpSeqNumber() const
 uint32_t MediaInfo::GetLastOriginalRtpTimestamp() const
 {
     return GetPacketsInfoProvider()->GetLastOriginalRtpTimestamp(GetSsrc());
-}
+}*/
 
 uint32_t MediaInfo::GetClockRate() const
 {

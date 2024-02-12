@@ -63,15 +63,16 @@ private:
     std::atomic<WebsocketState> _state = WebsocketState::Disconnected;
 };
 
-MockEndPoint::MockEndPoint(uint64_t id)
-    : TranslatorEndPoint(id, 0U)
+MockEndPoint::MockEndPoint(uint32_t ssrc)
+    : TranslatorEndPoint(ssrc, 0U)
     , _impl(std::make_shared<TrivialImpl>())
 {
+    _impl->SetOwner(this);
 }
 
-MockEndPoint::MockEndPoint(uint64_t id, const std::string_view& fileNameUtf8,
+MockEndPoint::MockEndPoint(uint32_t ssrc, const std::string_view& fileNameUtf8,
                            uint32_t intervalBetweenTranslationsMs)
-    : TranslatorEndPoint(id, 0U)
+    : TranslatorEndPoint(ssrc, 0U)
     , _impl(FileImpl::Create(fileNameUtf8, intervalBetweenTranslationsMs))
 {
     _impl->SetOwner(this);

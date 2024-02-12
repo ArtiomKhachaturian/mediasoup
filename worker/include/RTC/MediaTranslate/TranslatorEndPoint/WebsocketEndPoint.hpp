@@ -12,13 +12,9 @@ class Websocket;
 class WebsocketEndPoint : public TranslatorEndPoint, private WebsocketListener
 {
 public:
-    WebsocketEndPoint(uint64_t id, uint32_t timeSliceMs = 400U);
+    WebsocketEndPoint(uint32_t ssrc);
     ~WebsocketEndPoint() final;
 protected:
-#ifdef WRITE_TRANSLATION_TO_FILE
-    void StartMediaWriting(uint32_t ssrc) final;
-    void EndMediaWriting(uint32_t ssrc) final;
-#endif
     // impl. of TranslatorEndPoint
     bool IsConnected() const final;
     void Connect() final;
@@ -34,11 +30,9 @@ private:
     static inline const std::string _tsUri = "wss://20.218.159.203:8080/record";
     static inline const std::string _tsUser = "user";
     static inline const std::string _tsUserPassword = "password";
+    static inline constexpr uint32_t _defaultTimeSliceMs = 400U;
     const std::string _userAgent;
     const std::unique_ptr<Websocket> _socket;
-#ifdef WRITE_TRANSLATION_TO_FILE
-    std::atomic<uint32_t> _ssrc = 0U;
-#endif
 };
 
 }

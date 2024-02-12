@@ -177,6 +177,7 @@ common_sources = [
 ]
 
 media_translate_sources = [
+  'src/RTC/MediaTranslate/EndPointsManager.cpp',
   'src/RTC/MediaTranslate/FileReader.cpp',
   'src/RTC/MediaTranslate/FileWriter.cpp',
   'src/RTC/MediaTranslate/MediaFrame.cpp',

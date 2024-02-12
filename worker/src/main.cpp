@@ -32,7 +32,7 @@ private:
 
 int main(int argc, char* argv[])
 {
-    sleep(10); // TODO: remove this sleep for production
+    //sleep(10); // TODO: remove this sleep for production
     /*RTC::MediaTimer timer;
     auto callback = std::make_shared<FakeCallBack>(&timer);
     if (const auto timerId = timer.RegisterTimer(callback)) {

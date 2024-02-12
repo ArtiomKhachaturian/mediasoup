@@ -7,6 +7,7 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
+#include "RTC/MediaTranslate/EndPointsManager.hpp"
 #if defined(NO_TRANSLATION_SERVICE) || defined(SINGLE_TRANSLATION_POINT_CONNECTION)
 #include "RTC/MediaTranslate/TranslatorEndPoint/MockEndPoint.hpp"
 #endif
@@ -26,41 +27,50 @@
 #include "RTC/Consumer.hpp"
 #include "Logger.hpp"
 
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+
 namespace {
 
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
 std::atomic<uint64_t> g_InstancesCounter = 0ULL;
+#endif
 
 }
-#endif
 
 namespace RTC
 {
-
 class Translator::SourceStream
 {
 public:
-    SourceStream(uint32_t clockRate, uint8_t payloadType, const std::string& producerId,
+    SourceStream(uint32_t clockRate, uint8_t payloadType,
                  std::unique_ptr<MediaFrameSerializer> serializer,
-                 std::unique_ptr<RtpDepacketizer> depacketizer);
+                 std::unique_ptr<RtpDepacketizer> depacketizer,
+                 const std::string& producerId,
+                 TranslatorEndPointFactory* endPointsFactory,
+                 MediaSource* translationsInput,
+                 TranslatorEndPointListener* translationsOutput);
     ~SourceStream();
     static std::shared_ptr<SourceStream> Create(const RtpCodecMimeType& mime,
                                                 uint32_t clockRate,
                                                 uint32_t originalSsrc,
                                                 uint8_t payloadType,
-                                                const std::string& producerId);
+                                                const std::string& producerId,
+                                                TranslatorEndPointFactory* endPointsFactory,
+                                                MediaSource* translationsInput,
+                                                TranslatorEndPointListener* translationsOutput);
     uint32_t GetClockRate() const { return _serializer->GetClockRate(); }
     uint8_t GetPayloadType() const { return _payloadType; }
-    uint32_t GetLastOriginalRtpTimestamp() const { return _lastOriginalRtpTimestamp.load(); }
-    void SetLastOriginalRtpTimestamp(uint32_t timestamp);
-    uint16_t GetLastOriginalRtpSeqNumber() const { return _lastOriginalRtpSeqNumber.load(); }
-    void SetLastOriginalRtpSeqNumber(uint16_t seqNumber);
     const RtpCodecMimeType& GetMime() const { return _depacketizer->GetMimeType(); }
     uint32_t GetOriginalSsrc() const { return _serializer->GetSsrc(); }
     void AddSink(MediaSink* sink);
     void RemoveSink(MediaSink* sink);
     void RemoveAllSinks();
     bool AddOriginalRtpPacketForTranslation(RtpPacket* packet);
+    void SetInputLanguage(const std::string& languageId);
+    void AddConsumer(const Consumer* consumer);
+    void UpdateConsumer(const Consumer* consumer);
+    void RemoveConsumer(const Consumer* consumer);
+    bool IsConnected(const Consumer* consumer) const;
+    void SetLastOriginalPacketInfo(const Consumer* consumer, const RtpPacket* packet);
 private:
 #ifdef READ_PRODUCER_RECV_FROM_FILE
     static std::unique_ptr<FileReader> CreateFileReader(uint32_t ssrc);
@@ -86,8 +96,7 @@ private:
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     std::unique_ptr<FileWriter> _fileWriter;
 #endif
-    std::atomic<uint32_t> _lastOriginalRtpTimestamp = 0U;
-    std::atomic<uint16_t> _lastOriginalRtpSeqNumber = 0U;
+    ProtectedObj<EndPointsManager> _endPointsManager;
 };
 
 Translator::Translator(const Producer* producer, RtpPacketsPlayer* translationsOutput)
@@ -102,12 +111,8 @@ Translator::Translator(const Producer* producer, RtpPacketsPlayer* translationsO
 Translator::~Translator()
 {
     {
-        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
-        for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
-            it->second->SetInput(nullptr);
-            it->second->SetOutput(nullptr);
-        }
-        _endPoints->clear();
+        LOCK_WRITE_PROTECTED_OBJ(_consumers);
+        _consumers->clear();
     }
     for (const auto mappedSsrc : GetSsrcs(true)) {
         RemoveStream(mappedSsrc);
@@ -148,10 +153,14 @@ bool Translator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
             LOCK_WRITE_PROTECTED_OBJ(_mappedSsrcToStreams);
             const auto it = _mappedSsrcToStreams->find(mappedSsrc);
             if (it == _mappedSsrcToStreams->end()) {
-                auto sourceStream = SourceStream::Create(mime, clockRate, originalSsrc,
-                                                         payloadType, _producer->id);
+                auto sourceStream = SourceStream::Create(mime, clockRate,
+                                                         originalSsrc, payloadType,
+                                                         _producer->id,
+                                                         this, this, this);
                 if (sourceStream) {
+                    sourceStream->SetInputLanguage(_producer->GetLanguageId());
                     AddSinksToStream(sourceStream);
+                    AddConsumersToStream(sourceStream);
                     //_translationsOutput->AddStream(originalSsrc, mime, this,  this);
                     _originalSsrcToStreams[originalSsrc] = sourceStream;
                     _mappedSsrcToStreams->insert({mappedSsrc, std::move(sourceStream)});
@@ -198,16 +207,13 @@ void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 #else
             const auto added = stream->AddOriginalRtpPacketForTranslation(packet);
 #endif
-            if (added) {
-                LOCK_READ_PROTECTED_OBJ(_endPoints);
-                for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
-#ifdef NO_TRANSLATION_SERVICE
-                    packet->AddRejectedConsumer(it->first);
-#else
-                    if (it->second->IsConnected()) {
-                        packet->AddRejectedConsumer(it->first);
-                    }
-#endif
+            LOCK_READ_PROTECTED_OBJ(_consumers);
+            for (const auto consumer : _consumers.ConstRef()) {
+                if (added && stream->IsConnected(consumer)) {
+                    packet->AddRejectedConsumer(consumer);
+                }
+                else {
+                    stream->SetLastOriginalPacketInfo(consumer, packet);
                 }
             }
         }
@@ -231,79 +237,49 @@ std::list<uint32_t> Translator::GetSsrcs(bool mapped) const
 
 void Translator::AddConsumer(Consumer* consumer)
 {
-    if (consumer) {
+    if (consumer && Media::Kind::AUDIO == consumer->GetKind()) {
         MS_ASSERT(consumer->producerId == GetId(), "wrong producer ID");
-        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
-        if (!_endPoints->count(consumer)) {
-            // TODO: more compliant logic required, but not for demo
-            const auto endPointId = reinterpret_cast<uint64_t>(consumer);
-            std::unique_ptr<TranslatorEndPoint> endPoint;
-#ifdef NO_TRANSLATION_SERVICE
-            endPoint = std::make_unique<MockEndPoint>(endPointId,
-                                                      _mockTranslationFileName,
-                                                      _mockTranslationFileNameLenMs + 1000U);
-#else
-            endPoint = std::make_unique<WebsocketEndPoint>(endPointId,
-                                                           _serviceUri,
-                                                           _serviceUser,
-                                                           _servicePassword);
-#endif
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-            if (_instanceIndex || !_endPoints->empty()) {
-                endPoint = std::make_unique<MockEndPoint>(endPointId);
+        LOCK_WRITE_PROTECTED_OBJ(_consumers);
+        if (_consumers->end() == std::find(_consumers->begin(), _consumers->end(), consumer)) {
+            LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
+            for (auto it = _mappedSsrcToStreams->begin(); it != _mappedSsrcToStreams->end(); ++it) {
+                it->second->AddConsumer(consumer);
             }
-#endif
-            endPoint->SetInput(this);
-            endPoint->SetOutput(this);
-            endPoint->SetInputLanguageId(_producer->GetLanguageId());
-            endPoint->SetOutputLanguageId(consumer->GetLanguageId());
-            endPoint->SetOutputVoiceId(consumer->GetVoiceId());
-            _endPoints->insert({consumer, std::move(endPoint)});
-            
+            _consumers->push_back(consumer);
         }
     }
 }
 
 void Translator::RemoveConsumer(Consumer* consumer)
 {
-    if (consumer) {
+    if (consumer && Media::Kind::AUDIO == consumer->GetKind()) {
         MS_ASSERT(consumer->producerId == GetId(), "wrong producer ID");
-        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
-        const auto it = _endPoints->find(consumer);
-        if (it != _endPoints->end()) {
-            it->second->SetInput(nullptr);
-            it->second->SetOutput(nullptr);
-            _endPoints->erase(it);
+        LOCK_WRITE_PROTECTED_OBJ(_consumers);
+        const auto it = std::find(_consumers->begin(), _consumers->end(), consumer);
+        if (it != _consumers->end()) {
+            LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
+            for (auto it = _mappedSsrcToStreams->begin(); it != _mappedSsrcToStreams->end(); ++it) {
+                it->second->RemoveConsumer(consumer);
+            }
+            _consumers->erase(it);
         }
     }
 }
 
 void Translator::UpdateProducerLanguage()
 {
-    LOCK_READ_PROTECTED_OBJ(_endPoints);
-    for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
-        it->second->SetInputLanguageId(_producer->GetLanguageId());
+    LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
+    for (auto it = _mappedSsrcToStreams->begin(); it != _mappedSsrcToStreams->end(); ++it) {
+        it->second->SetInputLanguage(_producer->GetLanguageId());
     }
 }
 
-void Translator::UpdateConsumerLanguage(Consumer* consumer)
+void Translator::UpdateConsumerLanguageOrVoice(Consumer* consumer)
 {
-    if (consumer) {
-        LOCK_READ_PROTECTED_OBJ(_endPoints);
-        const auto it = _endPoints->find(consumer);
-        if (it != _endPoints->end()) {
-            it->second->SetOutputLanguageId(consumer->GetLanguageId());
-        }
-    }
-}
-
-void Translator::UpdateConsumerVoice(Consumer* consumer)
-{
-    if (consumer) {
-        LOCK_READ_PROTECTED_OBJ(_endPoints);
-        const auto it = _endPoints->find(consumer);
-        if (it != _endPoints->end()) {
-            it->second->SetOutputVoiceId(consumer->GetVoiceId());
+    if (consumer && Media::Kind::AUDIO == consumer->GetKind()) {
+        LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
+        for (auto it = _mappedSsrcToStreams->begin(); it != _mappedSsrcToStreams->end(); ++it) {
+            it->second->UpdateConsumer(consumer);
         }
     }
 }
@@ -331,6 +307,16 @@ void Translator::AddSinksToStream(const std::shared_ptr<SourceStream>& stream) c
         LOCK_READ_PROTECTED_OBJ(_sinks);
         for (const auto sink : _sinks.ConstRef()) {
             stream->AddSink(sink);
+        }
+    }
+}
+
+void Translator::AddConsumersToStream(const std::shared_ptr<SourceStream>& stream) const
+{
+    if (stream) {
+        LOCK_READ_PROTECTED_OBJ(_consumers);
+        for (const auto consumer : _consumers.ConstRef()) {
+            stream->AddConsumer(consumer);
         }
     }
 }
@@ -393,34 +379,40 @@ size_t Translator::GetSinksCout() const
     return _sinks.ConstRef().size();
 }
     
-void Translator::OnTranslatedMediaReceived(uint64_t endPointId, uint64_t mediaSeqNum,
-                                           const std::set<uint32_t>& ssrcs,
+void Translator::OnTranslatedMediaReceived(const TranslatorEndPoint* endPoint, uint64_t mediaSeqNum,
                                            const std::shared_ptr<MemoryBuffer>& media)
 {
-    MS_ASSERT(!ssrcs.empty(), "no SSRC info");
     MS_ERROR_STD("Received media translation # %llu", mediaSeqNum);
+}
+
+std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint(uint32_t ssrc)
+{
+    std::shared_ptr<TranslatorEndPoint> endPoint;
+#ifdef NO_TRANSLATION_SERVICE
+    endPoint = std::make_shared<MockEndPoint>(ssrc, _mockTranslationFileName,
+                                              _mockTranslationFileNameLenMs + 1000U);
+#else
+    endPoint = std::make_shared<WebsocketEndPoint>(ssrc);
+#endif
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+    if (_instanceIndex) {
+        endPoint = std::make_shared<MockEndPoint>(ssrc);
+    }
+    else {
+        // TODO: maybe deadlock when shared_mutex, potential conflict in Translator::AddConsumer
+        LOCK_READ_PROTECTED_OBJ(_consumers);
+        if (!_consumers->empty()) {
+            endPoint = std::make_shared<MockEndPoint>(ssrc);
+        }
+    }
+#endif
+    return endPoint;
 }
 
 uint8_t Translator::GetPayloadType(uint32_t ssrc) const
 {
     if (const auto stream = GetStream(ssrc)) {
         return stream->GetPayloadType();
-    }
-    return 0U;
-}
-
-uint16_t Translator::GetLastOriginalRtpSeqNumber(uint32_t ssrc) const
-{
-    if (const auto stream = GetStream(ssrc)) {
-        return stream->GetLastOriginalRtpSeqNumber();
-    }
-    return 0U;
-}
-
-uint32_t Translator::GetLastOriginalRtpTimestamp(uint32_t ssrc) const
-{
-    if (const auto stream = GetStream(ssrc)) {
-        return stream->GetLastOriginalRtpTimestamp();
     }
     return 0U;
 }
@@ -434,9 +426,12 @@ uint32_t Translator::GetClockRate(uint32_t ssrc) const
 }
 
 Translator::SourceStream::SourceStream(uint32_t clockRate, uint8_t payloadType,
-                                       const std::string& producerId,
                                        std::unique_ptr<MediaFrameSerializer> serializer,
-                                       std::unique_ptr<RtpDepacketizer> depacketizer)
+                                       std::unique_ptr<RtpDepacketizer> depacketizer,
+                                       const std::string& producerId,
+                                       TranslatorEndPointFactory* endPointsFactory,
+                                       MediaSource* translationsInput,
+                                       TranslatorEndPointListener* translationsOutput)
     : _payloadType(payloadType)
     , _serializer(std::move(serializer))
     , _depacketizer(std::move(depacketizer))
@@ -446,6 +441,7 @@ Translator::SourceStream::SourceStream(uint32_t clockRate, uint8_t payloadType,
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     , _fileWriter(CreateFileWriter(_serializer->GetSsrc(), producerId, _serializer.get()))
 #endif
+    , _endPointsManager(_serializer->GetSsrc(), endPointsFactory, translationsInput, translationsOutput)
 {
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     if (_fileWriter && !_serializer->AddTestSink(_fileWriter.get())) {
@@ -470,26 +466,31 @@ std::shared_ptr<Translator::SourceStream> Translator::SourceStream::Create(const
                                                                            uint32_t clockRate,
                                                                            uint32_t originalSsrc,
                                                                            uint8_t payloadType,
-                                                                           const std::string& producerId)
+                                                                           const std::string& producerId,
+                                                                           TranslatorEndPointFactory* endPointsFactory,
+                                                                           MediaSource* translationsInput,
+                                                                           TranslatorEndPointListener* translationsOutput)
 {
+    std::shared_ptr<SourceStream> stream;
     if (WebMCodecs::IsSupported(mime)) {
         if (auto depacketizer = RtpDepacketizer::create(mime, clockRate)) {
             auto serializer = std::make_unique<WebMSerializer>(originalSsrc, clockRate, mime);
-            return std::make_shared<SourceStream>(clockRate, payloadType, producerId,
-                                                  std::move(serializer), std::move(depacketizer));
+            stream = std::make_shared<SourceStream>(clockRate, payloadType,
+                                                    std::move(serializer),
+                                                    std::move(depacketizer),
+                                                    producerId,
+                                                    endPointsFactory,
+                                                    translationsInput,
+                                                    translationsOutput);
+        }
+        else {
+            MS_ERROR_STD("failed to create depacketizer, MIME type %s", mime.ToString().c_str());
         }
     }
-    return nullptr;
-}
-
-void Translator::SourceStream::SetLastOriginalRtpTimestamp(uint32_t timestamp)
-{
-    _lastOriginalRtpTimestamp = timestamp;
-}
-
-void Translator::SourceStream::SetLastOriginalRtpSeqNumber(uint16_t seqNumber)
-{
-    _lastOriginalRtpSeqNumber = seqNumber;
+    else {
+        MS_ERROR_STD("unsupported MIME type: %s", mime.ToString().c_str());
+    }
+    return stream;
 }
 
 void Translator::SourceStream::AddSink(MediaSink* sink)
@@ -533,11 +534,9 @@ bool Translator::SourceStream::AddOriginalRtpPacketForTranslation(RtpPacket* pac
 {
     bool handled = false;
     if (packet) {
-        SetLastOriginalRtpTimestamp(packet->GetTimestamp());
-        SetLastOriginalRtpSeqNumber(packet->GetSequenceNumber());
 #ifdef READ_PRODUCER_RECV_FROM_FILE
         if (_fileReader) {
-            return true;
+            return _serializer->HasSinks();
         }
 #endif
         if (const auto frame = _depacketizer->AddPacket(packet)) {
@@ -549,6 +548,53 @@ bool Translator::SourceStream::AddOriginalRtpPacketForTranslation(RtpPacket* pac
         }
     }
     return handled;
+}
+
+void Translator::SourceStream::SetInputLanguage(const std::string& languageId)
+{
+    LOCK_WRITE_PROTECTED_OBJ(_endPointsManager);
+    _endPointsManager->SetInputLanguage(languageId);
+}
+
+void Translator::SourceStream::AddConsumer(const Consumer* consumer)
+{
+    if (consumer) {
+        LOCK_WRITE_PROTECTED_OBJ(_endPointsManager);
+        _endPointsManager->AddConsumer(consumer);
+    }
+}
+
+void Translator::SourceStream::UpdateConsumer(const Consumer* consumer)
+{
+    if (consumer) {
+        LOCK_WRITE_PROTECTED_OBJ(_endPointsManager);
+        _endPointsManager->UpdateConsumer(consumer);
+    }
+}
+
+void Translator::SourceStream::RemoveConsumer(const Consumer* consumer)
+{
+    if (consumer) {
+        LOCK_WRITE_PROTECTED_OBJ(_endPointsManager);
+        _endPointsManager->RemoveConsumer(consumer);
+    }
+}
+
+bool Translator::SourceStream::IsConnected(const Consumer* consumer) const
+{
+    if (consumer) {
+        LOCK_READ_PROTECTED_OBJ(_endPointsManager);
+        return _endPointsManager->IsConnected(consumer);
+    }
+    return false;
+}
+
+void Translator::SourceStream::SetLastOriginalPacketInfo(const Consumer* consumer, const RtpPacket* packet)
+{
+    if (consumer && packet) {
+        LOCK_READ_PROTECTED_OBJ(_endPointsManager);
+        _endPointsManager->SetLastOriginalPacketInfo(consumer, packet);
+    }
 }
 
 #ifdef READ_PRODUCER_RECV_FROM_FILE
@@ -564,9 +610,9 @@ std::unique_ptr<FileReader> Translator::SourceStream::CreateFileReader(uint32_t 
 #endif
 
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-std::unique_ptr<FileWriter> Translator::StreamInfo::CreateFileWriter(uint32_t ssrc,
-                                                                     const std::string& producerId,
-                                                                     const std::string_view& fileExtension)
+std::unique_ptr<FileWriter> Translator::SourceStream::CreateFileWriter(uint32_t ssrc,
+                                                                       const std::string& producerId,
+                                                                       const std::string_view& fileExtension)
 {
     if (!fileExtension.empty()) {
         const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
@@ -584,9 +630,9 @@ std::unique_ptr<FileWriter> Translator::StreamInfo::CreateFileWriter(uint32_t ss
     return nullptr;
 }
 
-std::unique_ptr<FileWriter> Translator::StreamInfo::CreateFileWriter(uint32_t ssrc,
-                                                                     const std::string& producerId,
-                                                                     const MediaFrameSerializer* serializer)
+std::unique_ptr<FileWriter> Translator::SourceStream::CreateFileWriter(uint32_t ssrc,
+                                                                       const std::string& producerId,
+                                                                       const MediaFrameSerializer* serializer)
 {
     if (serializer) {
         return CreateFileWriter(ssrc, producerId, serializer->GetFileExtension());
