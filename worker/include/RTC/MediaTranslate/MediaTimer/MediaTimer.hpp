@@ -22,6 +22,7 @@ public:
     void SetTimeout(uint64_t timerId, uint64_t timeoutMs);
     void Start(uint64_t timerId, bool singleshot);
     void Stop(uint64_t timerId);
+    bool IsStarted(uint64_t timerId) const;
 private:
 	const std::unique_ptr<MediaTimerHandleFactory> _factory;
     const std::string _timerName;

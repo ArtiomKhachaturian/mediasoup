@@ -15,11 +15,11 @@ public:
     // impl. of MediaTimerHandle
     void Start(bool singleshot) final;
     void Stop() final;
+    bool IsStarted() const { return _started.load(); }
 protected:
     // overrides of MediaTimerHandle
     void OnTimeoutChanged(uint64_t timeoutMs) final;
 private:
-    bool IsStarted() const { return _started.load(); }
     bool SetStarted(bool started) { return _started.exchange(started); }
     void SetTimerSourceTimeout(uint64_t timeoutMs);
 private:

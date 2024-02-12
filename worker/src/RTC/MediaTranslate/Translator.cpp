@@ -99,9 +99,9 @@ private:
     ProtectedObj<EndPointsManager> _endPointsManager;
 };
 
-Translator::Translator(const Producer* producer, RtpPacketsPlayer* translationsOutput)
+Translator::Translator(const Producer* producer, RtpPacketsPlayer* rtpPacketsPlayer)
     : _producer(producer)
-    , _translationsOutput(translationsOutput)
+    , _rtpPacketsPlayer(rtpPacketsPlayer)
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
     , _instanceIndex(g_InstancesCounter.fetch_add(1U))
 #endif
@@ -124,10 +124,10 @@ Translator::~Translator()
 }
 
 std::unique_ptr<Translator> Translator::Create(const Producer* producer,
-                                               RtpPacketsPlayer* translationsOutput)
+                                               RtpPacketsPlayer* rtpPacketsPlayer)
 {
-    if (producer && translationsOutput && Media::Kind::AUDIO == producer->GetKind()) {
-        auto translator = new Translator(producer, translationsOutput);
+    if (producer && rtpPacketsPlayer && Media::Kind::AUDIO == producer->GetKind()) {
+        auto translator = new Translator(producer, rtpPacketsPlayer);
         // add streams
         const auto& streams = producer->GetRtpStreams();
         for (auto it = streams.begin(); it != streams.end(); ++it) {
@@ -161,7 +161,7 @@ bool Translator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
                     sourceStream->SetInputLanguage(_producer->GetLanguageId());
                     AddSinksToStream(sourceStream);
                     AddConsumersToStream(sourceStream);
-                    //_translationsOutput->AddStream(originalSsrc, mime, this,  this);
+                    _rtpPacketsPlayer->AddStream(originalSsrc, mime, this,  this);
                     _originalSsrcToStreams[originalSsrc] = sourceStream;
                     _mappedSsrcToStreams->insert({mappedSsrc, std::move(sourceStream)});
                     ok = true;
@@ -189,7 +189,7 @@ bool Translator::RemoveStream(uint32_t mappedSsrc)
         LOCK_WRITE_PROTECTED_OBJ(_mappedSsrcToStreams);
         const auto it = _mappedSsrcToStreams->find(mappedSsrc);
         if (it != _mappedSsrcToStreams->end()) {
-            _translationsOutput->RemoveStream(it->second->GetOriginalSsrc());
+            _rtpPacketsPlayer->RemoveStream(it->second->GetOriginalSsrc());
             _originalSsrcToStreams.erase(it->second->GetOriginalSsrc());
             _mappedSsrcToStreams->erase(it);
             return true;
@@ -209,7 +209,8 @@ void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 #endif
             LOCK_READ_PROTECTED_OBJ(_consumers);
             for (const auto consumer : _consumers.ConstRef()) {
-                if (added && stream->IsConnected(consumer)) {
+                if (added && (_rtpPacketsPlayer->IsPlaying(stream->GetOriginalSsrc()) ||
+                              stream->IsConnected(consumer))) {
                     packet->AddRejectedConsumer(consumer);
                 }
                 else {
@@ -379,10 +380,30 @@ size_t Translator::GetSinksCout() const
     return _sinks.ConstRef().size();
 }
     
-void Translator::OnTranslatedMediaReceived(const TranslatorEndPoint* endPoint, uint64_t mediaSeqNum,
+void Translator::OnTranslatedMediaReceived(const TranslatorEndPoint* endPoint,
+                                           uint64_t mediaSeqNum,
                                            const std::shared_ptr<MemoryBuffer>& media)
 {
-    MS_ERROR_STD("Received media translation # %llu", mediaSeqNum);
+    if (endPoint && media) {
+        _rtpPacketsPlayer->Play(endPoint->GetSsrc(), mediaSeqNum, media, endPoint);
+    }
+}
+
+void Translator::OnPlayStarted(uint32_t ssrc, uint64_t mediaId, const void* userData)
+{
+    RtpPacketsPlayerCallback::OnPlayStarted(ssrc, mediaId, userData);
+}
+
+void Translator::OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet, uint64_t mediaId, const void* userData)
+{
+    if (packet && userData) {
+        const auto endPoint = reinterpret_cast<const TranslatorEndPoint*>(userData);
+    }
+}
+
+void Translator::OnPlayFinished(uint32_t ssrc, uint64_t mediaId, const void* userData)
+{
+    RtpPacketsPlayerCallback::OnPlayFinished(ssrc, mediaId, userData);
 }
 
 std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint(uint32_t ssrc)
@@ -399,7 +420,8 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint(uint32_t ssrc)
         endPoint = std::make_shared<MockEndPoint>(ssrc);
     }
     else {
-        // TODO: maybe deadlock when shared_mutex, potential conflict in Translator::AddConsumer
+        // TODO: maybe deadlock when shared or regular mutex, potential conflict in Translator::AddConsumer
+        static_assert(std::is_same<std::recursive_mutex, ProtectedObj<std::list<Consumer*>>::ObjectMutexType>::value);
         LOCK_READ_PROTECTED_OBJ(_consumers);
         if (!_consumers->empty()) {
             endPoint = std::make_shared<MockEndPoint>(ssrc);

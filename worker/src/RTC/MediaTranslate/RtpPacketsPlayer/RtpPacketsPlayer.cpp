@@ -1,5 +1,6 @@
 #define MS_CLASS "RTC::RtpPacketsPlayer"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
+#include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
 #include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
@@ -8,9 +9,10 @@
 #include "RTC/MediaTranslate/RtpMemoryBufferPacket.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/RtpPacketsInfoProvider.hpp"
-#include "RTC/RtpPacketsCollector.hpp"
+#include "MemoryBuffer.hpp"
 #include "Logger.hpp"
 #include "absl/container/flat_hash_set.h"
+#include <variant>
 #include <queue>
 
 namespace {
@@ -22,12 +24,12 @@ class MediaInfo
 public:
     virtual ~MediaInfo() = default;
     uint32_t GetSsrc() const { return _ssrc; }
-    RtpPacketsCollector* GetPacketsCollector() const { return _packetsCollector; }
+    RtpPacketsPlayerCallback* GetPacketsCollector() const { return _packetsCollector; }
     const RtpPacketsInfoProvider* GetPacketsInfoProvider() const { return _packetsInfoProvider; }
     void SetResult(MediaFrameDeserializeResult result, const char* operationName = "");
 protected:
     MediaInfo(uint32_t ssrc,
-              RtpPacketsCollector* packetsCollector,
+              RtpPacketsPlayerCallback* packetsCollector,
               const RtpPacketsInfoProvider* packetsInfoProvider);
     void ResetResult() { _lastResult.store(MediaFrameDeserializeResult::Success); }
     //uint16_t GetLastOriginalRtpSeqNumber() const;
@@ -36,9 +38,30 @@ protected:
     virtual std::string GetDescription() const { return ""; }
 private:
     const uint32_t _ssrc;
-    RtpPacketsCollector* const _packetsCollector;
+    RtpPacketsPlayerCallback* const _packetsCollector;
     const RtpPacketsInfoProvider* const _packetsInfoProvider;
     std::atomic<MediaFrameDeserializeResult> _lastResult = MediaFrameDeserializeResult::Success;
+};
+
+enum class PlayTaskType {
+    Started,
+    Frame,
+    Finished
+};
+
+class PlayTask
+{
+public:
+    PlayTask(bool started);
+    PlayTask(const std::shared_ptr<const MediaFrame>& frame);
+    PlayTask(const PlayTask&) = default;
+    PlayTask(PlayTask&&) = default;
+    PlayTaskType GetType() const;
+    std::shared_ptr<const MediaFrame> GetFrame() const;
+    PlayTask& operator = (const PlayTask&) = default;
+    PlayTask& operator = (PlayTask&&) = default;
+private:
+    std::variant<bool, std::shared_ptr<const MediaFrame>> _data;
 };
 
 }
@@ -46,11 +69,11 @@ private:
 namespace RTC
 {
 
-class RtpPacketsPlayer::TrackPlayer : public MediaInfo, public MediaTimerCallback
+/*class RtpPacketsPlayer::TrackPlayer : public MediaInfo, public MediaTimerCallback
 {
 public:
     TrackPlayer(uint32_t ssrc,
-                RtpPacketsCollector* packetsCollector,
+                RtpPacketsPlayerCallback* packetsCollector,
                 const RtpPacketsInfoProvider* packetsInfoProvider,
                 size_t trackIndex, MediaTimer* timer,
                 std::unique_ptr<RtpPacketizer> packetizer);
@@ -58,7 +81,7 @@ public:
     void SetTimerEventId(uint64_t timerEventId) { _timerEventId = timerEventId; }
     uint64_t GetTimerEventId() const { return _timerEventId.load(); }
     size_t GetTrackIndex() const { return _trackIndex; }
-    void Enque(const std::shared_ptr<const MediaFrame>& frame);
+    void Enque(PlayTask task);
 private:
     RtpPacket* CreatePacket(const std::shared_ptr<const MediaFrame>& frame);
     // impl. of LoopTimerCallback
@@ -71,7 +94,7 @@ private:
     uint16_t _sequenceNumber = 0U;
     uint32_t _initialRtpTimestamp = 0U;
     uint32_t _playoutOffset = 0U;
-    ProtectedObj<std::queue<std::shared_ptr<const MediaFrame>>> _frames;
+    ProtectedObj<std::queue<PlayTask>> _tasks;
 };
 
 class RtpPacketsPlayer::Stream : public MediaInfo
@@ -80,7 +103,7 @@ class RtpPacketsPlayer::Stream : public MediaInfo
 public:
     Stream(uint32_t ssrc,
            const RtpCodecMimeType& mime,
-           RtpPacketsCollector* packetsCollector,
+           RtpPacketsPlayerCallback* packetsCollector,
            const RtpPacketsInfoProvider* packetsInfoProvider,
            MediaTimer* timer);
     ~Stream();
@@ -100,7 +123,7 @@ private:
     std::shared_ptr<MediaFrameDeserializer> _deserializer;
     ProtectedObj<PlayersList> _activePlayers;
     ProtectedObj<PlayersList> _backgroundPlayers;
-};
+};*/
 
 RtpPacketsPlayer::RtpPacketsPlayer()
     : _timer("RtpPacketsPlayer")
@@ -109,16 +132,16 @@ RtpPacketsPlayer::RtpPacketsPlayer()
 
 RtpPacketsPlayer::~RtpPacketsPlayer()
 {
-    LOCK_WRITE_PROTECTED_OBJ(_streams);
-    _streams->clear();
+    //LOCK_WRITE_PROTECTED_OBJ(_streams);
+    //_streams->clear();
 }
 
 void RtpPacketsPlayer::AddStream(uint32_t ssrc, const RtpCodecMimeType& mime,
-                                 RtpPacketsCollector* packetsCollector,
+                                 RtpPacketsPlayerCallback* packetsCollector,
                                  const RtpPacketsInfoProvider* packetsInfoProvider)
 {
     if (ssrc && packetsCollector && packetsInfoProvider) {
-        LOCK_WRITE_PROTECTED_OBJ(_streams);
+        /*LOCK_WRITE_PROTECTED_OBJ(_streams);
         if (_streams->end() == _streams->find(ssrc)) {
             if (WebMCodecs::IsSupported(mime)) {
                 auto stream = std::make_shared<Stream>(ssrc, mime, packetsCollector,
@@ -128,48 +151,40 @@ void RtpPacketsPlayer::AddStream(uint32_t ssrc, const RtpCodecMimeType& mime,
             else {
                 // TODO: log error
             }
-        }
+        }*/
     }
 }
 
 void RtpPacketsPlayer::RemoveStream(uint32_t ssrc)
 {
     if (ssrc) {
-        LOCK_WRITE_PROTECTED_OBJ(_streams);
+        /*LOCK_WRITE_PROTECTED_OBJ(_streams);
         const auto it = _streams->find(ssrc);
         if (it != _streams->end()) {
             _streams->erase(it);
-        }
+        }*/
     }
 }
 
-void RtpPacketsPlayer::StartMediaWriting(uint32_t ssrc)
+bool RtpPacketsPlayer::IsPlaying(uint32_t ssrc) const
 {
-    MediaSink::StartMediaWriting(ssrc);
-    if (const auto stream = GetStream(ssrc)) {
-        stream->StartMediaWriting();
-    }
+    return false;
 }
 
-void RtpPacketsPlayer::WriteMediaPayload(uint32_t ssrc,
-                                         const std::shared_ptr<MemoryBuffer>& buffer)
+void RtpPacketsPlayer::Play(uint32_t ssrc, uint64_t mediaId,
+                            const std::shared_ptr<MemoryBuffer>& buffer,
+                            const void* userData)
 {
-    if (buffer) {
+    /*if (buffer && !buffer->IsEmpty()) {
         if (const auto stream = GetStream(ssrc)) {
+            stream->StartMediaWriting();
             stream->WriteMediaPayload(buffer);
+            stream->EndMediaWriting();
         }
-    }
+    }*/
 }
 
-void RtpPacketsPlayer::EndMediaWriting(uint32_t ssrc)
-{
-    MediaSink::EndMediaWriting(ssrc);
-    if (const auto stream = GetStream(ssrc)) {
-        stream->StartMediaWriting();
-    }
-}
-
-std::shared_ptr<RtpPacketsPlayer::Stream> RtpPacketsPlayer::GetStream(uint32_t ssrc) const
+/*std::shared_ptr<RtpPacketsPlayer::Stream> RtpPacketsPlayer::GetStream(uint32_t ssrc) const
 {
     if (ssrc) {
         LOCK_READ_PROTECTED_OBJ(_streams);
@@ -179,10 +194,10 @@ std::shared_ptr<RtpPacketsPlayer::Stream> RtpPacketsPlayer::GetStream(uint32_t s
         }
     }
     return nullptr;
-}
+}*/
 
-RtpPacketsPlayer::TrackPlayer::TrackPlayer(uint32_t ssrc,
-                                           RtpPacketsCollector* packetsCollector,
+/*RtpPacketsPlayer::TrackPlayer::TrackPlayer(uint32_t ssrc,
+                                           RtpPacketsPlayerCallback* packetsCollector,
                                            const RtpPacketsInfoProvider* packetsInfoProvider,
                                            size_t trackIndex, MediaTimer* timer,
                                            std::unique_ptr<RtpPacketizer> packetizer)
@@ -198,19 +213,16 @@ RtpPacketsPlayer::TrackPlayer::~TrackPlayer()
     _timer->Stop(GetTimerEventId());
 }
 
-void RtpPacketsPlayer::TrackPlayer::Enque(const std::shared_ptr<const MediaFrame>& frame)
+void RtpPacketsPlayer::TrackPlayer::Enque(PlayTask task)
 {
-    if (frame) {
-        bool startTimer = false;
-        {
-            LOCK_WRITE_PROTECTED_OBJ(_frames);
-            startTimer = _frames->empty();
-            _frames->push(frame);
-        }
-        if (startTimer) {
-            _timer->SetTimeout(GetTimerEventId(), 20ULL);
-            _timer->Start(GetTimerEventId(), false);
-        }
+    const auto startTimer = PlayTaskType::Started == task.GetType();
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_tasks);
+        _tasks->push(std::move(task));
+    }
+    if (startTimer) {
+        _timer->SetTimeout(GetTimerEventId(), 0ULL);
+        _timer->Start(GetTimerEventId(), false);
     }
 }
 
@@ -222,7 +234,7 @@ RtpPacket* RtpPacketsPlayer::TrackPlayer::CreatePacket(const std::shared_ptr<con
             //    _initialRtpTimestamp = GetLastOriginalRtpTimestamp();
             //}
             //_sequenceNumber = std::max(_sequenceNumber, GetLastOriginalRtpSeqNumber());
-            const uint32_t timestamp = _initialRtpTimestamp + frame->GetTimestamp();
+            //const uint32_t timestamp = _initialRtpTimestamp + frame->GetTimestamp();
             packet->SetSsrc(GetSsrc());
             //packet->SetSequenceNumber(++_sequenceNumber);
             //packet->SetTimestamp(std::max(timestamp, GetLastOriginalRtpTimestamp()));
@@ -234,28 +246,46 @@ RtpPacket* RtpPacketsPlayer::TrackPlayer::CreatePacket(const std::shared_ptr<con
 
 void RtpPacketsPlayer::TrackPlayer::OnEvent()
 {
-    std::shared_ptr<const MediaFrame> frame;
+    std::optional<PlayTask> task;
     {
-        LOCK_WRITE_PROTECTED_OBJ(_frames);
-        if (!_frames->empty()) {
-            frame = _frames->front();
-            _frames->pop();
+        LOCK_WRITE_PROTECTED_OBJ(_tasks);
+        if (!_tasks->empty()) {
+            task = std::move(_tasks->front());
+            _tasks->pop();
         }
     }
-    if (frame) {
-        if (const auto packet = CreatePacket(frame)) {
-            GetPacketsCollector()->AddPacket(packet);
+    if (task.has_value()) {
+        switch (task->GetType()) {
+            case PlayTaskType::Started:
+                GetPacketsCollector()->OnPlayStarted(GetSsrc());
+                break;
+            case PlayTaskType::Frame:
+                if (const auto frame = task->GetFrame()) {
+                    const auto ts = frame->GetTimestamp();
+                    if (0U == ts) { // 1st
+                        // TODO: rewrite timeout calculations
+                        // TODO: review timestamp type, must me more clarified (ms/us/nanosecs)
+                        _timer->SetTimeout(GetTimerEventId(), 20U); // 20ms
+                        //const auto diff = (frame->GetTimestamp()  - _playoutOffset) * 1000;
+                        //_playoutOffset = frame->GetTimestamp();
+                        //_timer->SetTimeout(GetTimerEventId(), diff / GetClockRate());
+                    }
+                    if (const auto packet = CreatePacket(frame)) {
+                        GetPacketsCollector()->OnPlay(frame->GetTimestamp(), packet);
+                    }
+                }
+                break;
+            case PlayTaskType::Finished:
+                GetPacketsCollector()->OnPlayFinished(GetSsrc());
+                _timer->Stop(GetTimerEventId());
+                break;
         }
-        // TODO: review timestamp type, must me more clarified (ms/us/nanosecs)
-        /*const auto diff = (frame->GetTimestamp()  - _playoutOffset) * 1000;
-        _playoutOffset = frame->GetTimestamp();
-        _timer->SetTimeout(GetTimerEventId(), diff / GetClockRate());*/
     }
 }
 
 RtpPacketsPlayer::Stream::Stream(uint32_t ssrc,
                                  const RtpCodecMimeType& mime,
-                                 RtpPacketsCollector* packetsCollector,
+                                 RtpPacketsPlayerCallback* packetsCollector,
                                  const RtpPacketsInfoProvider* packetsInfoProvider,
                                  MediaTimer* timer)
     : MediaInfo(ssrc, packetsCollector, packetsInfoProvider)
@@ -314,6 +344,7 @@ void RtpPacketsPlayer::Stream::ClearTrackPlayers(bool destroy)
 {
     LOCK_WRITE_PROTECTED_OBJ(_activePlayers);
     for (auto activePlayer : _activePlayers.Ref()) {
+        activePlayer->Enque(false);
         if (destroy) {
             _timer->UnregisterTimer(activePlayer->GetTimerEventId());
             activePlayer.reset();
@@ -353,6 +384,7 @@ bool RtpPacketsPlayer::Stream::FetchMediaInfo(const std::shared_ptr<MediaFrameDe
                             if (timerId) {
                                 deserializer->SetClockRate(trackIndex, GetClockRate());
                                 player->SetTimerEventId(timerId);
+                                player->Enque(true);
                                 _activePlayers->insert(std::move(player));
                             }
                             else {
@@ -383,13 +415,13 @@ void RtpPacketsPlayer::Stream::DeserializeMediaFrames(const std::shared_ptr<Medi
             player->SetResult(result, "read of deserialized frames");
         }
     }
-}
+}*/
 
 } // namespace RTC
 
 namespace {
 
-MediaInfo::MediaInfo(uint32_t ssrc, RtpPacketsCollector* packetsCollector,
+MediaInfo::MediaInfo(uint32_t ssrc, RtpPacketsPlayerCallback* packetsCollector,
                      const RtpPacketsInfoProvider* packetsInfoProvider)
     : _ssrc(ssrc)
     , _packetsCollector(packetsCollector)
@@ -418,6 +450,32 @@ uint32_t MediaInfo::GetLastOriginalRtpTimestamp() const
 uint32_t MediaInfo::GetClockRate() const
 {
     return GetPacketsInfoProvider()->GetClockRate(GetSsrc());
+}
+
+PlayTask::PlayTask(bool started)
+    : _data(started)
+{
+}
+
+PlayTask::PlayTask(const std::shared_ptr<const MediaFrame>& frame)
+    : _data(frame)
+{
+}
+
+PlayTaskType PlayTask::GetType() const
+{
+    if (const auto started = std::get_if<bool>(&_data)) {
+        return *started ? PlayTaskType::Started : PlayTaskType::Finished;
+    }
+    return PlayTaskType::Frame;
+}
+
+std::shared_ptr<const MediaFrame> PlayTask::GetFrame() const
+{
+    if (const auto frame = std::get_if<std::shared_ptr<const MediaFrame>>(&_data)) {
+        return *frame;
+    }
+    return nullptr;
 }
 
 }

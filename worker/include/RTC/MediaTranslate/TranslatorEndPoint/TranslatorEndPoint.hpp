@@ -58,6 +58,7 @@ private:
     void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer) final;
     void EndMediaWriting(uint32_t ssrc) final;
 private:
+    static inline std::atomic_uint64_t _receivedMediaCounter = 0ULL;
     const uint32_t _ssrc;
     const std::unique_ptr<InputSliceBuffer> _inputSlice;
     ProtectedObj<std::string> _inputLanguageId;
@@ -65,7 +66,6 @@ private:
     ProtectedObj<std::string> _outputVoiceId;
     ProtectedObj<MediaSource*> _input;
     ProtectedObj<TranslatorEndPointListener*> _output;
-    std::atomic_uint64_t _receivedMediaCounter = 0ULL;
 };
 
 } // namespace RTC

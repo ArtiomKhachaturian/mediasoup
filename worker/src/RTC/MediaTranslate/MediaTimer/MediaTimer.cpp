@@ -88,6 +88,18 @@ void MediaTimer::Stop(uint64_t timerId)
     }
 }
 
+bool MediaTimer::IsStarted(uint64_t timerId) const
+{
+    if (_factory && timerId) {
+        LOCK_READ_PROTECTED_OBJ(_handles);
+        const auto it = _handles->find(timerId);
+        if (it != _handles->end()) {
+            it->second->IsStarted();
+        }
+    }
+    return false;
+}
+
 MediaTimerHandle::MediaTimerHandle(const std::weak_ptr<MediaTimerCallback>& callbackRef)
     : _callbackRef(callbackRef)
 {

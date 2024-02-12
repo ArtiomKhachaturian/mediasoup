@@ -3,6 +3,7 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/MediaTranslate/RtpPacketsInfoProvider.hpp"
+#include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointListener.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointFactory.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
@@ -26,7 +27,8 @@ class RtpPacket;
 
 class Translator : private MediaSource,
                    private TranslatorEndPointListener, // for receiving of translated packets
-                   public TranslatorEndPointFactory,
+                   private RtpPacketsPlayerCallback,
+                   private TranslatorEndPointFactory,
                    private RtpPacketsInfoProvider
 {
     class SourceStream;
@@ -34,7 +36,8 @@ class Translator : private MediaSource,
     template <typename V> using StreamMap = Map<uint32_t, V>;
 public:
     ~Translator() final;
-    static std::unique_ptr<Translator> Create(const Producer* producer, RtpPacketsPlayer* translationsOutput);
+    static std::unique_ptr<Translator> Create(const Producer* producer,
+                                              RtpPacketsPlayer* rtpPacketsPlayer);
     bool AddStream(uint32_t mappedSsrc, const RtpStream* stream);
     bool RemoveStream(uint32_t mappedSsrc);
     void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
@@ -46,7 +49,7 @@ public:
     void UpdateProducerLanguage();
     void UpdateConsumerLanguageOrVoice(Consumer* consumer);
 private:
-    Translator(const Producer* producer, RtpPacketsPlayer* translationsOutput);
+    Translator(const Producer* producer, RtpPacketsPlayer* rtpPacketsPlayer);
     // SSRC maybe mapped or original
     std::shared_ptr<SourceStream> GetStream(uint32_t ssrc) const;
     void AddSinksToStream(const std::shared_ptr<SourceStream>& stream) const;
@@ -60,6 +63,10 @@ private:
     // impl. of TranslatorEndPointListener
     void OnTranslatedMediaReceived(const TranslatorEndPoint* endPoint, uint64_t mediaSeqNum,
                                    const std::shared_ptr<MemoryBuffer>& media) final;
+    // impl. of RtpPacketsPlayerCallback
+    void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, const void* userData) final;
+    void OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet, uint64_t mediaId, const void* userData) final;
+    void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, const void* userData) final;
     // impl. of TranslatorEndPointFactory
     std::shared_ptr<TranslatorEndPoint> CreateEndPoint(uint32_t ssrc) final;
     // impl. of RtpPacketsInfoProvider
@@ -71,7 +78,7 @@ private:
     static inline constexpr uint32_t _mockTranslationFileNameLenMs = 3000; // 3 sec
 #endif
     const Producer* const _producer;
-    RtpPacketsPlayer* const _translationsOutput;
+    RtpPacketsPlayer* const _rtpPacketsPlayer;
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
     const uint64_t _instanceIndex;
 #endif

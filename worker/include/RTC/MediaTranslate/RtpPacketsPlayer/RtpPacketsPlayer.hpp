@@ -1,37 +1,35 @@
 #pragma once
 #include "ProtectedObj.hpp"
-#include "RTC/MediaTranslate/MediaSink.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "absl/container/flat_hash_map.h"
 
 namespace RTC
 {
 
-class RtpPacketsCollector;
+class RtpPacketsPlayerCallback;
 class RtpPacketsInfoProvider;
 class RtpCodecMimeType;
+class MemoryBuffer;
 
-class RtpPacketsPlayer : public MediaSink
+class RtpPacketsPlayer
 {
-    class LoopWrapper;
-    class TrackPlayer;
-    class Stream;
+    //class TrackPlayer;
+    //class Stream;
 public:
     RtpPacketsPlayer();
-    ~RtpPacketsPlayer() final;
+    ~RtpPacketsPlayer();
     void AddStream(uint32_t ssrc, const RtpCodecMimeType& mime,
-                   RtpPacketsCollector* packetsCollector,
+                   RtpPacketsPlayerCallback* packetsCollector,
                    const RtpPacketsInfoProvider* packetsInfoProvider);
     void RemoveStream(uint32_t ssrc);
-    // impl. of MediaSink
-    void StartMediaWriting(uint32_t ssrc) final;
-    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer) final;
-    void EndMediaWriting(uint32_t ssrc) final;
+    bool IsPlaying(uint32_t ssrc) const;
+    void Play(uint32_t ssrc, uint64_t mediaId, const std::shared_ptr<MemoryBuffer>& buffer,
+              const void* userData = nullptr);
 private:
-    std::shared_ptr<Stream> GetStream(uint32_t ssrc) const;
+    //std::shared_ptr<Stream> GetStream(uint32_t ssrc) const;
 private:
     MediaTimer _timer;
-    ProtectedObj<absl::flat_hash_map<uint32_t, std::shared_ptr<Stream>>> _streams;
+    //ProtectedObj<absl::flat_hash_map<uint32_t, std::shared_ptr<Stream>>> _streams;
 };
 
 } // namespace RTC

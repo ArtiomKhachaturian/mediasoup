@@ -15,6 +15,7 @@ public:
     void SetTimeout(uint64_t timeoutMs);
     virtual void Start(bool singleshot) = 0;
     virtual void Stop() = 0;
+    virtual bool IsStarted() const = 0;
 protected:
     MediaTimerHandle(const std::weak_ptr<MediaTimerCallback>& callbackRef);
     std::shared_ptr<MediaTimerCallback> GetCallback() const;
