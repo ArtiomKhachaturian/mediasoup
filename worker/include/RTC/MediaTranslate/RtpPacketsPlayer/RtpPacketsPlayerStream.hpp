@@ -22,6 +22,7 @@ public:
     void Play(uint64_t mediaId, const std::shared_ptr<MemoryBuffer>& buffer,
               const void* userData = nullptr);
     bool IsPlaying() const;
+    uint32_t GetSsrc() const { return _ssrc; }
 private:
     const uint32_t _ssrc;
     const RtpCodecMimeType _mime;

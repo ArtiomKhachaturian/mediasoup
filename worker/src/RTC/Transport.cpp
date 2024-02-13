@@ -832,7 +832,7 @@ namespace RTC
                 }
 #ifdef MEDIA_TRANSLATIONS_TEST
                 consumer->SetLanguageId("en");
-                consumer->SetVoiceId("Female");
+                consumer->SetVoiceId("Male");
 #else
                 consumer->SetLanguageId(body->languageId()->c_str());
                 consumer->SetVoiceId(body->voiceId()->c_str());

@@ -2,6 +2,8 @@
 #include "ProtectedObj.hpp"
 #include "absl/container/flat_hash_map.h"
 
+#define USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
+
 namespace RTC
 {
 
@@ -14,6 +16,12 @@ class RtpPacketsPlayerStream;
 
 class RtpPacketsPlayer
 {
+#ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
+    class StreamWrapper;
+    using StreamType = StreamWrapper;
+#else
+    using StreamType = RtpPacketsPlayerStream;
+#endif
 public:
     RtpPacketsPlayer();
     ~RtpPacketsPlayer();
@@ -26,7 +34,7 @@ public:
               const void* userData = nullptr);
 private:
     const std::shared_ptr<MediaTimer> _timer;
-    ProtectedObj<absl::flat_hash_map<uint32_t, std::unique_ptr<RtpPacketsPlayerStream>>> _streams;
+    ProtectedObj<absl::flat_hash_map<uint32_t, std::unique_ptr<StreamType>>> _streams;
 };
 
 } // namespace RTC
