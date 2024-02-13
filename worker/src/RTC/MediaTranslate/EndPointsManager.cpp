@@ -3,17 +3,25 @@
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointFactory.hpp"
 #include "RTC/Consumer.hpp"
+#include "ProtectedObj.hpp"
 #include "Logger.hpp"
+#include <atomic>
 
 namespace RTC
 {
 
-struct EndPointsManager::ConsumerInfo
+class EndPointsManager::ConsumerInfo
 {
+public:
     ConsumerInfo(size_t languageVoiceKey);
-    size_t _languageVoiceKey;
-    uint32_t _lastOriginalRtpTimestamp = 0U;
-    uint16_t _lastOriginalRtpSeqNumber = 0U;
+    size_t GetLanguageVoiceKey() const { return _languageVoiceKey.load(); }
+    void SetLanguageVoiceKey(size_t languageVoiceKey);
+    void SetLastRtpPacketInfo(const RtpPacket* packet);
+private:
+    std::atomic<size_t> _languageVoiceKey = 0U;
+    uint32_t _lastRtpTimestamp = 0U;
+    uint32_t _rtpTimestampDelta = 0U;
+    uint16_t _lastRtpSeqNumber = 0U;
 };
 
 EndPointsManager::EndPointsManager(uint32_t ssrc,
@@ -47,7 +55,7 @@ void EndPointsManager::AddConsumer(const Consumer* consumer)
         if (const auto key = consumer->GetLanguageVoiceKey()) {
             if (!GetEndPoint(key)) {
                 if (AddNewEndPoint(consumer, key)) {
-                    _consumersInfo.emplace(consumer, key);
+                    _consumersInfo.emplace(consumer, std::make_unique<ConsumerInfo>(key));
                 }
             }
             else {
@@ -82,8 +90,9 @@ void EndPointsManager::RemoveConsumer(const Consumer* consumer)
     if (consumer) {
         const auto it = _consumersInfo.find(consumer);
         if (it != _consumersInfo.end()) {
-            MS_ASSERT(it->second._languageVoiceKey == consumer->GetLanguageVoiceKey(), "output language & voice changes was not reflected before");
-            const auto ite = _endpoints.find(it->second._languageVoiceKey);
+            MS_ASSERT(it->second->GetLanguageVoiceKey() == consumer->GetLanguageVoiceKey(),
+                      "output language & voice changes was not reflected before");
+            const auto ite = _endpoints.find(it->second->GetLanguageVoiceKey());
             if (ite != _endpoints.end() && 0ULL == --ite->second.second) { // decrease counter
                 _endpoints.erase(ite);
             }
@@ -92,14 +101,12 @@ void EndPointsManager::RemoveConsumer(const Consumer* consumer)
     }
 }
 
-void EndPointsManager::SetLastOriginalPacketInfo(const Consumer* consumer,
-                                                             const RtpPacket* packet)
+void EndPointsManager::SetLastRtpPacketInfo(const Consumer* consumer, const RtpPacket* packet)
 {
     if (consumer && packet) {
         const auto it = _consumersInfo.find(consumer);
         if (it != _consumersInfo.end()) {
-            it->second._lastOriginalRtpTimestamp = packet->GetTimestamp();
-            it->second._lastOriginalRtpSeqNumber = packet->GetSequenceNumber();
+            it->second->SetLastRtpPacketInfo(packet);
         }
     }
 }
@@ -113,7 +120,8 @@ bool EndPointsManager::IsConnected(const Consumer* consumer) const
     return false;
 }
 
-std::shared_ptr<TranslatorEndPoint> EndPointsManager::AddNewEndPoint(const Consumer* consumer, size_t key)
+std::shared_ptr<TranslatorEndPoint> EndPointsManager::AddNewEndPoint(const Consumer* consumer,
+                                                                     size_t key)
 {
     if (consumer && key) {
         MS_ASSERT(0 == _endpoints.count(key), "such end-point is already present");
@@ -159,9 +167,29 @@ std::shared_ptr<TranslatorEndPoint> EndPointsManager::GetEndPoint(size_t key) co
 }
 
 EndPointsManager::ConsumerInfo::ConsumerInfo(size_t languageVoiceKey)
-    : _languageVoiceKey(languageVoiceKey)
 {
-    MS_ASSERT(_languageVoiceKey, "language/voice key must not be zero");
+    SetLanguageVoiceKey(languageVoiceKey);
+}
+
+void EndPointsManager::ConsumerInfo::SetLanguageVoiceKey(size_t languageVoiceKey)
+{
+    MS_ASSERT(languageVoiceKey, "language/voice key must not be zero");
+    _languageVoiceKey = languageVoiceKey;
+}
+
+void EndPointsManager::ConsumerInfo::SetLastRtpPacketInfo(const RtpPacket* packet)
+{
+    if (packet) {
+        const auto timestamp = packet->GetTimestamp();
+        if (timestamp != _lastRtpTimestamp) {
+            if (_lastRtpTimestamp && timestamp > _lastRtpTimestamp) {
+                _rtpTimestampDelta = _lastRtpTimestamp - timestamp;
+                //MS_ERROR_STD("_rtpTimestampDelta = %u", _rtpTimestampDelta);
+            }
+            _lastRtpTimestamp = timestamp;
+        }
+        _lastRtpSeqNumber = packet->GetSequenceNumber();
+    }
 }
 
 } // namespace RTC

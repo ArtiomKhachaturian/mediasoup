@@ -90,7 +90,9 @@ void MediaTimerHandleApple::SetTimerSourceTimeout(uint64_t timeoutMs)
     if (IsStarted()) {
         dispatch_suspend(_timer);
     }
-    dispatch_source_set_timer(_timer, DISPATCH_TIME_NOW, NSEC_PER_MSEC * timeoutMs, 0);
+    const auto timeoutNs = NSEC_PER_MSEC * timeoutMs;
+    const auto start = dispatch_time(DISPATCH_TIME_NOW, timeoutNs);
+    dispatch_source_set_timer(_timer, start, timeoutNs, 0);
     if (IsStarted()) {
         dispatch_resume(_timer);
     }

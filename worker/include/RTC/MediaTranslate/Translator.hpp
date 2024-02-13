@@ -54,6 +54,8 @@ private:
     std::shared_ptr<SourceStream> GetStream(uint32_t ssrc) const;
     void AddSinksToStream(const std::shared_ptr<SourceStream>& stream) const;
     void AddConsumersToStream(const std::shared_ptr<SourceStream>& stream) const;
+    void PostProcessAfterAdding(RtpPacket* packet, bool added,
+                                const std::shared_ptr<SourceStream>& stream);
     // impl. of MediaSource
     bool AddSink(MediaSink* sink) final;
     bool RemoveSink(MediaSink* sink) final;

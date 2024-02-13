@@ -21,8 +21,8 @@ public:
     void SetTimerId(uint64_t timerId) { _timerId = timerId; }
     void OnEvent() final {
         MS_ERROR_STD("FakeCallBack::OnEvent: %zu", _counter++);
-        _timer->SetTimeout(_timerId, 20ULL);
-        _timer->Start(_timerId, true);
+        //_timer->SetTimeout(_timerId, 20ULL);
+        //_timer->Start(_timerId, true);
     }
 private:
     RTC::MediaTimer* _timer;
@@ -37,8 +37,9 @@ int main(int argc, char* argv[])
     auto callback = std::make_shared<FakeCallBack>(&timer);
     if (const auto timerId = timer.RegisterTimer(callback)) {
         callback->SetTimerId(timerId);
-        timer.SetTimeout(timerId, 0ULL);
-        timer.Start(timerId, true);
+        timer.SetTimeout(timerId, 5 * 1000U);
+        MS_ERROR_STD("MediaTimer::Start");
+        timer.Start(timerId, false);
         sleep(100); // TODO: remove this sleep for production
         timer.UnregisterTimer(timerId);
     }*/

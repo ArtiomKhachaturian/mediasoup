@@ -201,8 +201,8 @@ void MockEndPoint::FileImpl::Connect()
     WebsocketState expected = WebsocketState::Disconnected;
     if (_state.compare_exchange_strong(expected, WebsocketState::Connecting)) {
         if (const auto timerId = _timer.RegisterTimer(weak_from_this())) {
-            // 100ms for emulation of connection establishing
-            _timer.SetTimeout(timerId, 100U);
+            // 500ms for emulation of connection establishing
+            _timer.SetTimeout(timerId, 500U);
             _timer.Start(timerId, true);
             _timerId = timerId;
         }

@@ -17,7 +17,7 @@ class EndPointsManager
 {
     // second is counter of consumers with the same output language & voice
     using EndPointEntry = std::pair<std::shared_ptr<TranslatorEndPoint>, uint64_t>;
-    struct ConsumerInfo;
+    class ConsumerInfo;
 public:
     EndPointsManager(uint32_t ssrc,
                      TranslatorEndPointFactory* endPointsFactory,
@@ -29,7 +29,7 @@ public:
     void UpdateConsumer(const Consumer* consumer);
     void RemoveConsumer(const Consumer* consumer);
     bool IsConnected(const Consumer* consumer) const;
-    void SetLastOriginalPacketInfo(const Consumer* consumer, const RtpPacket* packet);
+    void SetLastRtpPacketInfo(const Consumer* consumer, const RtpPacket* packet);
 private:
     std::shared_ptr<TranslatorEndPoint> AddNewEndPoint(const Consumer* consumer, size_t key);
     std::shared_ptr<TranslatorEndPoint> CreateEndPoint() const;
@@ -42,7 +42,7 @@ private:
     TranslatorEndPointListener* const _translationsOutput;
     std::string _inputLanguageId;
     // consumer info contains combined hash of output language & voice for consumers
-    absl::flat_hash_map<const Consumer*, ConsumerInfo> _consumersInfo;
+    absl::flat_hash_map<const Consumer*, std::unique_ptr<ConsumerInfo>> _consumersInfo;
     // key is combined hash from output language & voice
     absl::flat_hash_map<size_t, EndPointEntry> _endpoints;
 };
