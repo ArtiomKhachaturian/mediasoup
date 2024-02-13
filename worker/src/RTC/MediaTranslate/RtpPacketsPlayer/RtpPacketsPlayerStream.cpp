@@ -50,14 +50,15 @@ void RtpPacketsPlayerStream::Play(uint64_t mediaId, const std::shared_ptr<Memory
                                   const void* userData)
 {
     if (buffer) {
+        const auto clockRate = _packetsInfoProvider->GetClockRate(_ssrc);
         const auto payloadType = _packetsInfoProvider->GetPayloadType(_ssrc);
         auto fragment = std::make_unique<RtpPacketsPlayerMediaFragment>(_timer,
                                                                         _fragmentsQueue,
                                                                         std::make_unique<WebMDeserializer>(),
-                                                                        _ssrc, payloadType,
+                                                                        _ssrc, clockRate,
+                                                                        payloadType,
                                                                         mediaId, userData);
-        const auto clockRate = _packetsInfoProvider->GetClockRate(_ssrc);
-        if (fragment->Parse(_mime, clockRate, buffer)) {
+        if (fragment->Parse(_mime, buffer)) {
             _fragmentsQueue->PushFragment(std::move(fragment));
         }
     }
