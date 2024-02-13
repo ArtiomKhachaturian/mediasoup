@@ -51,7 +51,7 @@ public:
     TimerCallback(const std::weak_ptr<MediaTimer>& timerRef,
                   const std::weak_ptr<RtpPacketsPlayerCallback>& playerCallbackRef,
                   std::unique_ptr<MediaFrameDeserializer> deserializer,
-                  uint32_t ssrc, uint64_t mediaId,
+                  uint32_t ssrc, uint8_t payloadType, uint64_t mediaId,
                   const void* userData);
     ~TimerCallback() final;
     uint64_t SetTimerId(uint64_t timerId); // return previous ID
@@ -74,6 +74,7 @@ private:
     const std::weak_ptr<RtpPacketsPlayerCallback> _playerCallbackRef;
     const std::unique_ptr<MediaFrameDeserializer> _deserializer;
     const uint32_t _ssrc;
+    const uint8_t _payloadType;
     const uint64_t _mediaId;
     const void* const _userData;
     std::atomic<uint64_t> _timerId = 0ULL;
@@ -85,10 +86,11 @@ private:
 RtpPacketsPlayerMediaFragment::RtpPacketsPlayerMediaFragment(const std::shared_ptr<MediaTimer>& timer,
                                                              const std::weak_ptr<RtpPacketsPlayerCallback>& playerCallbackRef,
                                                              std::unique_ptr<MediaFrameDeserializer> deserializer,
-                                                             uint32_t ssrc, uint64_t mediaId, const void* userData)
+                                                             uint32_t ssrc, uint8_t payloadType,
+                                                             uint64_t mediaId, const void* userData)
     : _timerCallback(std::make_shared<TimerCallback>(timer, playerCallbackRef,
                                                      std::move(deserializer),
-                                                     ssrc, mediaId, userData))
+                                                     ssrc, payloadType, mediaId, userData))
     , _timer(timer)
 {
     _timerCallback->SetTimerId(_timer->RegisterTimer(_timerCallback));
@@ -124,12 +126,13 @@ uint64_t RtpPacketsPlayerMediaFragment::GetMediaId() const
 RtpPacketsPlayerMediaFragment::TimerCallback::TimerCallback(const std::weak_ptr<MediaTimer>& timerRef,
                                                             const std::weak_ptr<RtpPacketsPlayerCallback>& playerCallbackRef,
                                                             std::unique_ptr<MediaFrameDeserializer> deserializer,
-                                                            uint32_t ssrc, uint64_t mediaId,
-                                                            const void* userData)
+                                                            uint32_t ssrc, uint8_t payloadType,
+                                                            uint64_t mediaId, const void* userData)
     : _timerRef(timerRef)
     , _playerCallbackRef(playerCallbackRef)
     , _deserializer(std::move(deserializer))
     , _ssrc(ssrc)
+    , _payloadType(payloadType)
     , _mediaId(mediaId)
     , _userData(userData)
 {
@@ -314,6 +317,7 @@ RtpPacket* RtpPacketsPlayerMediaFragment::TimerCallback::CreatePacket(size_t tra
         if (it != _packetizers->end()) {
             if (const auto packet = it->second->AddFrame(frame)) {
                 packet->SetSsrc(_ssrc);
+                packet->SetPayloadType(_payloadType);
                 return packet;
             }
         }

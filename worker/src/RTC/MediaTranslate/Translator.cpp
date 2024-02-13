@@ -691,7 +691,6 @@ void Translator::SourceStream::PlayTranslatedPacket(const TranslatorEndPoint* fr
                                                     RtpPacketsCollector* output)
 {
     if (from && packet) {
-        packet->SetPayloadType(GetPayloadType());
         LOCK_READ_PROTECTED_OBJ(_consumersManager);
         if (!_consumers.empty()) {
             std::shared_ptr<RTC::RtpPacket> sharedPacket;
