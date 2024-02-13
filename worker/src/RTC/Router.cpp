@@ -521,7 +521,7 @@ namespace RTC
         if (itp != itt->second.end()) {
             MS_THROW_ERROR("Producer translator already present in mapTransportTranslators [producerId:%s]", producer->id.c_str());
         }
-        if (auto translator = Translator::Create(producer, &translatedPacketsPlayer)) {
+        if (auto translator = Translator::Create(producer, &translatedPacketsPlayer, transport)) {
             itt->second[producer] = std::move(translator);
         }
     }

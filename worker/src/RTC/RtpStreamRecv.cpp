@@ -2,7 +2,6 @@
 // #define MS_LOG_DEV_LEVEL 3
 
 #include "RTC/RtpStreamRecv.hpp"
-#include "RTC/RtpPacketsCollector.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include "RTC/Codecs/Tools.hpp"

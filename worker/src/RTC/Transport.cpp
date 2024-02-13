@@ -1451,6 +1451,13 @@ namespace RTC
         }
     }
 
+    void Transport::AddPacket(RTC::RtpPacket* packet)
+    {
+        if (packet && !this->destroying) {
+            ReceiveRtpPacket(packet, true);
+        }
+    }
+
     void Transport::Destroying()
     {
         MS_TRACE();

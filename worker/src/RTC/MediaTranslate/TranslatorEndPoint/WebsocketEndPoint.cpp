@@ -83,9 +83,11 @@ void WebsocketEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
     switch (state) {
         case WebsocketState::Connected:
             NotifyThatConnectionEstablished(true);
+            MS_ERROR_STD("Connected to %s", GetFullUrl().c_str());
             break;
         case WebsocketState::Disconnected:
             NotifyThatConnectionEstablished(false);
+            MS_ERROR_STD("Disconnected from %s", GetFullUrl().c_str());
             break;
         default:
             break;

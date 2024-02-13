@@ -12,7 +12,7 @@
 
 //#define WRITE_PRODUCER_RECV_TO_FILE // add MEDIASOUP_DEPACKETIZER_PATH env variable for reference to output folder
 //#define READ_PRODUCER_RECV_FROM_FILE
-#define NO_TRANSLATION_SERVICE
+//#define NO_TRANSLATION_SERVICE
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC
@@ -24,6 +24,7 @@ class RtpPacketsPlayer;
 class Producer;
 class Consumer;
 class RtpPacket;
+class RtpPacketsCollector;
 
 class Translator : private MediaSource,
                    private TranslatorEndPointListener, // for receiving of translated packets
@@ -37,7 +38,8 @@ class Translator : private MediaSource,
 public:
     ~Translator() final;
     static std::unique_ptr<Translator> Create(const Producer* producer,
-                                              RtpPacketsPlayer* rtpPacketsPlayer);
+                                              RtpPacketsPlayer* rtpPacketsPlayer,
+                                              RtpPacketsCollector* output);
     bool AddStream(uint32_t mappedSsrc, const RtpStream* stream);
     bool RemoveStream(uint32_t mappedSsrc);
     void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
@@ -49,7 +51,8 @@ public:
     void UpdateProducerLanguage();
     void UpdateConsumerLanguageOrVoice(Consumer* consumer);
 private:
-    Translator(const Producer* producer, RtpPacketsPlayer* rtpPacketsPlayer);
+    Translator(const Producer* producer, RtpPacketsPlayer* rtpPacketsPlayer,
+               RtpPacketsCollector* output);
     // SSRC maybe mapped or original
     std::shared_ptr<SourceStream> GetStream(uint32_t ssrc) const;
     void AddSinksToStream(const std::shared_ptr<SourceStream>& stream) const;
@@ -81,6 +84,7 @@ private:
 #endif
     const Producer* const _producer;
     RtpPacketsPlayer* const _rtpPacketsPlayer;
+    RtpPacketsCollector* const _output;
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
     const uint64_t _instanceIndex;
 #endif

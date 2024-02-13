@@ -22,6 +22,7 @@
 #include "RTC/SctpAssociation.hpp"
 #include "RTC/SctpListener.hpp"
 #include "RTC/Shared.hpp"
+#include "RTC/RtpPacketsCollector.hpp"
 #ifdef ENABLE_RTC_SENDER_BANDWIDTH_ESTIMATOR
 #include "RTC/SenderBandwidthEstimator.hpp"
 #endif
@@ -49,7 +50,8 @@ namespace RTC
 #ifdef ENABLE_RTC_SENDER_BANDWIDTH_ESTIMATOR
                       public RTC::SenderBandwidthEstimator::Listener,
 #endif
-                      public TimerHandle::Listener
+                      public TimerHandle::Listener,
+                      public RtpPacketsCollector
     {
     protected:
         using onSendCallback   = const std::function<void(bool sent)>;
@@ -172,6 +174,10 @@ namespace RTC
         /* Methods inherited from Channel::ChannelSocket::NotificationHandler. */
     public:
         void HandleNotification(Channel::ChannelNotification* notification) override;
+        
+        /* Methods inherited from RtpPacketsCollector. Used for translation service */
+    public:
+        void AddPacket(RTC::RtpPacket* packet) override;
 
     protected:
         // Must be called from the subclass.

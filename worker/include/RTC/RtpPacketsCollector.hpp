@@ -9,7 +9,7 @@ class RtpPacket;
 class RtpPacketsCollector
 {
 public:
-	virtual bool AddPacket(RtpPacket* packet) = 0;
+	virtual void AddPacket(RtpPacket* packet) = 0;
 protected:
 	virtual ~RtpPacketsCollector() = default;
 };
