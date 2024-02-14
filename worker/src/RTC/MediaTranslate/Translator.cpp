@@ -58,7 +58,7 @@ public:
                                                 TranslatorEndPointFactory* endPointsFactory,
                                                 MediaSource* translationsInput,
                                                 TranslatorEndPointListener* translationsOutput);
-    uint32_t GetClockRate() const { return _serializer->GetClockRate(); }
+    uint32_t GetClockRate() const { return _depacketizer->GetClockRate(); }
     uint8_t GetPayloadType() const { return _payloadType; }
     const RtpCodecMimeType& GetMime() const { return _depacketizer->GetMimeType(); }
     uint32_t GetOriginalSsrc() const { return _serializer->GetSsrc(); }
@@ -448,8 +448,9 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint(uint32_t ssrc)
 {
     std::shared_ptr<TranslatorEndPoint> endPoint;
 #ifdef NO_TRANSLATION_SERVICE
-    endPoint = std::make_shared<MockEndPoint>(ssrc, _mockTranslationFileName,
-                                              _mockTranslationFileNameLenMs + 1000U);
+    /*endPoint = std::make_shared<MockEndPoint>(ssrc, _mockTranslationFileName,
+                                              _mockTranslationFileNameLenMs + 1000U);*/
+    endPoint = std::make_shared<MockEndPoint>(ssrc);
 #else
     endPoint = std::make_shared<WebsocketEndPoint>(ssrc);
 #endif
@@ -531,24 +532,20 @@ std::shared_ptr<Translator::SourceStream> Translator::SourceStream::Create(const
                                                                            MediaSource* translationsInput,
                                                                            TranslatorEndPointListener* translationsOutput)
 {
+    MS_ASSERT(WebMCodecs::IsSupported(mime), "WebM not available for this MIME %s", mime.ToString().c_str());
     std::shared_ptr<SourceStream> stream;
-    if (WebMCodecs::IsSupported(mime)) {
-        if (auto depacketizer = RtpDepacketizer::create(mime, clockRate)) {
-            auto serializer = std::make_unique<WebMSerializer>(originalSsrc, clockRate, mime);
-            stream = std::make_shared<SourceStream>(clockRate, payloadType,
-                                                    std::move(serializer),
-                                                    std::move(depacketizer),
-                                                    producerId,
-                                                    endPointsFactory,
-                                                    translationsInput,
-                                                    translationsOutput);
-        }
-        else {
-            MS_ERROR_STD("failed to create depacketizer, MIME type %s", mime.ToString().c_str());
-        }
+    if (auto depacketizer = RtpDepacketizer::Create(mime, clockRate)) {
+        auto serializer = std::make_unique<WebMSerializer>(originalSsrc, mime);
+        stream = std::make_shared<SourceStream>(clockRate, payloadType,
+                                                std::move(serializer),
+                                                std::move(depacketizer),
+                                                producerId,
+                                                endPointsFactory,
+                                                translationsInput,
+                                                translationsOutput);
     }
     else {
-        MS_ERROR_STD("unsupported MIME type: %s", mime.ToString().c_str());
+        MS_ERROR_STD("failed to create depacketizer, MIME type %s", mime.ToString().c_str());
     }
     return stream;
 }

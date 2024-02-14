@@ -23,19 +23,19 @@ public:
     bool HasAudioTracks() const { return !_audioTracks.empty(); }
     bool HasVideoTracks() const { return !_videoTracks.empty(); }
     // AddAudioTrack/AddVideoTrack returns the track number or zero if failed
-    uint64_t AddAudioTrack(int32_t sampleRate = 0, int32_t channels = 0);
+    uint64_t AddAudioTrack(int32_t channels = 0);
     uint64_t AddVideoTrack(int32_t width = 0, int32_t height = 0);
     bool AddFrame(uint64_t trackNumber,
                   const std::shared_ptr<const MediaFrame>& mediaFrame,
                   uint64_t mkvTimestamp);
     bool SetTrackCodec(uint64_t trackNumber, const char* codec);
     bool SetTrackCodec(uint64_t trackNumber, const RtpCodecMimeType& mime);
-    bool SetAudioSampleRate(uint64_t trackNumber, uint32_t sampleRate, bool opusCodec);
     void SetTrackSettings(uint64_t trackNumber, const std::shared_ptr<const AudioFrameConfig>& config);
     void SetTrackSettings(uint64_t trackNumber, const std::shared_ptr<const VideoFrameConfig>& config);
 private:
     static bool SetCodecSpecific(mkvmuxer::Track* track,
                                  const std::shared_ptr<const MemoryBuffer>& specific);
+    bool SetAudioSampleRate(uint64_t trackNumber, uint32_t sampleRate);
     void WriteMediaPayloadToSink();
     bool HasWroteMedia() const { return _wroteMedia; }
     void ReserveBuffer() { _buffer.Reserve(1024); } // 1kb chunk reserved

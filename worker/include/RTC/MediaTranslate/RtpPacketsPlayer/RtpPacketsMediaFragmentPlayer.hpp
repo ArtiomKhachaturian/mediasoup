@@ -1,7 +1,8 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "ProtectedObj.hpp"
-#include <absl/container/flat_hash_map.h>
+#include "api/units/timestamp.h"
+#include "absl/container/flat_hash_map.h"
 #include <atomic>
 
 namespace RTC
@@ -51,7 +52,7 @@ private:
     const void* const _userData;
     const std::unique_ptr<PlayTaskQueue> _tasksQueue;
     std::atomic<uint64_t> _timerId = 0ULL;
-    uint32_t _previousTimestamp = 0U;
+    webrtc::Timestamp _previousTimestamp = webrtc::Timestamp::Zero();
     // key is track number, value - packetizer instance
     ProtectedObj<absl::flat_hash_map<size_t, std::unique_ptr<RtpPacketizer>>> _packetizers;
 };

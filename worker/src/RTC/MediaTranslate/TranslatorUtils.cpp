@@ -1,3 +1,4 @@
+#define MS_CLASS "RTC::TranslatorUtils"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
@@ -5,11 +6,16 @@
 #include "RTC/MediaTranslate/MediaFrameDeserializeResult.hpp"
 #include "RTC/RtpStream.hpp"
 #include "DepLibUV.hpp"
-#include "rtc_base/random.h"
+#include "Logger.hpp"
 
 namespace {
 
 const std::string g_emptyString;
+
+template<typename T>
+inline constexpr uint64_t ValueToMicro(T value) {
+    return value * 1000ULL * 1000ULL;
+}
 
 }
 

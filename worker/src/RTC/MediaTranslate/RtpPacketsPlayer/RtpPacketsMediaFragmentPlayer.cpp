@@ -141,7 +141,7 @@ void RtpPacketsMediaFragmentPlayer::OnEvent()
     if (task.has_value()) {
         switch (task->GetType()) {
             case PlayTaskType::Started:
-                _previousTimestamp = 0U;
+                _previousTimestamp = webrtc::Timestamp::Zero();
                 if (const auto playerCallback = _playerCallbackRef.lock()) {
                     playerCallback->OnPlayStarted(_ssrc, _mediaId, _userData);
                 }
@@ -154,7 +154,7 @@ void RtpPacketsMediaFragmentPlayer::OnEvent()
                 }
                 break;
             case PlayTaskType::Finished:
-                _previousTimestamp = 0U;
+                _previousTimestamp = webrtc::Timestamp::Zero();
                 if (const auto timer = _timerRef.lock()) {
                     timer->Stop(GetTimerId());
                 }
@@ -204,19 +204,17 @@ void RtpPacketsMediaFragmentPlayer::ConvertToRtpAndSend(size_t trackIndex,
     if (frame && callback) {
         if (const auto timerId = GetTimerId()) {
             if (const auto timer = _timerRef.lock()) {
-                const auto timestamp = frame->GetTimestamp();
-                if (0U == timestamp) {
+                const auto& timestamp = frame->GetTimestamp();
+                if (timestamp.IsZero()) {
                     //timer->SetTimeout(timerId, 20U); // 20ms
                 }
                 else {
-                    // TODO: rewrite timeout calculations
-                    // TODO: review timestamp type, must me more clarified (ms/us/nanosecs)
-                    const auto diff = (timestamp - _previousTimestamp) * 1000;
-                    timer->SetTimeout(timerId, diff / _clockRate);
+                    const auto diff = timestamp - _previousTimestamp;
+                    timer->SetTimeout(timerId, diff.ms<uint32_t>());
                 }
                 _previousTimestamp = timestamp;
                 if (const auto packet = CreatePacket(trackIndex, frame)) {
-                    callback->OnPlay(frame->GetTimestamp(), packet, _mediaId, _userData);
+                    callback->OnPlay(frame->GetRtpTimestamp(), packet, _mediaId, _userData);
                 }
             }
         }

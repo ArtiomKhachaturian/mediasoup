@@ -23,13 +23,11 @@ public:
     virtual bool AddTestSink(MediaSink* sink) { return false; }
     virtual bool RemoveTestSink() { return false; }
     uint32_t GetSsrc() const { return _ssrc; }
-    uint32_t GetClockRate() const { return _clockRate; }
     const RtpCodecMimeType& GetMimeType() const { return _mime; }
 protected:
-    MediaFrameSerializer(uint32_t ssrc, uint32_t clockRate, const RtpCodecMimeType& mime);
+    MediaFrameSerializer(uint32_t ssrc, const RtpCodecMimeType& mime);
 private:
     const uint32_t _ssrc;
-    const uint32_t _clockRate;
     const RtpCodecMimeType _mime;
 };
 

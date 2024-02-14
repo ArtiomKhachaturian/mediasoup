@@ -31,20 +31,7 @@ bool WebMCodecs::IsSupported(const RtpCodecMimeType& mimeType)
 
 bool WebMCodecs::IsSupported(const char* codecId)
 {
-    return codecId && IsSupported(std::string_view(codecId));
-}
-
-bool WebMCodecs::IsSupported(const std::string& codecId)
-{
-    if (!codecId.empty()) {
-        return IsSupported(std::string_view(codecId.data(), codecId.size()));
-    }
-    return false;
-}
-
-bool WebMCodecs::IsSupported(const std::string_view& codecId)
-{
-    if (!codecId.empty()) {
+    if (codecId) {
         if (CompareCaseInsensitive(codecId, mkvmuxer::Tracks::kVp8CodecId)) {
             return true;
         }
@@ -65,6 +52,31 @@ bool WebMCodecs::IsSupported(const std::string_view& codecId)
         }
     }
     return false;
+}
+
+bool WebMCodecs::IsSupported(const std::string& codecId)
+{
+    return IsSupported(codecId.c_str());
+}
+
+bool WebMCodecs::IsSupported(const std::string_view& codecId)
+{
+    return IsSupported(codecId.data());
+}
+
+bool WebMCodecs::IsOpusCodec(const char* codecId)
+{
+    return codecId && CompareCaseInsensitive(codecId, mkvmuxer::Tracks::kOpusCodecId);
+}
+
+bool WebMCodecs::IsOpusCodec(const std::string_view& codecId)
+{
+    return IsOpusCodec(codecId.data());
+}
+
+bool WebMCodecs::IsOpusCodec(const std::string& codecId)
+{
+    return IsOpusCodec(codecId.c_str());
 }
 
 const char* WebMCodecs::GetCodecId(RtpCodecMimeType::Subtype codec)

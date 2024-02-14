@@ -5,15 +5,6 @@
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "Logger.hpp"
 
-namespace {
-
-template<typename T>
-inline constexpr uint64_t ValueToNano(T value) {
-    return value * 1000ULL * 1000ULL * 1000ULL;
-}
-
-}
-
 namespace RTC
 {
 
@@ -29,9 +20,8 @@ private:
     uint64_t _singleTrackNumber = 0ULL;
 };
 
-WebMSerializer::WebMSerializer(uint32_t ssrc, uint32_t clockRate,
-                               const RtpCodecMimeType& mime, const char* app)
-    : MediaFrameSerializer(ssrc, clockRate, mime)
+WebMSerializer::WebMSerializer(uint32_t ssrc, const RtpCodecMimeType& mime, const char* app)
+    : MediaFrameSerializer(ssrc, mime)
     , _app(app)
 {
     _writers.reserve(2UL);
@@ -131,44 +121,29 @@ std::unique_ptr<WebMSerializer::Writer> WebMSerializer::CreateWriter(MediaSink* 
         const auto ssrc = GetSsrc();
         auto writer = std::make_unique<Writer>(ssrc, sink, _app);
         if (writer->IsInitialized()) {
-            const auto clockRate = GetClockRate();
             uint64_t trackNumber = 0ULL;
-            bool ok = false;
             switch (mime.GetType()) {
                 case RtpCodecMimeType::Type::AUDIO:
-                    trackNumber = writer->AddAudioTrack(clockRate);
-                    if (trackNumber) {
-                        const auto opusAudio = RtpCodecMimeType::Subtype::OPUS == mime.GetSubtype();
-                        ok = writer->SetAudioSampleRate(trackNumber, clockRate, opusAudio);
-                        if (!ok) {
-                            MS_ERROR_STD("failed to set intial MKV audio sample rate for %s",
-                                         GetStreamInfoString(mime, ssrc).c_str());
-                        }
-                    }
-                    else {
-                        MS_ERROR_STD("failed to add MKV audio track for %s",
-                                     GetStreamInfoString(mime, ssrc).c_str());
-                    }
+                    trackNumber = writer->AddAudioTrack();
                     break;
                 case RtpCodecMimeType::Type::VIDEO:
                     trackNumber = writer->AddVideoTrack();
-                    if (!ok) {
-                        MS_ERROR_STD("failed to add MKV video track for %s",
-                                     GetStreamInfoString(mime, ssrc).c_str());
-                    }
+                    break;
+                default:
                     break;
             }
-            if (ok) {
-                ok = writer->SetTrackCodec(trackNumber, mime);
-                if (!ok) {
-                    MS_ERROR_STD("failed to set MKV codec for %s",
-                                 GetStreamInfoString(mime, ssrc).c_str());
-                    writer.reset();
-                }
-                else {
+            if (trackNumber) {
+                if (writer->SetTrackCodec(trackNumber, mime)) {
                     writer->SetSingleTrackNumber(trackNumber);
                 }
+                else {
+                    MS_ERROR_STD("failed to set MKV codec for %s", GetStreamInfoString(mime, ssrc).c_str());
+                    writer.reset();
+                }
                 return writer;
+            }
+            else {
+                MS_ERROR_STD("failed to add MKV track for %s", GetStreamInfoString(mime, ssrc).c_str());
             }
         }
         else {
@@ -182,22 +157,22 @@ std::unique_ptr<WebMSerializer::Writer> WebMSerializer::CreateWriter(MediaSink* 
 bool WebMSerializer::IsAccepted(const std::shared_ptr<const MediaFrame>& mediaFrame) const
 {
     if (mediaFrame && mediaFrame->GetMimeType() == GetMimeType()) {
-        const auto timestamp = mediaFrame->GetTimestamp();
+        const auto& timestamp = mediaFrame->GetTimestamp();
         // special case if both timestamps are zero, for 1st initial frame
-        return (0U == timestamp && 0U == _lastTimestamp) || timestamp > _lastTimestamp;
+        return (timestamp.IsZero() && _lastTimestamp.IsZero()) || timestamp > _lastTimestamp;
     }
     return false;
 }
 
-uint64_t WebMSerializer::UpdateTimeStamp(uint32_t timestamp)
+uint64_t WebMSerializer::UpdateTimeStamp(const webrtc::Timestamp& timestamp)
 {
     if (timestamp > _lastTimestamp) {
-        if (_lastTimestamp) {
+        if (!_lastTimestamp.IsZero()) {
             _granule += timestamp - _lastTimestamp;
         }
         _lastTimestamp = timestamp;
     }
-    return ValueToNano(_granule) / GetClockRate();
+    return _granule.ns<uint64_t>();
 }
 
 bool WebMSerializer::Write(const std::shared_ptr<const MediaFrame>& mediaFrame,

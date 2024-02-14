@@ -13,6 +13,9 @@ public:
     static bool IsSupported(const char* codecId);
     static bool IsSupported(const std::string_view& codecId);
     static bool IsSupported(const std::string& codecId);
+    static bool IsOpusCodec(const char* codecId);
+    static bool IsOpusCodec(const std::string_view& codecId);
+    static bool IsOpusCodec(const std::string& codecId);
     // returns nullptr for unsupported mime/codec types
     static const char* GetCodecId(RtpCodecMimeType::Subtype codec);
     static const char* GetCodecId(const RtpCodecMimeType& mime);

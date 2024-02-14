@@ -44,7 +44,7 @@ public:
                                              unsigned long trackIndex);
 private:
     MkvReadResult GetNextBlock(const mkvparser::Block*& block);
-    std::optional<uint32_t> GetBlockTime(const mkvparser::Block* block) const;
+    std::optional<webrtc::Timestamp> GetBlockTime(const mkvparser::Block* block) const;
     uint32_t GetClockRate() const { return _clockRate; }
     void SetNextBlockIterationResult(long result, const char* operationName);
 private:
@@ -208,19 +208,19 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
         const mkvparser::Block* block = nullptr;
         mkvResult = GetNextBlock(block);
         if (MaybeOk(mkvResult) && block) {
-            const auto ts = GetBlockTime(block);
+            auto ts = GetBlockTime(block);
             output.reserve(output.size() + static_cast<size_t>(block->GetFrameCount()));
             for (int i = 0; i < block->GetFrameCount(); ++i) {
                 const auto& frame = block->GetFrame(i);
                 std::vector<uint8_t> buffer(frame.len);
                 mkvResult = ToMkvReadResult(frame.Read(_segment->m_pReader, buffer.data()));
                 if (MaybeOk(mkvResult)) {
-                    auto mediaFrame = std::make_shared<MediaFrame>(GetMime());
+                    auto mediaFrame = std::make_shared<MediaFrame>(GetMime(), GetClockRate());
                     if (mediaFrame->AddPayload(std::move(buffer))) {
                         mediaFrame->SetKeyFrame(block->IsKey());
                         mediaFrame->SetMediaConfig(GetConfig());
                         if (ts.has_value()) {
-                            mediaFrame->SeTimestamp(ts.value());
+                            mediaFrame->SetTimestamp(std::move(ts.value()));
                         }
                         output.push_back(std::move(mediaFrame));
                     }
@@ -364,12 +364,10 @@ block_exit:
     return ToMkvReadResult(_nextBlockIterationResult);
 }
 
-std::optional<uint32_t> WebMDeserializer::TrackInfo::GetBlockTime(const mkvparser::Block* block) const
+std::optional<webrtc::Timestamp> WebMDeserializer::TrackInfo::GetBlockTime(const mkvparser::Block* block) const
 {
     if (block && _blockEntry) {
-        const auto blockTime = block->GetTime(_blockEntry->GetCluster());
-        const auto granule = ValueFromNano<uint32_t>(blockTime * GetClockRate());
-        return granule;
+        return webrtc::Timestamp::us(block->GetTime(_blockEntry->GetCluster()) / 1000);
     }
     return std::nullopt;
 }

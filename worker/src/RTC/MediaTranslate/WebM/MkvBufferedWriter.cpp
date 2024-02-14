@@ -71,11 +71,11 @@ MkvBufferedWriter::~MkvBufferedWriter()
     }
 }
 
-uint64_t MkvBufferedWriter::AddAudioTrack(int32_t sampleRate, int32_t channels)
+uint64_t MkvBufferedWriter::AddAudioTrack(int32_t channels)
 {
     uint64_t trackNumber = 0ULL;
     if (IsValidForTracksAdding()) {
-        trackNumber = _segment.AddAudioTrack(sampleRate, channels, _nextNumber);
+        trackNumber = _segment.AddAudioTrack(0, channels, _nextNumber);
         if (trackNumber) {
             const auto track = dynamic_cast<mkvmuxer::AudioTrack*>(_segment.GetTrackByNumber(trackNumber));
             MS_ASSERT(track, "wrong type of newly added MKV audio track");
@@ -154,13 +154,15 @@ bool MkvBufferedWriter::SetTrackCodec(uint64_t trackNumber, const RtpCodecMimeTy
     return SetTrackCodec(trackNumber, WebMCodecs::GetCodecId(mime));
 }
 
-bool MkvBufferedWriter::SetAudioSampleRate(uint64_t trackNumber, uint32_t sampleRate, bool opusCodec)
+bool MkvBufferedWriter::SetAudioSampleRate(uint64_t trackNumber, uint32_t sampleRate)
 {
     if (const auto track = GetAudioTrack(trackNumber)) {
-        track->set_sample_rate(sampleRate);
-        // https://wiki.xiph.org/MatroskaOpus
-        if (opusCodec && 48000U == sampleRate) {
-            track->set_seek_pre_roll(80000000ULL);
+        if (sampleRate != track->sample_rate()) {
+            track->set_sample_rate(sampleRate);
+            // https://wiki.xiph.org/MatroskaOpus
+            if (48000U == sampleRate && WebMCodecs::IsOpusCodec(track->codec_id())) {
+                track->set_seek_pre_roll(80000000ULL);
+            }
         }
         return true;
     }
@@ -249,12 +251,12 @@ MkvBufferedWriter::EnqueueResult MkvBufferedWriter::EnqueueFrame(const std::shar
             /*if (mkvTimestamp < mkvLastTimestamp) { // timestamp is too old
                 mkvTimestamp = mkvLastTimestamp;
              }*/
-            if (mkvTimestamp >= mkvLastTimestamp) {
+            if (mkvTimestamp >= mkvLastTimestamp && (!mediaFrame->IsAudio() || SetAudioSampleRate(trackNumber, mediaFrame->GetClockRate()))) {
                 MkvFrame frame(mediaFrame, mkvTimestamp, trackNumber);
                 if (frame.IsValid()) {
+                    result = EnqueueResult::Added;
                     _mkvFrames.push_back(std::move(frame));
                     mkvLastTimestamp = mkvTimestamp;
-                    result = EnqueueResult::Added;
                 }
             }
             else {

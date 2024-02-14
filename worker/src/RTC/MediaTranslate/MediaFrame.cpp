@@ -6,12 +6,29 @@
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "Logger.hpp"
 
+namespace {
+
+template<typename T>
+inline constexpr uint64_t ValueToMicro(T value) {
+    return value * 1000 * 1000;
+}
+
+template<typename T, typename V = T>
+inline constexpr T ValueFromMicro(V micro) {
+    return static_cast<T>(micro / 1000 / 1000);
+}
+
+}
+
 namespace RTC
 {
 
-MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType)
+MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+                       webrtc::Timestamp timestamp)
     : _mimeType(mimeType)
+    , _clockRate(clockRate)
     , _payload(std::make_shared<SegmentsMemoryBuffer>())
+    , _timestamp(std::move(timestamp))
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
 }
@@ -49,6 +66,21 @@ std::shared_ptr<const MemoryBuffer> MediaFrame::GetPayload() const
 void MediaFrame::SetKeyFrame(bool keyFrame)
 {
     _keyFrame = keyFrame;
+}
+
+void MediaFrame::SetTimestamp(webrtc::Timestamp timestamp)
+{
+    _timestamp = std::move(timestamp);
+}
+
+uint32_t MediaFrame::GetRtpTimestamp() const
+{
+    return ValueFromMicro<uint32_t>(_timestamp.ms() * GetClockRate());
+}
+
+void MediaFrame::SetRtpTimestamp(uint32_t rtpTimestamp)
+{
+    _timestamp = webrtc::Timestamp::us(ValueToMicro(rtpTimestamp) / GetClockRate());
 }
 
 void MediaFrame::SetMediaConfig(const std::shared_ptr<const MediaFrameConfig>& config)

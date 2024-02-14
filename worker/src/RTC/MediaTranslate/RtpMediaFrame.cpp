@@ -6,17 +6,24 @@
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 
+namespace {
+
+inline RTC::RtpCodecMimeType::Type GetType(bool audio) {
+    return audio ? RTC::RtpCodecMimeType::Type::AUDIO : RTC::RtpCodecMimeType::Type::VIDEO;
+}
+
+}
+
 namespace RTC
 {
 
-RtpMediaFrame::RtpMediaFrame(bool audio, RtpCodecMimeType::Subtype codecType)
-    : RtpMediaFrame(RtpCodecMimeType(audio ? RtpCodecMimeType::Type::AUDIO :
-                                     RtpCodecMimeType::Type::VIDEO, codecType))
+RtpMediaFrame::RtpMediaFrame(bool audio, RtpCodecMimeType::Subtype codecType, uint32_t clockRate)
+    : RtpMediaFrame(RtpCodecMimeType(GetType(audio), codecType), clockRate)
 {
 }
 
-RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& mimeType)
-    : MediaFrame(mimeType)
+RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate)
+    : MediaFrame(mimeType, clockRate)
 {
 }
 
@@ -48,11 +55,11 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet,
                               const std::shared_ptr<MemoryBuffer>& payload)
 {
     if (packet && AddPayload(payload)) {
-        if (GetTimestamp() > packet->GetTimestamp()) {
+        if (GetRtpTimestamp() > packet->GetTimestamp()) {
             MS_WARN_TAG(rtp, "time stamp of new packet is less than previous, SSRC = %du", packet->GetSsrc());
         }
         else {
-            SeTimestamp(packet->GetTimestamp());
+            SetRtpTimestamp(packet->GetTimestamp());
         }
         if (packet->IsKeyFrame()) {
             SetKeyFrame(true);
@@ -63,10 +70,12 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet,
 }
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,
-                                                     const RtpPacket* packet, std::vector<uint8_t> payload)
+                                                     uint32_t clockRate,
+                                                     const RtpPacket* packet,
+                                                     std::vector<uint8_t> payload)
 {
     if (packet && !payload.empty()) {
-        auto frame = std::make_shared<RtpMediaFrame>(mimeType);
+        auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate);
         if (frame->AddPacket(packet, std::move(payload))) {
             return frame;
         }
@@ -75,12 +84,13 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mim
 }
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,
+                                                     uint32_t clockRate,
                                                      const RtpPacket* packet,
                                                      const uint8_t* data, size_t len,
                                                      const std::allocator<uint8_t>& payloadAllocator)
 {
     if (packet && data && len) {
-        auto frame = std::make_shared<RtpMediaFrame>(mimeType);
+        auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate);
         if (frame->AddPacket(packet, data, len, payloadAllocator)) {
             return frame;
         }
@@ -89,11 +99,12 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mim
 }
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,
+                                                     uint32_t clockRate,
                                                      const RtpPacket* packet,
                                                      const std::allocator<uint8_t>& payloadAllocator)
 {
     if (packet) {
-        auto frame = std::make_shared<RtpMediaFrame>(mimeType);
+        auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate);
         if (frame->AddPacket(packet, payloadAllocator)) {
             return frame;
         }
@@ -102,11 +113,12 @@ std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mim
 }
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,
+                                                     uint32_t clockRate,
                                                      const RtpPacket* packet,
                                                      const std::shared_ptr<MemoryBuffer>& payload)
 {
     if (packet && payload) {
-        auto frame = std::make_shared<RtpMediaFrame>(mimeType);
+        auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate);
         if (frame->AddPacket(packet, payload)) {
             return frame;
         }

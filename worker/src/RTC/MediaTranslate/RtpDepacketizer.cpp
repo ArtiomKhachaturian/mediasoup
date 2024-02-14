@@ -7,21 +7,22 @@
 namespace RTC
 {
 
-RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& mimeType)
+RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& mimeType, uint32_t clockRate)
     : _mimeType(mimeType)
+    , _clockRate(clockRate)
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
 }
 
-std::unique_ptr<RtpDepacketizer> RtpDepacketizer::create(const RtpCodecMimeType& mimeType,
-                                                         uint32_t sampleRate)
+std::unique_ptr<RtpDepacketizer> RtpDepacketizer::Create(const RtpCodecMimeType& mimeType,
+                                                         uint32_t clockRate)
 {
     switch (mimeType.GetType()) {
         case RtpCodecMimeType::Type::AUDIO:
             switch (mimeType.GetSubtype()) {
                 case RtpCodecMimeType::Subtype::MULTIOPUS:
                 case RtpCodecMimeType::Subtype::OPUS:
-                    return std::make_unique<RtpDepacketizerOpus>(mimeType, sampleRate);
+                    return std::make_unique<RtpDepacketizerOpus>(mimeType, clockRate);
                 default:
                     break;
             }
@@ -30,7 +31,7 @@ std::unique_ptr<RtpDepacketizer> RtpDepacketizer::create(const RtpCodecMimeType&
             switch (mimeType.GetSubtype()) {
                 case RtpCodecMimeType::Subtype::VP8:
                 case RtpCodecMimeType::Subtype::VP9:
-                    return std::make_unique<RtpDepacketizerVpx>(mimeType);
+                    return std::make_unique<RtpDepacketizerVpx>(mimeType, clockRate);
                 default:
                     break;
             }
