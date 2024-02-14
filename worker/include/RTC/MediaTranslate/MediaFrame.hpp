@@ -32,9 +32,9 @@ public:
     void SetKeyFrame(bool keyFrame);
     bool IsKeyFrame() const { return _keyFrame; }
     uint32_t GetClockRate() const { return _clockRate; }
-    const webrtc::Timestamp& GetTimestamp() const { return _timestamp; }
-    void SetTimestamp(webrtc::Timestamp timestamp);
-    uint32_t GetRtpTimestamp() const;
+    webrtc::Timestamp GetTimestamp() const;
+    void SetTimestamp(const webrtc::Timestamp& timestamp);
+    uint32_t GetRtpTimestamp() const { return _rtpTimestamp; }
     void SetRtpTimestamp(uint32_t rtpTimestamp);
     void SetMediaConfig(const std::shared_ptr<const MediaFrameConfig>& config);
     // audio configuration
@@ -48,7 +48,7 @@ private:
     const uint32_t _clockRate;
     const std::shared_ptr<SegmentsMemoryBuffer> _payload;
     bool _keyFrame = false;
-    webrtc::Timestamp _timestamp = webrtc::Timestamp::Zero();
+    uint32_t _rtpTimestamp = 0U;
     std::shared_ptr<const MediaFrameConfig> _config;
 };
 

@@ -65,19 +65,19 @@ void MediaFrame::SetKeyFrame(bool keyFrame)
     _keyFrame = keyFrame;
 }
 
-void MediaFrame::SetTimestamp(webrtc::Timestamp timestamp)
+void MediaFrame::SetTimestamp(const webrtc::Timestamp& timestamp)
 {
-    _timestamp = std::move(timestamp);
+    _rtpTimestamp = ValueFromMicro<uint32_t>(timestamp.us() * GetClockRate());
 }
 
-uint32_t MediaFrame::GetRtpTimestamp() const
+webrtc::Timestamp MediaFrame::GetTimestamp() const
 {
-    return ValueFromMicro<uint32_t>(_timestamp.us() * GetClockRate());
+    return webrtc::Timestamp::us(ValueToMicro(GetRtpTimestamp()) / GetClockRate());
 }
 
 void MediaFrame::SetRtpTimestamp(uint32_t rtpTimestamp)
 {
-    _timestamp = webrtc::Timestamp::us(ValueToMicro(rtpTimestamp) / GetClockRate());
+    _rtpTimestamp = rtpTimestamp;
 }
 
 void MediaFrame::SetMediaConfig(const std::shared_ptr<const MediaFrameConfig>& config)

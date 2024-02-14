@@ -421,12 +421,6 @@ void Translator::OnTranslatedMediaReceived(const TranslatorEndPoint* endPoint,
     }
 }
 
-void Translator::OnPlayStarted(uint32_t ssrc, uint64_t mediaId, const void* userData)
-{
-    RtpPacketsPlayerCallback::OnPlayStarted(ssrc, mediaId, userData);
-    //MS_ERROR_STD("Translation #%llu play was started", mediaId);
-}
-
 void Translator::OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet,
                         uint64_t mediaId, const void* userData)
 {
@@ -436,12 +430,6 @@ void Translator::OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet,
             stream->PlayTranslatedPacket(endPoint, rtpTimestampOffset, packet, _output);
         }
     }
-}
-
-void Translator::OnPlayFinished(uint32_t ssrc, uint64_t mediaId, const void* userData)
-{
-    RtpPacketsPlayerCallback::OnPlayFinished(ssrc, mediaId, userData);
-    //MS_ERROR_STD("Translation #%llu play was finished", mediaId);
 }
 
 std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint(uint32_t ssrc)

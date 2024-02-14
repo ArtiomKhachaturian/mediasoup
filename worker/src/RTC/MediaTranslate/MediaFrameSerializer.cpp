@@ -20,7 +20,7 @@ std::string_view MediaFrameSerializer::GetFileExtension() const
 bool MediaFrameSerializer::IsAccepted(const std::shared_ptr<const MediaFrame>& mediaFrame) const
 {
     if (mediaFrame && mediaFrame->GetMimeType() == GetMimeType()) {
-        const auto& timestamp = mediaFrame->GetTimestamp();
+        const auto timestamp = mediaFrame->GetTimestamp();
         // special case if both timestamps are zero, for 1st initial frame
         return (timestamp.IsZero() && _lastTimestamp.IsZero()) || timestamp > _lastTimestamp;
     }

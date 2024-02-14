@@ -251,12 +251,14 @@ MkvBufferedWriter::EnqueueResult MkvBufferedWriter::EnqueueFrame(const std::shar
             /*if (mkvTimestamp < mkvLastTimestamp) { // timestamp is too old
                 mkvTimestamp = mkvLastTimestamp;
              }*/
-            if (mkvTimestamp >= mkvLastTimestamp && (!mediaFrame->IsAudio() || SetAudioSampleRate(trackNumber, mediaFrame->GetClockRate()))) {
-                MkvFrame frame(mediaFrame, mkvTimestamp, trackNumber);
-                if (frame.IsValid()) {
-                    result = EnqueueResult::Added;
-                    _mkvFrames.push_back(std::move(frame));
-                    mkvLastTimestamp = mkvTimestamp;
+            if (mkvTimestamp >= mkvLastTimestamp) {
+                if (!mediaFrame->IsAudio() || SetAudioSampleRate(trackNumber, mediaFrame->GetClockRate())) {
+                    MkvFrame frame(mediaFrame, mkvTimestamp, trackNumber);
+                    if (frame.IsValid()) {
+                        result = EnqueueResult::Added;
+                        _mkvFrames.push_back(std::move(frame));
+                        mkvLastTimestamp = mkvTimestamp;
+                    }
                 }
             }
             else {

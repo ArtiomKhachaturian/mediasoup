@@ -69,9 +69,7 @@ private:
     void OnTranslatedMediaReceived(const TranslatorEndPoint* endPoint, uint64_t mediaSeqNum,
                                    const std::shared_ptr<MemoryBuffer>& media) final;
     // impl. of RtpPacketsPlayerCallback
-    void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, const void* userData) final;
     void OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet, uint64_t mediaId, const void* userData) final;
-    void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, const void* userData) final;
     // impl. of TranslatorEndPointFactory
     std::shared_ptr<TranslatorEndPoint> CreateEndPoint(uint32_t ssrc) final;
     // impl. of RtpPacketsInfoProvider

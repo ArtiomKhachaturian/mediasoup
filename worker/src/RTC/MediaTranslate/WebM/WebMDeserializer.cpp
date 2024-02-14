@@ -220,7 +220,7 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
                         mediaFrame->SetKeyFrame(block->IsKey());
                         mediaFrame->SetMediaConfig(GetConfig());
                         if (ts.has_value()) {
-                            mediaFrame->SetTimestamp(std::move(ts.value()));
+                            mediaFrame->SetTimestamp(ts.value());
                         }
                         output.push_back(std::move(mediaFrame));
                     }
