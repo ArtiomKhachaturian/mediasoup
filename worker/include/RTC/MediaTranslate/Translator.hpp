@@ -12,7 +12,7 @@
 
 //#define WRITE_PRODUCER_RECV_TO_FILE // add MEDIASOUP_DEPACKETIZER_PATH env variable for reference to output folder
 //#define READ_PRODUCER_RECV_FROM_FILE
-#define NO_TRANSLATION_SERVICE
+//#define NO_TRANSLATION_SERVICE
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC

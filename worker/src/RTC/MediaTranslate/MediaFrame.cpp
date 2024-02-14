@@ -28,6 +28,7 @@ MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate)
     , _payload(std::make_shared<SegmentsMemoryBuffer>())
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
+    MS_ASSERT(_clockRate, "clock rate must be greater than zero");
 }
 
 MediaFrame::~MediaFrame()
