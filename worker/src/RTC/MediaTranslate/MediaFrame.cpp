@@ -8,13 +8,12 @@
 
 namespace {
 
-template<typename T>
-inline constexpr uint64_t ValueToMicro(T value) {
+inline constexpr uint64_t ValueToMicro(uint64_t value) {
     return value * 1000 * 1000;
 }
 
-template<typename T, typename V = T>
-inline constexpr T ValueFromMicro(V micro) {
+template<typename T>
+inline constexpr T ValueFromMicro(uint64_t micro) {
     return static_cast<T>(micro / 1000 / 1000);
 }
 
@@ -23,12 +22,10 @@ inline constexpr T ValueFromMicro(V micro) {
 namespace RTC
 {
 
-MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
-                       webrtc::Timestamp timestamp)
+MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate)
     : _mimeType(mimeType)
     , _clockRate(clockRate)
     , _payload(std::make_shared<SegmentsMemoryBuffer>())
-    , _timestamp(std::move(timestamp))
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
 }
@@ -75,7 +72,7 @@ void MediaFrame::SetTimestamp(webrtc::Timestamp timestamp)
 
 uint32_t MediaFrame::GetRtpTimestamp() const
 {
-    return ValueFromMicro<uint32_t>(_timestamp.ms() * GetClockRate());
+    return ValueFromMicro<uint32_t>(_timestamp.us() * GetClockRate());
 }
 
 void MediaFrame::SetRtpTimestamp(uint32_t rtpTimestamp)

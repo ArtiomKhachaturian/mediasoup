@@ -17,8 +17,7 @@ class SegmentsMemoryBuffer;
 class MediaFrame
 {
 public:
-    MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
-               webrtc::Timestamp timestamp = webrtc::Timestamp::Micros<0U>());
+    MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate);
     virtual ~MediaFrame();
     // add-methods return false if input arguments is incorrect: null or empty payload
     bool AddPayload(std::vector<uint8_t> payload);
@@ -49,7 +48,7 @@ private:
     const uint32_t _clockRate;
     const std::shared_ptr<SegmentsMemoryBuffer> _payload;
     bool _keyFrame = false;
-    webrtc::Timestamp _timestamp;
+    webrtc::Timestamp _timestamp = webrtc::Timestamp::Zero();
     std::shared_ptr<const MediaFrameConfig> _config;
 };
 

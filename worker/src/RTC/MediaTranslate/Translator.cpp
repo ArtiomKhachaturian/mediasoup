@@ -448,9 +448,8 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint(uint32_t ssrc)
 {
     std::shared_ptr<TranslatorEndPoint> endPoint;
 #ifdef NO_TRANSLATION_SERVICE
-    /*endPoint = std::make_shared<MockEndPoint>(ssrc, _mockTranslationFileName,
-                                              _mockTranslationFileNameLenMs + 1000U);*/
-    endPoint = std::make_shared<MockEndPoint>(ssrc);
+    endPoint = std::make_shared<MockEndPoint>(ssrc, _mockTranslationFileName,
+                                              _mockTranslationFileNameLenMs + 1000U);
 #else
     endPoint = std::make_shared<WebsocketEndPoint>(ssrc);
 #endif
