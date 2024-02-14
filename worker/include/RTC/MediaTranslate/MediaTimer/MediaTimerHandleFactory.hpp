@@ -13,6 +13,7 @@ class MediaTimerHandleFactory
 public:
     virtual ~MediaTimerHandleFactory() = default;
     virtual std::unique_ptr<MediaTimerHandle> CreateHandle(const std::weak_ptr<MediaTimerCallback>& callbackRef) = 0;
+    virtual void DestroyHandle(std::unique_ptr<MediaTimerHandle> handle);
     static std::unique_ptr<MediaTimerHandleFactory> Create(const std::string& timerName);
 protected:
 	MediaTimerHandleFactory() = default;

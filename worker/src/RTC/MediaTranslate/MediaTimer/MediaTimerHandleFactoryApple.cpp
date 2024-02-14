@@ -45,7 +45,7 @@ MediaTimerHandleApple::MediaTimerHandleApple(const std::weak_ptr<MediaTimerCallb
     , _timer(timer)
 {
     dispatch_retain(_timer);
-    SetTimerSourceTimeout(0ULL);
+    SetTimerSourceTimeout(GetTimeout());
 }
 
 MediaTimerHandleApple::~MediaTimerHandleApple()

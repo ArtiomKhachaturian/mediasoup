@@ -13,6 +13,7 @@ static constexpr int ProducerChannelFd{ 4 };
 
 /*#include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
+#include <thread>
 
 class FakeCallBack : public RTC::MediaTimerCallback
 {
@@ -21,8 +22,7 @@ public:
     void SetTimerId(uint64_t timerId) { _timerId = timerId; }
     void OnEvent() final {
         MS_ERROR_STD("FakeCallBack::OnEvent: %zu", _counter++);
-        //_timer->SetTimeout(_timerId, 20ULL);
-        //_timer->Start(_timerId, true);
+        _timer->SetTimeout(_timerId, 2000);
     }
 private:
     RTC::MediaTimer* _timer;
@@ -33,15 +33,17 @@ private:
 int main(int argc, char* argv[])
 {
     //sleep(10); // TODO: remove this sleep for production
-    /*RTC::MediaTimer timer;
-    auto callback = std::make_shared<FakeCallBack>(&timer);
-    if (const auto timerId = timer.RegisterTimer(callback)) {
-        callback->SetTimerId(timerId);
-        timer.SetTimeout(timerId, 5 * 1000U);
-        MS_ERROR_STD("MediaTimer::Start");
-        timer.Start(timerId, false);
-        sleep(100); // TODO: remove this sleep for production
-        timer.UnregisterTimer(timerId);
+    /*{
+        RTC::MediaTimer timer("testTimer");
+        auto callback = std::make_shared<FakeCallBack>(&timer);
+        if (const auto timerId = timer.RegisterTimer(callback)) {
+            callback->SetTimerId(timerId);
+            timer.SetTimeout(timerId, 0);
+            MS_ERROR_STD("MediaTimer::Start");
+            timer.Start(timerId, false);
+            sleep(10); // TODO: remove this sleep for production
+            timer.UnregisterTimer(timerId);
+        }
     }*/
 	// Ensure we are called by our Node library.
 	if (!std::getenv("MEDIASOUP_VERSION"))

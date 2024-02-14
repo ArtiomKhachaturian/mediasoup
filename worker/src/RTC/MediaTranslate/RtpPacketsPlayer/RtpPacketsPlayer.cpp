@@ -7,7 +7,7 @@
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
 #include "RTC/RtpPacket.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
-#include "LibUVAsyncHandle.hpp"
+#include "UVAsyncHandle.hpp"
 #include "ProtectedObj.hpp"
 #endif
 #include "MemoryBuffer.hpp"
@@ -86,7 +86,7 @@ private:
     void EnqueTask(std::unique_ptr<QueuedTask> task);
     bool HasCallback() const;
 private:
-    const LibUVAsyncHandle _handle;
+    const UVAsyncHandle _handle;
     const std::unique_ptr<RtpPacketsPlayerStream> _stream;
     ProtectedObj<RtpPacketsPlayerCallback*> _callback;
     ProtectedObj<std::queue<std::unique_ptr<QueuedTask>>> _tasks;
@@ -176,7 +176,6 @@ RtpPacketsPlayer::StreamWrapper::StreamWrapper(uint32_t ssrc, const RtpCodecMime
     , _stream(new RtpPacketsPlayerStream(ssrc, mime, timer, packetsInfoProvider, this))
     , _callback(callback)
 {
-    MS_ASSERT(_handle.IsValid(), "invalid async handle");
 }
 
 void RtpPacketsPlayer::StreamWrapper::ResetCallback()

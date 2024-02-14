@@ -1,3 +1,4 @@
+#define MS_CLASS "RTC::MockEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint/MockEndPoint.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketState.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
@@ -5,6 +6,7 @@
 #include "RTC/MediaTranslate/FileReader.hpp"
 #include "MemoryBuffer.hpp"
 #include "ProtectedObj.hpp"
+#include "Logger.hpp"
 
 namespace RTC
 {
@@ -44,7 +46,9 @@ class MockEndPoint::FileImpl : public Impl, public MediaTimerCallback,
                                public std::enable_shared_from_this<FileImpl>
 {
 public:
-    FileImpl(std::shared_ptr<MemoryBuffer> outputMedia, uint32_t intervalBetweenTranslationsMs);
+    FileImpl(const std::string_view& fileNameUtf8,
+             std::shared_ptr<MemoryBuffer> outputMedia,
+             uint32_t intervalBetweenTranslationsMs);
     static std::shared_ptr<Impl> Create(const std::string_view& fileNameUtf8,
                                         uint32_t intervalBetweenTranslationsMs);
     // impl. of Impl
@@ -56,6 +60,7 @@ public:
 private:
     WebsocketState GetState() const { return _state.load(); }
 private:
+    const std::string _fileNameUtf8;
     const std::shared_ptr<MemoryBuffer> _outputMedia;
     const uint32_t _intervalBetweenTranslationsMs;
     MediaTimer _timer;
@@ -155,9 +160,11 @@ bool MockEndPoint::TrivialImpl::Disconnect()
     return false;
 }
 
-MockEndPoint::FileImpl::FileImpl(std::shared_ptr<MemoryBuffer> outputMedia,
+MockEndPoint::FileImpl::FileImpl(const std::string_view& fileNameUtf8,
+                                 std::shared_ptr<MemoryBuffer> outputMedia,
                                  uint32_t intervalBetweenTranslationsMs)
-    : _outputMedia(std::move(outputMedia))
+    : _fileNameUtf8(fileNameUtf8)
+    , _outputMedia(std::move(outputMedia))
     , _intervalBetweenTranslationsMs(intervalBetweenTranslationsMs)
 {
 }
@@ -167,7 +174,8 @@ std::shared_ptr<MockEndPoint::Impl> MockEndPoint::FileImpl::
 {
     std::shared_ptr<Impl> impl;
     if (auto media = FileReader::ReadAllAsBuffer(fileNameUtf8)) {
-        impl = std::make_shared<FileImpl>(std::move(media), intervalBetweenTranslationsMs);
+        impl = std::make_shared<FileImpl>(fileNameUtf8, std::move(media),
+                                          intervalBetweenTranslationsMs);
     }
     else {
         // TODO: log warning
@@ -180,6 +188,7 @@ void MockEndPoint::FileImpl::OnEvent()
 {
     WebsocketState expected = WebsocketState::Connecting;
     if (_state.compare_exchange_strong(expected, WebsocketState::Connected)) {
+        MS_ERROR_STD("Connected to %s", _fileNameUtf8.c_str());
         NotifyThatConnectionEstablished(true);
         if (const auto timerId = _timerId.load()) {
             _timer.SetTimeout(timerId, _intervalBetweenTranslationsMs);
@@ -215,6 +224,7 @@ bool MockEndPoint::FileImpl::Disconnect()
         if (const auto timerId = _timerId.exchange(0ULL)) {
             _timer.UnregisterTimer(timerId);
         }
+        MS_ERROR_STD("Disconnected from %s", _fileNameUtf8.c_str());
         NotifyThatConnectionEstablished(false);
         return true;
     }

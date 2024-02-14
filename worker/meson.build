@@ -63,7 +63,7 @@ common_sources = [
   'src/DepLibWebRTC.cpp',
   'src/DepOpenSSL.cpp',
   'src/DepUsrSCTP.cpp',
-  'src/LibUVAsyncHandle.cpp',
+  'src/UVAsyncHandle.cpp',
   'src/Logger.cpp',
   'src/MediaSoupErrors.cpp',
   'src/Settings.cpp',
@@ -211,17 +211,13 @@ media_translate_sources = [
 
 if host_machine.system() == 'darwin'
   media_translate_sources += [
-    'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryApple.cpp',
+  'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryApple.cpp',
 ]
-elif host_machine.system() == 'linux'
+else
   media_translate_sources += [
-    'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUnix.cpp',
+    'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUV.cpp',
 ]
 endif
-
-#media_translate_sources += [
-#   'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUnix.cpp',
-#]
 
 libwebm_sources = [
   'external/libwebm/common/file_util.cc',

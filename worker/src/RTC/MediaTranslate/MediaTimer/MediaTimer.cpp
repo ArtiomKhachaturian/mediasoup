@@ -21,7 +21,7 @@ MediaTimer::~MediaTimer()
     if (_factory) {
         LOCK_WRITE_PROTECTED_OBJ(_handles);
         for (auto it = _handles->begin(); it != _handles->end(); ++it) {
-            it->second->Stop();
+            _factory->DestroyHandle(std::move(it->second));
         }
         _handles->clear();
     }
@@ -49,7 +49,7 @@ void MediaTimer::UnregisterTimer(uint64_t timerId)
         LOCK_WRITE_PROTECTED_OBJ(_handles);
         const auto it = _handles->find(timerId);
         if (it != _handles->end()) {
-            it->second->Stop();
+            _factory->DestroyHandle(std::move(it->second));
             _handles->erase(it);
         }
     }
@@ -98,6 +98,14 @@ bool MediaTimer::IsStarted(uint64_t timerId) const
         }
     }
     return false;
+}
+
+void MediaTimerHandleFactory::DestroyHandle(std::unique_ptr<MediaTimerHandle> handle)
+{
+    if (handle) {
+        handle->Stop();
+        handle.reset();
+    }
 }
 
 MediaTimerHandle::MediaTimerHandle(const std::weak_ptr<MediaTimerCallback>& callbackRef)
