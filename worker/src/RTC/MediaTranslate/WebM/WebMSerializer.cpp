@@ -78,11 +78,11 @@ bool WebMSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFrame)
 {
     bool ok = false;
     if (mediaFrame && (HasSinks() || _testWriter) && IsAccepted(mediaFrame)) {
-        const auto mkvTimestamp = UpdateTimeStamp(mediaFrame->GetTimestamp());
-        ok = !_testWriter || Write(mediaFrame, mkvTimestamp, _testWriter.get());
+        const auto offset = UpdateTimeOffset(mediaFrame->GetTimestamp()).ns<uint64_t>();
+        ok = !_testWriter || Write(mediaFrame, offset, _testWriter.get());
         if (ok) {
             for (auto it = _writers.begin(); it != _writers.end(); ++it) {
-                ok = Write(mediaFrame, mkvTimestamp, it->second.get());
+                ok = Write(mediaFrame, offset, it->second.get());
                 if (!ok) {
                     break;
                 }
@@ -152,27 +152,6 @@ std::unique_ptr<WebMSerializer::Writer> WebMSerializer::CreateWriter(MediaSink* 
         }
     }
     return nullptr;
-}
-
-bool WebMSerializer::IsAccepted(const std::shared_ptr<const MediaFrame>& mediaFrame) const
-{
-    if (mediaFrame && mediaFrame->GetMimeType() == GetMimeType()) {
-        const auto& timestamp = mediaFrame->GetTimestamp();
-        // special case if both timestamps are zero, for 1st initial frame
-        return (timestamp.IsZero() && _lastTimestamp.IsZero()) || timestamp > _lastTimestamp;
-    }
-    return false;
-}
-
-uint64_t WebMSerializer::UpdateTimeStamp(const webrtc::Timestamp& timestamp)
-{
-    if (timestamp > _lastTimestamp) {
-        if (!_lastTimestamp.IsZero()) {
-            _granule += timestamp - _lastTimestamp;
-        }
-        _lastTimestamp = timestamp;
-    }
-    return _granule.ns<uint64_t>();
 }
 
 bool WebMSerializer::Write(const std::shared_ptr<const MediaFrame>& mediaFrame,

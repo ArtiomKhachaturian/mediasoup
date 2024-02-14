@@ -2,6 +2,8 @@
 
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
+#include "api/units/time_delta.h"
+#include "api/units/timestamp.h"
 #include <memory>
 #include <string>
 
@@ -26,9 +28,14 @@ public:
     const RtpCodecMimeType& GetMimeType() const { return _mime; }
 protected:
     MediaFrameSerializer(uint32_t ssrc, const RtpCodecMimeType& mime);
+    bool IsAccepted(const std::shared_ptr<const MediaFrame>& mediaFrame) const;
+    // returns of actual offset from beginning of serialization (starts from zero)
+    const webrtc::TimeDelta& UpdateTimeOffset(const webrtc::Timestamp& timestamp);
 private:
     const uint32_t _ssrc;
     const RtpCodecMimeType _mime;
+    webrtc::Timestamp _lastTimestamp = webrtc::Timestamp::Zero();
+    webrtc::TimeDelta _offset = webrtc::TimeDelta::Zero();
 };
 
 } // namespace RTC

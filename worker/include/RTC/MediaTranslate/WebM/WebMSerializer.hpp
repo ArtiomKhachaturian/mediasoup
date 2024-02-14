@@ -1,7 +1,5 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaFrameSerializer.hpp"
-#include "api/units/time_delta.h"
-#include "api/units/timestamp.h"
 #include "absl/container/flat_hash_map.h"
 
 
@@ -28,16 +26,12 @@ public:
     bool RemoveTestSink() final;
 private:
     std::unique_ptr<Writer> CreateWriter(MediaSink* sink) const;
-    bool IsAccepted(const std::shared_ptr<const MediaFrame>& mediaFrame) const;
-    uint64_t UpdateTimeStamp(const webrtc::Timestamp& timestamp); // output in nanoseconds
     bool Write(const std::shared_ptr<const MediaFrame>& mediaFrame,
                uint64_t mkvTimestamp, Writer* writer) const;
 private:
     const char* const _app;
     absl::flat_hash_map<MediaSink*, std::unique_ptr<Writer>> _writers;
     std::unique_ptr<Writer> _testWriter;
-    webrtc::Timestamp _lastTimestamp = webrtc::Timestamp::Micros<0ULL>();
-    webrtc::TimeDelta _granule = webrtc::TimeDelta::Micros<0UL>();
 };
 
 } // namespace RTC
