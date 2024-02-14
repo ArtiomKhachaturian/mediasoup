@@ -9,10 +9,10 @@ class MemoryBuffer;
 class MediaTimer;
 class MediaFrameDeserializer;
 class RtpPacketsPlayerCallback;
+class RtpPacketsMediaFragmentPlayer;
 
 class RtpPacketsPlayerMediaFragment
 {
-    class TimerCallback;
 public:
     RtpPacketsPlayerMediaFragment(const std::shared_ptr<MediaTimer>& timer,
                                   const std::weak_ptr<RtpPacketsPlayerCallback>& playerCallbackRef,
@@ -26,7 +26,7 @@ public:
     bool IsPlaying() const;
     uint64_t GetMediaId() const;
 private:
-    const std::shared_ptr<TimerCallback> _timerCallback;
+    const std::shared_ptr<RtpPacketsMediaFragmentPlayer> _player;
     const std::shared_ptr<MediaTimer> _timer;
 };
 

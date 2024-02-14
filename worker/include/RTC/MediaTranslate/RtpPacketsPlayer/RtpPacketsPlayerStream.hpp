@@ -7,12 +7,12 @@ namespace RTC
 
 class MemoryBuffer;
 class MediaTimer;
+class RtpPacketsPlayerStreamQueue;
 class RtpPacketsPlayerCallback;
 class RtpPacketsInfoProvider;
 
 class RtpPacketsPlayerStream
 {
-    class FragmentsQueue;
 public:
     RtpPacketsPlayerStream(uint32_t ssrc, const RtpCodecMimeType& mime,
                            const std::shared_ptr<MediaTimer>& timer,
@@ -28,7 +28,7 @@ private:
     const RtpCodecMimeType _mime;
     const std::shared_ptr<MediaTimer> _timer;
     const RtpPacketsInfoProvider* const _packetsInfoProvider;
-    const std::shared_ptr<FragmentsQueue> _fragmentsQueue;
+    const std::shared_ptr<RtpPacketsPlayerStreamQueue> _queue;
 };
 
 } // namespace RTC
