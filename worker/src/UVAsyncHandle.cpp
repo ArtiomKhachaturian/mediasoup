@@ -1,17 +1,9 @@
 #define MS_CLASS "RTC::UVAsyncHandle"
 #include "UVAsyncHandle.hpp"
-#include "DepLibUV.hpp"
 #include "Logger.hpp"
-#include "MediaSoupErrors.hpp"
-#include <memory>
 
 namespace RTC
 {
-
-UVAsyncHandle::UVAsyncHandle(uv_async_cb asyncCb, void* data)
-    : UVAsyncHandle(DepLibUV::GetLoop(), asyncCb, data)
-{
-}
 
 UVAsyncHandle::UVAsyncHandle(uv_loop_t* loop, uv_async_cb asyncCb, void* data)
     : _handle(UVHandle<uv_async_t>::CreateInitialized(loop, asyncCb))

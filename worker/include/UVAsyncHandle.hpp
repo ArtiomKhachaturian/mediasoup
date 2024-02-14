@@ -7,7 +7,6 @@ namespace RTC
 class UVAsyncHandle
 {
 public:
-    UVAsyncHandle(uv_async_cb asyncCb, void* data);
     UVAsyncHandle(uv_loop_t* loop, uv_async_cb asyncCb, void* data);
     UVAsyncHandle(UVAsyncHandle&& tmp) = default;
     UVAsyncHandle(const UVAsyncHandle&) = delete;

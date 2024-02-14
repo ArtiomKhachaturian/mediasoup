@@ -9,6 +9,7 @@
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
 #include "UVAsyncHandle.hpp"
 #include "ProtectedObj.hpp"
+#include "DepLibUV.hpp"
 #endif
 #include "MemoryBuffer.hpp"
 #include "Logger.hpp"
@@ -172,7 +173,7 @@ RtpPacketsPlayer::StreamWrapper::StreamWrapper(uint32_t ssrc, const RtpCodecMime
                                                const std::shared_ptr<MediaTimer>& timer,
                                                const RtpPacketsInfoProvider* packetsInfoProvider,
                                                RtpPacketsPlayerCallback* callback)
-    : _handle(OnInvoke, this)
+    : _handle(DepLibUV::GetLoop(), OnInvoke, this)
     , _stream(new RtpPacketsPlayerStream(ssrc, mime, timer, packetsInfoProvider, this))
     , _callback(callback)
 {
