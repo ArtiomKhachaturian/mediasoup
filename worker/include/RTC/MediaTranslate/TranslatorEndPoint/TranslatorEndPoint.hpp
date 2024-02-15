@@ -14,12 +14,15 @@ class MediaSource;
 class TranslatorEndPoint : public MediaSourceImpl, private MediaSink
 {
     class InputSliceBuffer;
+    using ProtectedString = ProtectedObj<std::string>;
 public:
     virtual ~TranslatorEndPoint();
     void SetInputMediaSource(MediaSource* inputMediaSource);
     void SetInputLanguageId(const std::string& languageId);
     void SetOutputLanguageId(const std::string& languageId);
     void SetOutputVoiceId(const std::string& voiceId);
+    void SetOwnerId(const std::string& ownerId);
+    std::string GetOwnerId() const;
     virtual bool IsConnected() const = 0;
 protected:
     TranslatorEndPoint(uint32_t timeSliceMs = 0U);
@@ -27,11 +30,15 @@ protected:
     bool HasValidTranslationSettings() const;
     void NotifyThatConnectionEstablished(bool connected);
     void NotifyThatTranslatedMediaReceived(const std::shared_ptr<MemoryBuffer>& media);
+    void SetName(const std::string& name);
+    std::string GetName() const;
+    std::string GetDescription() const;
     virtual void Connect() = 0;
     virtual void Disconnect() = 0;
     virtual bool SendBinary(const MemoryBuffer& buffer) const = 0;
     virtual bool SendText(const std::string& text) const = 0;
     // override of MediaSourceImpl
+    bool IsSinkValid(const MediaSink* sink) const final { return this != sink; }
     void OnSinkWasAdded(MediaSink* sink, bool first) final;
     void OnSinkWasRemoved(MediaSink* sink, bool last) final;
 private:
@@ -59,10 +66,13 @@ private:
     void EndMediaWriting(const MediaObject& sender) final;
 private:
     const std::unique_ptr<InputSliceBuffer> _inputSlice;
-    ProtectedObj<std::string> _inputLanguageId;
-    ProtectedObj<std::string> _outputLanguageId;
-    ProtectedObj<std::string> _outputVoiceId;
+    ProtectedString _inputLanguageId;
+    ProtectedString _outputLanguageId;
+    ProtectedString _outputVoiceId;
+    ProtectedString _ownerId; // for logging only
+    ProtectedString _name;
     ProtectedObj<MediaSource*> _inputMediaSource;
+    std::atomic_bool _notifyedThatConnected = false; // for logs
 };
 
 } // namespace RTC

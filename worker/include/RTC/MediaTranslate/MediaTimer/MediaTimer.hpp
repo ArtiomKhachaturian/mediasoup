@@ -13,18 +13,20 @@ class MediaTimerHandleFactory;
 
 class MediaTimer
 {
+    class SingleShotCallback;
 public:
     MediaTimer(std::string timerName = std::string());
     ~MediaTimer();
-    uint64_t RegisterTimer(const std::weak_ptr<MediaTimerCallback>& callbackRef);
+    uint64_t RegisterTimer(const std::shared_ptr<MediaTimerCallback>& callback);
     void UnregisterTimer(uint64_t timerId);
     // time-out in milliseconds, previous invokes will discarded
     void SetTimeout(uint64_t timerId, uint64_t timeoutMs);
     void Start(uint64_t timerId, bool singleshot);
     void Stop(uint64_t timerId);
     bool IsStarted(uint64_t timerId) const;
+    bool Singleshot(uint64_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback);
 private:
-	const std::unique_ptr<MediaTimerHandleFactory> _factory;
+	const std::shared_ptr<MediaTimerHandleFactory> _factory;
     const std::string _timerName;
 	// key is timer ID
 	ProtectedObj<absl::flat_hash_map<uint64_t, std::unique_ptr<MediaTimerHandle>>> _handles;

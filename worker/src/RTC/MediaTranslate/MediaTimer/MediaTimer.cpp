@@ -1,11 +1,25 @@
 #define MS_CLASS "RTC::MediaTimer"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
+#include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandle.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactory.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
+
+class MediaTimer::SingleShotCallback : public MediaTimerCallback
+{
+public:
+    SingleShotCallback(const std::shared_ptr<MediaTimerCallback>& callback);
+    void SetStopParameters(uint64_t timerId, MediaTimer* timer);
+    // impl. of MediaTimerCallback
+    void OnEvent() final;
+private:
+    const std::shared_ptr<MediaTimerCallback> _callback;
+    uint64_t _timerId = 0ULL;
+    MediaTimer* _timer = nullptr;
+};
 
 MediaTimer::MediaTimer(std::string timerName)
     : _factory(MediaTimerHandleFactory::Create(timerName))
@@ -27,14 +41,14 @@ MediaTimer::~MediaTimer()
     }
 }
 
-uint64_t MediaTimer::RegisterTimer(const std::weak_ptr<MediaTimerCallback>& callbackRef)
+uint64_t MediaTimer::RegisterTimer(const std::shared_ptr<MediaTimerCallback>& callback)
 {
     uint64_t timerId = 0ULL;
-    if (_factory && !callbackRef.expired()) {
-        if (auto handle = _factory->CreateHandle(callbackRef)) {
+    if (_factory && callback) {
+        if (auto handle = _factory->CreateHandle(callback)) {
             timerId = reinterpret_cast<uint64_t>(handle.get());
             LOCK_WRITE_PROTECTED_OBJ(_handles);
-            _handles.Ref()[timerId] = std::move(handle);
+            _handles->insert(std::make_pair(timerId, std::move(handle)));
         }
         else {
             MS_ERROR_STD("failed to create handle for media timer %s", _timerName.c_str());
@@ -100,6 +114,40 @@ bool MediaTimer::IsStarted(uint64_t timerId) const
     return false;
 }
 
+bool MediaTimer::Singleshot(uint64_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback)
+{
+    if (_factory && callback) {
+        const auto singleshotCallback = std::make_shared<SingleShotCallback>(callback);
+        if (const auto timerId = RegisterTimer(singleshotCallback)) {
+            singleshotCallback->SetStopParameters(timerId, this);
+            SetTimeout(timerId, afterMs);
+            Start(timerId, true);
+            return true;
+        }
+    }
+    return false;
+}
+
+
+MediaTimer::SingleShotCallback::SingleShotCallback(const std::shared_ptr<MediaTimerCallback>& callback)
+    : _callback(callback)
+{
+}
+
+void MediaTimer::SingleShotCallback::OnEvent()
+{
+    _callback->OnEvent();
+    if (_timerId && _timer) {
+        _timer->Stop(_timerId);
+    }
+}
+
+void MediaTimer::SingleShotCallback::SetStopParameters(uint64_t timerId, MediaTimer* timer)
+{
+    _timerId = timerId;
+    _timer = timer;
+}
+
 void MediaTimerHandleFactory::DestroyHandle(std::unique_ptr<MediaTimerHandle> handle)
 {
     if (handle) {
@@ -108,8 +156,8 @@ void MediaTimerHandleFactory::DestroyHandle(std::unique_ptr<MediaTimerHandle> ha
     }
 }
 
-MediaTimerHandle::MediaTimerHandle(const std::weak_ptr<MediaTimerCallback>& callbackRef)
-    : _callbackRef(callbackRef)
+MediaTimerHandle::MediaTimerHandle(const std::shared_ptr<MediaTimerCallback>& callback)
+    : _callback(callback)
 {
 }
 
@@ -118,21 +166,6 @@ void MediaTimerHandle::SetTimeout(uint64_t timeoutMs)
     if (timeoutMs != _timeoutMs.exchange(timeoutMs)) {
         OnTimeoutChanged(timeoutMs);
     }
-}
-
-std::shared_ptr<MediaTimerCallback> MediaTimerHandle::GetCallback() const
-{
-    return GetCallbackRef().lock();
-}
-
-const std::weak_ptr<MediaTimerCallback>& MediaTimerHandle::GetCallbackRef() const
-{
-    return _callbackRef;
-}
-
-bool MediaTimerHandle::IsCallbackValid() const
-{
-    return !GetCallbackRef().expired();
 }
 
 } // namespace RTC

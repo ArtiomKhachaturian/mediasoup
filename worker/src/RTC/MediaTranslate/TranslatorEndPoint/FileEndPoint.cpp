@@ -42,6 +42,8 @@ FileEndPoint::FileEndPoint(std::string fileName)
     , _timer(_fileIsValid ? std::make_unique<MediaTimer>(fileName) : nullptr)
     , _timerId(_timer ? _timer->RegisterTimer(_callback) : 0UL)
 {
+    _instances.fetch_add(1U);
+    SetName(_fileName);
 }
 
 FileEndPoint::~FileEndPoint()
@@ -50,6 +52,7 @@ FileEndPoint::~FileEndPoint()
     if (_timer && _timerId) {
         _timer->UnregisterTimer(_timerId);
     }
+    _instances.fetch_sub(1U);
 }
 
 uint32_t FileEndPoint::GetIntervalBetweenTranslationsMs() const
@@ -90,7 +93,6 @@ void FileEndPoint::Disconnect()
 {
     if (_callback && _timer && _callback->SetDisconnectedState()) {
         _timer->Stop(_timerId);
-        MS_ERROR_STD("Disconnected from %s", GetFileName().c_str());
         NotifyThatConnectionEstablished(false);
     }
 }
@@ -127,7 +129,6 @@ bool FileEndPoint::TimerCallback::SetDisconnectedState()
 void FileEndPoint::TimerCallback::OnEvent()
 {
     if (SetConnectedState()) {
-        MS_ERROR_STD("Connected to %s", _owner->GetFileName().c_str());
         NotifyThatConnected();
         AdjustIntervalTimeout(true);
     }

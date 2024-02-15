@@ -197,7 +197,7 @@ std::shared_ptr<TranslatorEndPoint> ConsumersManager::AddNewEndPoint(const Consu
 
 std::shared_ptr<TranslatorEndPoint> ConsumersManager::CreateEndPoint() const
 {
-    if (auto endPoint = _endPointsFactory->CreateEndPoint(_endpoints.empty())) {
+    if (auto endPoint = _endPointsFactory->CreateEndPoint()) {
         if (!endPoint->AddSink(_translationsOutput)) {
             // TODO: log error
         }

@@ -9,7 +9,7 @@ namespace RTC
 class MediaTimerHandleApple : public MediaTimerHandle
 {
 public:
-    MediaTimerHandleApple(const std::weak_ptr<MediaTimerCallback>& callbackRef,
+    MediaTimerHandleApple(const std::shared_ptr<MediaTimerCallback>& callback,
                           dispatch_source_t timer);
     ~MediaTimerHandleApple() final;
     // impl. of MediaTimerHandle
@@ -33,15 +33,15 @@ public:
     MediaTimerHandleFactoryApple(dispatch_queue_t queue);
     ~MediaTimerHandleFactoryApple() final;
     // impl. of MediaTimerHandleFactory
-    std::unique_ptr<MediaTimerHandle> CreateHandle(const std::weak_ptr<MediaTimerCallback>& callbackRef) final;
+    std::unique_ptr<MediaTimerHandle> CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback) final;
 private:
     dispatch_queue_t _queue = nullptr;
 };
 
 
-MediaTimerHandleApple::MediaTimerHandleApple(const std::weak_ptr<MediaTimerCallback>& callbackRef,
+MediaTimerHandleApple::MediaTimerHandleApple(const std::shared_ptr<MediaTimerCallback>& callback,
                                              dispatch_source_t timer)
-    : MediaTimerHandle(callbackRef)
+    : MediaTimerHandle(callback)
     , _timer(timer)
 {
     dispatch_retain(_timer);
@@ -59,7 +59,7 @@ MediaTimerHandleApple::~MediaTimerHandleApple()
 
 void MediaTimerHandleApple::Start(bool singleshot)
 {
-    if (IsCallbackValid() && !SetStarted(true)) {
+    if (!SetStarted(true)) {
         dispatch_source_set_event_handler(_timer, ^{
             if (singleshot) {
                 Stop();
@@ -111,21 +111,21 @@ MediaTimerHandleFactoryApple::~MediaTimerHandleFactoryApple()
 }
 
 std::unique_ptr<MediaTimerHandle> MediaTimerHandleFactoryApple::
-    CreateHandle(const std::weak_ptr<MediaTimerCallback>& callbackRef)
+    CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback)
 {
-    if (!callbackRef.expired()) {
+    if (callback) {
         if (auto timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _queue)) {
-            return std::make_unique<MediaTimerHandleApple>(callbackRef, timer);
+            return std::make_unique<MediaTimerHandleApple>(callback, timer);
         }
     }
     return nullptr;
 }
 
-std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactory::Create(const std::string& timerName)
+std::shared_ptr<MediaTimerHandleFactory> MediaTimerHandleFactory::Create(const std::string& timerName)
 {
     auto queue = dispatch_queue_create(timerName.c_str(), DISPATCH_QUEUE_SERIAL);
     if (queue) {
-        return std::make_unique<MediaTimerHandleFactoryApple>(queue);
+        return std::make_shared<MediaTimerHandleFactoryApple>(queue);
     }
     return nullptr;
 }

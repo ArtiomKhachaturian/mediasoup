@@ -31,14 +31,6 @@
 #include "Logger.hpp"
 
 
-namespace {
-
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-std::atomic<uint64_t> g_InstancesCounter = 0ULL;
-#endif
-
-}
-
 namespace RTC
 {
 class Translator::SourceStream : private RtpPacketsPlayerCallback,
@@ -123,9 +115,6 @@ Translator::Translator(const Producer* producer, RtpPacketsPlayer* rtpPacketsPla
     : _producer(producer)
     , _rtpPacketsPlayer(rtpPacketsPlayer)
     , _output(output)
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-    , _instanceIndex(g_InstancesCounter.fetch_add(1U))
-#endif
 {
 }
 
@@ -138,9 +127,6 @@ Translator::~Translator()
     for (const auto mappedSsrc : GetSsrcs(true)) {
         RemoveStream(mappedSsrc);
     }
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-    g_InstancesCounter.fetch_sub(1U);
-#endif
 }
 
 std::unique_ptr<Translator> Translator::Create(const Producer* producer,
@@ -219,14 +205,7 @@ void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     if (packet && !_producer->IsPaused()) {
         if (const auto stream = GetStream(packet->GetSsrc())) {
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-            const auto added = _instanceIndex > 0U || stream->AddOriginalRtpPacketForTranslation(packet);
-            if (added && _instanceIndex > 0U) { // fake
-                stream->IncreaseAddedPacketsCount();
-            }
-#else
             const auto added = stream->AddOriginalRtpPacketForTranslation(packet);
-#endif
             PostProcessAfterAdding(packet, added, stream);
         }
     }
@@ -345,35 +324,43 @@ void Translator::PostProcessAfterAdding(RtpPacket* packet, bool added,
 }
 
 #ifdef NO_TRANSLATION_SERVICE
-std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint(bool firstEndPoint) const
+std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
 {
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-    if (!_instanceIndex) { // 1st producer
-        if (firstEndPoint) { // 1st consumer will receive audio from file as translation
-            auto fileEndPoint = std::make_shared<FileEndPoint>(_mockTranslationFileName);
-            if (!fileEndPoint->IsValid()) {
-                MS_ERROR_STD("failed open %s as mock translation", _mockTranslationFileName);
-            }
-            else {
-                fileEndPoint->SetIntervalBetweenTranslationsMs(_mockTranslationFileNameLenMs + 1000U);
-                fileEndPoint->SetConnectionDelay(500U);
-                return fileEndPoint;
-            }
-        }
+    // for the 1st producer & 1st consumer will receive audio from file as translation
+    if (0U == FileEndPoint::GetInstancesCount()) {
+        return CreateMaybeFileEndPoint();
     }
+    return std::make_shared<StubEndPoint>();
+#else
+    return CreateMaybeFileEndPoint();
 #endif
+}
+
+std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
+{
+    auto fileEndPoint = std::make_shared<FileEndPoint>(_mockTranslationFileName);
+    if (!fileEndPoint->IsValid()) {
+        MS_ERROR_STD("failed open %s as mock translation", _mockTranslationFileName);
+    }
+    else {
+        fileEndPoint->SetIntervalBetweenTranslationsMs(_mockTranslationFileNameLenMs + 1000U);
+        fileEndPoint->SetConnectionDelay(500U);
+        _nonStubEndPointRef = fileEndPoint;
+        return fileEndPoint;
+    }
     return std::make_shared<StubEndPoint>();
 }
 
 #else
 
-std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeStubEndPoint(bool firstEndPoint) const
+std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeStubEndPoint() const
 {
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-    if (!_instanceIndex) { // 1st producer
-        if (firstEndPoint) { // 1st consumer will real translation
-            return std::make_shared<WebsocketEndPoint>();
-        }
+    if (0 == WebsocketEndPoint::GetInstancesCount()) {
+        auto socketEndPoint = std::make_shared<WebsocketEndPoint>();
+        _nonStubEndPointRef = socketEndPoint;
+        return socketEndPoint;
     }
     return std::make_shared<StubEndPoint>();
 #else
@@ -382,13 +369,17 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeStubEndPoint(bool fir
 }
 #endif
 
-std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint(bool firstEndPoint)
+std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint()
 {
 #ifdef NO_TRANSLATION_SERVICE
-    return CreateStubEndPoint(firstEndPoint);
+    auto endPoint = CreateStubEndPoint();
 #else
-    return CreateMaybeStubEndPoint(firstEndPoint);
+    auto endPoint = CreateMaybeStubEndPoint();
 #endif
+    if (endPoint) {
+        endPoint->SetOwnerId(GetId());
+    }
+    return endPoint;
 }
 
 Translator::SourceStream::SourceStream(uint32_t clockRate, uint32_t originalSsrc,
@@ -626,7 +617,6 @@ void Translator::SourceStream::WriteMediaPayload(const MediaObject& sender,
                                                  const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (buffer) {
-        MS_ERROR_STD("Received translation #%llu", buffer->GetId());
         _rtpPacketsPlayer->Play(GetOriginalSsrc(), sender.GetId(), buffer);
     }
 }

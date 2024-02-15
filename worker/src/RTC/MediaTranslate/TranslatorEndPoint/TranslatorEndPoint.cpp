@@ -73,6 +73,18 @@ void TranslatorEndPoint::SetOutputVoiceId(const std::string& voiceId)
     ChangeTranslationSettings(voiceId, _outputVoiceId);
 }
 
+void TranslatorEndPoint::SetOwnerId(const std::string& ownerId)
+{
+    LOCK_WRITE_PROTECTED_OBJ(_ownerId);
+    _ownerId = ownerId;
+}
+
+std::string TranslatorEndPoint::GetOwnerId() const
+{
+    LOCK_READ_PROTECTED_OBJ(_ownerId);
+    return _ownerId.ConstRef();
+}
+
 bool TranslatorEndPoint::HasInput() const
 {
     LOCK_READ_PROTECTED_OBJ(_inputMediaSource);
@@ -86,6 +98,14 @@ bool TranslatorEndPoint::HasValidTranslationSettings() const
 
 void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
 {
+    if (connected != _notifyedThatConnected.exchange(connected)) {
+        if (connected) {
+            MS_ERROR_STD("Connected to %s", GetDescription().c_str());
+        }
+        else {
+            MS_ERROR_STD("Disconnected from %s", GetDescription().c_str());
+        }
+    }
     if (connected) {
         if (SendTranslationChanges()) {
             ConnectToMediaInput(true);
@@ -93,19 +113,44 @@ void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
     }
     else {
         ConnectToMediaInput(false);
-        if (_inputSlice) {
-            _inputSlice->Reset(false);
-        }
     }
 }
 
 void TranslatorEndPoint::NotifyThatTranslatedMediaReceived(const std::shared_ptr<MemoryBuffer>& media)
 {
     if (media) {
+        MS_ERROR_STD("Received translation #%llu (%zu bytes) from %s",
+                     media->GetId(), media->GetSize(),
+                     GetDescription().c_str());
         StartMediaSinksWriting();
         WriteMediaSinksPayload(media);
         EndMediaSinksWriting();
     }
+}
+
+void TranslatorEndPoint::SetName(const std::string& name)
+{
+    LOCK_WRITE_PROTECTED_OBJ(_name);
+    _name = name;
+}
+
+std::string TranslatorEndPoint::GetName() const
+{
+    LOCK_READ_PROTECTED_OBJ(_name);
+    return _name.ConstRef();
+}
+
+std::string TranslatorEndPoint::GetDescription() const
+{
+    auto name = GetName();
+    if (!name.empty()) {
+        auto ownerId = GetOwnerId();
+        if (!ownerId.empty()) {
+            name += " (" + ownerId + ")";
+        }
+        return name;
+    }
+    return "<anonymous end-point>";
 }
 
 void TranslatorEndPoint::OnSinkWasAdded(MediaSink* sink, bool first)
@@ -209,6 +254,9 @@ std::optional<nlohmann::json> TranslatorEndPoint::TargetLanguageCmd() const
 
 void TranslatorEndPoint::ConnectToMediaInput(bool connect)
 {
+    if (!connect && _inputSlice) {
+        _inputSlice->Reset(false);
+    }
     LOCK_READ_PROTECTED_OBJ(_inputMediaSource);
     ConnectToMediaInput(_inputMediaSource.ConstRef(), connect);
 }
@@ -252,18 +300,29 @@ bool TranslatorEndPoint::SendTranslationChanges()
 
 bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
 {
+    bool ok = false;
     if (IsConnected()) {
-        return SendText(nlohmann::to_string(data));
+        const auto text = nlohmann::to_string(data);
+        ok = SendText(text);
+        if (!ok) {
+            MS_ERROR_STD("failed write JSON '%s' into translation service %s",
+                         text.c_str(), GetDescription().c_str());
+        }
     }
-    return false;
+    return ok;
 }
 
 bool TranslatorEndPoint::WriteBinary(const MemoryBuffer& buffer) const
 {
+    bool ok = false;
     if (IsConnected()) {
-        return SendBinary(buffer);
+        ok = SendBinary(buffer);
+        if (!ok) {
+            MS_ERROR_STD("failed write binary (%zu bytes)' into translation service %s",
+                         buffer.GetSize(), GetDescription().c_str());
+        }
     }
-    return false;
+    return ok;
 }
 
 void TranslatorEndPoint::StartMediaWriting(const MediaObject& sender)

@@ -4,9 +4,16 @@
 namespace RTC
 {
 
+StubEndPoint::StubEndPoint()
+    : _index(_instances.fetch_add(1U))
+{
+    SetName("StubEndPoint #" + std::to_string(_index + 1U));
+}
+
 StubEndPoint::~StubEndPoint()
 {
     StubEndPoint::Disconnect();
+    _instances.fetch_sub(1U);
 }
 
 void StubEndPoint::Connect()

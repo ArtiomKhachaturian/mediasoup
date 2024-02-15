@@ -16,13 +16,16 @@ WebsocketEndPoint::WebsocketEndPoint()
     : TranslatorEndPoint(_defaultTimeSliceMs)
     , _socket(std::make_unique<Websocket>(_tsUri, _tsUser, _tsUserPassword))
 {
+    _instances.fetch_add(1U);
     _socket->AddListener(this);
+    SetName(_socket->GetUrl());
 }
 
 WebsocketEndPoint::~WebsocketEndPoint()
 {
     WebsocketEndPoint::Disconnect();
     _socket->RemoveListener(this);
+    _instances.fetch_sub(1U);
 }
 
 bool WebsocketEndPoint::IsConnected() const
@@ -35,7 +38,7 @@ void WebsocketEndPoint::Connect()
     switch (_socket->GetState()) {
         case WebsocketState::Disconnected:
             if (!_socket->Open()) {
-                MS_ERROR_STD("failed to connect with translation service %s", GetFullUrl().c_str());
+                MS_ERROR_STD("failed to connect with translation service %s", GetDescription().c_str());
             }
             break;
         default:
@@ -54,27 +57,12 @@ void WebsocketEndPoint::Disconnect()
 
 bool WebsocketEndPoint::SendBinary(const MemoryBuffer& buffer) const
 {
-    const auto ok = _socket->WriteBinary(buffer);
-    if (!ok) {
-        MS_ERROR_STD("failed write binary (%zu bytes)' into translation service %s",
-                     buffer.GetSize(), GetFullUrl().c_str());
-    }
-    return ok;
+    return _socket->WriteBinary(buffer);
 }
 
 bool WebsocketEndPoint::SendText(const std::string& text) const
 {
-    const auto ok = _socket->WriteText(text);
-    if (!ok) {
-        MS_ERROR_STD("failed write text '%s' into translation service %s",
-                     text.c_str(), GetFullUrl().c_str());
-    }
-    return ok;
-}
-
-std::string WebsocketEndPoint::GetFullUrl() const
-{
-    return _socket->GetUrl();
+    return _socket->WriteText(text);
 }
 
 void WebsocketEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
@@ -83,11 +71,9 @@ void WebsocketEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
     switch (state) {
         case WebsocketState::Connected:
             NotifyThatConnectionEstablished(true);
-            MS_ERROR_STD("Connected to %s", GetFullUrl().c_str());
             break;
         case WebsocketState::Disconnected:
             NotifyThatConnectionEstablished(false);
-            MS_ERROR_STD("Disconnected from %s", GetFullUrl().c_str());
             break;
         default:
             break;

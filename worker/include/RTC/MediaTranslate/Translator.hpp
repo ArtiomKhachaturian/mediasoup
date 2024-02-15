@@ -9,7 +9,7 @@
 
 //#define WRITE_PRODUCER_RECV_TO_FILE // add MEDIASOUP_DEPACKETIZER_PATH env variable for reference to output folder
 //#define READ_PRODUCER_RECV_FROM_FILE
-//#define NO_TRANSLATION_SERVICE
+#define NO_TRANSLATION_SERVICE
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC
@@ -51,12 +51,13 @@ private:
     void PostProcessAfterAdding(RtpPacket* packet, bool added,
                                 const std::shared_ptr<SourceStream>& stream);
 #ifdef NO_TRANSLATION_SERVICE
-    std::shared_ptr<TranslatorEndPoint> CreateStubEndPoint(bool firstEndPoint) const;
+    std::shared_ptr<TranslatorEndPoint> CreateStubEndPoint() const;
+    std::shared_ptr<TranslatorEndPoint> CreateMaybeFileEndPoint() const;
 #else
-    std::shared_ptr<TranslatorEndPoint> CreateMaybeStubEndPoint(bool firstEndPoint) const;
+    std::shared_ptr<TranslatorEndPoint> CreateMaybeStubEndPoint() const;
 #endif
     // impl. of TranslatorEndPointFactory
-    std::shared_ptr<TranslatorEndPoint> CreateEndPoint(bool firstEndPoint) final;
+    std::shared_ptr<TranslatorEndPoint> CreateEndPoint() final;
 private:
 #ifdef NO_TRANSLATION_SERVICE
     static inline const char* _mockTranslationFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_stereo_example.webm";
@@ -66,7 +67,8 @@ private:
     RtpPacketsPlayer* const _rtpPacketsPlayer;
     RtpPacketsCollector* const _output;
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-    const uint64_t _instanceIndex;
+    // websocket or file end-point, valid for 1st created instance
+    mutable std::weak_ptr<TranslatorEndPoint> _nonStubEndPointRef;
 #endif
     // key is mapped media SSRC
     ProtectedObj<StreamMap<std::shared_ptr<SourceStream>>> _mappedSsrcToStreams;
