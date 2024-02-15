@@ -9,9 +9,9 @@ namespace RTC
 class Consumer;
 class ConsumerInfo;
 class MediaSource;
+class MediaSink;
 class TranslatorEndPoint;
 class TranslatorEndPointFactory;
-class TranslatorEndPointListener;
 class RtpPacket;
 
 class ConsumersManager
@@ -20,16 +20,15 @@ class ConsumersManager
     using EndPointEntry = std::pair<std::shared_ptr<TranslatorEndPoint>, uint64_t>;
     class ConsumerInfoImpl;
 public:
-    ConsumersManager(uint32_t ssrc,
-                     TranslatorEndPointFactory* endPointsFactory,
+    ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                      MediaSource* translationsInput,
-                     TranslatorEndPointListener* translationsOutput);
+                     MediaSink* translationsOutput);
     ~ConsumersManager();
     void SetInputLanguage(const std::string& languageId);
-    std::shared_ptr<ConsumerInfo> AddConsumer(const Consumer* consumer);
-    void UpdateConsumer(const Consumer* consumer);
-    bool RemoveConsumer(const Consumer* consumer);
-    bool IsConnected(const Consumer* consumer) const;
+    std::shared_ptr<ConsumerInfo> AddConsumer(Consumer* consumer);
+    void UpdateConsumer(Consumer* consumer);
+    bool RemoveConsumer(Consumer* consumer);
+    bool IsConnected(Consumer* consumer) const;
 private:
     std::shared_ptr<TranslatorEndPoint> AddNewEndPoint(const Consumer* consumer, size_t key);
     std::shared_ptr<TranslatorEndPoint> CreateEndPoint() const;
@@ -37,13 +36,12 @@ private:
     std::shared_ptr<TranslatorEndPoint> GetEndPoint(size_t key) const;
     void UpdateConsumer(const Consumer* consumer, const std::shared_ptr<ConsumerInfoImpl>& consumerInfo);
 private:
-    const uint32_t _ssrc;
     TranslatorEndPointFactory* const _endPointsFactory;
     MediaSource* const _translationsInput;
-    TranslatorEndPointListener* const _translationsOutput;
+    MediaSink* const _translationsOutput;
     std::string _inputLanguageId;
     // consumer info contains combined hash of output language & voice for consumers
-    absl::flat_hash_map<const Consumer*, std::shared_ptr<ConsumerInfoImpl>> _consumersInfo;
+    absl::flat_hash_map<Consumer*, std::shared_ptr<ConsumerInfoImpl>> _consumersInfo;
     // key is combined hash from output language & voice
     absl::flat_hash_map<size_t, EndPointEntry> _endpoints;
 };

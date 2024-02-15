@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ProtectedObj.hpp"
+#include "RTC/MediaTranslate/MediaObject.hpp"
 #include "RTC/Listeners.hpp"
 #include <string>
 #include <memory>
@@ -13,7 +14,7 @@ class WebsocketListener;
 class MemoryBuffer;
 enum class WebsocketState;
 
-class Websocket
+class Websocket : public MediaObject
 {
     class Config;
     class Socket;
@@ -31,11 +32,10 @@ public:
               std::string tlsKeyStore = std::string(),
               std::string tlsPrivateKey = std::string(),
               std::string tlsPrivateKeyPassword = std::string());
-    ~Websocket();
+    ~Websocket() final;
     bool Open(const std::string& userAgent = std::string());
     void Close();
     WebsocketState GetState() const;
-    uint64_t GetId() const;
     std::string GetUrl() const;
     bool WriteBinary(const MemoryBuffer& buffer);
     bool WriteText(const std::string& text);

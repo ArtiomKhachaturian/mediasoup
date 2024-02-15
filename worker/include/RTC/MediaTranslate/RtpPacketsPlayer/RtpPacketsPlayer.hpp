@@ -25,13 +25,11 @@ class RtpPacketsPlayer
 public:
     RtpPacketsPlayer();
     ~RtpPacketsPlayer();
-    void AddStream(uint32_t ssrc, const RtpCodecMimeType& mime,
-                   RtpPacketsPlayerCallback* packetsCollector,
-                   const RtpPacketsInfoProvider* packetsInfoProvider);
+    void AddStream(uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
+                   const RtpCodecMimeType& mime, RtpPacketsPlayerCallback* callback);
     void RemoveStream(uint32_t ssrc);
     bool IsPlaying(uint32_t ssrc) const;
-    void Play(uint32_t ssrc, uint64_t mediaId, const std::shared_ptr<MemoryBuffer>& buffer,
-              const void* userData = nullptr);
+    void Play(uint32_t ssrc, uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media);
 private:
     const std::shared_ptr<MediaTimer> _timer;
     ProtectedObj<absl::flat_hash_map<uint32_t, std::unique_ptr<StreamType>>> _streams;

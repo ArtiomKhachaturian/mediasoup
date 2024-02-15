@@ -23,7 +23,8 @@ public:
     void SaveProducerRtpPacketInfo(const RtpPacket* packet) final;
     void AlignProducerRtpPacketInfo(RtpPacket* packet) final;
     void AlignTranslatedRtpPacketInfo(uint32_t rtpTimestampOffset, RtpPacket* packet) final;
-    std::shared_ptr<const TranslatorEndPoint> GetEndPoint() const final;
+    uint64_t GetEndPointId() const final;
+    bool IsConnected() const final;
 private:
     std::atomic<size_t> _languageVoiceKey = 0U;
     ProtectedWeakPtr<const TranslatorEndPoint> _endPointRef;
@@ -32,12 +33,10 @@ private:
     uint16_t _lastRtpSeqNumber = 0U;
 };
 
-ConsumersManager::ConsumersManager(uint32_t ssrc,
-                                   TranslatorEndPointFactory* endPointsFactory,
+ConsumersManager::ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                                    MediaSource* translationsInput,
-                                   TranslatorEndPointListener* translationsOutput)
-    : _ssrc(ssrc)
-    , _endPointsFactory(endPointsFactory)
+                                   MediaSink* translationsOutput)
+    : _endPointsFactory(endPointsFactory)
     , _translationsInput(translationsInput)
     , _translationsOutput(translationsOutput)
 {
@@ -45,6 +44,10 @@ ConsumersManager::ConsumersManager(uint32_t ssrc,
 
 ConsumersManager::~ConsumersManager()
 {
+    for (auto ite = _endpoints.begin(); ite != _endpoints.end(); ++ite) {
+        ite->second.first->SetInputMediaSource(nullptr);
+        ite->second.first->RemoveSink(_translationsOutput);
+    }
 }
 
 void ConsumersManager::SetInputLanguage(const std::string& languageId)
@@ -57,7 +60,7 @@ void ConsumersManager::SetInputLanguage(const std::string& languageId)
     }
 }
 
-std::shared_ptr<ConsumerInfo> ConsumersManager::AddConsumer(const Consumer* consumer)
+std::shared_ptr<ConsumerInfo> ConsumersManager::AddConsumer(Consumer* consumer)
 {
     std::shared_ptr<ConsumerInfoImpl> info;
     if (consumer) {
@@ -82,7 +85,7 @@ std::shared_ptr<ConsumerInfo> ConsumersManager::AddConsumer(const Consumer* cons
     return info;
 }
 
-void ConsumersManager::UpdateConsumer(const Consumer* consumer)
+void ConsumersManager::UpdateConsumer(Consumer* consumer)
 {
     if (consumer) {
         const auto it = _consumersInfo.find(consumer);
@@ -92,7 +95,7 @@ void ConsumersManager::UpdateConsumer(const Consumer* consumer)
     }
 }
 
-bool ConsumersManager::RemoveConsumer(const Consumer* consumer)
+bool ConsumersManager::RemoveConsumer(Consumer* consumer)
 {
     if (consumer) {
         const auto it = _consumersInfo.find(consumer);
@@ -101,6 +104,8 @@ bool ConsumersManager::RemoveConsumer(const Consumer* consumer)
                       "output language & voice changes was not reflected before");
             const auto ite = _endpoints.find(it->second->GetLanguageVoiceKey());
             if (ite != _endpoints.end() && 0ULL == --ite->second.second) { // decrease counter
+                ite->second.first->SetInputMediaSource(nullptr);
+                ite->second.first->RemoveSink(_translationsOutput);
                 _endpoints.erase(ite);
             }
             it->second->ResetEndPointRef();
@@ -129,11 +134,15 @@ std::shared_ptr<TranslatorEndPoint> ConsumersManager::AddNewEndPoint(const Consu
 
 std::shared_ptr<TranslatorEndPoint> ConsumersManager::CreateEndPoint() const
 {
-    if (auto endPoint = _endPointsFactory->CreateEndPoint(_endpoints.empty(), _ssrc)) {
-        endPoint->SetInput(_translationsInput);
-        endPoint->SetOutput(_translationsOutput);
-        endPoint->SetInputLanguageId(_inputLanguageId);
-        return endPoint;
+    if (auto endPoint = _endPointsFactory->CreateEndPoint(_endpoints.empty())) {
+        if (!endPoint->AddSink(_translationsOutput)) {
+            // TODO: log error
+        }
+        else {
+            endPoint->SetInputMediaSource(_translationsInput);
+            endPoint->SetInputLanguageId(_inputLanguageId);
+            return endPoint;
+        }
     }
     return nullptr;
 }
@@ -239,10 +248,20 @@ void ConsumersManager::ConsumerInfoImpl::AlignTranslatedRtpPacketInfo(uint32_t r
     }
 }
 
-std::shared_ptr<const TranslatorEndPoint> ConsumersManager::ConsumerInfoImpl::GetEndPoint() const
+uint64_t ConsumersManager::ConsumerInfoImpl::GetEndPointId() const
 {
     LOCK_READ_PROTECTED_OBJ(_endPointRef);
-    return _endPointRef->lock();
+    if (const auto endPoint = _endPointRef->lock()) {
+        return endPoint->GetId();
+    }
+    return 0ULL;
+}
+
+bool ConsumersManager::ConsumerInfoImpl::IsConnected() const
+{
+    LOCK_READ_PROTECTED_OBJ(_endPointRef);
+    const auto endPoint = _endPointRef->lock();
+    return endPoint && endPoint->IsConnected();
 }
 
 /*void ConsumersManager::ConsumerInfo::SetLastRtpPacketInfo(const RtpPacket* packet)
@@ -259,11 +278,5 @@ std::shared_ptr<const TranslatorEndPoint> ConsumersManager::ConsumerInfoImpl::Ge
         _lastRtpSeqNumber = packet->GetSequenceNumber();
     }
 }*/
-
-bool ConsumerInfo::IsConnected() const
-{
-    const auto endPoint = GetEndPoint();
-    return endPoint && endPoint->IsConnected();
-}
 
 } // namespace RTC

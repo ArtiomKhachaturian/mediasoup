@@ -12,7 +12,7 @@ class Websocket;
 class WebsocketEndPoint : public TranslatorEndPoint, private WebsocketListener
 {
 public:
-    WebsocketEndPoint(uint32_t ssrc);
+    WebsocketEndPoint();
     ~WebsocketEndPoint() final;
 protected:
     // impl. of TranslatorEndPoint

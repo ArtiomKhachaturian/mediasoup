@@ -4,6 +4,7 @@
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
 #include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
+#include "RTC/MediaTranslate/MemoryBuffer.hpp"
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
 #include "RTC/RtpPacket.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
@@ -11,7 +12,6 @@
 #include "ProtectedObj.hpp"
 #include "DepLibUV.hpp"
 #endif
-#include "MemoryBuffer.hpp"
 #include "Logger.hpp"
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
 #include <queue>
@@ -27,18 +27,18 @@ public:
     virtual ~QueuedTask() = default;
     virtual void Run(uint32_t ssrc, RTC::RtpPacketsPlayerCallback* callback) = 0;
 protected:
-    QueuedTask(uint64_t mediaId, const void* userData);
+    QueuedTask(uint64_t mediaId, uint64_t mediaSourceId);
     uint64_t GetMediaId() const { return _mediaId; }
-    const void* GetUserData() const { return _userData; }
+    uint64_t GetMediaSourceId() const { return _mediaSourceId; }
 private:
     const uint64_t _mediaId;
-    const void* const _userData;
+    const uint64_t _mediaSourceId;
 };
 
 class QueuedStartFinishTask : public QueuedTask
 {
 public:
-    QueuedStartFinishTask(uint64_t mediaId, const void* userData, bool start);
+    QueuedStartFinishTask(uint64_t mediaId, uint64_t mediaSourceId, bool start);
     // impl. of QueuedTask
     void Run(uint32_t ssrc, RTC::RtpPacketsPlayerCallback* callback) final;
 private:
@@ -49,7 +49,7 @@ class QueuedRtpPacketTask : public QueuedTask
 {
 public:
     QueuedRtpPacketTask(uint32_t rtpTimestampOffset, RTC::RtpPacket* packet,
-                        uint64_t mediaId, const void* userData);
+                        uint64_t mediaId, uint64_t mediaSourceId);
     ~QueuedRtpPacketTask() final;
     // impl. of QueuedTask
     void Run(uint32_t ssrc, RTC::RtpPacketsPlayerCallback* callback) final;
@@ -68,19 +68,19 @@ namespace RTC
 class RtpPacketsPlayer::StreamWrapper : private RtpPacketsPlayerCallback
 {
 public:
-    StreamWrapper(uint32_t ssrc, const RtpCodecMimeType& mime,
+    StreamWrapper(uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
+                  const RtpCodecMimeType& mime,
                   const std::shared_ptr<MediaTimer>& timer,
-                  const RtpPacketsInfoProvider* packetsInfoProvider,
                   RtpPacketsPlayerCallback* callback);
     void ResetCallback();
-    void Play(uint64_t mediaId, const std::shared_ptr<MemoryBuffer>& buffer, const void* userData);
+    void Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media);
     bool IsPlaying() const;
 private:
     // impl. of RtpPacketsPlayerCallback
-    void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, const void* userData) final;
+    void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
     void OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet, uint64_t mediaId,
-                const void* userData) final;
-    void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, const void* userData) final;
+                uint64_t mediaSourceId) final;
+    void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
 private:
     static void OnInvoke(uv_async_t* handle);
     void OnInvoke();
@@ -110,16 +110,16 @@ RtpPacketsPlayer::~RtpPacketsPlayer()
     _streams->clear();
 }
 
-void RtpPacketsPlayer::AddStream(uint32_t ssrc, const RtpCodecMimeType& mime,
-                                 RtpPacketsPlayerCallback* callback,
-                                 const RtpPacketsInfoProvider* packetsInfoProvider)
+void RtpPacketsPlayer::AddStream(uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
+                                 const RtpCodecMimeType& mime,
+                                 RtpPacketsPlayerCallback* callback)
 {
-    if (ssrc && callback && packetsInfoProvider) {
+    if (ssrc && callback) {
         LOCK_WRITE_PROTECTED_OBJ(_streams);
         if (!_streams->count(ssrc)) {
             if (WebMCodecs::IsSupported(mime)) {
-                auto stream = std::make_unique<StreamType>(ssrc, mime, _timer,
-                                                           packetsInfoProvider, callback);
+                auto stream = std::make_unique<StreamType>(ssrc, clockRate, payloadType,
+                                                           mime, _timer, callback);
                 _streams.Ref()[ssrc] = std::move(stream);
             }
             else {
@@ -155,26 +155,26 @@ bool RtpPacketsPlayer::IsPlaying(uint32_t ssrc) const
     return false;
 }
 
-void RtpPacketsPlayer::Play(uint32_t ssrc, uint64_t mediaId,
-                            const std::shared_ptr<MemoryBuffer>& buffer,
-                            const void* userData)
+void RtpPacketsPlayer::Play(uint32_t ssrc, uint64_t mediaSourceId,
+                            const std::shared_ptr<MemoryBuffer>& media)
 {
-    if (buffer && !buffer->IsEmpty()) {
+    if (media && !media->IsEmpty()) {
         LOCK_READ_PROTECTED_OBJ(_streams);
         const auto it = _streams->find(ssrc);
         if (it != _streams->end()) {
-            it->second->Play(mediaId, buffer, userData);
+            it->second->Play(mediaSourceId, media);
         }
     }
 }
 
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
-RtpPacketsPlayer::StreamWrapper::StreamWrapper(uint32_t ssrc, const RtpCodecMimeType& mime,
+RtpPacketsPlayer::StreamWrapper::StreamWrapper(uint32_t ssrc, uint32_t clockRate,
+                                               uint8_t payloadType,
+                                               const RtpCodecMimeType& mime,
                                                const std::shared_ptr<MediaTimer>& timer,
-                                               const RtpPacketsInfoProvider* packetsInfoProvider,
                                                RtpPacketsPlayerCallback* callback)
     : _handle(DepLibUV::GetLoop(), OnInvoke, this)
-    , _stream(new RtpPacketsPlayerStream(ssrc, mime, timer, packetsInfoProvider, this))
+    , _stream(new RtpPacketsPlayerStream(ssrc, clockRate, payloadType, mime, timer, this))
     , _callback(callback)
 {
 }
@@ -191,11 +191,10 @@ void RtpPacketsPlayer::StreamWrapper::ResetCallback()
     }
 }
 
-void RtpPacketsPlayer::StreamWrapper::Play(uint64_t mediaId,
-                                           const std::shared_ptr<MemoryBuffer>& buffer,
-                                           const void* userData)
+void RtpPacketsPlayer::StreamWrapper::Play(uint64_t mediaSourceId,
+                                           const std::shared_ptr<MemoryBuffer>& media)
 {
-    _stream->Play(mediaId, buffer, userData);
+    _stream->Play(mediaSourceId, media);
 }
 
 bool RtpPacketsPlayer::StreamWrapper::IsPlaying() const
@@ -204,29 +203,27 @@ bool RtpPacketsPlayer::StreamWrapper::IsPlaying() const
 }
 
 void RtpPacketsPlayer::StreamWrapper::OnPlayStarted(uint32_t ssrc, uint64_t mediaId,
-                                                    const void* userData)
+                                                    uint64_t mediaSourceId)
 {
     if (HasCallback()) {
-        EnqueTask(std::make_unique<QueuedStartFinishTask>(mediaId, userData, true));
+        EnqueTask(std::make_unique<QueuedStartFinishTask>(mediaId, mediaId, true));
     }
 }
 
-void RtpPacketsPlayer::StreamWrapper::OnPlay(uint32_t rtpTimestampOffset,
-                                             RtpPacket* packet,
-                                             uint64_t mediaId,
-                                             const void* userData)
+void RtpPacketsPlayer::StreamWrapper::OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet,
+                                             uint64_t mediaId, uint64_t mediaSourceId)
 {
     if (packet && HasCallback()) {
         EnqueTask(std::make_unique<QueuedRtpPacketTask>(rtpTimestampOffset, packet,
-                                                        mediaId, userData));
+                                                        mediaId, mediaSourceId));
     }
 }
 
 void RtpPacketsPlayer::StreamWrapper::OnPlayFinished(uint32_t ssrc, uint64_t mediaId,
-                                                     const void* userData)
+                                                     uint64_t mediaSourceId)
 {
     if (HasCallback()) {
-        EnqueTask(std::make_unique<QueuedStartFinishTask>(mediaId, userData, false));
+        EnqueTask(std::make_unique<QueuedStartFinishTask>(mediaId, mediaId, false));
     }
 }
 
@@ -275,14 +272,14 @@ bool RtpPacketsPlayer::StreamWrapper::HasCallback() const
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
 namespace {
 
-QueuedTask::QueuedTask(uint64_t mediaId, const void* userData)
+QueuedTask::QueuedTask(uint64_t mediaId, uint64_t mediaSourceId)
     : _mediaId(mediaId)
-    , _userData(userData)
+    , _mediaSourceId(mediaSourceId)
 {
 }
 
-QueuedStartFinishTask::QueuedStartFinishTask(uint64_t mediaId, const void* userData, bool start)
-    : QueuedTask(mediaId, userData)
+QueuedStartFinishTask::QueuedStartFinishTask(uint64_t mediaId, uint64_t mediaSourceId, bool start)
+    : QueuedTask(mediaId, mediaSourceId)
     , _start(start)
 {
 }
@@ -291,17 +288,17 @@ void QueuedStartFinishTask::Run(uint32_t ssrc, RTC::RtpPacketsPlayerCallback* ca
 {
     if (callback) {
         if (_start) {
-            callback->OnPlayStarted(ssrc, GetMediaId(), GetUserData());
+            callback->OnPlayStarted(ssrc, GetMediaId(), GetMediaSourceId());
         }
         else {
-            callback->OnPlayFinished(ssrc, GetMediaId(), GetUserData());
+            callback->OnPlayFinished(ssrc, GetMediaId(), GetMediaSourceId());
         }
     }
 }
 
 QueuedRtpPacketTask::QueuedRtpPacketTask(uint32_t rtpTimestampOffset, RTC::RtpPacket* packet,
-                                           uint64_t mediaId, const void* userData)
-    : QueuedTask(mediaId, userData)
+                                         uint64_t mediaId, uint64_t mediaSourceId)
+    : QueuedTask(mediaId, mediaSourceId)
     , _rtpTimestampOffset(rtpTimestampOffset)
     , _packet(packet)
 {
@@ -315,7 +312,7 @@ QueuedRtpPacketTask::~QueuedRtpPacketTask()
 void QueuedRtpPacketTask::Run(uint32_t ssrc, RTC::RtpPacketsPlayerCallback* callback)
 {
     if (callback && _packet) {
-        callback->OnPlay(_rtpTimestampOffset, _packet, GetMediaId(), GetUserData());
+        callback->OnPlay(_rtpTimestampOffset, _packet, GetMediaId(), GetMediaSourceId());
         _packet = nullptr;
     }
 }

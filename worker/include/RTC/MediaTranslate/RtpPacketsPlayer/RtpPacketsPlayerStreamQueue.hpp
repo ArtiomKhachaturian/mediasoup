@@ -18,10 +18,10 @@ public:
     void PushFragment(std::unique_ptr<RtpPacketsPlayerMediaFragment> fragment);
     bool HasFragments() const;
     // impl. of RtpPacketsPlayerCallback
-    void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, const void* userData) final;
+    void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
     void OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet, uint64_t mediaId,
-                const void* userData) final;
-    void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, const void* userData) final;
+                uint64_t mediaSourceId) final;
+    void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
 private:
     void RemoveFinishedFragment(uint64_t mediaId);
     template <class Method, typename... Args>

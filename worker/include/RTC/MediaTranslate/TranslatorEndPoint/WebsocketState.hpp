@@ -11,4 +11,6 @@ enum class WebsocketState
     Disconnected,
 };
 
+const char* ToString(WebsocketState state);
+
 }

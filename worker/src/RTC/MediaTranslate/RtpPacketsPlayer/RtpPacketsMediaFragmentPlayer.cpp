@@ -59,7 +59,7 @@ RtpPacketsMediaFragmentPlayer::RtpPacketsMediaFragmentPlayer(const std::weak_ptr
                                                              std::unique_ptr<MediaFrameDeserializer> deserializer,
                                                              uint32_t ssrc, uint32_t clockRate,
                                                              uint8_t payloadType, uint64_t mediaId,
-                                                             const void* userData)
+                                                             uint64_t mediaSourceId)
     : _timerRef(timerRef)
     , _playerCallbackRef(playerCallbackRef)
     , _deserializer(std::move(deserializer))
@@ -67,7 +67,7 @@ RtpPacketsMediaFragmentPlayer::RtpPacketsMediaFragmentPlayer(const std::weak_ptr
     , _clockRate(clockRate)
     , _payloadType(payloadType)
     , _mediaId(mediaId)
-    , _userData(userData)
+    , _mediaSourceId(mediaSourceId)
     , _tasksQueue(std::make_unique<PlayTaskQueue>())
 {
     MS_ASSERT(!_timerRef.expired(), "timer must not be null");
@@ -143,7 +143,7 @@ void RtpPacketsMediaFragmentPlayer::OnEvent()
             case PlayTaskType::Started:
                 _previousTimestamp = webrtc::Timestamp::Zero();
                 if (const auto playerCallback = _playerCallbackRef.lock()) {
-                    playerCallback->OnPlayStarted(_ssrc, _mediaId, _userData);
+                    playerCallback->OnPlayStarted(_ssrc, _mediaId, _mediaSourceId);
                 }
                 break;
             case PlayTaskType::Frame:
@@ -159,7 +159,7 @@ void RtpPacketsMediaFragmentPlayer::OnEvent()
                     timer->Stop(GetTimerId());
                 }
                 if (const auto playerCallback = _playerCallbackRef.lock()) {
-                    playerCallback->OnPlayFinished(_ssrc, _mediaId, _userData);
+                    playerCallback->OnPlayFinished(_ssrc, _mediaId, _mediaSourceId);
                 }
                 break;
         }
@@ -211,7 +211,7 @@ void RtpPacketsMediaFragmentPlayer::ConvertToRtpAndSend(size_t trackIndex,
                     _previousTimestamp = timestamp;
                 }
                 if (const auto packet = CreatePacket(trackIndex, frame)) {
-                    callback->OnPlay(frame->GetRtpTimestamp(), packet, _mediaId, _userData);
+                    callback->OnPlay(frame->GetRtpTimestamp(), packet, _mediaId, _mediaSourceId);
                 }
             }
         }

@@ -50,26 +50,25 @@ bool RtpPacketsPlayerStreamQueue::HasFragments() const
     return !_fragments->empty();
 }
 
-void RtpPacketsPlayerStreamQueue::OnPlayStarted(uint32_t ssrc, uint64_t mediaId, const void* userData)
+void RtpPacketsPlayerStreamQueue::OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId)
 {
-    InvokeCallbackMethod(&RtpPacketsPlayerCallback::OnPlayStarted, ssrc, mediaId, userData);
+    InvokeCallbackMethod(&RtpPacketsPlayerCallback::OnPlayStarted, ssrc, mediaId, mediaSourceId);
 }
 
 void RtpPacketsPlayerStreamQueue::OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet,
-                                         uint64_t mediaId, const void* userData)
+                                         uint64_t mediaId, uint64_t mediaSourceId)
 {
     if (packet && !InvokeCallbackMethod(&RtpPacketsPlayerCallback::OnPlay,
                                         rtpTimestampOffset, packet,
-                                        mediaId, userData)) {
+                                        mediaId, mediaSourceId)) {
         delete packet;
     }
 }
 
-void RtpPacketsPlayerStreamQueue::OnPlayFinished(uint32_t ssrc, uint64_t mediaId,
-                                                 const void* userData)
+void RtpPacketsPlayerStreamQueue::OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId)
 {
     RemoveFinishedFragment(mediaId);
-    InvokeCallbackMethod(&RtpPacketsPlayerCallback::OnPlayFinished, ssrc, mediaId, userData);
+    InvokeCallbackMethod(&RtpPacketsPlayerCallback::OnPlayFinished, ssrc, mediaId, mediaSourceId);
 }
 
 void RtpPacketsPlayerStreamQueue::RemoveFinishedFragment(uint64_t mediaId)

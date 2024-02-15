@@ -1,6 +1,6 @@
 #define MS_CLASS "RTC::FileWriter"
 #include "RTC/MediaTranslate/FileWriter.hpp"
-#include "MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/MemoryBuffer.hpp"
 #include "Logger.hpp"
 #include <stdio.h>
 #ifdef _WIN32
@@ -85,7 +85,7 @@ bool FileWriter::Flush()
     return GetHandle() && 0 == ::fflush(GetHandle());
 }
 
-void FileWriter::WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer)
+void FileWriter::WriteMediaPayload(const MediaObject&, const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (const auto handle = GetHandle()) {
         if (buffer && !buffer->IsEmpty()) {

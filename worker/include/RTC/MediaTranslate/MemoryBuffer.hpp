@@ -1,15 +1,14 @@
 #pragma once
-
+#include "RTC/MediaTranslate/MediaObject.hpp"
 #include <cstdint>
 #include <cstddef>
 
 namespace RTC
 {
 
-class MemoryBuffer
+class MemoryBuffer : public MediaObject
 {
 public:
-    virtual ~MemoryBuffer() = default;
     virtual size_t GetSize() const = 0;
     virtual uint8_t* GetData() = 0;
     virtual const uint8_t* GetData() const = 0;

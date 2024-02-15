@@ -1,11 +1,10 @@
 #pragma once
-#include <memory>
+#include <cstdint>
 
 namespace RTC
 {
 
 class RtpPacket;
-class TranslatorEndPoint;
 
 class ConsumerInfo
 {
@@ -14,8 +13,8 @@ public:
     virtual void SaveProducerRtpPacketInfo(const RtpPacket* packet) = 0;
 	virtual void AlignProducerRtpPacketInfo(RtpPacket* packet) = 0;
 	virtual void AlignTranslatedRtpPacketInfo(uint32_t rtpTimestampOffset, RtpPacket* packet) = 0;
-	virtual std::shared_ptr<const TranslatorEndPoint> GetEndPoint() const = 0;
-	bool IsConnected() const;
+	virtual uint64_t GetEndPointId() const = 0;
+    virtual bool IsConnected() const = 0;
 };
 
 } // namespace RTC

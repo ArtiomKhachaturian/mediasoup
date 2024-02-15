@@ -8,7 +8,7 @@ namespace RTC
 class StubEndPoint : public TranslatorEndPoint
 {
 public:
-    StubEndPoint(uint32_t ssrc);
+    StubEndPoint() = default;
     ~StubEndPoint() final;
 protected:
     // impl. of TranslatorEndPoint

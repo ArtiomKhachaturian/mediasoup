@@ -1,15 +1,14 @@
 #pragma once
-#include <cstdint>
+#include "RTC/MediaTranslate/MediaObject.hpp"
 
 namespace RTC
 {
 
 class MediaSink;
 
-class MediaSource
+class MediaSource : public MediaObject
 {
 public:
-    virtual ~MediaSource() = default;
     virtual bool AddSink(MediaSink* sink) = 0;
     virtual bool RemoveSink(MediaSink* sink) = 0;
     virtual void RemoveAllSinks() = 0;

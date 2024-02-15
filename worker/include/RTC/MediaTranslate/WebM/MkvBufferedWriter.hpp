@@ -1,5 +1,6 @@
 #pragma once
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/MediaObject.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <mkvmuxer/mkvmuxer.h>
 
@@ -12,7 +13,7 @@ class RtpCodecMimeType;
 class AudioFrameConfig;
 class VideoFrameConfig;
 
-class MkvBufferedWriter : private mkvmuxer::IMkvWriter
+class MkvBufferedWriter : public MediaObject, private mkvmuxer::IMkvWriter
 {
    class MkvFrame;
    enum class EnqueueResult;

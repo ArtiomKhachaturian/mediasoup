@@ -12,7 +12,7 @@ class FileEndPoint : public TranslatorEndPoint
 {
     class TimerCallback;
 public:
-    FileEndPoint(uint32_t ssrc, std::string fileName);
+    FileEndPoint(std::string fileName);
     ~FileEndPoint() final;
     const std::string& GetFileName() const { return _fileName; }
     uint32_t GetIntervalBetweenTranslationsMs() const;

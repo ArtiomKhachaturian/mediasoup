@@ -54,7 +54,7 @@ const char* MkvReadResultToString(MkvReadResult result);
 
 template<typename T>
 inline const char* MkvReadResultToString(T result) {
-    return MkvReadResultToString(ToMkvReadResult(result));
+    return ToString(ToMkvReadResult(result));
 }
 
 }

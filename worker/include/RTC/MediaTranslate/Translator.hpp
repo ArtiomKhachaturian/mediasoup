@@ -2,23 +2,19 @@
 
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
-#include "RTC/MediaTranslate/RtpPacketsInfoProvider.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
-#include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointListener.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointFactory.hpp"
-#include "RTC/MediaTranslate/MediaSource.hpp"
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
 
 //#define WRITE_PRODUCER_RECV_TO_FILE // add MEDIASOUP_DEPACKETIZER_PATH env variable for reference to output folder
-#define READ_PRODUCER_RECV_FROM_FILE
+//#define READ_PRODUCER_RECV_FROM_FILE
 #define NO_TRANSLATION_SERVICE
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC
 {
 
-class MediaSink;
 class RtpStream;
 class RtpPacketsPlayer;
 class Producer;
@@ -26,11 +22,7 @@ class Consumer;
 class RtpPacket;
 class RtpPacketsCollector;
 
-class Translator : private MediaSource,
-                   private TranslatorEndPointListener, // for receiving of translated packets
-                   private RtpPacketsPlayerCallback,
-                   private TranslatorEndPointFactory,
-                   private RtpPacketsInfoProvider
+class Translator : private TranslatorEndPointFactory
 {
     class SourceStream;
     template <typename K, typename V> using Map = absl::flat_hash_map<K, V>;
@@ -55,31 +47,16 @@ private:
                RtpPacketsCollector* output);
     // SSRC maybe mapped or original
     std::shared_ptr<SourceStream> GetStream(uint32_t ssrc) const;
-    void AddSinksToStream(const std::shared_ptr<SourceStream>& stream) const;
     void AddConsumersToStream(const std::shared_ptr<SourceStream>& stream) const;
     void PostProcessAfterAdding(RtpPacket* packet, bool added,
                                 const std::shared_ptr<SourceStream>& stream);
 #ifdef NO_TRANSLATION_SERVICE
-    std::shared_ptr<TranslatorEndPoint> CreateStubEndPoint(bool firstEndPoint, uint32_t ssrc) const;
+    std::shared_ptr<TranslatorEndPoint> CreateStubEndPoint(bool firstEndPoint) const;
 #else
-    std::shared_ptr<TranslatorEndPoint> CreateMaybeStubEndPoint(bool firstEndPoint, uint32_t ssrc) const;
+    std::shared_ptr<TranslatorEndPoint> CreateMaybeStubEndPoint(bool firstEndPoint) const;
 #endif
-    // impl. of MediaSource
-    bool AddSink(MediaSink* sink) final;
-    bool RemoveSink(MediaSink* sink) final;
-    void RemoveAllSinks() final;
-    bool HasSinks() const final;
-    size_t GetSinksCout() const final;
-    // impl. of TranslatorEndPointListener
-    void OnTranslatedMediaReceived(const TranslatorEndPoint* endPoint, uint64_t mediaSeqNum,
-                                   const std::shared_ptr<MemoryBuffer>& media) final;
-    // impl. of RtpPacketsPlayerCallback
-    void OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet, uint64_t mediaId, const void* userData) final;
     // impl. of TranslatorEndPointFactory
-    std::shared_ptr<TranslatorEndPoint> CreateEndPoint(bool firstEndPoint, uint32_t ssrc) final;
-    // impl. of RtpPacketsInfoProvider
-    uint8_t GetPayloadType(uint32_t ssrc) const final;
-    uint32_t GetClockRate(uint32_t ssrc) const final;
+    std::shared_ptr<TranslatorEndPoint> CreateEndPoint(bool firstEndPoint) final;
 private:
 #ifdef NO_TRANSLATION_SERVICE
     static inline const char* _mockTranslationFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_stereo_example.webm";
@@ -95,7 +72,6 @@ private:
     ProtectedObj<StreamMap<std::shared_ptr<SourceStream>>> _mappedSsrcToStreams;
     // key is original media SSRC, under protection of [_mappedSsrcToStreams]
     StreamMap<std::weak_ptr<SourceStream>> _originalSsrcToStreams;
-    ProtectedObj<std::list<MediaSink*>> _sinks;
     ProtectedObj<std::list<Consumer*>> _consumers;
 };
 

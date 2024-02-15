@@ -9,25 +9,24 @@ class MemoryBuffer;
 class MediaTimer;
 class RtpPacketsPlayerStreamQueue;
 class RtpPacketsPlayerCallback;
-class RtpPacketsInfoProvider;
 
 class RtpPacketsPlayerStream
 {
 public:
-    RtpPacketsPlayerStream(uint32_t ssrc, const RtpCodecMimeType& mime,
+    RtpPacketsPlayerStream(uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
+                           const RtpCodecMimeType& mime,
                            const std::shared_ptr<MediaTimer>& timer,
-                           const RtpPacketsInfoProvider* packetsInfoProvider,
                            RtpPacketsPlayerCallback* callback);
     ~RtpPacketsPlayerStream();
-    void Play(uint64_t mediaId, const std::shared_ptr<MemoryBuffer>& buffer,
-              const void* userData = nullptr);
+    void Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media);
     bool IsPlaying() const;
     uint32_t GetSsrc() const { return _ssrc; }
 private:
     const uint32_t _ssrc;
+    const uint32_t _clockRate;
+    const uint8_t _payloadType;
     const RtpCodecMimeType _mime;
     const std::shared_ptr<MediaTimer> _timer;
-    const RtpPacketsInfoProvider* const _packetsInfoProvider;
     const std::shared_ptr<RtpPacketsPlayerStreamQueue> _queue;
 };
 

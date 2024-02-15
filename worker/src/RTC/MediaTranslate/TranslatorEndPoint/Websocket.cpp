@@ -2,6 +2,8 @@
 #include "RTC/MediaTranslate/TranslatorEndPoint/Websocket.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketListener.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketState.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketFailure.hpp"
+#include "RTC/MediaTranslate/MemoryBuffer.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include <websocketpp/config/asio_client.hpp>
@@ -12,7 +14,9 @@
 
 namespace {
 
-class StringMemoryBuffer : public RTC::MemoryBuffer
+using namespace RTC;
+
+class StringMemoryBuffer : public MemoryBuffer
 {
 public:
     StringMemoryBuffer(std::string payload);
@@ -40,42 +44,6 @@ private:
     const LogLevel _level;
     std::string _buffer;
 };
-
-inline std::string ToString(RTC::WebsocketListener::FailureType failure) {
-    switch (failure) {
-        case RTC::WebsocketListener::FailureType::General:
-            return "general";
-        case RTC::WebsocketListener::FailureType::NoConnection:
-            return "no connection";
-        case RTC::WebsocketListener::FailureType::CustomHeader:
-            return "custom header";
-        case RTC::WebsocketListener::FailureType::WriteText:
-            return "write text";
-        case RTC::WebsocketListener::FailureType::WriteBinary:
-            return "write binary";
-        case RTC::WebsocketListener::FailureType::TlsOptions:
-            return "TLS options";
-        default:
-            break;
-    }
-    return "unknown";
-}
-
-inline std::string ToString(RTC::WebsocketState state) {
-    switch (state) {
-        case RTC::WebsocketState::Invalid:
-            return "invalid";
-        case RTC::WebsocketState::Connecting:
-            return "connecting";
-        case RTC::WebsocketState::Connected:
-            return "connected";
-        case RTC::WebsocketState::Disconnected:
-            return "disconnected";
-        default:
-            break;
-    }
-    return "unknown";
-}
 
 }
 
@@ -285,11 +253,6 @@ WebsocketState Websocket::GetState() const
     return WebsocketState::Invalid;
 }
 
-uint64_t Websocket::GetId() const
-{
-    return reinterpret_cast<uint64_t>(this);
-}
-
 std::string Websocket::GetUrl() const
 {
     return _config ? _config->GetUri()->str() : std::string();
@@ -440,7 +403,7 @@ bool Websocket::SocketImpl<TConfig>::Open(const std::string& userAgent)
     const auto connection = _client.get_connection(GetConfig()->GetUri(), ec);
     if (ec) {
         InvokeListenersMethod(&WebsocketListener::OnFailed,
-                              WebsocketListener::FailureType::NoConnection,
+                              WebsocketFailure::NoConnection,
                               ec.message());
     }
     else {
@@ -451,7 +414,7 @@ bool Websocket::SocketImpl<TConfig>::Open(const std::string& userAgent)
             }
             catch(const std::exception& e) {
                 InvokeListenersMethod(&WebsocketListener::OnFailed,
-                                      WebsocketListener::FailureType::CustomHeader,
+                                      WebsocketFailure::CustomHeader,
                                       e.what());
                 return false;
             }
@@ -492,7 +455,7 @@ bool Websocket::SocketImpl<TConfig>::WriteBinary(const MemoryBuffer& buffer)
             _client.send(_hdl, buffer.GetData(), buffer.GetSize(), websocketpp::frame::opcode::binary, ec);
             if (ec) {
                 InvokeListenersMethod(&WebsocketListener::OnFailed,
-                                      WebsocketListener::FailureType::WriteBinary,
+                                      WebsocketFailure::WriteBinary,
                                       ec.message());
             }
             else {
@@ -514,7 +477,7 @@ bool Websocket::SocketImpl<TConfig>::WriteText(const std::string& text)
             _client.send(_hdl, text, websocketpp::frame::opcode::text, ec);
             if (ec) {
                 InvokeListenersMethod(&WebsocketListener::OnFailed,
-                                      WebsocketListener::FailureType::WriteText,
+                                      WebsocketFailure::WriteText,
                                       ec.message());
             }
             else {
@@ -558,9 +521,7 @@ void Websocket::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
         _client.stop();
         // report error & reset state
         DropHdl(std::move(droppedGuard));
-        InvokeListenersMethod(&WebsocketListener::OnFailed,
-                              WebsocketListener::FailureType::General,
-                              error);
+        InvokeListenersMethod(&WebsocketListener::OnFailed, WebsocketFailure::General, error);
     }
 }
 
@@ -684,8 +645,7 @@ Websocket::SocketTls::SslContextPtr Websocket::SocketTls::OnTlsInit(websocketpp:
                          asio::ssl::context::no_tlsv1_1 |
                          asio::ssl::context::single_dh_use);
     } catch (const std::exception& e) {
-        InvokeListenersMethod(&WebsocketListener::OnFailed,
-                              WebsocketListener::FailureType::TlsOptions, e.what());
+        InvokeListenersMethod(&WebsocketListener::OnFailed, WebsocketFailure::TlsOptions, e.what());
     }
     return ctx;
 }
@@ -772,16 +732,55 @@ bool Websocket::SocketWrapper::WriteText(const std::string& text)
 void WebsocketListener::OnStateChanged(uint64_t socketId, WebsocketState state)
 {
     if (LogStreamBuf::IsAccepted(LogLevel::LOG_DEBUG)) {
-        LogStreamBuf::Write(LogLevel::LOG_DEBUG, socketId, "state changed to " + ToString(state));
+        const auto message = std::string("state changed to ") + ToString(state);
+        LogStreamBuf::Write(LogLevel::LOG_DEBUG, socketId, message);
     }
 }
 
-void WebsocketListener::OnFailed(uint64_t socketId, FailureType type, const std::string& what)
+void WebsocketListener::OnFailed(uint64_t socketId, WebsocketFailure failure, const std::string& what)
 {
     if (LogStreamBuf::IsAccepted(LogLevel::LOG_ERROR)) {
-        LogStreamBuf::Write(LogLevel::LOG_ERROR, socketId, ToString(type) + " - " + what);
+        const auto message = ToString(failure) + std::string(" - ") + what;
+        LogStreamBuf::Write(LogLevel::LOG_ERROR, socketId, message);
     }
 }
+
+const char* ToString(WebsocketFailure failure) {
+    switch (failure) {
+        case WebsocketFailure::General:
+            return "general";
+        case WebsocketFailure::NoConnection:
+            return "no connection";
+        case WebsocketFailure::CustomHeader:
+            return "custom header";
+        case WebsocketFailure::WriteText:
+            return "write text";
+        case WebsocketFailure::WriteBinary:
+            return "write binary";
+        case WebsocketFailure::TlsOptions:
+            return "TLS options";
+        default:
+            break;
+    }
+    return "unknown";
+}
+
+const char* ToString(WebsocketState state) {
+    switch (state) {
+        case WebsocketState::Invalid:
+            return "invalid";
+        case WebsocketState::Connecting:
+            return "connecting";
+        case WebsocketState::Connected:
+            return "connected";
+        case WebsocketState::Disconnected:
+            return "disconnected";
+        default:
+            break;
+    }
+    return "unknown";
+}
+
 
 } // namespace RTC
 

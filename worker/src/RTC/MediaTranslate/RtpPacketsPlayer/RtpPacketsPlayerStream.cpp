@@ -3,21 +3,23 @@
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerStreamQueue.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMediaFragment.hpp"
 #include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
-#include "RTC/MediaTranslate/RtpPacketsInfoProvider.hpp"
 #include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
+#include "RTC/MediaTranslate/MemoryBuffer.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
 
-RtpPacketsPlayerStream::RtpPacketsPlayerStream(uint32_t ssrc, const RtpCodecMimeType& mime,
+RtpPacketsPlayerStream::RtpPacketsPlayerStream(uint32_t ssrc, uint32_t clockRate,
+                                               uint8_t payloadType,
+                                               const RtpCodecMimeType& mime,
                                                const std::shared_ptr<MediaTimer>& timer,
-                                               const RtpPacketsInfoProvider* packetsInfoProvider,
                                                RtpPacketsPlayerCallback* callback)
     : _ssrc(ssrc)
+    , _clockRate(clockRate)
+    , _payloadType(payloadType)
     , _mime(mime)
     , _timer(timer)
-    , _packetsInfoProvider(packetsInfoProvider)
     , _queue(std::make_shared<RtpPacketsPlayerStreamQueue>(callback))
 {
     MS_ASSERT(WebMCodecs::IsSupported(_mime), "WebM not available for this MIME %s", _mime.ToString().c_str());
@@ -28,19 +30,17 @@ RtpPacketsPlayerStream::~RtpPacketsPlayerStream()
     _queue->ResetCallback();
 }
 
-void RtpPacketsPlayerStream::Play(uint64_t mediaId, const std::shared_ptr<MemoryBuffer>& buffer,
-                                  const void* userData)
+void RtpPacketsPlayerStream::Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media)
 {
-    if (buffer) {
-        const auto clockRate = _packetsInfoProvider->GetClockRate(_ssrc);
-        const auto payloadType = _packetsInfoProvider->GetPayloadType(_ssrc);
+    if (media) {
         auto deserializer = std::make_unique<WebMDeserializer>();
         auto fragment = std::make_unique<RtpPacketsPlayerMediaFragment>(_timer, _queue,
                                                                         std::move(deserializer),
-                                                                        _ssrc, clockRate,
-                                                                        payloadType,
-                                                                        mediaId, userData);
-        if (fragment->Parse(_mime, buffer)) {
+                                                                        _ssrc, _clockRate,
+                                                                        _payloadType,
+                                                                        media->GetId(),
+                                                                        mediaSourceId);
+        if (fragment->Parse(_mime, media)) {
             _queue->PushFragment(std::move(fragment));
         }
     }

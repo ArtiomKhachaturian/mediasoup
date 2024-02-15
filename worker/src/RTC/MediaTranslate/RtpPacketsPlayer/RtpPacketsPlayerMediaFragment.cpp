@@ -12,12 +12,12 @@ RtpPacketsPlayerMediaFragment::RtpPacketsPlayerMediaFragment(const std::shared_p
                                                              const std::weak_ptr<RtpPacketsPlayerCallback>& playerCallbackRef,
                                                              std::unique_ptr<MediaFrameDeserializer> deserializer,
                                                              uint32_t ssrc, uint32_t clockRate,
-                                                             uint8_t payloadType, uint64_t mediaId,
-                                                             const void* userData)
+                                                             uint8_t payloadType,
+                                                             uint64_t mediaId, uint64_t mediaSourceId)
     : _player(std::make_shared<RtpPacketsMediaFragmentPlayer>(timer, playerCallbackRef,
                                                               std::move(deserializer),
                                                               ssrc, clockRate,
-                                                              payloadType, mediaId, userData))
+                                                              payloadType, mediaId, mediaSourceId))
     , _timer(timer)
 {
     _player->SetTimerId(_timer->RegisterTimer(_player));

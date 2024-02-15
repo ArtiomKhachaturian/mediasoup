@@ -65,7 +65,7 @@ MkvBufferedWriter::~MkvBufferedWriter()
         _segment.Finalize();
         WriteMediaPayloadToSink();
         if (_startMediaSinkWriting) {
-            _sink->EndMediaWriting();
+            _sink->EndMediaWriting(*this);
         }
     }
 }
@@ -219,7 +219,7 @@ bool MkvBufferedWriter::SetCodecSpecific(mkvmuxer::Track* track,
 void MkvBufferedWriter::WriteMediaPayloadToSink()
 {
     if (const auto buffer = _buffer.Take()) {
-        _sink->WriteMediaPayload(buffer);
+        _sink->WriteMediaPayload(*this, buffer);
         ReserveBuffer();
     }
 }
@@ -279,7 +279,7 @@ bool MkvBufferedWriter::WriteFrames(uint64_t mkvTimestamp)
         for (auto& mkvFrame : _mkvFrames) {
             if (mkvFrame.GetMkvTimestamp() <= mkvTimestamp) {
                 if (!HasWroteMedia() && !_startMediaSinkWriting) {
-                    _sink->StartMediaWriting();
+                    _sink->StartMediaWriting(*this);
                     _startMediaSinkWriting = true;
                 }
                 ok = mkvFrame.InitPayload();

@@ -1,13 +1,8 @@
 #include "RTC/MediaTranslate/TranslatorEndPoint/StubEndPoint.hpp"
-#include "MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/MemoryBuffer.hpp"
 
 namespace RTC
 {
-
-StubEndPoint::StubEndPoint(uint32_t ssrc)
-    : TranslatorEndPoint(ssrc)
-{
-}
 
 StubEndPoint::~StubEndPoint()
 {

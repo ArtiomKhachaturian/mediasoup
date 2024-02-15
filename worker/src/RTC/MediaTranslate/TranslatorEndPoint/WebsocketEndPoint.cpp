@@ -12,8 +12,8 @@
 namespace RTC
 {
 
-WebsocketEndPoint::WebsocketEndPoint(uint32_t ssrc)
-    : TranslatorEndPoint(ssrc, _defaultTimeSliceMs)
+WebsocketEndPoint::WebsocketEndPoint()
+    : TranslatorEndPoint(_defaultTimeSliceMs)
     , _socket(std::make_unique<Websocket>(_tsUri, _tsUser, _tsUserPassword))
 {
     _socket->AddListener(this);
@@ -101,8 +101,7 @@ void WebsocketEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<M
         const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
         if (depacketizerPath && std::strlen(depacketizerPath)) {
             std::string fileName = std::string(depacketizerPath) + "/"
-                + "received_translation_" + std::to_string(GetSsrc()) + "_"
-                + std::to_string(DepLibUV::GetTimeMs()) + ".webm";
+                + "received_translation_" + std::to_string(DepLibUV::GetTimeMs()) + ".webm";
             FileWriter::WriteAll(fileName, message);
         }
 #endif

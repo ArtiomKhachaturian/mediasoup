@@ -1,6 +1,5 @@
 #define MS_CLASS "RTC::TranslatorEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
-#include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointListener.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "DepLibUV.hpp"
@@ -22,11 +21,9 @@ private:
     ProtectedObj<SimpleMemoryBuffer> _impl;
 };
 
-TranslatorEndPoint::TranslatorEndPoint(uint32_t ssrc, uint32_t timeSliceMs)
-    : _ssrc(ssrc)
-    , _inputSlice(InputSliceBuffer::Create(timeSliceMs))
+TranslatorEndPoint::TranslatorEndPoint(uint32_t timeSliceMs)
+    : _inputSlice(InputSliceBuffer::Create(timeSliceMs))
 {
-    MS_ASSERT(_ssrc, "SSRC must be greater than zero");
 }
 
 TranslatorEndPoint::~TranslatorEndPoint()   
@@ -34,44 +31,23 @@ TranslatorEndPoint::~TranslatorEndPoint()
     NotifyThatConnectionEstablished(false);
 }
 
-void TranslatorEndPoint::SetInput(MediaSource* input)
+void TranslatorEndPoint::SetInputMediaSource(MediaSource* inputMediaSource)
 {
     bool changed = false;
+    MS_ASSERT(inputMediaSource != this, "input media source will referenced to itself");
     {
-        LOCK_WRITE_PROTECTED_OBJ(_input);
-        if (input != _input.ConstRef()) {
-            ConnectToMediaInput(_input.ConstRef(), false);
-            _input = input;
+        LOCK_WRITE_PROTECTED_OBJ(_inputMediaSource);
+        if (inputMediaSource != _inputMediaSource.ConstRef()) {
+            ConnectToMediaInput(_inputMediaSource.ConstRef(), false);
+            _inputMediaSource = inputMediaSource;
             if (IsConnected()) {
-                ConnectToMediaInput(_input.ConstRef(), true);
+                ConnectToMediaInput(_inputMediaSource.ConstRef(), true);
             }
             changed = true;
         }
     }
     if (changed) {
-        if (input) {
-            if (CanConnect()) {
-                Connect();
-            }
-        }
-        else {
-            Disconnect();
-        }
-    }
-}
-
-void TranslatorEndPoint::SetOutput(TranslatorEndPointListener* output)
-{
-    bool changed = false;
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_output);
-        if (output != _output.ConstRef()) {
-            _output = output;
-            changed = true;
-        }
-    }
-    if (changed) {
-        if (output) {
+        if (inputMediaSource) {
             if (CanConnect()) {
                 Connect();
             }
@@ -99,14 +75,8 @@ void TranslatorEndPoint::SetOutputVoiceId(const std::string& voiceId)
 
 bool TranslatorEndPoint::HasInput() const
 {
-    LOCK_READ_PROTECTED_OBJ(_input);
-    return nullptr != _input.ConstRef();
-}
-
-bool TranslatorEndPoint::HasOutput() const
-{
-    LOCK_READ_PROTECTED_OBJ(_output);
-    return nullptr != _output.ConstRef();
+    LOCK_READ_PROTECTED_OBJ(_inputMediaSource);
+    return nullptr != _inputMediaSource.ConstRef();
 }
 
 bool TranslatorEndPoint::HasValidTranslationSettings() const
@@ -132,11 +102,25 @@ void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
 void TranslatorEndPoint::NotifyThatTranslatedMediaReceived(const std::shared_ptr<MemoryBuffer>& media)
 {
     if (media) {
-        const auto num = _receivedMediaCounter.fetch_add(1U);
-        LOCK_READ_PROTECTED_OBJ(_output);
-        if (const auto output = _output.ConstRef()) {
-            output->OnTranslatedMediaReceived(this, num, media);
-        }
+        StartMediaSinksWriting();
+        WriteMediaSinksPayload(media);
+        EndMediaSinksWriting();
+    }
+}
+
+void TranslatorEndPoint::OnSinkWasAdded(MediaSink* sink, bool first)
+{
+    MediaSourceImpl::OnSinkWasAdded(sink, first);
+    if (first && CanConnect()) {
+        Connect();
+    }
+}
+
+void TranslatorEndPoint::OnSinkWasRemoved(MediaSink* sink, bool last)
+{
+    MediaSourceImpl::OnSinkWasRemoved(sink, last);
+    if (last) {
+        Disconnect();
     }
 }
 
@@ -225,8 +209,8 @@ std::optional<nlohmann::json> TranslatorEndPoint::TargetLanguageCmd() const
 
 void TranslatorEndPoint::ConnectToMediaInput(bool connect)
 {
-    LOCK_READ_PROTECTED_OBJ(_input);
-    ConnectToMediaInput(_input.ConstRef(), connect);
+    LOCK_READ_PROTECTED_OBJ(_inputMediaSource);
+    ConnectToMediaInput(_inputMediaSource.ConstRef(), connect);
 }
 
 void TranslatorEndPoint::ConnectToMediaInput(MediaSource* input, bool connect)
@@ -282,15 +266,16 @@ bool TranslatorEndPoint::WriteBinary(const MemoryBuffer& buffer) const
     return false;
 }
 
-void TranslatorEndPoint::StartMediaWriting()
+void TranslatorEndPoint::StartMediaWriting(const MediaObject& sender)
 {
-    MediaSink::StartMediaWriting();
+    MediaSink::StartMediaWriting(sender);
     if (_inputSlice) {
         _inputSlice->Reset(true);
     }
 }
 
-void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer)
+void TranslatorEndPoint::WriteMediaPayload(const MediaObject& sender,
+                                           const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (buffer && !buffer->IsEmpty() && IsConnected()) {
         if (_inputSlice) {
@@ -302,9 +287,9 @@ void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& 
     }
 }
 
-void TranslatorEndPoint::EndMediaWriting()
+void TranslatorEndPoint::EndMediaWriting(const MediaObject& sender)
 {
-    MediaSink::EndMediaWriting();
+    MediaSink::EndMediaWriting(sender);
     if (_inputSlice) {
         _inputSlice->Reset(false);
     }

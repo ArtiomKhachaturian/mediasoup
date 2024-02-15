@@ -26,8 +26,7 @@ public:
                                   const std::weak_ptr<RtpPacketsPlayerCallback>& playerCallbackRef,
                                   std::unique_ptr<MediaFrameDeserializer> deserializer,
                                   uint32_t ssrc, uint32_t clockRate, 
-                                  uint8_t payloadType, uint64_t mediaId,
-                                  const void* userData);
+                                  uint8_t payloadType, uint64_t mediaId, uint64_t mediaSourceId);
     ~RtpPacketsMediaFragmentPlayer() final;
     uint64_t SetTimerId(uint64_t timerId); // return previous ID
     uint64_t GetTimerId() const { return _timerId.load(); }
@@ -49,7 +48,7 @@ private:
     const uint32_t _clockRate;
     const uint8_t _payloadType;
     const uint64_t _mediaId;
-    const void* const _userData;
+    const uint64_t _mediaSourceId;
     const std::unique_ptr<PlayTaskQueue> _tasksQueue;
     std::atomic<uint64_t> _timerId = 0ULL;
     webrtc::Timestamp _previousTimestamp = webrtc::Timestamp::Zero();

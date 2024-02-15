@@ -4,7 +4,7 @@
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "RTC/MediaTranslate/FileReader.hpp"
-#include "MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/MemoryBuffer.hpp"
 #include "Logger.hpp"
 
 namespace RTC
@@ -25,15 +25,18 @@ private:
     WebsocketState GetState() const { return _state.load(); }
     bool SetConnectedState();
     bool SetStrongState(WebsocketState actual, WebsocketState expected);
+    std::shared_ptr<MemoryBuffer> ReadMediaFromFile() const;
+    void NotifyAboutReceivedMedia(const std::shared_ptr<MemoryBuffer>& media);
+    void NotifyThatConnected(bool connected = true);
+    void AdjustIntervalTimeout(bool restart = false);
 private:
     FileEndPoint* const _owner;
     std::atomic<WebsocketState> _state = WebsocketState::Disconnected;
     std::atomic_bool _hasWrittenInputMedia = false;
 };
 
-FileEndPoint::FileEndPoint(uint32_t ssrc, std::string fileName)
-    : TranslatorEndPoint(ssrc)
-    , _fileIsValid(FileReader::IsValidForRead(fileName))
+FileEndPoint::FileEndPoint(std::string fileName)
+    : _fileIsValid(FileReader::IsValidForRead(fileName))
     , _fileName(std::move(fileName))
     , _callback(_fileIsValid ? std::make_shared<TimerCallback>(this) : nullptr)
     , _timer(_fileIsValid ? std::make_unique<MediaTimer>(fileName) : nullptr)
@@ -125,14 +128,14 @@ void FileEndPoint::TimerCallback::OnEvent()
 {
     if (SetConnectedState()) {
         MS_ERROR_STD("Connected to %s", _owner->GetFileName().c_str());
-        _owner->NotifyThatConnectionEstablished(true);
-        _owner->_timer->SetTimeout(_owner->_timerId, _owner->GetIntervalBetweenTranslationsMs());
-        _owner->_timer->Start(_owner->_timerId, false);
+        NotifyThatConnected();
+        AdjustIntervalTimeout(true);
     }
     else if (WebsocketState::Connected == GetState()) {
         if (HasWrittenInputMedia()) {
-            if (const auto media = FileReader::ReadAllAsBuffer(_owner->GetFileName())) {
-                _owner->NotifyThatTranslatedMediaReceived(media);
+            if (const auto media = ReadMediaFromFile()) {
+                NotifyAboutReceivedMedia(media);
+                AdjustIntervalTimeout();
             }
             else {
                 // TODO: log warning
@@ -149,6 +152,31 @@ bool FileEndPoint::TimerCallback::SetConnectedState()
 bool FileEndPoint::TimerCallback::SetStrongState(WebsocketState actual, WebsocketState expected)
 {
     return _state.compare_exchange_strong(expected, actual);
+}
+
+std::shared_ptr<MemoryBuffer> FileEndPoint::TimerCallback::ReadMediaFromFile() const
+{
+    return FileReader::ReadAllAsBuffer(_owner->GetFileName());
+}
+
+void FileEndPoint::TimerCallback::NotifyAboutReceivedMedia(const std::shared_ptr<MemoryBuffer>& media)
+{
+    if (media) {
+        _owner->NotifyThatTranslatedMediaReceived(media);
+    }
+}
+
+void FileEndPoint::TimerCallback::NotifyThatConnected(bool connected)
+{
+    _owner->NotifyThatConnectionEstablished(connected);
+}
+
+void FileEndPoint::TimerCallback::AdjustIntervalTimeout(bool restart)
+{
+    _owner->_timer->SetTimeout(_owner->_timerId, _owner->GetIntervalBetweenTranslationsMs());
+    if (restart) {
+        _owner->_timer->Start(_owner->_timerId, false);
+    }
 }
 
 } // namespace RTC

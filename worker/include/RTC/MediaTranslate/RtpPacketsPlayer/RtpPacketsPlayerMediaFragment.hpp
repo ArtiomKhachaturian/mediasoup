@@ -17,9 +17,8 @@ public:
     RtpPacketsPlayerMediaFragment(const std::shared_ptr<MediaTimer>& timer,
                                   const std::weak_ptr<RtpPacketsPlayerCallback>& playerCallbackRef,
                                   std::unique_ptr<MediaFrameDeserializer> deserializer,
-                                  uint32_t ssrc, uint32_t clockRate,
-                                  uint8_t payloadType, uint64_t mediaId,
-                                  const void* userData = nullptr);
+                                  uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
+                                  uint64_t mediaId, uint64_t mediaSourceId);
     ~RtpPacketsPlayerMediaFragment();
     bool Parse(const RtpCodecMimeType& mime, const std::shared_ptr<MemoryBuffer>& buffer);
     void PlayFrames();

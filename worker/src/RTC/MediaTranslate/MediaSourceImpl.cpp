@@ -29,19 +29,19 @@ void MediaSourceImpl::RemoveAllSinks()
 
 void MediaSourceImpl::StartMediaSinksWriting()
 {
-    _sinks.InvokeMethod(&MediaSink::StartMediaWriting);
+    _sinks.InvokeMethod(&MediaSink::StartMediaWriting, *this);
 }
 
 void MediaSourceImpl::WriteMediaSinksPayload(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (buffer) {
-        _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, buffer);
+        _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, *this, buffer);
     }
 }
 
 void MediaSourceImpl::EndMediaSinksWriting()
 {
-    _sinks.InvokeMethod(&MediaSink::EndMediaWriting);
+    _sinks.InvokeMethod(&MediaSink::EndMediaWriting, *this);
 }
 
 
