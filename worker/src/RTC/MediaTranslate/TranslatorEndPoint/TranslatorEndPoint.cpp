@@ -282,16 +282,15 @@ bool TranslatorEndPoint::WriteBinary(const MemoryBuffer& buffer) const
     return false;
 }
 
-void TranslatorEndPoint::StartMediaWriting(uint32_t ssrc)
+void TranslatorEndPoint::StartMediaWriting()
 {
-    MediaSink::StartMediaWriting(ssrc);
+    MediaSink::StartMediaWriting();
     if (_inputSlice) {
         _inputSlice->Reset(true);
     }
-    MS_ASSERT(_ssrc == ssrc, "start writing from incorrect media sender");
 }
 
-void TranslatorEndPoint::WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer)
+void TranslatorEndPoint::WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (buffer && !buffer->IsEmpty() && IsConnected()) {
         if (_inputSlice) {
@@ -303,15 +302,13 @@ void TranslatorEndPoint::WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<
     }
 }
 
-void TranslatorEndPoint::EndMediaWriting(uint32_t ssrc)
+void TranslatorEndPoint::EndMediaWriting()
 {
-    MediaSink::EndMediaWriting(ssrc);
+    MediaSink::EndMediaWriting();
     if (_inputSlice) {
         _inputSlice->Reset(false);
     }
-    MS_ASSERT(_ssrc == ssrc, "end writing from incorrect media sender");
 }
-
 
 TranslatorEndPoint::InputSliceBuffer::InputSliceBuffer(uint32_t timeSliceMs)
     : _timeSliceMs(timeSliceMs)

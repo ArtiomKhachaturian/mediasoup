@@ -83,7 +83,7 @@ public:
                               RtpPacket* packet, RtpPacketsCollector* output);
 private:
 #ifdef READ_PRODUCER_RECV_FROM_FILE
-    static std::unique_ptr<FileReader> CreateFileReader(uint32_t ssrc);
+    static std::unique_ptr<FileReader> CreateFileReader();
 #endif
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     static std::unique_ptr<FileWriter> CreateFileWriter(uint32_t ssrc, const std::string& producerId,
@@ -510,7 +510,7 @@ Translator::SourceStream::SourceStream(uint32_t clockRate, uint8_t payloadType,
     , _serializer(std::move(serializer))
     , _depacketizer(std::move(depacketizer))
 #ifdef READ_PRODUCER_RECV_FROM_FILE
-    , _fileReader(CreateFileReader(_serializer->GetSsrc()))
+    , _fileReader(CreateFileReader())
 #endif
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     , _fileWriter(CreateFileWriter(_serializer->GetSsrc(), producerId, _serializer.get()))
@@ -558,7 +558,8 @@ std::shared_ptr<Translator::SourceStream> Translator::SourceStream::Create(const
                                                 translationsOutput);
     }
     else {
-        MS_ERROR_STD("failed to create depacketizer, MIME type %s", mime.ToString().c_str());
+        MS_ERROR_STD("failed to create depacketizer for %s",
+                     GetStreamInfoString(mime, originalSsrc).c_str());
     }
     return stream;
 }
@@ -718,9 +719,9 @@ void Translator::SourceStream::PlayTranslatedPacket(const TranslatorEndPoint* fr
 }
 
 #ifdef READ_PRODUCER_RECV_FROM_FILE
-std::unique_ptr<FileReader> Translator::SourceStream::CreateFileReader(uint32_t ssrc)
+std::unique_ptr<FileReader> Translator::SourceStream::CreateFileReader()
 {
-    auto fileReader = std::make_unique<FileReader>(_testFileName, ssrc, false);
+    auto fileReader = std::make_unique<FileReader>(_testFileName, false);
     if (!fileReader->IsOpen()) {
         MS_WARN_DEV_STD("Failed to open producer file input %s", _testFileName);
         fileReader.reset();

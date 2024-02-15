@@ -31,7 +31,7 @@ public:
     uint64_t GetMkvTimestamp() const { return _mvkFrame ? _mvkFrame->timestamp() : 0ULL; }
     bool IsValid() const { return _mediaFrame && _mvkFrame; }
     const std::shared_ptr<const MediaFrame>& GetMediaFrame() const { return _mediaFrame; }
-    bool InitPayload(uint32_t ssrc);
+    bool InitPayload();
     operator const mkvmuxer::Frame* () const { return _mvkFrame.get(); }
     // for ordering by timestamps
     bool operator < (const MkvFrame& other) const { return GetMkvTimestamp() < other.GetMkvTimestamp(); }
@@ -43,9 +43,8 @@ private:
     std::unique_ptr<mkvmuxer::Frame> _mvkFrame;
 };
 
-MkvBufferedWriter::MkvBufferedWriter(uint32_t ssrc, MediaSink* sink, const char* app)
-    : _ssrc(ssrc)
-    , _sink(sink)
+MkvBufferedWriter::MkvBufferedWriter(MediaSink* sink, const char* app)
+    : _sink(sink)
     , _initialized(_segment.Init(this))
 {
     if (IsInitialized()) {
@@ -66,7 +65,7 @@ MkvBufferedWriter::~MkvBufferedWriter()
         _segment.Finalize();
         WriteMediaPayloadToSink();
         if (_startMediaSinkWriting) {
-            _sink->EndMediaWriting(_ssrc);
+            _sink->EndMediaWriting();
         }
     }
 }
@@ -220,7 +219,7 @@ bool MkvBufferedWriter::SetCodecSpecific(mkvmuxer::Track* track,
 void MkvBufferedWriter::WriteMediaPayloadToSink()
 {
     if (const auto buffer = _buffer.Take()) {
-        _sink->WriteMediaPayload(_ssrc, buffer);
+        _sink->WriteMediaPayload(buffer);
         ReserveBuffer();
     }
 }
@@ -280,14 +279,14 @@ bool MkvBufferedWriter::WriteFrames(uint64_t mkvTimestamp)
         for (auto& mkvFrame : _mkvFrames) {
             if (mkvFrame.GetMkvTimestamp() <= mkvTimestamp) {
                 if (!HasWroteMedia() && !_startMediaSinkWriting) {
-                    _sink->StartMediaWriting(_ssrc);
+                    _sink->StartMediaWriting();
                     _startMediaSinkWriting = true;
                 }
-                ok = mkvFrame.InitPayload(_ssrc);
+                ok = mkvFrame.InitPayload();
                 if (ok) {
                     ok = _segment.AddGenericFrame(mkvFrame);
                     if (!ok) {
-                        MS_ERROR_STD("failed add MKV frame to segment for %u SSRC", _ssrc);
+                        MS_ERROR_STD("failed add MKV frame to segment");
                     }
                 }
                 if (ok) {
@@ -351,18 +350,18 @@ MkvBufferedWriter::MkvFrame::MkvFrame(const std::shared_ptr<const MediaFrame>& m
     }
 }
 
-bool MkvBufferedWriter::MkvFrame::InitPayload(uint32_t ssrc)
+bool MkvBufferedWriter::MkvFrame::InitPayload()
 {
     if (_mvkFrame) {
         if (!_mvkFrame->IsValid()) {
             const auto payload = _mediaFrame->GetPayload();
             if (payload && !payload->IsEmpty()) {
                 if (!_mvkFrame->Init(payload->GetData(), payload->GetSize())) {
-                    MS_ERROR_STD("failed to init MKV frame for %u SSRC", ssrc);
+                    MS_ERROR_STD("failed to init MKV frame");
                 }
             }
             else {
-                MS_ERROR_STD("no payload for initialization of MKV frame for %u SSRC", ssrc);
+                MS_ERROR_STD("no payload for initialization of MKV frame");
             }
         }
         return _mvkFrame->IsValid();

@@ -17,7 +17,7 @@ class MkvBufferedWriter : private mkvmuxer::IMkvWriter
    class MkvFrame;
    enum class EnqueueResult;
 public:
-    MkvBufferedWriter(uint32_t ssrc, MediaSink* sink, const char* app);
+    MkvBufferedWriter(MediaSink* sink, const char* app);
     ~MkvBufferedWriter() override;
     bool IsInitialized() const { return _initialized; }
     bool HasAudioTracks() const { return !_audioTracks.empty(); }
@@ -52,7 +52,6 @@ private:
     bool Seekable() const final { return false; }
     void ElementStartNotify(mkvmuxer::uint64 /*elementId*/, mkvmuxer::int64 /*position*/) final {}
 private:
-    const uint32_t _ssrc;
     MediaSink* const _sink;
     mkvmuxer::Segment _segment;
     const bool _initialized;

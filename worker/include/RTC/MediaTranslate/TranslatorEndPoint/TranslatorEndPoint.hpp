@@ -24,7 +24,7 @@ public:
     uint32_t GetSsrc() const { return _ssrc; }
     virtual bool IsConnected() const = 0;
 protected:
-    TranslatorEndPoint(uint32_t ssrc, uint32_t timeSliceMs);
+    TranslatorEndPoint(uint32_t ssrc, uint32_t timeSliceMs = 0U);
     bool HasInput() const;
     bool HasOutput() const;
     bool HasValidTranslationSettings() const;
@@ -54,9 +54,9 @@ private:
     bool WriteJson(const nlohmann::json& data) const;
     bool WriteBinary(const MemoryBuffer& buffer) const;
     // impl. of MediaSink
-    void StartMediaWriting(uint32_t ssrc) final;
-    void WriteMediaPayload(uint32_t ssrc, const std::shared_ptr<MemoryBuffer>& buffer) final;
-    void EndMediaWriting(uint32_t ssrc) final;
+    void StartMediaWriting() final;
+    void WriteMediaPayload(const std::shared_ptr<MemoryBuffer>& buffer) final;
+    void EndMediaWriting() final;
 private:
     static inline std::atomic_uint64_t _receivedMediaCounter = 0ULL;
     const uint32_t _ssrc;

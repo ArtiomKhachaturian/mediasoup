@@ -32,7 +32,7 @@ private:
 };
 
 FileEndPoint::FileEndPoint(uint32_t ssrc, std::string fileName)
-    : TranslatorEndPoint(ssrc, 0U)
+    : TranslatorEndPoint(ssrc)
     , _fileIsValid(FileReader::IsValidForRead(fileName))
     , _fileName(std::move(fileName))
     , _callback(_fileIsValid ? std::make_shared<TimerCallback>(this) : nullptr)

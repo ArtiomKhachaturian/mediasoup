@@ -11,7 +11,7 @@ namespace RTC
 class WebMSerializer::Writer : public MkvBufferedWriter
 {
 public:
-    Writer(uint32_t ssrc, MediaSink* sink, const char* app);
+    Writer(MediaSink* sink, const char* app);
     bool AddFrame(const std::shared_ptr<const MediaFrame>& mediaFrame, uint64_t mkvTimestamp);
     void SetTrackSettings(const std::shared_ptr<const AudioFrameConfig>& config);
     void SetTrackSettings(const std::shared_ptr<const VideoFrameConfig>& config);
@@ -24,7 +24,6 @@ WebMSerializer::WebMSerializer(uint32_t ssrc, const RtpCodecMimeType& mime, cons
     : MediaFrameSerializer(ssrc, mime)
     , _app(app)
 {
-    _writers.reserve(2UL);
 }
 
 WebMSerializer::~WebMSerializer()
@@ -119,7 +118,7 @@ std::unique_ptr<WebMSerializer::Writer> WebMSerializer::CreateWriter(MediaSink* 
     if (sink) {
         const auto& mime = GetMimeType();
         const auto ssrc = GetSsrc();
-        auto writer = std::make_unique<Writer>(ssrc, sink, _app);
+        auto writer = std::make_unique<Writer>(sink, _app);
         if (writer->IsInitialized()) {
             uint64_t trackNumber = 0ULL;
             switch (mime.GetType()) {
@@ -171,8 +170,8 @@ bool WebMSerializer::Write(const std::shared_ptr<const MediaFrame>& mediaFrame,
     return false;
 }
 
-WebMSerializer::Writer::Writer(uint32_t ssrc, MediaSink* sink, const char* app)
-    : MkvBufferedWriter(ssrc, sink, app)
+WebMSerializer::Writer::Writer(MediaSink* sink, const char* app)
+    : MkvBufferedWriter(sink, app)
 {
 }
 

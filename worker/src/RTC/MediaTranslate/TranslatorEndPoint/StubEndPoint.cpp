@@ -5,7 +5,7 @@ namespace RTC
 {
 
 StubEndPoint::StubEndPoint(uint32_t ssrc)
-    : TranslatorEndPoint(ssrc, 0U)
+    : TranslatorEndPoint(ssrc)
 {
 }
 

@@ -16,9 +16,8 @@ private:
 };
 
 FileReader::FileReader(const std::string_view& fileNameUtf8,
-                       uint32_t ssrc, bool loop, size_t chunkSize, int* error)
+                       bool loop, size_t chunkSize, int* error)
     : Base(fileNameUtf8, true, error)
-    , _ssrc(ssrc)
     , _loop(loop)
     , _fileSize(GetFileSize(GetHandle()))
     , _chunkSize(std::min<size_t>(_fileSize, std::max(chunkSize, 1024UL)))
@@ -132,9 +131,7 @@ bool FileReader::ReadContent()
         const StartEndNotifier notifier(this);
         bool eof = false, ok = true;
         while (!IsStopRequested() && ok && !eof) {
-            if (const auto buffer = ReadBuffer(eof, ok)) {
-                WriteMediaSinksPayload(GetSsrc(), buffer);
-            }
+            WriteMediaSinksPayload(ReadBuffer(eof, ok));
         }
         if (!ok) {
             return false;
@@ -226,12 +223,12 @@ size_t FileReader::FileRead(FILE* handle, std::vector<uint8_t>& to)
 FileReader::StartEndNotifier::StartEndNotifier(FileReader* source)
     : _source(source)
 {
-    _source->StartMediaSinksWriting(_source->GetSsrc());
+    _source->StartMediaSinksWriting();
 }
 
 FileReader::StartEndNotifier::~StartEndNotifier()
 {
-    _source->EndMediaSinksWriting(_source->GetSsrc());
+    _source->EndMediaSinksWriting();
 }
 
 } // namespace RTC
