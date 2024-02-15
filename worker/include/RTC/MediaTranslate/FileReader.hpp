@@ -20,6 +20,7 @@ public:
     uint32_t GetSsrc() const { return _ssrc; }
     static std::vector<uint8_t> ReadAllAsBinary(const std::string_view& fileNameUtf8);
     static std::shared_ptr<MemoryBuffer> ReadAllAsBuffer(const std::string_view& fileNameUtf8);
+    static bool IsValidForRead(const std::string_view& fileNameUtf8);
     // overrides of FileDevice<>
     bool IsOpen() const final;
 protected:

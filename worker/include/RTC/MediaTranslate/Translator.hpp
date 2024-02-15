@@ -12,7 +12,7 @@
 
 //#define WRITE_PRODUCER_RECV_TO_FILE // add MEDIASOUP_DEPACKETIZER_PATH env variable for reference to output folder
 //#define READ_PRODUCER_RECV_FROM_FILE
-//#define NO_TRANSLATION_SERVICE
+#define NO_TRANSLATION_SERVICE
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC
@@ -59,6 +59,11 @@ private:
     void AddConsumersToStream(const std::shared_ptr<SourceStream>& stream) const;
     void PostProcessAfterAdding(RtpPacket* packet, bool added,
                                 const std::shared_ptr<SourceStream>& stream);
+#ifdef NO_TRANSLATION_SERVICE
+    std::shared_ptr<TranslatorEndPoint> CreateStubEndPoint(bool firstEndPoint, uint32_t ssrc) const;
+#else
+    std::shared_ptr<TranslatorEndPoint> CreateMaybeStubEndPoint(bool firstEndPoint, uint32_t ssrc) const;
+#endif
     // impl. of MediaSource
     bool AddSink(MediaSink* sink) final;
     bool RemoveSink(MediaSink* sink) final;
@@ -71,7 +76,7 @@ private:
     // impl. of RtpPacketsPlayerCallback
     void OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet, uint64_t mediaId, const void* userData) final;
     // impl. of TranslatorEndPointFactory
-    std::shared_ptr<TranslatorEndPoint> CreateEndPoint(uint32_t ssrc) final;
+    std::shared_ptr<TranslatorEndPoint> CreateEndPoint(bool firstEndPoint, uint32_t ssrc) final;
     // impl. of RtpPacketsInfoProvider
     uint8_t GetPayloadType(uint32_t ssrc) const final;
     uint32_t GetClockRate(uint32_t ssrc) const final;

@@ -54,7 +54,7 @@ void FileReader::OnSinkWasRemoved(MediaSink* sink, bool last)
 std::vector<uint8_t> FileReader::ReadAllAsBinary(const std::string_view& fileNameUtf8)
 {
     std::vector<uint8_t> data;
-    if (auto handle = Base::Open(fileNameUtf8, true)) {
+    if (const auto handle = Base::Open(fileNameUtf8, true)) {
         auto size = GetFileSize(handle);
         if (size > 0) {
             try {
@@ -75,6 +75,17 @@ std::vector<uint8_t> FileReader::ReadAllAsBinary(const std::string_view& fileNam
         Close(handle);
     }
     return data;
+}
+
+bool FileReader::IsValidForRead(const std::string_view& fileNameUtf8)
+{
+    bool valid = false;
+    if (const auto handle = Base::Open(fileNameUtf8, true)) {
+        auto size = GetFileSize(handle);
+        valid = size > 0;
+        Close(handle);
+    }
+    return valid;
 }
 
 std::shared_ptr<MemoryBuffer> FileReader::ReadAllAsBuffer(const std::string_view& fileNameUtf8)

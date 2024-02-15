@@ -129,7 +129,7 @@ std::shared_ptr<TranslatorEndPoint> ConsumersManager::AddNewEndPoint(const Consu
 
 std::shared_ptr<TranslatorEndPoint> ConsumersManager::CreateEndPoint() const
 {
-    if (auto endPoint = _endPointsFactory->CreateEndPoint(_ssrc)) {
+    if (auto endPoint = _endPointsFactory->CreateEndPoint(_endpoints.empty(), _ssrc)) {
         endPoint->SetInput(_translationsInput);
         endPoint->SetOutput(_translationsOutput);
         endPoint->SetInputLanguageId(_inputLanguageId);

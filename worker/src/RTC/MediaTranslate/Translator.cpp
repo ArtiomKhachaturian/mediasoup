@@ -10,9 +10,11 @@
 #include "RTC/MediaTranslate/ConsumersManager.hpp"
 #include "RTC/MediaTranslate/ConsumerInfo.hpp"
 #if defined(NO_TRANSLATION_SERVICE) || defined(SINGLE_TRANSLATION_POINT_CONNECTION)
-#include "RTC/MediaTranslate/TranslatorEndPoint/MockEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/StubEndPoint.hpp"
 #endif
-#ifndef NO_TRANSLATION_SERVICE
+#ifdef NO_TRANSLATION_SERVICE
+#include "RTC/MediaTranslate/TranslatorEndPoint/FileEndPoint.hpp"
+#else
 #include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketEndPoint.hpp"
 #endif
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
@@ -353,6 +355,46 @@ void Translator::PostProcessAfterAdding(RtpPacket* packet, bool added,
     }
 }
 
+#ifdef NO_TRANSLATION_SERVICE
+std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint(bool firstEndPoint,
+                                                                   uint32_t ssrc) const
+{
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+    if (!_instanceIndex) { // 1st producer
+        if (firstEndPoint) { // 1st consumer will receive audio from file as translation
+            auto fileEndPoint = std::make_shared<FileEndPoint>(ssrc, _mockTranslationFileName);
+            if (!fileEndPoint->IsValid()) {
+                MS_ERROR_STD("failed open %s as mock translation", _mockTranslationFileName);
+            }
+            else {
+                fileEndPoint->SetIntervalBetweenTranslationsMs(_mockTranslationFileNameLenMs + 1000U);
+                fileEndPoint->SetConnectionDelay(500U);
+                return fileEndPoint;
+            }
+        }
+    }
+#endif
+    return std::make_shared<StubEndPoint>(ssrc);
+}
+
+#else
+
+std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeStubEndPoint(bool firstEndPoint,
+                                                                        uint32_t ssrc) const
+{
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+    if (!_instanceIndex) { // 1st producer
+        if (firstEndPoint) { // 1st consumer will real translation
+            return std::make_shared<WebsocketEndPoint>(ssrc);
+        }
+    }
+    return std::make_shared<StubEndPoint>(ssrc);
+#else
+    return std::make_shared<WebsocketEndPoint>(ssrc);
+#endif
+}
+#endif
+
 bool Translator::AddSink(MediaSink* sink)
 {
     if (sink) {
@@ -432,29 +474,13 @@ void Translator::OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet,
     }
 }
 
-std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint(uint32_t ssrc)
+std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint(bool firstEndPoint, uint32_t ssrc)
 {
-    std::shared_ptr<TranslatorEndPoint> endPoint;
 #ifdef NO_TRANSLATION_SERVICE
-    endPoint = std::make_shared<MockEndPoint>(ssrc, _mockTranslationFileName,
-                                              _mockTranslationFileNameLenMs + 1000U);
+    return CreateStubEndPoint(firstEndPoint, ssrc);
 #else
-    endPoint = std::make_shared<WebsocketEndPoint>(ssrc);
+    return CreateMaybeStubEndPoint(firstEndPoint, ssrc);
 #endif
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-    if (_instanceIndex) {
-        endPoint = std::make_shared<MockEndPoint>(ssrc);
-    }
-    else {
-        // TODO: maybe deadlock when shared or regular mutex, potential conflict in Translator::AddConsumer
-        static_assert(std::is_same<std::recursive_mutex, ProtectedObj<std::list<Consumer*>>::ObjectMutexType>::value);
-        LOCK_READ_PROTECTED_OBJ(_consumers);
-        if (!_consumers->empty()) {
-            endPoint = std::make_shared<MockEndPoint>(ssrc);
-        }
-    }
-#endif
-    return endPoint;
 }
 
 uint8_t Translator::GetPayloadType(uint32_t ssrc) const
