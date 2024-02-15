@@ -13,6 +13,7 @@ class MediaSink;
 class TranslatorEndPoint;
 class TranslatorEndPointFactory;
 class RtpPacket;
+class RtpPacketsCollector;
 
 class ConsumersManager
 {
@@ -27,8 +28,10 @@ public:
     void SetInputLanguage(const std::string& languageId);
     std::shared_ptr<ConsumerInfo> AddConsumer(Consumer* consumer);
     void UpdateConsumer(Consumer* consumer);
+    std::shared_ptr<ConsumerInfo> GetConsumer(Consumer* consumer) const;
     bool RemoveConsumer(Consumer* consumer);
-    bool IsConnected(Consumer* consumer) const;
+    void SendPacket(uint32_t rtpTimestampOffset, uint64_t endPointId, RtpPacket* packet,
+                    RtpPacketsCollector* output);
 private:
     std::shared_ptr<TranslatorEndPoint> AddNewEndPoint(const Consumer* consumer, size_t key);
     std::shared_ptr<TranslatorEndPoint> CreateEndPoint() const;

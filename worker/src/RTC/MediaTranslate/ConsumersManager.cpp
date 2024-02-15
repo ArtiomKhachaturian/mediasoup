@@ -3,6 +3,7 @@
 #include "RTC/MediaTranslate/ConsumerInfo.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointFactory.hpp"
+#include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/Consumer.hpp"
 #include "ProtectedObj.hpp"
 #include "Logger.hpp"
@@ -95,6 +96,17 @@ void ConsumersManager::UpdateConsumer(Consumer* consumer)
     }
 }
 
+std::shared_ptr<ConsumerInfo> ConsumersManager::GetConsumer(Consumer* consumer) const
+{
+    if (consumer) {
+        const auto it = _consumersInfo.find(consumer);
+        if (it != _consumersInfo.end()) {
+            return it->second;
+        }
+    }
+    return nullptr;
+}
+
 bool ConsumersManager::RemoveConsumer(Consumer* consumer)
 {
     if (consumer) {
@@ -114,6 +126,26 @@ bool ConsumersManager::RemoveConsumer(Consumer* consumer)
         }
     }
     return false;
+}
+
+void ConsumersManager::SendPacket(uint32_t rtpTimestampOffset, uint64_t endPointId,
+                                  RtpPacket* packet,
+                                  RtpPacketsCollector* output)
+{
+    if (packet && output) {
+        std::shared_ptr<RTC::RtpPacket> sharedPacket;
+        for (auto it = _consumersInfo.begin(); it != _consumersInfo.end(); ++it) {
+            if (it->second->GetEndPointId() == endPointId) {
+                it->second->AlignTranslatedRtpPacketInfo(rtpTimestampOffset, packet);
+                output->AddPacket(packet);
+                break;
+            }
+            else {
+                // TODO: maybe has no sense
+                packet->AddRejectedConsumer(it->first);
+            }
+        }
+    }
 }
 
 std::shared_ptr<TranslatorEndPoint> ConsumersManager::AddNewEndPoint(const Consumer* consumer,

@@ -25,7 +25,6 @@
 #ifdef READ_PRODUCER_RECV_FROM_FILE
 #include "RTC/MediaTranslate/FileReader.hpp"
 #endif
-#include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/RtpStream.hpp"
 #include "RTC/Producer.hpp"
 #include "RTC/Consumer.hpp"
@@ -75,9 +74,9 @@ public:
     void AddConsumer(Consumer* consumer);
     void UpdateConsumer(Consumer* consumer);
     void RemoveConsumer(Consumer* consumer);
-    bool IsConnected(const Consumer* consumer) const;
-    void SaveProducerRtpPacketInfo(const Consumer* consumer, const RtpPacket* packet);
-    void AlignProducerRtpPacketInfo(const Consumer* consumer, RtpPacket* packet);
+    bool IsConnected(Consumer* consumer) const;
+    void SaveProducerRtpPacketInfo(Consumer* consumer, const RtpPacket* packet);
+    void AlignProducerRtpPacketInfo(Consumer* consumer, RtpPacket* packet);
 private:
 #ifdef READ_PRODUCER_RECV_FROM_FILE
     static std::unique_ptr<FileReader> CreateFileReader();
@@ -114,7 +113,6 @@ private:
     std::unique_ptr<FileWriter> _fileWriter;
 #endif
     ProtectedObj<ConsumersManager> _consumersManager;
-    absl::flat_hash_map<Consumer*, std::shared_ptr<ConsumerInfo>> _consumers;
     uint64_t _addedPacketsCount = 0ULL;
 };
 
@@ -449,7 +447,6 @@ std::shared_ptr<Translator::SourceStream> Translator::SourceStream::Create(const
 {
     std::shared_ptr<SourceStream> stream;
     if (endPointsFactory && rtpPacketsPlayer && output) {
-        MS_ASSERT(WebMCodecs::IsSupported(mime), "WebM not available for this MIME %s", mime.ToString().c_str());
         if (auto depacketizer = RtpDepacketizer::Create(mime, clockRate)) {
             auto serializer = std::make_unique<WebMSerializer>(mime);
             stream = std::make_shared<SourceStream>(clockRate, originalSsrc, payloadType,
@@ -504,9 +501,7 @@ void Translator::SourceStream::AddConsumer(Consumer* consumer)
 {
     if (consumer) {
         LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-        if (auto info = _consumersManager->AddConsumer(consumer)) {
-            _consumers[consumer] = std::move(info);
-        }
+        _consumersManager->AddConsumer(consumer);
     }
 }
 
@@ -522,42 +517,39 @@ void Translator::SourceStream::RemoveConsumer(Consumer* consumer)
 {
     if (consumer) {
         LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-        if (_consumersManager->RemoveConsumer(consumer)) {
-            _consumers.erase(consumer);
-        }
+        _consumersManager->RemoveConsumer(consumer);
     }
 }
 
-bool Translator::SourceStream::IsConnected(const Consumer* consumer) const
+bool Translator::SourceStream::IsConnected(Consumer* consumer) const
 {
     if (consumer) {
         LOCK_READ_PROTECTED_OBJ(_consumersManager);
-        const auto it = _consumers.find(consumer);
-        return it != _consumers.end() && it->second->IsConnected();
+        if (const auto info = _consumersManager->GetConsumer(consumer)) {
+            return info->IsConnected();
+        }
     }
     return false;
 }
 
-void Translator::SourceStream::SaveProducerRtpPacketInfo(const Consumer* consumer,
+void Translator::SourceStream::SaveProducerRtpPacketInfo(Consumer* consumer,
                                                          const RtpPacket* packet)
 {
     if (consumer && packet) {
         LOCK_READ_PROTECTED_OBJ(_consumersManager);
-        const auto it = _consumers.find(consumer);
-        if (it != _consumers.end()) {
-            it->second->SaveProducerRtpPacketInfo(packet);
+        if (const auto info = _consumersManager->GetConsumer(consumer)) {
+            info->SaveProducerRtpPacketInfo(packet);
         }
     }
 }
 
-void Translator::SourceStream::AlignProducerRtpPacketInfo(const Consumer* consumer,
+void Translator::SourceStream::AlignProducerRtpPacketInfo(Consumer* consumer,
                                                           RtpPacket* packet)
 {
     if (consumer && packet) {
         LOCK_READ_PROTECTED_OBJ(_consumersManager);
-        const auto it = _consumers.find(consumer);
-        if (it != _consumers.end()) {
-            it->second->AlignProducerRtpPacketInfo(packet);
+        if (const auto info = _consumersManager->GetConsumer(consumer)) {
+            info->AlignProducerRtpPacketInfo(packet);
         }
     }
 }
@@ -617,23 +609,11 @@ MediaSource* Translator::SourceStream::GetMediaSource() const
 }
 
 void Translator::SourceStream::OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet,
-                                      uint64_t mediaId, uint64_t mediaSourceId)
+                                      uint64_t /*mediaId*/, uint64_t mediaSourceId)
 {
     if (packet) {
-        LOCK_READ_PROTECTED_OBJ(_consumersManager);
-        if (!_consumers.empty()) {
-            std::shared_ptr<RTC::RtpPacket> sharedPacket;
-            for (auto it = _consumers.begin(); it != _consumers.end(); ++it) {
-                if (it->second->GetEndPointId() == mediaSourceId) {
-                    it->second->AlignTranslatedRtpPacketInfo(rtpTimestampOffset, packet);
-                    _output->AddPacket(packet);
-                }
-                else {
-                    // TODO: maybe has no sense
-                    packet->AddRejectedConsumer(it->first);
-                }
-            }
-        }
+        LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
+        _consumersManager->SendPacket(rtpTimestampOffset, mediaSourceId, packet, _output);
     }
 }
 
