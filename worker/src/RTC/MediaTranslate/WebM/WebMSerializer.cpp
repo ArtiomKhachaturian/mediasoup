@@ -1,6 +1,7 @@
 #define MS_CLASS "RTC::WebMSerializer"
 #include "RTC/MediaTranslate/WebM/WebMSerializer.hpp"
 #include "RTC/MediaTranslate/WebM/MkvBufferedWriter.hpp"
+#include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "Logger.hpp"
@@ -20,10 +21,11 @@ private:
     uint64_t _singleTrackNumber = 0ULL;
 };
 
-WebMSerializer::WebMSerializer(uint32_t ssrc, const RtpCodecMimeType& mime, const char* app)
-    : MediaFrameSerializer(ssrc, mime)
+WebMSerializer::WebMSerializer(const RtpCodecMimeType& mime, const char* app)
+    : MediaFrameSerializer(mime)
     , _app(app)
 {
+    MS_ASSERT(WebMCodecs::IsSupported(mime), "WebM not available for this MIME %s", mime.ToString().c_str());
 }
 
 WebMSerializer::~WebMSerializer()
@@ -88,7 +90,7 @@ bool WebMSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFrame)
             }
         }
         if (!ok) {
-            const auto frameInfo = GetMediaFrameInfoString(mediaFrame, GetSsrc());
+            const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
             MS_ERROR_STD("unable write frame to MKV data [%s]", frameInfo.c_str());
         }
     }
@@ -117,7 +119,6 @@ std::unique_ptr<WebMSerializer::Writer> WebMSerializer::CreateWriter(MediaSink* 
 {
     if (sink) {
         const auto& mime = GetMimeType();
-        const auto ssrc = GetSsrc();
         auto writer = std::make_unique<Writer>(sink, _app);
         if (writer->IsInitialized()) {
             uint64_t trackNumber = 0ULL;
@@ -136,18 +137,17 @@ std::unique_ptr<WebMSerializer::Writer> WebMSerializer::CreateWriter(MediaSink* 
                     writer->SetSingleTrackNumber(trackNumber);
                 }
                 else {
-                    MS_ERROR_STD("failed to set MKV codec for %s", GetStreamInfoString(mime, ssrc).c_str());
+                    MS_ERROR_STD("failed to set MKV codec for %s", GetStreamInfoString(mime).c_str());
                     writer.reset();
                 }
                 return writer;
             }
             else {
-                MS_ERROR_STD("failed to add MKV track for %s", GetStreamInfoString(mime, ssrc).c_str());
+                MS_ERROR_STD("failed to add MKV track for %s", GetStreamInfoString(mime).c_str());
             }
         }
         else {
-            MS_ERROR_STD("failed to initialize MKV writer for %s",
-                         GetStreamInfoString(mime, ssrc).c_str());
+            MS_ERROR_STD("failed to initialize MKV writer for %s", GetStreamInfoString(mime).c_str());
         }
     }
     return nullptr;

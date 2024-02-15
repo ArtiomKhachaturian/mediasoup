@@ -6,9 +6,8 @@
 namespace RTC
 {
 
-MediaFrameSerializer::MediaFrameSerializer(uint32_t ssrc, const RtpCodecMimeType& mime)
-    : _ssrc(ssrc)
-    , _mime(mime)
+MediaFrameSerializer::MediaFrameSerializer(const RtpCodecMimeType& mime)
+    : _mime(mime)
 {
 }
 

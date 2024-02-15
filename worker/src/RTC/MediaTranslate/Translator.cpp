@@ -46,7 +46,7 @@ class Translator::SourceStream : private RtpPacketsPlayerCallback,
                                  private MediaSink // receiver of translated audio packets
 {
 public:
-    SourceStream(uint32_t clockRate, uint8_t payloadType,
+    SourceStream(uint32_t clockRate, uint32_t originalSsrc, uint8_t payloadType,
                  std::unique_ptr<MediaFrameSerializer> serializer,
                  std::unique_ptr<RtpDepacketizer> depacketizer,
                  TranslatorEndPointFactory* endPointsFactory,
@@ -65,7 +65,7 @@ public:
     const RtpCodecMimeType& GetMime() const { return _depacketizer->GetMimeType(); }
     uint32_t GetClockRate() const { return _depacketizer->GetClockRate(); }
      uint8_t GetPayloadType() const { return _payloadType; }
-    uint32_t GetOriginalSsrc() const { return _serializer->GetSsrc(); }
+    uint32_t GetOriginalSsrc() const { return _originalSsrc; }
     uint64_t GetAddedPacketsCount() const { return _addedPacketsCount; }
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
     void IncreaseAddedPacketsCount() { ++_addedPacketsCount; }
@@ -101,6 +101,7 @@ private:
     //static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/producer_test.webm";
     static inline const char* _testFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_stereo_example.webm";
 #endif
+    const uint32_t _originalSsrc;
     const uint8_t _payloadType;
     const std::unique_ptr<MediaFrameSerializer> _serializer;
     const std::unique_ptr<RtpDepacketizer> _depacketizer;
@@ -393,14 +394,16 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint(bool firstEndPoin
 #endif
 }
 
-Translator::SourceStream::SourceStream(uint32_t clockRate, uint8_t payloadType,
+Translator::SourceStream::SourceStream(uint32_t clockRate, uint32_t originalSsrc,
+                                       uint8_t payloadType,
                                        std::unique_ptr<MediaFrameSerializer> serializer,
                                        std::unique_ptr<RtpDepacketizer> depacketizer,
                                        TranslatorEndPointFactory* endPointsFactory,
                                        RtpPacketsPlayer* rtpPacketsPlayer,
                                        RtpPacketsCollector* output,
                                        const std::string& producerId)
-    : _payloadType(payloadType)
+    : _originalSsrc(originalSsrc)
+    , _payloadType(payloadType)
     , _serializer(std::move(serializer))
     , _depacketizer(std::move(depacketizer))
     , _rtpPacketsPlayer(rtpPacketsPlayer)
@@ -409,7 +412,7 @@ Translator::SourceStream::SourceStream(uint32_t clockRate, uint8_t payloadType,
     , _fileReader(CreateFileReader())
 #endif
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-    , _fileWriter(CreateFileWriter(_serializer->GetSsrc(), producerId, _serializer.get()))
+    , _fileWriter(CreateFileWriter(GetOriginalSsrc(), producerId, _serializer.get()))
 #endif
     , _consumersManager(endPointsFactory, GetMediaSource() , GetMediaReceiver())
 {
@@ -432,7 +435,7 @@ Translator::SourceStream::~SourceStream()
         _serializer->RemoveTestSink();
     }
 #endif
-    _rtpPacketsPlayer->RemoveStream(_serializer->GetSsrc());
+    _rtpPacketsPlayer->RemoveStream(GetOriginalSsrc());
 }
 
 std::shared_ptr<Translator::SourceStream> Translator::SourceStream::Create(const RtpCodecMimeType& mime,
@@ -448,8 +451,8 @@ std::shared_ptr<Translator::SourceStream> Translator::SourceStream::Create(const
     if (endPointsFactory && rtpPacketsPlayer && output) {
         MS_ASSERT(WebMCodecs::IsSupported(mime), "WebM not available for this MIME %s", mime.ToString().c_str());
         if (auto depacketizer = RtpDepacketizer::Create(mime, clockRate)) {
-            auto serializer = std::make_unique<WebMSerializer>(originalSsrc, mime);
-            stream = std::make_shared<SourceStream>(clockRate, payloadType,
+            auto serializer = std::make_unique<WebMSerializer>(mime);
+            stream = std::make_shared<SourceStream>(clockRate, originalSsrc, payloadType,
                                                     std::move(serializer),
                                                     std::move(depacketizer),
                                                     endPointsFactory,
@@ -639,7 +642,7 @@ void Translator::SourceStream::WriteMediaPayload(const MediaObject& sender,
 {
     if (buffer) {
         MS_ERROR_STD("Received translation #%llu", buffer->GetId());
-        _rtpPacketsPlayer->Play(_serializer->GetSsrc(), sender.GetId(), buffer);
+        _rtpPacketsPlayer->Play(GetOriginalSsrc(), sender.GetId(), buffer);
     }
 }
 

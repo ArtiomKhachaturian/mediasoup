@@ -24,15 +24,13 @@ public:
     virtual bool Push(const std::shared_ptr<const MediaFrame>& mediaFrame) = 0;
     virtual bool AddTestSink(MediaSink* sink) { return false; }
     virtual bool RemoveTestSink() { return false; }
-    uint32_t GetSsrc() const { return _ssrc; }
     const RtpCodecMimeType& GetMimeType() const { return _mime; }
 protected:
-    MediaFrameSerializer(uint32_t ssrc, const RtpCodecMimeType& mime);
+    MediaFrameSerializer(const RtpCodecMimeType& mime);
     bool IsAccepted(const std::shared_ptr<const MediaFrame>& mediaFrame) const;
     // returns of actual offset from beginning of serialization (starts from zero)
     const webrtc::TimeDelta& UpdateTimeOffset(const webrtc::Timestamp& timestamp);
 private:
-    const uint32_t _ssrc;
     const RtpCodecMimeType _mime;
     webrtc::Timestamp _lastTimestamp = webrtc::Timestamp::Zero();
     webrtc::TimeDelta _offset = webrtc::TimeDelta::Zero();

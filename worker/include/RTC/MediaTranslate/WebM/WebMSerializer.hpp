@@ -11,7 +11,7 @@ class WebMSerializer : public MediaFrameSerializer
 {
     class Writer;
 public:
-    WebMSerializer(uint32_t ssrc, const RtpCodecMimeType& mime, const char* app = "SpeakShiftSFU");
+    WebMSerializer(const RtpCodecMimeType& mime, const char* app = "SpeakShiftSFU");
     ~WebMSerializer() final;
     // impl. of MediaSource
     bool AddSink(MediaSink* sink) final;
