@@ -143,19 +143,30 @@ void ConsumersManager::SendPacket(uint32_t rtpTimestampOffset, uint64_t mediaId,
                                   uint64_t endPointId, RtpPacket* packet,
                                   RtpPacketsCollector* output)
 {
-    if (packet && output) {
-        std::list<std::shared_ptr<ConsumerInfoImpl>> accepted;
-        for (auto it = _consumersInfo.begin(); it != _consumersInfo.end(); ++it) {
-            if (it->second->GetEndPointId() == endPointId) {
-                accepted.push_back(it->second);
+    if (packet) {
+        if (output) {
+            std::list<std::shared_ptr<ConsumerInfoImpl>> accepted;
+            for (auto it = _consumersInfo.begin(); it != _consumersInfo.end(); ++it) {
+                if (it->second->GetEndPointId() == endPointId) {
+                    accepted.push_back(it->second);
+                }
+                else {
+                    packet->AddRejectedConsumer(it->first);
+                }
             }
-            else {
-                packet->AddRejectedConsumer(it->first);
+            if (!accepted.empty()) {
+                const auto needsCopy = accepted.size() > 1U;
+                for (const auto& consumerInfo : accepted) {
+                    const auto consumerPacket = needsCopy ? packet->Clone() : packet;
+                    consumerInfo->SendPacket(rtpTimestampOffset, mediaId, consumerPacket, output);
+                }
+                if (needsCopy) {
+                    delete packet;
+                }
+                packet = nullptr;
             }
         }
-        for (const auto& consumerInfo : accepted) {
-            consumerInfo->SendPacket(rtpTimestampOffset, mediaId, packet, output);
-        }
+        delete packet;
     }
 }
 
@@ -275,15 +286,19 @@ void ConsumersManager::ConsumerInfoImpl::SendPacket(uint32_t rtpTimestampOffset,
                                                     RtpPacket* packet,
                                                     RtpPacketsCollector* output)
 {
-    if (packet && output) {
-        const auto it = _mediaTimelines.find(mediaId);
-        if (it != _mediaTimelines.end()) {
-            packet->SetTimestamp(_producersTimeline.GetNextTimestamp() + rtpTimestampOffset);
-            packet->SetSequenceNumber(it->second.GetNextSeqNumber());
-            it->second.SetLastSeqNumber(packet->GetSequenceNumber());
-            it->second.SetLastTimestamp(packet->GetTimestamp());
-            output->AddPacket(packet);
+    if (packet) {
+        if (output) {
+            const auto it = _mediaTimelines.find(mediaId);
+            if (it != _mediaTimelines.end()) {
+                packet->SetTimestamp(_producersTimeline.GetNextTimestamp() + rtpTimestampOffset);
+                packet->SetSequenceNumber(it->second.GetNextSeqNumber());
+                it->second.SetLastSeqNumber(packet->GetSequenceNumber());
+                it->second.SetLastTimestamp(packet->GetTimestamp());
+                output->AddPacket(packet);
+                packet = nullptr;
+            }
         }
+        delete packet;
     }
 }
 
