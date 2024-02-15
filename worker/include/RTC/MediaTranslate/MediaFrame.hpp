@@ -1,7 +1,7 @@
 #pragma once
 
 #include "RTC/RtpDictionaries.hpp"
-#include "api/units/timestamp.h"
+#include "RTC/Timestamp.hpp"
 #include <memory>
 #include <vector>
 
@@ -31,11 +31,10 @@ public:
     bool IsAudio() const { return GetMimeType().IsAudioCodec(); }
     void SetKeyFrame(bool keyFrame);
     bool IsKeyFrame() const { return _keyFrame; }
-    uint32_t GetClockRate() const { return _clockRate; }
-    webrtc::Timestamp GetTimestamp() const;
-    void SetTimestamp(const webrtc::Timestamp& timestamp);
-    uint32_t GetRtpTimestamp() const { return _rtpTimestamp; }
-    void SetRtpTimestamp(uint32_t rtpTimestamp);
+    uint32_t GetClockRate() const { return GetTimestamp().GetClockRate(); }
+    const Timestamp& GetTimestamp() const { return _timestamp; }
+    void SetTimestamp(const webrtc::Timestamp& time);
+    void SetTimestamp(uint32_t rtpTime);
     void SetMediaConfig(const std::shared_ptr<const MediaFrameConfig>& config);
     // audio configuration
     void SetAudioConfig(const std::shared_ptr<const AudioFrameConfig>& config);
@@ -45,10 +44,9 @@ public:
     std::shared_ptr<const VideoFrameConfig> GetVideoConfig() const;
 private:
 	const RtpCodecMimeType _mimeType;
-    const uint32_t _clockRate;
     const std::shared_ptr<SegmentsMemoryBuffer> _payload;
     bool _keyFrame = false;
-    uint32_t _rtpTimestamp = 0U;
+    Timestamp _timestamp;
     std::shared_ptr<const MediaFrameConfig> _config;
 };
 

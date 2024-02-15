@@ -124,6 +124,7 @@ common_sources = [
   'src/RTC/SvcConsumer.cpp',
   'src/RTC/TcpConnection.cpp',
   'src/RTC/TcpServer.cpp',
+  'src/RTC/Timestamp.cpp',
   'src/RTC/Transport.cpp',
   'src/RTC/TransportCongestionControlClient.cpp',
   'src/RTC/TransportCongestionControlServer.cpp',

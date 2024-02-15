@@ -24,11 +24,10 @@ namespace RTC
 
 MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate)
     : _mimeType(mimeType)
-    , _clockRate(clockRate)
+    , _timestamp(clockRate)
     , _payload(std::make_shared<SegmentsMemoryBuffer>())
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
-    MS_ASSERT(_clockRate, "clock rate must be greater than zero");
 }
 
 MediaFrame::~MediaFrame()
@@ -66,19 +65,14 @@ void MediaFrame::SetKeyFrame(bool keyFrame)
     _keyFrame = keyFrame;
 }
 
-void MediaFrame::SetTimestamp(const webrtc::Timestamp& timestamp)
+void MediaFrame::SetTimestamp(const webrtc::Timestamp& time)
 {
-    _rtpTimestamp = ValueFromMicro<uint32_t>(timestamp.us() * GetClockRate());
+    _timestamp.SetTime(time);
 }
 
-webrtc::Timestamp MediaFrame::GetTimestamp() const
+void MediaFrame::SetTimestamp(uint32_t rtpTime)
 {
-    return webrtc::Timestamp::us(ValueToMicro(GetRtpTimestamp()) / GetClockRate());
-}
-
-void MediaFrame::SetRtpTimestamp(uint32_t rtpTimestamp)
-{
-    _rtpTimestamp = rtpTimestamp;
+    _timestamp.SetRtpTime(rtpTime);
 }
 
 void MediaFrame::SetMediaConfig(const std::shared_ptr<const MediaFrameConfig>& config)

@@ -91,7 +91,8 @@ private:
     MediaSource* GetMediaSource() const;
     MediaSink* GetMediaReceiver() { return this; }
     // impl. of RtpPacketsPlayerCallback
-    void OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet, uint64_t mediaId, uint64_t mediaSourceId) final;
+    void OnPlay(const Timestamp& timestampOffset, RtpPacket* packet, uint64_t mediaId,
+                uint64_t mediaSourceId) final;
     // impl. of MediaSink
     void WriteMediaPayload(const MediaObject& sender, const std::shared_ptr<MemoryBuffer>& buffer) final;
 private:
@@ -327,18 +328,21 @@ void Translator::PostProcessAfterAdding(RtpPacket* packet, bool added,
     if (packet && stream) {
         LOCK_READ_PROTECTED_OBJ(_consumers);
         if (!_consumers->empty()) {
-            const auto ssrc = stream->GetOriginalSsrc();
-            const auto initial = added && 2UL == stream->GetAddedPacketsCount();
+            const auto playing = _rtpPacketsPlayer->IsPlaying(stream->GetOriginalSsrc());
+            const auto saveInfo = !added || stream->GetAddedPacketsCount() < 2UL;
             for (const auto consumer : _consumers.ConstRef()) {
-                const auto rejected = added && (stream->IsConnected(consumer) || _rtpPacketsPlayer->IsPlaying(ssrc));
-                if (initial) {
-                    stream->SaveProducerRtpPacketInfo(consumer, packet);
-                }
-                if (rejected) {
+                const auto reject = added && (playing || stream->IsConnected(consumer));
+                if (reject) {
                     packet->AddRejectedConsumer(consumer);
                 }
-                else {
-                    stream->AlignProducerRtpPacketInfo(consumer, packet);
+                if (saveInfo || !reject) {
+#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
+                    if (!_instanceIndex) {
+
+                        MS_ERROR_STD("Saved producer packet: ts %u, sn %u", packet->GetTimestamp(), packet->GetSequenceNumber());
+                    }
+#endif
+                    stream->SaveProducerRtpPacketInfo(consumer, packet);
                 }
             }
         }
@@ -608,12 +612,12 @@ MediaSource* Translator::SourceStream::GetMediaSource() const
     return _serializer.get();
 }
 
-void Translator::SourceStream::OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet,
+void Translator::SourceStream::OnPlay(const Timestamp& timestampOffset, RtpPacket* packet,
                                       uint64_t /*mediaId*/, uint64_t mediaSourceId)
 {
     if (packet) {
         LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-        _consumersManager->SendPacket(rtpTimestampOffset, mediaSourceId, packet, _output);
+        _consumersManager->SendPacket(timestampOffset.GetRtpTime(), mediaSourceId, packet, _output);
     }
 }
 

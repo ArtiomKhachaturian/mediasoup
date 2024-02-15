@@ -27,6 +27,8 @@ public:
     uint64_t GetEndPointId() const final;
     bool IsConnected() const final;
 private:
+    void UpdateLastRtpTimestamp(uint32_t lastRtpTimestamp);
+private:
     std::atomic<size_t> _languageVoiceKey = 0U;
     ProtectedWeakPtr<const TranslatorEndPoint> _endPointRef;
     uint32_t _lastRtpTimestamp = 0U;
@@ -137,6 +139,7 @@ void ConsumersManager::SendPacket(uint32_t rtpTimestampOffset, uint64_t endPoint
         for (auto it = _consumersInfo.begin(); it != _consumersInfo.end(); ++it) {
             if (it->second->GetEndPointId() == endPointId) {
                 it->second->AlignTranslatedRtpPacketInfo(rtpTimestampOffset, packet);
+                MS_ERROR_STD("Translated packet: ts %u, sn %u", packet->GetTimestamp(), packet->GetSequenceNumber());
                 output->AddPacket(packet);
                 break;
             }
@@ -246,15 +249,8 @@ void ConsumersManager::ConsumerInfoImpl::ResetEndPointRef()
 void ConsumersManager::ConsumerInfoImpl::SaveProducerRtpPacketInfo(const RtpPacket* packet)
 {
     if (packet) {
-        const auto timestamp = packet->GetTimestamp();
-        if (timestamp != _lastRtpTimestamp) {
-            if (_lastRtpTimestamp && timestamp > _lastRtpTimestamp) {
-                _rtpTimestampDelta = _lastRtpTimestamp - timestamp;
-                //MS_ERROR_STD("_rtpTimestampDelta = %u", _rtpTimestampDelta);
-            }
-            _lastRtpTimestamp = timestamp;
-        }
         _lastRtpSeqNumber = packet->GetSequenceNumber();
+        UpdateLastRtpTimestamp(packet->GetTimestamp());
     }
 }
 
@@ -269,14 +265,16 @@ void ConsumersManager::ConsumerInfoImpl::AlignTranslatedRtpPacketInfo(uint32_t r
                                                                       RtpPacket* packet)
 {
     if (packet) {
-        auto nextTimestamp = _lastRtpTimestamp;
-        if (rtpTimestampOffset) {
-            _rtpTimestampDelta = rtpTimestampOffset;
+        auto timestamp = _lastRtpTimestamp + std::max(1000U, _rtpTimestampDelta);
+        /*if (rtpTimestampOffset) {
+            timestamp += rtpTimestampOffset;
         }
-        nextTimestamp += _rtpTimestampDelta;
-        packet->SetTimestamp(nextTimestamp);
+        else {
+            timestamp += _rtpTimestampDelta;
+        }*/
+        packet->SetTimestamp(timestamp);
         packet->SetSequenceNumber(++_lastRtpSeqNumber);
-        _lastRtpTimestamp = nextTimestamp;
+        UpdateLastRtpTimestamp(timestamp);
     }
 }
 
@@ -294,6 +292,16 @@ bool ConsumersManager::ConsumerInfoImpl::IsConnected() const
     LOCK_READ_PROTECTED_OBJ(_endPointRef);
     const auto endPoint = _endPointRef->lock();
     return endPoint && endPoint->IsConnected();
+}
+
+void ConsumersManager::ConsumerInfoImpl::UpdateLastRtpTimestamp(uint32_t lastRtpTimestamp)
+{
+    if (_lastRtpTimestamp != lastRtpTimestamp) {
+        if (_lastRtpTimestamp && lastRtpTimestamp > _lastRtpTimestamp) {
+            _rtpTimestampDelta =  lastRtpTimestamp - _lastRtpTimestamp;
+        }
+        _lastRtpTimestamp = lastRtpTimestamp;
+    }
 }
 
 /*void ConsumersManager::ConsumerInfo::SetLastRtpPacketInfo(const RtpPacket* packet)

@@ -19,7 +19,7 @@ public:
     bool HasFragments() const;
     // impl. of RtpPacketsPlayerCallback
     void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
-    void OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet, uint64_t mediaId,
+    void OnPlay(const Timestamp& timestampOffset, RtpPacket* packet, uint64_t mediaId,
                 uint64_t mediaSourceId) final;
     void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
 private:

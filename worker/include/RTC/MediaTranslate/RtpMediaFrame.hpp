@@ -14,6 +14,8 @@ public:
     RtpMediaFrame(bool audio, RtpCodecMimeType::Subtype codecType, uint32_t clockRate);
     RtpMediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate);
     ~RtpMediaFrame() final;
+    uint32_t GetRtpTimestamp() const { return GetTimestamp().GetRtpTime(); }
+    void SetRtpTimestamp(uint32_t rtpTimestamp) { SetTimestamp(rtpTimestamp); }
     // packets management
     // add-methods return false if input arguments is incorrect: null or empty packet/payload
     bool AddPacket(const RtpPacket* packet, std::vector<uint8_t> payload);

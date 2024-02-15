@@ -581,6 +581,13 @@ namespace RTC
 		}
 
 		const int64_t diffTs = newestTimestamp - timestamp;
+        
+        
+        const auto tooOld = static_cast<uint32_t>(diffTs * 1000 / this->clockRate) > this->maxRetransmissionDelayMs;
+        if (tooOld && buffer.size() == 1) {
+            const auto diffTime = static_cast<uint32_t>(diffTs * 1000 / this->clockRate);
+            //MS_ERROR_STD("Too old diff time (ms) %u", diffTime);
+        }
 
 		return static_cast<uint32_t>(diffTs * 1000 / this->clockRate) > this->maxRetransmissionDelayMs;
 	}

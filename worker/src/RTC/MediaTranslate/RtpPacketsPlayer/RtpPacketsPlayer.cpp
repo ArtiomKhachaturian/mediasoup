@@ -7,6 +7,7 @@
 #include "RTC/MediaTranslate/MemoryBuffer.hpp"
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
 #include "RTC/RtpPacket.hpp"
+#include "RTC/Timestamp.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
 #include "UVAsyncHandle.hpp"
 #include "ProtectedObj.hpp"
@@ -48,13 +49,13 @@ private:
 class QueuedRtpPacketTask : public QueuedTask
 {
 public:
-    QueuedRtpPacketTask(uint32_t rtpTimestampOffset, RTC::RtpPacket* packet,
+    QueuedRtpPacketTask(const RTC::Timestamp& timestampOffset, RTC::RtpPacket* packet,
                         uint64_t mediaId, uint64_t mediaSourceId);
     ~QueuedRtpPacketTask() final;
     // impl. of QueuedTask
     void Run(uint32_t ssrc, RTC::RtpPacketsPlayerCallback* callback) final;
 private:
-    const uint32_t _rtpTimestampOffset;
+    const RTC::Timestamp _timestampOffset;
     RTC::RtpPacket* _packet;
 };
 
@@ -78,7 +79,7 @@ public:
 private:
     // impl. of RtpPacketsPlayerCallback
     void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
-    void OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet, uint64_t mediaId,
+    void OnPlay(const Timestamp& timestampOffset, RtpPacket* packet, uint64_t mediaId,
                 uint64_t mediaSourceId) final;
     void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
 private:
@@ -210,11 +211,12 @@ void RtpPacketsPlayer::StreamWrapper::OnPlayStarted(uint32_t ssrc, uint64_t medi
     }
 }
 
-void RtpPacketsPlayer::StreamWrapper::OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet,
-                                             uint64_t mediaId, uint64_t mediaSourceId)
+void RtpPacketsPlayer::StreamWrapper::OnPlay(const Timestamp& timestampOffset,
+                                             RtpPacket* packet, uint64_t mediaId,
+                                             uint64_t mediaSourceId)
 {
     if (packet && HasCallback()) {
-        EnqueTask(std::make_unique<QueuedRtpPacketTask>(rtpTimestampOffset, packet,
+        EnqueTask(std::make_unique<QueuedRtpPacketTask>(timestampOffset, packet,
                                                         mediaId, mediaSourceId));
     }
 }
@@ -296,10 +298,11 @@ void QueuedStartFinishTask::Run(uint32_t ssrc, RTC::RtpPacketsPlayerCallback* ca
     }
 }
 
-QueuedRtpPacketTask::QueuedRtpPacketTask(uint32_t rtpTimestampOffset, RTC::RtpPacket* packet,
+QueuedRtpPacketTask::QueuedRtpPacketTask(const RTC::Timestamp& timestampOffset,
+                                         RTC::RtpPacket* packet,
                                          uint64_t mediaId, uint64_t mediaSourceId)
     : QueuedTask(mediaId, mediaSourceId)
-    , _rtpTimestampOffset(rtpTimestampOffset)
+    , _timestampOffset(timestampOffset)
     , _packet(packet)
 {
 }
@@ -312,7 +315,7 @@ QueuedRtpPacketTask::~QueuedRtpPacketTask()
 void QueuedRtpPacketTask::Run(uint32_t ssrc, RTC::RtpPacketsPlayerCallback* callback)
 {
     if (callback && _packet) {
-        callback->OnPlay(_rtpTimestampOffset, _packet, GetMediaId(), GetMediaSourceId());
+        callback->OnPlay(_timestampOffset, _packet, GetMediaId(), GetMediaSourceId());
         _packet = nullptr;
     }
 }

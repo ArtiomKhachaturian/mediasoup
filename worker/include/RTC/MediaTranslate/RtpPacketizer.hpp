@@ -11,7 +11,8 @@ class RtpPacketizer
 {
 public:
     virtual ~RtpPacketizer() = default;
-    virtual RtpPacket* AddFrame(const std::shared_ptr<const MediaFrame>& frame) = 0;
+    virtual RtpPacket* AddFrame(const std::shared_ptr<const MediaFrame>& frame,
+                                bool setPacketTimestamp = false) = 0;
 protected:
     RtpPacketizer() = default;
 };

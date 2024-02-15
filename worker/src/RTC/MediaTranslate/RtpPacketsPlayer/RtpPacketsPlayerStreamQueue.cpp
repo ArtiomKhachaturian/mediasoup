@@ -55,11 +55,11 @@ void RtpPacketsPlayerStreamQueue::OnPlayStarted(uint32_t ssrc, uint64_t mediaId,
     InvokeCallbackMethod(&RtpPacketsPlayerCallback::OnPlayStarted, ssrc, mediaId, mediaSourceId);
 }
 
-void RtpPacketsPlayerStreamQueue::OnPlay(uint32_t rtpTimestampOffset, RtpPacket* packet,
+void RtpPacketsPlayerStreamQueue::OnPlay(const Timestamp& timestampOffset, RtpPacket* packet,
                                          uint64_t mediaId, uint64_t mediaSourceId)
 {
     if (packet && !InvokeCallbackMethod(&RtpPacketsPlayerCallback::OnPlay,
-                                        rtpTimestampOffset, packet,
+                                        timestampOffset, packet,
                                         mediaId, mediaSourceId)) {
         delete packet;
     }
