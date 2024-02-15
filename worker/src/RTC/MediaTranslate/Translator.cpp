@@ -76,7 +76,6 @@ public:
     void RemoveConsumer(Consumer* consumer);
     bool IsConnected(Consumer* consumer) const;
     void SaveProducerRtpPacketInfo(Consumer* consumer, const RtpPacket* packet);
-    void AlignProducerRtpPacketInfo(Consumer* consumer, RtpPacket* packet);
 private:
 #ifdef READ_PRODUCER_RECV_FROM_FILE
     static std::unique_ptr<FileReader> CreateFileReader();
@@ -91,8 +90,10 @@ private:
     MediaSource* GetMediaSource() const;
     MediaSink* GetMediaReceiver() { return this; }
     // impl. of RtpPacketsPlayerCallback
-    void OnPlay(const Timestamp& timestampOffset, RtpPacket* packet, uint64_t mediaId,
-                uint64_t mediaSourceId) final;
+    void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId);
+    void OnPlay(const Timestamp& timestampOffset, RtpPacket* packet,
+                uint64_t mediaId, uint64_t mediaSourceId) final;
+    void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
     // impl. of MediaSink
     void WriteMediaPayload(const MediaObject& sender, const std::shared_ptr<MemoryBuffer>& buffer) final;
 private:
@@ -336,12 +337,6 @@ void Translator::PostProcessAfterAdding(RtpPacket* packet, bool added,
                     packet->AddRejectedConsumer(consumer);
                 }
                 if (saveInfo || !reject) {
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-                    if (!_instanceIndex) {
-
-                        MS_ERROR_STD("Saved producer packet: ts %u, sn %u", packet->GetTimestamp(), packet->GetSequenceNumber());
-                    }
-#endif
                     stream->SaveProducerRtpPacketInfo(consumer, packet);
                 }
             }
@@ -547,17 +542,6 @@ void Translator::SourceStream::SaveProducerRtpPacketInfo(Consumer* consumer,
     }
 }
 
-void Translator::SourceStream::AlignProducerRtpPacketInfo(Consumer* consumer,
-                                                          RtpPacket* packet)
-{
-    if (consumer && packet) {
-        LOCK_READ_PROTECTED_OBJ(_consumersManager);
-        if (const auto info = _consumersManager->GetConsumer(consumer)) {
-            info->AlignProducerRtpPacketInfo(packet);
-        }
-    }
-}
-
 #ifdef READ_PRODUCER_RECV_FROM_FILE
 std::unique_ptr<FileReader> Translator::SourceStream::CreateFileReader()
 {
@@ -612,13 +596,30 @@ MediaSource* Translator::SourceStream::GetMediaSource() const
     return _serializer.get();
 }
 
+void Translator::SourceStream::OnPlayStarted(uint32_t ssrc, uint64_t mediaId,
+                                             uint64_t mediaSourceId)
+{
+    RtpPacketsPlayerCallback::OnPlayStarted(ssrc, mediaId, mediaSourceId);
+    LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
+    _consumersManager->BeginPacketsSending(mediaId, mediaSourceId);
+}
+
 void Translator::SourceStream::OnPlay(const Timestamp& timestampOffset, RtpPacket* packet,
-                                      uint64_t /*mediaId*/, uint64_t mediaSourceId)
+                                      uint64_t mediaId, uint64_t mediaSourceId)
 {
     if (packet) {
+        const auto rtpOffset = timestampOffset.GetRtpTime();
         LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-        _consumersManager->SendPacket(timestampOffset.GetRtpTime(), mediaSourceId, packet, _output);
+        _consumersManager->SendPacket(rtpOffset, mediaId, mediaSourceId, packet, _output);
     }
+}
+
+void Translator::SourceStream::OnPlayFinished(uint32_t ssrc, uint64_t mediaId,
+                                              uint64_t mediaSourceId)
+{
+    RtpPacketsPlayerCallback::OnPlayFinished(ssrc, mediaId, mediaSourceId);
+    LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
+    _consumersManager->EndPacketsSending(mediaId, mediaSourceId);
 }
 
 void Translator::SourceStream::WriteMediaPayload(const MediaObject& sender,

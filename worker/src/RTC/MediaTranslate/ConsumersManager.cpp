@@ -3,6 +3,7 @@
 #include "RTC/MediaTranslate/ConsumerInfo.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointFactory.hpp"
+#include "RTC/MediaTranslate/RtpPacketsTimeline.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/Consumer.hpp"
 #include "ProtectedObj.hpp"
@@ -20,20 +21,19 @@ public:
     void SetLanguageVoiceKey(size_t languageVoiceKey);
     void SetEndPointRef(const std::weak_ptr<const TranslatorEndPoint>& endPointRef);
     void ResetEndPointRef();
+    void BeginPacketsSending(uint64_t mediaId);
+    void SendPacket(uint32_t rtpTimestampOffset, uint64_t mediaId,
+                    RtpPacket* packet, RtpPacketsCollector* output);
+    void EndPacketsSending(uint64_t mediaId);
     // impl. of ConsumerInfo
     void SaveProducerRtpPacketInfo(const RtpPacket* packet) final;
-    void AlignProducerRtpPacketInfo(RtpPacket* packet) final;
-    void AlignTranslatedRtpPacketInfo(uint32_t rtpTimestampOffset, RtpPacket* packet) final;
     uint64_t GetEndPointId() const final;
     bool IsConnected() const final;
 private:
-    void UpdateLastRtpTimestamp(uint32_t lastRtpTimestamp);
-private:
     std::atomic<size_t> _languageVoiceKey = 0U;
     ProtectedWeakPtr<const TranslatorEndPoint> _endPointRef;
-    uint32_t _lastRtpTimestamp = 0U;
-    uint32_t _rtpTimestampDelta = 0U;
-    uint16_t _lastRtpSeqNumber = 0U;
+    RtpPacketsTimeline _producersTimeline;
+    absl::flat_hash_map<uint64_t, RtpPacketsTimeline> _mediaTimelines;
 };
 
 ConsumersManager::ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
@@ -130,23 +130,40 @@ bool ConsumersManager::RemoveConsumer(Consumer* consumer)
     return false;
 }
 
-void ConsumersManager::SendPacket(uint32_t rtpTimestampOffset, uint64_t endPointId,
-                                  RtpPacket* packet,
+void ConsumersManager::BeginPacketsSending(uint64_t mediaId, uint64_t endPointId)
+{
+    for (auto it = _consumersInfo.begin(); it != _consumersInfo.end(); ++it) {
+        if (it->second->GetEndPointId() == endPointId) {
+            it->second->BeginPacketsSending(mediaId);
+        }
+    }
+}
+
+void ConsumersManager::SendPacket(uint32_t rtpTimestampOffset, uint64_t mediaId,
+                                  uint64_t endPointId, RtpPacket* packet,
                                   RtpPacketsCollector* output)
 {
     if (packet && output) {
-        std::shared_ptr<RTC::RtpPacket> sharedPacket;
+        std::list<std::shared_ptr<ConsumerInfoImpl>> accepted;
         for (auto it = _consumersInfo.begin(); it != _consumersInfo.end(); ++it) {
             if (it->second->GetEndPointId() == endPointId) {
-                it->second->AlignTranslatedRtpPacketInfo(rtpTimestampOffset, packet);
-                MS_ERROR_STD("Translated packet: ts %u, sn %u", packet->GetTimestamp(), packet->GetSequenceNumber());
-                output->AddPacket(packet);
-                break;
+                accepted.push_back(it->second);
             }
             else {
-                // TODO: maybe has no sense
                 packet->AddRejectedConsumer(it->first);
             }
+        }
+        for (const auto& consumerInfo : accepted) {
+            consumerInfo->SendPacket(rtpTimestampOffset, mediaId, packet, output);
+        }
+    }
+}
+
+void ConsumersManager::EndPacketsSending(uint64_t mediaId, uint64_t endPointId)
+{
+    for (auto it = _consumersInfo.begin(); it != _consumersInfo.end(); ++it) {
+        if (it->second->GetEndPointId() == endPointId) {
+            it->second->EndPacketsSending(mediaId);
         }
     }
 }
@@ -246,36 +263,47 @@ void ConsumersManager::ConsumerInfoImpl::ResetEndPointRef()
     SetEndPointRef(std::weak_ptr<const TranslatorEndPoint>());
 }
 
+void ConsumersManager::ConsumerInfoImpl::BeginPacketsSending(uint64_t mediaId)
+{
+    if (!_mediaTimelines.count(mediaId)) {
+        _mediaTimelines[mediaId] = _producersTimeline;
+    }
+}
+
+void ConsumersManager::ConsumerInfoImpl::SendPacket(uint32_t rtpTimestampOffset,
+                                                    uint64_t mediaId,
+                                                    RtpPacket* packet,
+                                                    RtpPacketsCollector* output)
+{
+    if (packet && output) {
+        const auto it = _mediaTimelines.find(mediaId);
+        if (it != _mediaTimelines.end()) {
+            packet->SetTimestamp(_producersTimeline.GetNextTimestamp() + rtpTimestampOffset);
+            packet->SetSequenceNumber(it->second.GetNextSeqNumber());
+            it->second.SetLastSeqNumber(packet->GetSequenceNumber());
+            it->second.SetLastTimestamp(packet->GetTimestamp());
+            output->AddPacket(packet);
+        }
+    }
+}
+
+void ConsumersManager::ConsumerInfoImpl::EndPacketsSending(uint64_t mediaId)
+{
+    const auto it = _mediaTimelines.find(mediaId);
+    if (it != _mediaTimelines.end()) {
+        for (auto ito = _mediaTimelines.begin(); ito != _mediaTimelines.end(); ++ito) {
+            if (ito != it) {
+                ito->second = it->second;
+            }
+        }
+        _producersTimeline = it->second;
+        _mediaTimelines.erase(it);
+    }
+}
+
 void ConsumersManager::ConsumerInfoImpl::SaveProducerRtpPacketInfo(const RtpPacket* packet)
 {
-    if (packet) {
-        _lastRtpSeqNumber = packet->GetSequenceNumber();
-        UpdateLastRtpTimestamp(packet->GetTimestamp());
-    }
-}
-
-void ConsumersManager::ConsumerInfoImpl::AlignProducerRtpPacketInfo(RtpPacket* packet)
-{
-    if (packet) {
-        
-    }
-}
-
-void ConsumersManager::ConsumerInfoImpl::AlignTranslatedRtpPacketInfo(uint32_t rtpTimestampOffset,
-                                                                      RtpPacket* packet)
-{
-    if (packet) {
-        auto timestamp = _lastRtpTimestamp + std::max(1000U, _rtpTimestampDelta);
-        /*if (rtpTimestampOffset) {
-            timestamp += rtpTimestampOffset;
-        }
-        else {
-            timestamp += _rtpTimestampDelta;
-        }*/
-        packet->SetTimestamp(timestamp);
-        packet->SetSequenceNumber(++_lastRtpSeqNumber);
-        UpdateLastRtpTimestamp(timestamp);
-    }
+    _producersTimeline.CopyPacketInfoFrom(packet);
 }
 
 uint64_t ConsumersManager::ConsumerInfoImpl::GetEndPointId() const
@@ -293,30 +321,5 @@ bool ConsumersManager::ConsumerInfoImpl::IsConnected() const
     const auto endPoint = _endPointRef->lock();
     return endPoint && endPoint->IsConnected();
 }
-
-void ConsumersManager::ConsumerInfoImpl::UpdateLastRtpTimestamp(uint32_t lastRtpTimestamp)
-{
-    if (_lastRtpTimestamp != lastRtpTimestamp) {
-        if (_lastRtpTimestamp && lastRtpTimestamp > _lastRtpTimestamp) {
-            _rtpTimestampDelta =  lastRtpTimestamp - _lastRtpTimestamp;
-        }
-        _lastRtpTimestamp = lastRtpTimestamp;
-    }
-}
-
-/*void ConsumersManager::ConsumerInfo::SetLastRtpPacketInfo(const RtpPacket* packet)
-{
-    if (packet) {
-        const auto timestamp = packet->GetTimestamp();
-        if (timestamp != _lastRtpTimestamp) {
-            if (_lastRtpTimestamp && timestamp > _lastRtpTimestamp) {
-                _rtpTimestampDelta = _lastRtpTimestamp - timestamp;
-                //MS_ERROR_STD("_rtpTimestampDelta = %u", _rtpTimestampDelta);
-            }
-            _lastRtpTimestamp = timestamp;
-        }
-        _lastRtpSeqNumber = packet->GetSequenceNumber();
-    }
-}*/
 
 } // namespace RTC

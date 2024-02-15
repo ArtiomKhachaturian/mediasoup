@@ -767,6 +767,8 @@ namespace RTC
 		packet->payloadDescriptorHandler = this->payloadDescriptorHandler;
 		// Store allocated buffer.
 		packet->buffer = buffer;
+        
+        packet->rejectedConsumers = this->rejectedConsumers;
 
 		return packet;
 	}

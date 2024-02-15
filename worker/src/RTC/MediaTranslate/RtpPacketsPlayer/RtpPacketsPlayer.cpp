@@ -207,7 +207,7 @@ void RtpPacketsPlayer::StreamWrapper::OnPlayStarted(uint32_t ssrc, uint64_t medi
                                                     uint64_t mediaSourceId)
 {
     if (HasCallback()) {
-        EnqueTask(std::make_unique<QueuedStartFinishTask>(mediaId, mediaId, true));
+        EnqueTask(std::make_unique<QueuedStartFinishTask>(mediaId, mediaSourceId, true));
     }
 }
 
@@ -225,7 +225,7 @@ void RtpPacketsPlayer::StreamWrapper::OnPlayFinished(uint32_t ssrc, uint64_t med
                                                      uint64_t mediaSourceId)
 {
     if (HasCallback()) {
-        EnqueTask(std::make_unique<QueuedStartFinishTask>(mediaId, mediaId, false));
+        EnqueTask(std::make_unique<QueuedStartFinishTask>(mediaId, mediaSourceId, false));
     }
 }
 
