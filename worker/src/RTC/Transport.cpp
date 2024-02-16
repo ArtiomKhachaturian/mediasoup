@@ -1597,8 +1597,9 @@ namespace RTC
             return;
         }
         
-        if (!translated) {
-            this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet);
+        if (!translated && this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet)) {
+            delete packet;
+            return;
         }
         
         // Feed the TransportCongestionControlServer.

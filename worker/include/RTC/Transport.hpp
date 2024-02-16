@@ -121,7 +121,7 @@ namespace RTC
             virtual void OnTransportDataConsumerDataProducerClosed(
               RTC::Transport* transport, RTC::DataConsumer* dataConsumer)         = 0;
             virtual void OnTransportListenServerClosed(RTC::Transport* transport) = 0;
-            virtual void OnTransportProducerRtpPacketTranslationRequired(
+            virtual bool OnTransportProducerRtpPacketTranslationRequired(
               RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
         };
 

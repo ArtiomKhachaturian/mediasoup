@@ -201,14 +201,16 @@ bool Translator::RemoveStream(uint32_t mappedSsrc)
     return false;
 }
 
-void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
+bool Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     if (packet && !_producer->IsPaused()) {
         if (const auto stream = GetStream(packet->GetSsrc())) {
             const auto added = stream->AddOriginalRtpPacketForTranslation(packet);
             PostProcessAfterAdding(packet, added, stream);
+            return added;
         }
     }
+    return false;
 }
 
 const std::string& Translator::GetId() const

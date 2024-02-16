@@ -34,7 +34,9 @@ public:
                                               RtpPacketsCollector* output);
     bool AddStream(uint32_t mappedSsrc, const RtpStream* stream);
     bool RemoveStream(uint32_t mappedSsrc);
-    void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
+    // returns true if packet was sent to translation service
+    // and further processing by other SFU components no longer needed
+    bool AddOriginalRtpPacketForTranslation(RtpPacket* packet);
     const std::string& GetId() const;
     // list of mapped or original ssrcs for added streams
     std::list<uint32_t> GetSsrcs(bool mapped) const;
@@ -66,8 +68,8 @@ private:
     const Producer* const _producer;
     RtpPacketsPlayer* const _rtpPacketsPlayer;
     RtpPacketsCollector* const _output;
-#ifdef SINGLE_TRANSLATION_POINT_CONNECTION
-    // websocket or file end-point, valid for 1st created instance
+#if defined(SINGLE_TRANSLATION_POINT_CONNECTION) || defined(NO_TRANSLATION_SERVICE)
+    // websocket or file end-point, valid for 1st created instance, just for debug
     mutable std::weak_ptr<TranslatorEndPoint> _nonStubEndPointRef;
 #endif
     // key is mapped media SSRC
