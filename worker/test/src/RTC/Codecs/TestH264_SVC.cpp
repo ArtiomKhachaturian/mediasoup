@@ -21,7 +21,7 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 
 		std::memcpy(buffer, originalBuffer, sizeof(buffer));
 
-		const auto* payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
+		const auto payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
 
 		REQUIRE(payloadDescriptor);
 
@@ -31,8 +31,6 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 		REQUIRE(payloadDescriptor->isKeyFrame == true);
 		REQUIRE(payloadDescriptor->hasTlIndex == false);
 		REQUIRE(payloadDescriptor->hasSlIndex == false);
-
-		delete payloadDescriptor;
 	}
 
 	SECTION("parse payload descriptor for NALU 8")
@@ -49,7 +47,7 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 
 		std::memcpy(buffer, originalBuffer, sizeof(buffer));
 
-		const auto* payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
+		const auto payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
 
 		REQUIRE(payloadDescriptor);
 
@@ -59,8 +57,6 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 		REQUIRE(payloadDescriptor->isKeyFrame == false);
 		REQUIRE(payloadDescriptor->hasTlIndex == false);
 		REQUIRE(payloadDescriptor->hasSlIndex == false);
-
-		delete payloadDescriptor;
 	}
 
 	SECTION("parse payload descriptor for NALU 1")
@@ -77,7 +73,7 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 
 		std::memcpy(buffer, originalBuffer, sizeof(buffer));
 
-		const auto* payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
+		const auto payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
 
 		REQUIRE(payloadDescriptor);
 
@@ -87,8 +83,6 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 		REQUIRE(payloadDescriptor->isKeyFrame == false);
 		REQUIRE(payloadDescriptor->hasTlIndex == false);
 		REQUIRE(payloadDescriptor->hasSlIndex == false);
-
-		delete payloadDescriptor;
 	}
 
 	SECTION("parse payload descriptor for NALU 5")
@@ -105,7 +99,7 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 
 		std::memcpy(buffer, originalBuffer, sizeof(buffer));
 
-		const auto* payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
+		const auto payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
 
 		REQUIRE(payloadDescriptor);
 
@@ -115,8 +109,6 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 		REQUIRE(payloadDescriptor->isKeyFrame == true);
 		REQUIRE(payloadDescriptor->hasTlIndex == false);
 		REQUIRE(payloadDescriptor->hasSlIndex == false);
-
-		delete payloadDescriptor;
 	}
 
 	SECTION("parse payload descriptor for NALU 14")
@@ -133,7 +125,7 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 
 		std::memcpy(buffer, originalBuffer, sizeof(buffer));
 
-		const auto* payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
+		const auto payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
 
 		REQUIRE(payloadDescriptor);
 
@@ -145,8 +137,6 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 		REQUIRE(payloadDescriptor->isKeyFrame == false);
 		REQUIRE(payloadDescriptor->hasTlIndex == true);
 		REQUIRE(payloadDescriptor->hasSlIndex == true);
-
-		delete payloadDescriptor;
 	}
 
 	SECTION("parse payload descriptor for NALU 20")
@@ -163,7 +153,7 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 
 		std::memcpy(buffer, originalBuffer, sizeof(buffer));
 
-		const auto* payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
+		const auto payloadDescriptor = Codecs::H264_SVC::Parse(buffer, sizeof(buffer));
 
 		REQUIRE(payloadDescriptor);
 
@@ -175,7 +165,5 @@ SCENARIO("parse H264_SVC payload descriptor", "[codecs][h264_svc]")
 		REQUIRE(payloadDescriptor->isKeyFrame == false);
 		REQUIRE(payloadDescriptor->hasTlIndex == true);
 		REQUIRE(payloadDescriptor->hasSlIndex == true);
-
-		delete payloadDescriptor;
 	}
 }

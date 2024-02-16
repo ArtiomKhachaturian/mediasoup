@@ -38,7 +38,7 @@ SCENARIO("parse VP8 payload descriptor", "[codecs][vp8]")
 
 		std::memcpy(buffer, originalBuffer, sizeof(buffer));
 
-		const auto* payloadDescriptor = Codecs::VP8::Parse(buffer, sizeof(buffer));
+		const auto payloadDescriptor = Codecs::VP8::Parse(buffer, sizeof(buffer));
 
 		REQUIRE(payloadDescriptor);
 
@@ -77,8 +77,6 @@ SCENARIO("parse VP8 payload descriptor", "[codecs][vp8]")
 				REQUIRE(std::memcmp(buffer, originalBuffer, sizeof(buffer)) == 0);
 			}
 		}
-
-		delete payloadDescriptor;
 	}
 
 	SECTION("parse payload descriptor 2")
@@ -113,7 +111,7 @@ SCENARIO("parse VP8 payload descriptor", "[codecs][vp8]")
 		std::memcpy(buffer, originalBuffer, sizeof(buffer));
 
 		// Parse the buffer.
-		const auto* payloadDescriptor = Codecs::VP8::Parse(buffer, sizeof(buffer));
+		const auto payloadDescriptor = Codecs::VP8::Parse(buffer, sizeof(buffer));
 
 		REQUIRE(payloadDescriptor);
 
@@ -152,8 +150,6 @@ SCENARIO("parse VP8 payload descriptor", "[codecs][vp8]")
 				REQUIRE(std::memcmp(buffer, originalBuffer, sizeof(buffer)) == 0);
 			}
 		}
-
-		delete payloadDescriptor;
 	};
 
 	SECTION("parse payload descriptor. I flag set but no space for pictureId")
@@ -213,7 +209,7 @@ SCENARIO("parse VP8 payload descriptor", "[codecs][vp8]")
 	}
 }
 
-Codecs::VP8::PayloadDescriptor* CreatePacket(
+std::unique_ptr<Codecs::VP8::PayloadDescriptor> CreatePacket(
   uint8_t* buffer,
   size_t bufferLen,
   uint16_t pictureId,
@@ -232,7 +228,7 @@ Codecs::VP8::PayloadDescriptor* CreatePacket(
 		buffer[5] |= 0x20; // y bit
 	}
 
-	auto* payloadDescriptor = Codecs::VP8::Parse(buffer, bufferLen);
+	auto payloadDescriptor = Codecs::VP8::Parse(buffer, bufferLen);
 
 	REQUIRE(payloadDescriptor);
 
@@ -253,11 +249,9 @@ std::unique_ptr<Codecs::VP8::PayloadDescriptor> ProcessPacket(
 	};
 	// clang-format on
 	bool marker;
-	auto* payloadDescriptor =
+	auto payloadDescriptor =
 	  CreatePacket(buffer, sizeof(buffer), pictureId, tl0PictureIndex, tlIndex, layerSync);
-	std::unique_ptr<Codecs::VP8::PayloadDescriptorHandler> payloadDescriptorHandler(
-	  new Codecs::VP8::PayloadDescriptorHandler(payloadDescriptor));
-
+    auto payloadDescriptorHandler = std::make_unique<Codecs::VP8::PayloadDescriptorHandler>(std::move(payloadDescriptor));
 	if (payloadDescriptorHandler->Process(&context, buffer, marker))
 	{
 		return std::unique_ptr<Codecs::VP8::PayloadDescriptor>(Codecs::VP8::Parse(buffer, sizeof(buffer)));

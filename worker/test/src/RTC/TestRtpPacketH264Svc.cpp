@@ -59,7 +59,7 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		// Read frame-marking.
 		packet->ReadFrameMarking(&frameMarking, frameMarkingLen);
 
-		const auto* payloadDescriptor =
+		const auto payloadDescriptor =
 		  Codecs::H264_SVC::Parse(payload, sizeof(payload), frameMarking, frameMarkingLen);
 
 		REQUIRE(payloadDescriptor);
@@ -73,8 +73,6 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		REQUIRE(payloadDescriptor->tlIndex == 0);
 		REQUIRE(payloadDescriptor->hasSlIndex == false);
 		REQUIRE(payloadDescriptor->isKeyFrame == true);
-
-		delete payloadDescriptor;
 
 		delete packet;
 	}
@@ -123,7 +121,7 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		// Read frame-marking.
 		packet->ReadFrameMarking(&frameMarking, frameMarkingLen);
 
-		const auto* payloadDescriptor =
+		const auto payloadDescriptor =
 		  Codecs::H264_SVC::Parse(payload, sizeof(payload), frameMarking, frameMarkingLen);
 
 		REQUIRE(payloadDescriptor);
@@ -137,8 +135,6 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		REQUIRE(payloadDescriptor->tlIndex == 0);
 		REQUIRE(payloadDescriptor->hasSlIndex == false);
 		REQUIRE(payloadDescriptor->isKeyFrame == false);
-
-		delete payloadDescriptor;
 
 		delete packet;
 	}
@@ -187,7 +183,7 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		// Read frame-marking.
 		packet->ReadFrameMarking(&frameMarking, frameMarkingLen);
 
-		const auto* payloadDescriptor =
+		const auto payloadDescriptor =
 		  Codecs::H264_SVC::Parse(payload, sizeof(payload), frameMarking, frameMarkingLen);
 
 		REQUIRE(payloadDescriptor);
@@ -200,8 +196,6 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		REQUIRE(payloadDescriptor->isKeyFrame == true);
 		REQUIRE(payloadDescriptor->hasSlIndex == false);
 		REQUIRE(payloadDescriptor->hasTlIndex == false);
-
-		delete payloadDescriptor;
 
 		delete packet;
 	}
@@ -250,7 +244,7 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		// Read frame-marking.
 		packet->ReadFrameMarking(&frameMarking, frameMarkingLen);
 
-		const auto* payloadDescriptor =
+		const auto payloadDescriptor =
 		  Codecs::H264_SVC::Parse(payload, sizeof(payload), frameMarking, frameMarkingLen);
 
 		REQUIRE(payloadDescriptor);
@@ -264,8 +258,6 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		REQUIRE(payloadDescriptor->tlIndex == 0);
 		REQUIRE(payloadDescriptor->hasSlIndex == false);
 		REQUIRE(payloadDescriptor->isKeyFrame == false);
-
-		delete payloadDescriptor;
 
 		delete packet;
 	}
@@ -314,7 +306,7 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		// Read frame-marking.
 		packet->ReadFrameMarking(&frameMarking, frameMarkingLen);
 
-		const auto* payloadDescriptor =
+		const auto payloadDescriptor =
 		  Codecs::H264_SVC::Parse(payload, sizeof(payload), frameMarking, frameMarkingLen);
 
 		REQUIRE(payloadDescriptor);
@@ -328,8 +320,6 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		REQUIRE(payloadDescriptor->tlIndex == 0);
 		REQUIRE(payloadDescriptor->hasSlIndex == false);
 		REQUIRE(payloadDescriptor->isKeyFrame == true);
-
-		delete payloadDescriptor;
 
 		delete packet;
 	}
@@ -378,7 +368,7 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		// Read frame-marking.
 		packet->ReadFrameMarking(&frameMarking, frameMarkingLen);
 
-		const auto* payloadDescriptor =
+		const auto payloadDescriptor =
 		  Codecs::H264_SVC::Parse(payload, sizeof(payload), frameMarking, frameMarkingLen);
 
 		REQUIRE(payloadDescriptor);
@@ -393,8 +383,6 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 		REQUIRE(payloadDescriptor->hasSlIndex);
 		REQUIRE(payloadDescriptor->slIndex == 0);
 		REQUIRE(payloadDescriptor->isKeyFrame == true);
-
-		delete payloadDescriptor;
 
 		delete packet;
 	}
@@ -469,7 +457,7 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 				// Read frame-marking.
 				packet->ReadFrameMarking(&frameMarking, frameMarkingLen);
 
-				const auto* payloadDescriptor = Codecs::H264_SVC::Parse(
+				const auto payloadDescriptor = Codecs::H264_SVC::Parse(
 				  payload, packet->GetPayloadLength(), frameMarking, frameMarkingLen);
 
 				REQUIRE(payloadDescriptor);
@@ -479,7 +467,6 @@ SCENARIO("parse RTP packets with H264 SVC", "[parser][rtp]")
 				pos += bytes;
 				rows++;
 
-				delete payloadDescriptor;
 				delete packet;
 			}
 

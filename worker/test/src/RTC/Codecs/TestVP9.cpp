@@ -7,7 +7,7 @@ using namespace RTC;
 
 constexpr uint16_t MaxPictureId = (1 << 15) - 1;
 
-Codecs::VP9::PayloadDescriptor* CreateVP9Packet(
+std::unique_ptr<Codecs::VP9::PayloadDescriptor> CreateVP9Packet(
   uint8_t* buffer, size_t bufferLen, uint16_t pictureId, uint8_t tlIndex)
 {
 	buffer[0]             = 0xAD; // I and L bits
@@ -16,7 +16,7 @@ Codecs::VP9::PayloadDescriptor* CreateVP9Packet(
 	buffer[1] |= 0x80;
 	buffer[3] = tlIndex << 6;
 
-	auto* payloadDescriptor = Codecs::VP9::Parse(buffer, bufferLen);
+	auto payloadDescriptor = Codecs::VP9::Parse(buffer, bufferLen);
 
 	REQUIRE(payloadDescriptor);
 
@@ -33,9 +33,8 @@ std::unique_ptr<Codecs::VP9::PayloadDescriptor> ProcessVP9Packet(
 	};
 	// clang-format on
 	bool marker;
-	auto* payloadDescriptor = CreateVP9Packet(buffer, sizeof(buffer), pictureId, tlIndex);
-	std::unique_ptr<Codecs::VP9::PayloadDescriptorHandler> payloadDescriptorHandler(
-	  new Codecs::VP9::PayloadDescriptorHandler(payloadDescriptor));
+	auto payloadDescriptor = CreateVP9Packet(buffer, sizeof(buffer), pictureId, tlIndex);
+    auto payloadDescriptorHandler = std::make_unique<Codecs::VP9::PayloadDescriptorHandler>(std::move(payloadDescriptor));
 
 	if (payloadDescriptorHandler->Process(&context, buffer, marker))
 	{

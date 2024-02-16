@@ -205,11 +205,11 @@ void RtpPacketsMediaFragmentPlayer::ConvertToRtpAndSend(size_t trackIndex,
         if (const auto timerId = GetTimerId()) {
             if (const auto timer = _timerRef.lock()) {
                 const auto& timestamp = frame->GetTimestamp();
-                if (timestamp > _previousTimestamp) {
+                /*if (timestamp > _previousTimestamp) {
                     const auto diff = timestamp - _previousTimestamp;
                     timer->SetTimeout(timerId, diff.ms<uint32_t>());
                     _previousTimestamp = timestamp;
-                }
+                }*/
                 if (const auto packet = CreatePacket(trackIndex, frame)) {
                     callback->OnPlay(timestamp, packet, _mediaId, _mediaSourceId);
                 }
