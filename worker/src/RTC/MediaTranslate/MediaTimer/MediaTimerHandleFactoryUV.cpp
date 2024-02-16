@@ -9,6 +9,9 @@
 #include <variant>
 #include <queue>
 #include <thread>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 namespace {
 
@@ -101,7 +104,7 @@ namespace RTC
 class MediaTimerHandleUV : public MediaTimerHandle
 {
 public:
-    MediaTimerHandleUV(const std::weak_ptr<MediaTimerCallback>& callbackRef,
+    MediaTimerHandleUV(const std::shared_ptr<MediaTimerCallback>& callback,
                        const std::shared_ptr<TimerCommandManager>& manager);
     ~MediaTimerHandleUV() final;
     // impl. of MediaTimerHandle
@@ -123,7 +126,7 @@ public:
     MediaTimerHandleFactoryUV(const std::string& timerName, UVLoop loop);
     ~MediaTimerHandleFactoryUV() final;
     // impl. of MediaTimerHandleFactory
-    std::unique_ptr<MediaTimerHandle> CreateHandle(const std::weak_ptr<MediaTimerCallback>& callbackRef) final;
+    std::unique_ptr<MediaTimerHandle> CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback) final;
 private:
     void Run();
     bool IsCancelled() const { return _cancelled.load(); }
@@ -135,21 +138,21 @@ private:
     std::atomic_bool _cancelled = false;
 };
 
-std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactory::Create(const std::string& timerName)
+std::shared_ptr<MediaTimerHandleFactory> MediaTimerHandleFactory::Create(const std::string& timerName)
 {
     auto loop = UVLoop::CreateInitialized();
     if (loop.IsValid()) {
-        return std::make_unique<MediaTimerHandleFactoryUV>(timerName, std::move(loop));
+        return std::make_shared<MediaTimerHandleFactoryUV>(timerName, std::move(loop));
     }
     return nullptr;
 }
 
-MediaTimerHandleUV::MediaTimerHandleUV(const std::weak_ptr<MediaTimerCallback>& callbackRef,
+MediaTimerHandleUV::MediaTimerHandleUV(const std::shared_ptr<MediaTimerCallback>& callback,
                                        const std::shared_ptr<TimerCommandManager>& manager)
-    : MediaTimerHandle(callbackRef)
+    : MediaTimerHandle(callback)
     , _managerRef(manager)
 {
-    manager->Add(TimerCommand(GetTimerId(), callbackRef));
+    manager->Add(TimerCommand(GetTimerId(), callback));
     SetTimeout(GetTimeout());
 }
 
@@ -163,10 +166,8 @@ MediaTimerHandleUV::~MediaTimerHandleUV()
 
 void MediaTimerHandleUV::Start(bool singleshot)
 {
-    if (IsCallbackValid()) {
-        if (const auto manager = _managerRef.lock()) {
-            manager->Add(TimerCommand(GetTimerId(), true, singleshot));
-        }
+    if (const auto manager = _managerRef.lock()) {
+        manager->Add(TimerCommand(GetTimerId(), true, singleshot));
     }
 }
 
@@ -216,10 +217,10 @@ MediaTimerHandleFactoryUV::~MediaTimerHandleFactoryUV()
 }
 
 std::unique_ptr<MediaTimerHandle> MediaTimerHandleFactoryUV::
-    CreateHandle(const std::weak_ptr<MediaTimerCallback>& callbackRef)
+    CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback)
 {
     if (!IsCancelled()) {
-        return std::make_unique<MediaTimerHandleUV>(callbackRef, _commandsManager);
+        return std::make_unique<MediaTimerHandleUV>(callback, _commandsManager);
     }
     return nullptr;
 }
@@ -235,10 +236,25 @@ void MediaTimerHandleFactoryUV::Run()
 void MediaTimerHandleFactoryUV::SetThreadName(const std::string& timerName)
 {
     if (!timerName.empty()) {
-#ifdef __APPLE__
-        pthread_setname_np(timerName.c_str());
-#else
-        prctl(PR_SET_NAME, reinterpret_cast<unsigned long>(timerName.c_str()));
+#ifdef WIN32
+        struct
+        {
+            DWORD dwType;
+            LPCSTR szName;
+            DWORD dwThreadID;
+            DWORD dwFlags;
+        } threadname_info = {0x1000, timerName.c_str(), static_cast<DWORD>(-1), 0};
+
+        __try {
+            ::RaiseException(0x406D1388, 0, sizeof(threadname_info) / sizeof(DWORD), reinterpret_cast<ULONG_PTR*>(&threadname_info));
+        } __except (EXCEPTION_EXECUTE_HANDLER) { /* NOLINT */
+        }
+#elif defined(__APPLE__)
+        if (0 != pthread_setname_np(timerName.c_str())) {
+            MS_WARN_DEV_STD("failed to set name %s for timer's thread", timerName.c_str());
+        }
+#elif defined(__unix__) || defined(__linux__) || defined(_POSIX_VERSION)
+        prctl(PR_SET_NAME, reinterpret_cast<unsigned long>(timerName.c_str())); // NOLINT
 #endif
     }
 }
