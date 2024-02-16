@@ -7,6 +7,15 @@
 #include "RTC/MediaTranslate/MemoryBuffer.hpp"
 #include "Logger.hpp"
 
+namespace {
+
+enum class StartMode {
+    IfStopped,
+    Force
+};
+
+}
+
 namespace RTC
 {
 
@@ -15,7 +24,7 @@ class FileEndPoint::TimerCallback : public MediaTimerCallback
 public:
     TimerCallback(FileEndPoint* owner);
     bool IsConnected() const { return WebsocketState::Connected == GetState(); }
-    void SetHasWrittenInputMedia(bool has) { _hasWrittenInputMedia = has; }
+    void SetHasWrittenInputMedia(bool has);
     bool HasWrittenInputMedia() const { return _hasWrittenInputMedia.load(); }
     bool SetConnectingState();
     bool SetDisconnectedState();
@@ -28,7 +37,9 @@ private:
     std::shared_ptr<MemoryBuffer> ReadMediaFromFile() const;
     void NotifyAboutReceivedMedia(const std::shared_ptr<MemoryBuffer>& media);
     void NotifyThatConnected(bool connected = true);
-    void AdjustIntervalTimeout(bool restart = false);
+    void StartTimer(uint32_t interval, StartMode mode);
+    void StartTimer(StartMode mode);
+    void StopTimer();
 private:
     FileEndPoint* const _owner;
     std::atomic<WebsocketState> _state = WebsocketState::Disconnected;
@@ -129,16 +140,16 @@ void FileEndPoint::TimerCallback::OnEvent()
 {
     if (SetConnectedState()) {
         NotifyThatConnected();
-        AdjustIntervalTimeout(true);
     }
     else if (WebsocketState::Connected == GetState()) {
         if (HasWrittenInputMedia()) {
             if (const auto media = ReadMediaFromFile()) {
                 NotifyAboutReceivedMedia(media);
-                AdjustIntervalTimeout();
+                StartTimer(StartMode::IfStopped);
             }
             else {
-                // TODO: log warning
+                StopTimer();
+                MS_ERROR_STD("unable to read of %s media file", _owner->GetName().c_str());
             }
         }
     }
@@ -171,12 +182,38 @@ void FileEndPoint::TimerCallback::NotifyThatConnected(bool connected)
     _owner->NotifyThatConnectionEstablished(connected);
 }
 
-void FileEndPoint::TimerCallback::AdjustIntervalTimeout(bool restart)
+void FileEndPoint::TimerCallback::StartTimer(uint32_t interval, StartMode mode)
 {
-    _owner->_timer->SetTimeout(_owner->_timerId, _owner->GetIntervalBetweenTranslationsMs());
-    if (restart) {
+    bool start = true;
+    if (StartMode::IfStopped == mode) {
+        start = !_owner->_timer->IsStarted(_owner->_timerId);
+    }
+    _owner->_timer->SetTimeout(_owner->_timerId, interval);
+    if (start) {
         _owner->_timer->Start(_owner->_timerId, false);
     }
+}
+
+void FileEndPoint::TimerCallback::StartTimer(StartMode mode)
+{
+    StartTimer(_owner->GetIntervalBetweenTranslationsMs(), mode);
+}
+
+void FileEndPoint::TimerCallback::SetHasWrittenInputMedia(bool has)
+{
+    if (has != _hasWrittenInputMedia.exchange(has)) {
+        if (has) {
+            StartTimer(0U, StartMode::Force);
+        }
+        else {
+            StopTimer();
+        }
+    }
+}
+
+void FileEndPoint::TimerCallback::StopTimer()
+{
+    _owner->_timer->Stop(_owner->_timerId);
 }
 
 } // namespace RTC

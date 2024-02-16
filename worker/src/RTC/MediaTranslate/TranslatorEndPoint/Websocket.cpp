@@ -101,10 +101,16 @@ public:
                                           const std::shared_ptr<SocketListeners>& listeners);
 };
 
+template <class TConfig>
+struct Websocket::SocketConfig : public TConfig
+{
+    static const size_t connection_read_buffer_size = Websocket::_connectionReadBufferSize;
+};
+
 template<class TConfig>
 class Websocket::SocketImpl : public Socket
 {
-    using Client = websocketpp::client<TConfig>;
+    using Client = websocketpp::client<SocketConfig<TConfig>>;
     using MessagePtr = typename TConfig::message_type::ptr;
     using HdlWriteGuard = typename ProtectedObj<websocketpp::connection_hdl>::GuardTraits::MutexWriteGuard;
     using HdlReadGuard = typename ProtectedObj<websocketpp::connection_hdl>::GuardTraits::MutexReadGuard;

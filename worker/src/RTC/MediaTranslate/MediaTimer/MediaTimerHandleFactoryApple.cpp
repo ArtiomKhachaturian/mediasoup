@@ -18,10 +18,10 @@ public:
     bool IsStarted() const { return _started.load(); }
 protected:
     // overrides of MediaTimerHandle
-    void OnTimeoutChanged(uint64_t timeoutMs) final;
+    void OnTimeoutChanged(uint32_t timeoutMs) final;
 private:
     bool SetStarted(bool started) { return _started.exchange(started); }
-    void SetTimerSourceTimeout(uint64_t timeoutMs);
+    void SetTimerSourceTimeout(uint32_t timeoutMs);
 private:
     dispatch_source_t _timer;
     std::atomic_bool _started = false;
@@ -79,13 +79,13 @@ void MediaTimerHandleApple::Stop()
     }
 }
 
-void MediaTimerHandleApple::OnTimeoutChanged(uint64_t timeoutMs)
+void MediaTimerHandleApple::OnTimeoutChanged(uint32_t timeoutMs)
 {
     MediaTimerHandle::OnTimeoutChanged(timeoutMs);
     SetTimerSourceTimeout(timeoutMs);
 }
 
-void MediaTimerHandleApple::SetTimerSourceTimeout(uint64_t timeoutMs)
+void MediaTimerHandleApple::SetTimerSourceTimeout(uint32_t timeoutMs)
 {
     if (IsStarted()) {
         dispatch_suspend(_timer);
@@ -101,7 +101,7 @@ void MediaTimerHandleApple::SetTimerSourceTimeout(uint64_t timeoutMs)
 MediaTimerHandleFactoryApple::MediaTimerHandleFactoryApple(dispatch_queue_t queue)
     : _queue(queue)
 {
-    dispatch_retain(_queue);
+    dispatch_set_target_queue(_queue, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0));
 }
 
 MediaTimerHandleFactoryApple::~MediaTimerHandleFactoryApple()

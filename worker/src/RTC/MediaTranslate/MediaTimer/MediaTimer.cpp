@@ -69,7 +69,7 @@ void MediaTimer::UnregisterTimer(uint64_t timerId)
     }
 }
 
-void MediaTimer::SetTimeout(uint64_t timerId, uint64_t timeoutMs)
+void MediaTimer::SetTimeout(uint64_t timerId, uint32_t timeoutMs)
 {
     if (_factory && timerId) {
         LOCK_READ_PROTECTED_OBJ(_handles);
@@ -108,13 +108,13 @@ bool MediaTimer::IsStarted(uint64_t timerId) const
         LOCK_READ_PROTECTED_OBJ(_handles);
         const auto it = _handles->find(timerId);
         if (it != _handles->end()) {
-            it->second->IsStarted();
+            return it->second->IsStarted();
         }
     }
     return false;
 }
 
-bool MediaTimer::Singleshot(uint64_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback)
+bool MediaTimer::Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback)
 {
     if (_factory && callback) {
         const auto singleshotCallback = std::make_shared<SingleShotCallback>(callback);
@@ -161,7 +161,7 @@ MediaTimerHandle::MediaTimerHandle(const std::shared_ptr<MediaTimerCallback>& ca
 {
 }
 
-void MediaTimerHandle::SetTimeout(uint64_t timeoutMs)
+void MediaTimerHandle::SetTimeout(uint32_t timeoutMs)
 {
     if (timeoutMs != _timeoutMs.exchange(timeoutMs)) {
         OnTimeoutChanged(timeoutMs);
