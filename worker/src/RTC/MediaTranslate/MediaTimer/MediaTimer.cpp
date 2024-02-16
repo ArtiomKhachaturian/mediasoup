@@ -21,6 +21,16 @@ private:
     MediaTimer* _timer = nullptr;
 };
 
+class MediaTimer::FunctorCallback : public MediaTimerCallback
+{
+public:
+    FunctorCallback(std::function<void(void)> onEvent);
+    // impl. of MediaTimerCallback
+    void OnEvent() final { _onEvent(); }
+private:
+    const std::function<void(void)> _onEvent;
+};
+
 MediaTimer::MediaTimer(std::string timerName)
     : _factory(MediaTimerHandleFactory::Create(timerName))
     , _timerName(std::move(timerName))
@@ -55,6 +65,14 @@ uint64_t MediaTimer::RegisterTimer(const std::shared_ptr<MediaTimerCallback>& ca
         }
     }
     return timerId;
+}
+
+uint64_t MediaTimer::RegisterTimer(std::function<void(void)> onEvent)
+{
+    if (_factory) {
+        return RegisterTimer(CreateCallback(std::move(onEvent)));
+    }
+    return 0ULL;
 }
 
 void MediaTimer::UnregisterTimer(uint64_t timerId)
@@ -128,6 +146,22 @@ bool MediaTimer::Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTimerCa
     return false;
 }
 
+bool MediaTimer::Singleshot(uint32_t afterMs, std::function<void(void)> onEvent)
+{
+    if (_factory) {
+        return Singleshot(afterMs, CreateCallback(std::move(onEvent)));
+    }
+    return false;
+}
+
+std::shared_ptr<MediaTimerCallback> MediaTimer::CreateCallback(std::function<void(void)> onEvent)
+{
+    if (onEvent) {
+        return std::make_shared<FunctorCallback>(std::move(onEvent));
+    }
+    return nullptr;
+}
+
 
 MediaTimer::SingleShotCallback::SingleShotCallback(const std::shared_ptr<MediaTimerCallback>& callback)
     : _callback(callback)
@@ -146,6 +180,11 @@ void MediaTimer::SingleShotCallback::SetStopParameters(uint64_t timerId, MediaTi
 {
     _timerId = timerId;
     _timer = timer;
+}
+
+MediaTimer::FunctorCallback::FunctorCallback(std::function<void(void)> onEvent)
+    : _onEvent(std::move(onEvent))
+{
 }
 
 void MediaTimerHandleFactory::DestroyHandle(std::unique_ptr<MediaTimerHandle> handle)
