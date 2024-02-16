@@ -18,6 +18,12 @@ uint32_t RtpPacketsTimeline::GetNextTimestamp() const
     return GetLastTimestamp() + GetTimestampDelta();
 }
 
+uint16_t RtpPacketsTimeline::GetNextSeqNumber()
+{
+    _lastSeqNumber = (_lastSeqNumber + 1U) & 0xffff;
+    return _lastSeqNumber;
+}
+
 void RtpPacketsTimeline::SetLastTimestamp(uint32_t lastTimestamp)
 {
     if (_lastTimestamp != lastTimestamp) {

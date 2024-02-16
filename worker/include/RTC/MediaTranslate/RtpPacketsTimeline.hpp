@@ -19,7 +19,7 @@ public:
     uint32_t GetNextTimestamp() const;
     uint16_t GetLastSeqNumber() const { return _lastSeqNumber; }
     void SetLastSeqNumber(uint16_t seqNumber) { _lastSeqNumber = seqNumber; }
-    uint16_t GetNextSeqNumber() const { return GetLastSeqNumber() + 1U;}
+    uint16_t GetNextSeqNumber();
     void Reset();
     RtpPacketsTimeline& operator = (const RtpPacketsTimeline&) = default;
 private:
