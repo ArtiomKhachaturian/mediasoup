@@ -63,13 +63,14 @@ bool FileWriter::DeleteFromStorage()
 {
     bool ok = false;
     if (const auto handle = GetHandle()) {
-        char filePath[PATH_MAX] = {0};
 #ifdef _WIN32
+        char filePath[MAX_PATH] = { 0 };
         const auto fileHandle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(handle)));
         if (INVALID_HANDLE_VALUE != fileHandle) {
             // TODO: get file name from WinAPI handle
         }
 #else
+        char filePath[PATH_MAX] = { 0 };
         ok = -1 != fcntl(fileno(handle), F_GETPATH, filePath);
 #endif
         if (ok) {

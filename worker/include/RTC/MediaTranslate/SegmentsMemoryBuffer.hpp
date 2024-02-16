@@ -2,6 +2,8 @@
 #include "RTC/MediaTranslate/MemoryBuffer.hpp"
 #include <list>
 #include <limits>
+#include <memory>
+#include <vector>
 
 namespace RTC
 {

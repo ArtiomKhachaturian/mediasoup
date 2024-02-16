@@ -69,7 +69,7 @@ DOCKER = os.getenv('DOCKER') or 'docker';
 # pty=True in ctx.run() is not available on Windows so if stdout is not a TTY
 # let's assume PTY is not supported. Related issue in invoke project:
 # https://github.com/pyinvoke/invoke/issues/561
-PTY_SUPPORTED = sys.stdout.isatty();
+PTY_SUPPORTED = sys.platform != 'win32';
 # Use sh (widely supported, more than bash) if not in Windows.
 SHELL = '/bin/sh' if not os.name == 'nt' else None;
 

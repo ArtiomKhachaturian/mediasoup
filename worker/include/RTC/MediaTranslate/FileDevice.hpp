@@ -6,8 +6,9 @@
 #ifdef _WIN32
 #include <Windows.h>
 #include <string>
-#endif
+#else
 #include <unistd.h>
+#endif
 
 namespace RTC
 {

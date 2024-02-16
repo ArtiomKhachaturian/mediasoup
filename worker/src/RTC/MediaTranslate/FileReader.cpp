@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/FileReader.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "Logger.hpp"
+#include <algorithm> // for std::min/max
 
 namespace RTC
 {
@@ -20,7 +21,7 @@ FileReader::FileReader(const std::string_view& fileNameUtf8,
     : Base(fileNameUtf8, true, error)
     , _loop(loop)
     , _fileSize(GetFileSize(GetHandle()))
-    , _chunkSize(std::min<size_t>(_fileSize, std::max(chunkSize, 1024UL)))
+    , _chunkSize(std::min<size_t>(_fileSize, std::max<size_t>(chunkSize, 1024UL)))
 {
 }
 
@@ -191,7 +192,7 @@ int64_t FileReader::FileTell(FILE* handle)
 {
     if (handle) {
 #ifdef _MSC_VER
-        return ::_ftelli64(handle)
+        return ::_ftelli64(handle);
 #else
         return ::ftell(handle);
 #endif
