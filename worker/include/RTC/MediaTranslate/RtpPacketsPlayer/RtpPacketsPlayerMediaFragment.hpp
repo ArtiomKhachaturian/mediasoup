@@ -1,5 +1,6 @@
 #pragma once
 #include "RTC/RtpDictionaries.hpp"
+#include <atomic>
 #include <memory>
 
 namespace RTC
@@ -27,6 +28,8 @@ public:
 private:
     const std::shared_ptr<RtpPacketsMediaFragmentPlayer> _player;
     const std::shared_ptr<MediaTimer> _timer;
+    std::atomic<uint64_t> _timerId = 0UL;
+    
 };
 
 } // namespace RTC
