@@ -12,7 +12,7 @@ class Websocket;
 class WebsocketEndPoint : public TranslatorEndPoint, private WebsocketListener
 {
 public:
-    WebsocketEndPoint();
+    WebsocketEndPoint(std::string ownerId = std::string());
     ~WebsocketEndPoint() final;
     static uint64_t GetInstancesCount() { return _instances.load(); }
     // impl. of TranslatorEndPoint

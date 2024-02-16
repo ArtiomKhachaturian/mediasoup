@@ -331,7 +331,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
     if (0U == FileEndPoint::GetInstancesCount()) {
         return CreateMaybeFileEndPoint();
     }
-    return std::make_shared<StubEndPoint>();
+    return std::make_shared<StubEndPoint>(GetId());
 #else
     return CreateMaybeFileEndPoint();
 #endif
@@ -339,7 +339,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
 
 std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
 {
-    auto fileEndPoint = std::make_shared<FileEndPoint>(_mockTranslationFileName);
+    auto fileEndPoint = std::make_shared<FileEndPoint>(_mockTranslationFileName, GetId());
     if (!fileEndPoint->IsValid()) {
         MS_ERROR_STD("failed open %s as mock translation", _mockTranslationFileName);
     }
@@ -349,7 +349,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
         _nonStubEndPointRef = fileEndPoint;
         return fileEndPoint;
     }
-    return std::make_shared<StubEndPoint>();
+    return std::make_shared<StubEndPoint>(GetId());
 }
 
 #else
@@ -358,13 +358,13 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeStubEndPoint() const
 {
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
     if (0 == WebsocketEndPoint::GetInstancesCount()) {
-        auto socketEndPoint = std::make_shared<WebsocketEndPoint>();
+        auto socketEndPoint = std::make_shared<WebsocketEndPoint>(GetId());
         _nonStubEndPointRef = socketEndPoint;
         return socketEndPoint;
     }
-    return std::make_shared<StubEndPoint>();
+    return std::make_shared<StubEndPoint>(GetId());
 #else
-    return std::make_shared<WebsocketEndPoint>();
+    return std::make_shared<WebsocketEndPoint>(GetId());
 #endif
 }
 #endif
@@ -372,14 +372,10 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeStubEndPoint() const
 std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint()
 {
 #ifdef NO_TRANSLATION_SERVICE
-    auto endPoint = CreateStubEndPoint();
+    return CreateStubEndPoint();
 #else
-    auto endPoint = CreateMaybeStubEndPoint();
+    return CreateMaybeStubEndPoint();
 #endif
-    if (endPoint) {
-        endPoint->SetOwnerId(GetId());
-    }
-    return endPoint;
 }
 
 Translator::SourceStream::SourceStream(uint32_t clockRate, uint32_t originalSsrc,

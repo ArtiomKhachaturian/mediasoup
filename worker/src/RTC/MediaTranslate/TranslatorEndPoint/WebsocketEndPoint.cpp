@@ -12,13 +12,12 @@
 namespace RTC
 {
 
-WebsocketEndPoint::WebsocketEndPoint()
-    : TranslatorEndPoint(_defaultTimeSliceMs)
+WebsocketEndPoint::WebsocketEndPoint(std::string ownerId)
+    : TranslatorEndPoint(std::move(ownerId), _tsUri, _defaultTimeSliceMs)
     , _socket(std::make_unique<Websocket>(_tsUri, _tsUser, _tsUserPassword))
 {
     _instances.fetch_add(1U);
     _socket->AddListener(this);
-    SetName(_socket->GetUrl());
 }
 
 WebsocketEndPoint::~WebsocketEndPoint()

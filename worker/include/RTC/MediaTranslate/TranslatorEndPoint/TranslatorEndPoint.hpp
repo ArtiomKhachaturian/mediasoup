@@ -16,22 +16,21 @@ class TranslatorEndPoint : public MediaSourceImpl, private MediaSink
     class InputSliceBuffer;
     using ProtectedString = ProtectedObj<std::string>;
 public:
-    virtual ~TranslatorEndPoint();
+    ~TranslatorEndPoint() override;
     void SetInputMediaSource(MediaSource* inputMediaSource);
     void SetInputLanguageId(const std::string& languageId);
     void SetOutputLanguageId(const std::string& languageId);
     void SetOutputVoiceId(const std::string& voiceId);
-    void SetOwnerId(const std::string& ownerId);
-    std::string GetOwnerId() const;
     virtual bool IsConnected() const = 0;
 protected:
-    TranslatorEndPoint(uint32_t timeSliceMs = 0U);
+    TranslatorEndPoint(std::string ownerId = std::string(), std::string name = std::string(),
+                       uint32_t timeSliceMs = 0U);
     bool HasInput() const;
     bool HasValidTranslationSettings() const;
     void NotifyThatConnectionEstablished(bool connected);
     void NotifyThatTranslatedMediaReceived(const std::shared_ptr<MemoryBuffer>& media);
-    void SetName(const std::string& name);
-    std::string GetName() const;
+    const std::string& GetOwnerId() const { return _ownerId; }
+    const std::string& GetName() const { return _name; }
     std::string GetDescription() const;
     virtual void Connect() = 0;
     virtual void Disconnect() = 0;
@@ -66,11 +65,11 @@ private:
     void EndMediaWriting(const MediaObject& sender) final;
 private:
     const std::unique_ptr<InputSliceBuffer> _inputSlice;
+    const std::string _ownerId;
+    const std::string _name;
     ProtectedString _inputLanguageId;
     ProtectedString _outputLanguageId;
     ProtectedString _outputVoiceId;
-    ProtectedString _ownerId; // for logging only
-    ProtectedString _name;
     ProtectedObj<MediaSource*> _inputMediaSource;
     std::atomic_bool _notifyedThatConnected = false; // for logs
 };

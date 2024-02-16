@@ -21,8 +21,10 @@ private:
     ProtectedObj<SimpleMemoryBuffer> _impl;
 };
 
-TranslatorEndPoint::TranslatorEndPoint(uint32_t timeSliceMs)
+TranslatorEndPoint::TranslatorEndPoint(std::string ownerId, std::string name, uint32_t timeSliceMs)
     : _inputSlice(InputSliceBuffer::Create(timeSliceMs))
+    , _ownerId(std::move(ownerId))
+    , _name(std::move(name))
 {
 }
 
@@ -73,18 +75,6 @@ void TranslatorEndPoint::SetOutputVoiceId(const std::string& voiceId)
     ChangeTranslationSettings(voiceId, _outputVoiceId);
 }
 
-void TranslatorEndPoint::SetOwnerId(const std::string& ownerId)
-{
-    LOCK_WRITE_PROTECTED_OBJ(_ownerId);
-    _ownerId = ownerId;
-}
-
-std::string TranslatorEndPoint::GetOwnerId() const
-{
-    LOCK_READ_PROTECTED_OBJ(_ownerId);
-    return _ownerId.ConstRef();
-}
-
 bool TranslatorEndPoint::HasInput() const
 {
     LOCK_READ_PROTECTED_OBJ(_inputMediaSource);
@@ -126,18 +116,6 @@ void TranslatorEndPoint::NotifyThatTranslatedMediaReceived(const std::shared_ptr
         WriteMediaSinksPayload(media);
         EndMediaSinksWriting();
     }
-}
-
-void TranslatorEndPoint::SetName(const std::string& name)
-{
-    LOCK_WRITE_PROTECTED_OBJ(_name);
-    _name = name;
-}
-
-std::string TranslatorEndPoint::GetName() const
-{
-    LOCK_READ_PROTECTED_OBJ(_name);
-    return _name.ConstRef();
 }
 
 std::string TranslatorEndPoint::GetDescription() const

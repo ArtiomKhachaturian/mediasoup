@@ -35,15 +35,14 @@ private:
     std::atomic_bool _hasWrittenInputMedia = false;
 };
 
-FileEndPoint::FileEndPoint(std::string fileName)
-    : _fileIsValid(FileReader::IsValidForRead(fileName))
-    , _fileName(std::move(fileName))
+FileEndPoint::FileEndPoint(std::string fileName, std::string ownerId)
+    : TranslatorEndPoint(std::move(ownerId), std::move(fileName))
+    , _fileIsValid(FileReader::IsValidForRead(GetName()))
     , _callback(_fileIsValid ? std::make_shared<TimerCallback>(this) : nullptr)
-    , _timer(_fileIsValid ? std::make_unique<MediaTimer>(fileName) : nullptr)
+    , _timer(_fileIsValid ? std::make_unique<MediaTimer>(GetName()) : nullptr)
     , _timerId(_timer ? _timer->RegisterTimer(_callback) : 0UL)
 {
     _instances.fetch_add(1U);
-    SetName(_fileName);
 }
 
 FileEndPoint::~FileEndPoint()
@@ -157,7 +156,7 @@ bool FileEndPoint::TimerCallback::SetStrongState(WebsocketState actual, Websocke
 
 std::shared_ptr<MemoryBuffer> FileEndPoint::TimerCallback::ReadMediaFromFile() const
 {
-    return FileReader::ReadAllAsBuffer(_owner->GetFileName());
+    return FileReader::ReadAllAsBuffer(_owner->GetName());
 }
 
 void FileEndPoint::TimerCallback::NotifyAboutReceivedMedia(const std::shared_ptr<MemoryBuffer>& media)

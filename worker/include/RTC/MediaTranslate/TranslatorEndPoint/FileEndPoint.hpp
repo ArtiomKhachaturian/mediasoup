@@ -12,10 +12,9 @@ class FileEndPoint : public TranslatorEndPoint
 {
     class TimerCallback;
 public:
-    FileEndPoint(std::string fileName);
+    FileEndPoint(std::string fileName, std::string ownerId = std::string());
     ~FileEndPoint() final;
     static uint64_t GetInstancesCount() { return _instances.load(); }
-    const std::string& GetFileName() const { return _fileName; }
     uint32_t GetIntervalBetweenTranslationsMs() const;
     void SetIntervalBetweenTranslationsMs(uint32_t intervalMs);
     uint32_t GetConnectionDelay() const;
@@ -31,7 +30,6 @@ protected:
 private:
     static inline std::atomic<uint64_t> _instances = 0ULL;
     const bool _fileIsValid;
-    const std::string _fileName;
     const std::shared_ptr<TimerCallback> _callback;
     const std::unique_ptr<MediaTimer> _timer;
     const uint64_t _timerId;
