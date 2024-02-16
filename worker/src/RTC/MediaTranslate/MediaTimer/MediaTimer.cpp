@@ -132,7 +132,7 @@ bool MediaTimer::IsStarted(uint64_t timerId) const
     return false;
 }
 
-bool MediaTimer::Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback)
+uint64_t MediaTimer::Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback)
 {
     if (_factory && callback) {
         const auto singleshotCallback = std::make_shared<SingleShotCallback>(callback);
@@ -140,18 +140,18 @@ bool MediaTimer::Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTimerCa
             singleshotCallback->SetStopParameters(timerId, this);
             SetTimeout(timerId, afterMs);
             Start(timerId, true);
-            return true;
+            return timerId;
         }
     }
-    return false;
+    return 0ULL;
 }
 
-bool MediaTimer::Singleshot(uint32_t afterMs, std::function<void(void)> onEvent)
+uint64_t MediaTimer::Singleshot(uint32_t afterMs, std::function<void(void)> onEvent)
 {
     if (_factory) {
         return Singleshot(afterMs, CreateCallback(std::move(onEvent)));
     }
-    return false;
+    return 0ULL;
 }
 
 std::shared_ptr<MediaTimerCallback> MediaTimer::CreateCallback(std::function<void(void)> onEvent)
@@ -172,7 +172,7 @@ void MediaTimer::SingleShotCallback::OnEvent()
 {
     _callback->OnEvent();
     if (_timerId && _timer) {
-        _timer->Stop(_timerId);
+        _timer->UnregisterTimer(_timerId);
     }
 }
 

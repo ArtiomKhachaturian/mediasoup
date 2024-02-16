@@ -27,8 +27,9 @@ public:
     void Start(uint64_t timerId, bool singleshot);
     void Stop(uint64_t timerId);
     bool IsStarted(uint64_t timerId) const;
-    bool Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback);
-    bool Singleshot(uint32_t afterMs, std::function<void(void)> onEvent);
+    // returns timer ID
+    uint64_t Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback);
+    uint64_t Singleshot(uint32_t afterMs, std::function<void(void)> onEvent);
 private:
     static std::shared_ptr<MediaTimerCallback> CreateCallback(std::function<void(void)> onEvent);
 private:
