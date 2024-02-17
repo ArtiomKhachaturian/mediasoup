@@ -1,6 +1,4 @@
 #pragma once
-#include "ProtectedObj.hpp"
-#include "absl/container/flat_hash_map.h"
 #include <string>
 #include <memory>
 #include <functional>
@@ -9,13 +7,10 @@ namespace RTC
 {
 
 class MediaTimerCallback;
-class MediaTimerHandle;
-class MediaTimerHandleFactory;
 
 class MediaTimer
 {
-    class SingleShotCallback;
-    class FunctorCallback;
+    class Impl;
 public:
     MediaTimer(std::string timerName = std::string());
     ~MediaTimer();
@@ -33,10 +28,7 @@ public:
 private:
     static std::shared_ptr<MediaTimerCallback> CreateCallback(std::function<void(void)> onEvent);
 private:
-	const std::shared_ptr<MediaTimerHandleFactory> _factory;
-    const std::string _timerName;
-	// key is timer ID
-	ProtectedObj<absl::flat_hash_map<uint64_t, std::unique_ptr<MediaTimerHandle>>> _handles;
+    const std::shared_ptr<Impl> _impl;
 };
 
 } // namespace RTC

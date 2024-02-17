@@ -170,7 +170,7 @@ std::shared_ptr<MemoryBuffer> FileEndPoint::TimerCallback::ReadMediaFromFile() c
 void FileEndPoint::TimerCallback::NotifyAboutReceivedMedia(const std::shared_ptr<MemoryBuffer>& media)
 {
     if (media) {
-        _owner->NotifyThatTranslatedMediaReceived(media);
+        _owner->Commit(media);
     }
 }
 

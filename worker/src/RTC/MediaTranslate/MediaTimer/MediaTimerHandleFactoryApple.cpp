@@ -44,7 +44,6 @@ MediaTimerHandleApple::MediaTimerHandleApple(const std::shared_ptr<MediaTimerCal
     : MediaTimerHandle(callback)
     , _timer(timer)
 {
-    dispatch_retain(_timer);
     SetTimerSourceTimeout(GetTimeout());
 }
 
@@ -53,8 +52,6 @@ MediaTimerHandleApple::~MediaTimerHandleApple()
     MediaTimerHandleApple::Stop();
     dispatch_source_set_event_handler(_timer, nullptr);
     dispatch_source_cancel(_timer);
-    dispatch_release(_timer);
-    _timer = nullptr;
 }
 
 void MediaTimerHandleApple::Start(bool singleshot)
@@ -121,11 +118,11 @@ std::unique_ptr<MediaTimerHandle> MediaTimerHandleFactoryApple::
     return nullptr;
 }
 
-std::shared_ptr<MediaTimerHandleFactory> MediaTimerHandleFactory::Create(const std::string& timerName)
+std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactory::Create(const std::string& timerName)
 {
     auto queue = dispatch_queue_create(timerName.c_str(), DISPATCH_QUEUE_SERIAL);
     if (queue) {
-        return std::make_shared<MediaTimerHandleFactoryApple>(queue);
+        return std::make_unique<MediaTimerHandleFactoryApple>(queue);
     }
     return nullptr;
 }

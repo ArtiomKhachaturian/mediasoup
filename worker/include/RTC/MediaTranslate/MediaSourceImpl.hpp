@@ -25,7 +25,7 @@ protected:
     virtual void OnSinkWasAdded(MediaSink* /*sink*/, bool /*first*/) {}
     virtual void OnSinkWasRemoved(MediaSink* /*sink*/, bool /*last*/) {}
     // StartMediaSinksWriting + WriteMediaSinksPayload + EndMediaSinksWriting
-    void Commmit(const std::shared_ptr<MemoryBuffer>& buffer);
+    void Commit(const std::shared_ptr<MemoryBuffer>& buffer);
     void StartMediaSinksWriting();
     void WriteMediaSinksPayload(const std::shared_ptr<MemoryBuffer>& buffer);
     void EndMediaSinksWriting();

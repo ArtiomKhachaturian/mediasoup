@@ -138,11 +138,11 @@ private:
     std::atomic_bool _cancelled = false;
 };
 
-std::shared_ptr<MediaTimerHandleFactory> MediaTimerHandleFactory::Create(const std::string& timerName)
+std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactory::Create(const std::string& timerName)
 {
     auto loop = UVLoop::CreateInitialized();
     if (loop.IsValid()) {
-        return std::make_shared<MediaTimerHandleFactoryUV>(timerName, std::move(loop));
+        return std::make_unique<MediaTimerHandleFactoryUV>(timerName, std::move(loop));
     }
     return nullptr;
 }

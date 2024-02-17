@@ -106,16 +106,6 @@ void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
     }
 }
 
-void TranslatorEndPoint::NotifyThatTranslatedMediaReceived(const std::shared_ptr<MemoryBuffer>& media)
-{
-    if (media) {
-        MS_ERROR_STD("Received translation #%llu (%zu bytes) from %s",
-                     media->GetId(), media->GetSize(),
-                     GetDescription().c_str());
-        Commmit(media);
-    }
-}
-
 std::string TranslatorEndPoint::GetDescription() const
 {
     auto name = GetName();

@@ -82,6 +82,7 @@ void WebsocketEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
 void WebsocketEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<MemoryBuffer>& message)
 {
     if (message) {
+        MS_ERROR_STD("Received translation from %s", GetDescription().c_str());
 #ifdef WRITE_TRANSLATION_TO_FILE
         const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
         if (depacketizerPath && std::strlen(depacketizerPath)) {
@@ -90,7 +91,7 @@ void WebsocketEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<M
             FileWriter::WriteAll(fileName, message);
         }
 #endif
-        NotifyThatTranslatedMediaReceived(message);
+        Commit(message);
     }
 }
 

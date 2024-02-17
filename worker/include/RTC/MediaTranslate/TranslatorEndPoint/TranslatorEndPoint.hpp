@@ -28,7 +28,6 @@ protected:
     bool HasInput() const;
     bool HasValidTranslationSettings() const;
     void NotifyThatConnectionEstablished(bool connected);
-    void NotifyThatTranslatedMediaReceived(const std::shared_ptr<MemoryBuffer>& media);
     const std::string& GetOwnerId() const { return _ownerId; }
     const std::string& GetName() const { return _name; }
     std::string GetDescription() const;
