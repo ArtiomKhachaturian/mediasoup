@@ -409,19 +409,17 @@ Translator::SourceStream::SourceStream(uint32_t clockRate, uint32_t originalSsrc
         _fileWriter.reset();
     }
 #endif
-    _rtpPacketsPlayer->AddStream(GetOriginalSsrc(), GetClockRate(),
-                                 GetPayloadType(), GetMime(), this);
 }
 
 Translator::SourceStream::~SourceStream()
 {
     GetMediaSource()->RemoveAllSinks();
+    _rtpPacketsPlayer->RemoveStream(GetOriginalSsrc());
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     if (_fileWriter) {
         _serializer->RemoveTestSink();
     }
 #endif
-    _rtpPacketsPlayer->RemoveStream(GetOriginalSsrc());
 }
 
 std::shared_ptr<Translator::SourceStream> Translator::SourceStream::Create(const RtpCodecMimeType& mime,
@@ -489,6 +487,10 @@ void Translator::SourceStream::AddConsumer(Consumer* consumer)
 {
     if (consumer) {
         LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
+        if (0U == _consumersManager->GetSize()) { // 1st
+            _rtpPacketsPlayer->AddStream(GetOriginalSsrc(), GetClockRate(),
+                                         GetPayloadType(), GetMime(), this);
+        }
         _consumersManager->AddConsumer(consumer);
     }
 }
@@ -506,6 +508,9 @@ void Translator::SourceStream::RemoveConsumer(Consumer* consumer)
     if (consumer) {
         LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
         _consumersManager->RemoveConsumer(consumer);
+        if (0U == _consumersManager->GetSize()) { // last
+            _rtpPacketsPlayer->RemoveStream(GetOriginalSsrc());
+        }
     }
 }
 

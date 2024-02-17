@@ -30,6 +30,7 @@ public:
     void UpdateConsumer(Consumer* consumer);
     std::shared_ptr<ConsumerInfo> GetConsumer(Consumer* consumer) const;
     bool RemoveConsumer(Consumer* consumer);
+    size_t GetSize() const { return _consumersInfo.size(); }
     void BeginPacketsSending(uint64_t mediaId, uint64_t endPointId);
     void SendPacket(uint32_t rtpTimestampOffset, uint64_t mediaId, uint64_t endPointId,
                     RtpPacket* packet, RtpPacketsCollector* output);
