@@ -33,6 +33,7 @@
 
 namespace RTC
 {
+
 class Translator::SourceStream : private RtpPacketsPlayerCallback,
                                  private MediaSink // receiver of translated audio packets
 {
@@ -342,8 +343,10 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
 std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
 {
     auto fileEndPoint = std::make_shared<FileEndPoint>(_mockTranslationFileName, GetId(),
-                                                       _rtpPacketsPlayer->GetTimer(),
-                                                       _mockTranslationFileNameLenMs);
+                                                       _mockTranslationFileNameLenMs,
+                                                       _mockTranslationConnectionTimeoutMs,
+                                                       std::nullopt,
+                                                       _rtpPacketsPlayer->GetTimer());
     if (!fileEndPoint->IsValid()) {
         MS_ERROR_STD("failed open %s as mock translation", _mockTranslationFileName);
     }

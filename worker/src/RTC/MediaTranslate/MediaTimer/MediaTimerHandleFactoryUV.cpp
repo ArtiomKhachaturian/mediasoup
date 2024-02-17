@@ -43,7 +43,8 @@ private:
 private:
     const std::weak_ptr<MediaTimerCallback> _callbackRef;
     const UVTimer _timer;
-    bool _singleshot;
+    uint32_t _timeoutMs = 0;
+    bool _singleshot = false;
 };
 
 class TimerCommand
@@ -432,19 +433,27 @@ TimerWrapper::~TimerWrapper()
 
 void TimerWrapper::SetTimeout(uint32_t timeoutMs)
 {
-    uv_timer_set_repeat(_timer.GetHandle(), timeoutMs);
+    if (_timeoutMs != timeoutMs) {
+        const auto wasActive = IsActive();
+        if (wasActive) {
+            Stop();
+        }
+        _timeoutMs = timeoutMs;
+        if (wasActive) {
+            Start(_singleshot);
+        }
+    }
 }
 
 void TimerWrapper::Start(bool singleshot)
 {
-    const auto interval = uv_timer_get_repeat(_timer.GetHandle());
     _singleshot = singleshot;
     uv_timer_start(_timer.GetHandle(), [](uv_timer_t *handle) {
         if (handle && handle->data) {
             const auto self = reinterpret_cast<TimerWrapper*>(handle->data);
             self->OnFired();
         }
-    }, interval, std::max(1ULL, interval));
+    }, _timeoutMs, std::max<uint64_t>(1U, _timeoutMs));
 }
 
 void TimerWrapper::Stop()

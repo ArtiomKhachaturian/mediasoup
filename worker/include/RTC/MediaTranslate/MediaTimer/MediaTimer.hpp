@@ -13,7 +13,11 @@ class MediaTimer
     class Impl;
 public:
     MediaTimer(std::string timerName = std::string());
+    MediaTimer(const MediaTimer&) = delete;
+    MediaTimer(MediaTimer&&) = delete;
     ~MediaTimer();
+    MediaTimer& operator = (const MediaTimer&) = delete;
+    MediaTimer& operator = (MediaTimer&&) = delete;
     uint64_t RegisterTimer(const std::shared_ptr<MediaTimerCallback>& callback);
     uint64_t RegisterTimer(std::function<void(void)> onEvent);
     void UnregisterTimer(uint64_t timerId);

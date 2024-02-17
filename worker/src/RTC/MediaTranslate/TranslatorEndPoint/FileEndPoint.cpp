@@ -48,10 +48,10 @@ private:
 
 FileEndPoint::FileEndPoint(std::string fileName,
                            std::string ownerId,
-                           const std::shared_ptr<MediaTimer>& timer,
                            uint32_t intervalBetweenTranslationsMs,
                            uint32_t connectionDelaylMs,
-                           const std::optional<uint32_t>& disconnectAfterMs)
+                           const std::optional<uint32_t>& disconnectAfterMs,
+                           const std::shared_ptr<MediaTimer>& timer)
     : TranslatorEndPoint(std::move(ownerId), std::move(fileName))
     , _fileIsValid(FileReader::IsValidForRead(GetName()))
     , _callback(_fileIsValid ? std::make_shared<TimerCallback>(this) : nullptr)
