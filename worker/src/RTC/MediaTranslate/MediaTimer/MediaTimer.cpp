@@ -2,7 +2,10 @@
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandle.hpp"
-#include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactory.hpp"
+#include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUV.hpp"
+#ifdef __APPLE__
+#include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryApple.hpp"
+#endif
 #include "ProtectedObj.hpp"
 #include "Logger.hpp"
 #include "absl/container/flat_hash_map.h"
@@ -63,6 +66,7 @@ public:
     void UnregisterTimer(uint64_t timerId) final;
 private:
     Impl(std::unique_ptr<MediaTimerHandleFactory> factory, std::string timerName);
+    static std::unique_ptr<MediaTimerHandleFactory> CreateFactory(const std::string& timerName);
 private:
     const std::unique_ptr<MediaTimerHandleFactory> _factory;
     const std::string _timerName;
@@ -164,7 +168,8 @@ MediaTimer::Impl::Impl(std::unique_ptr<MediaTimerHandleFactory> factory, std::st
 std::shared_ptr<MediaTimer::Impl> MediaTimer::Impl::Create(std::string timerName)
 {
     std::shared_ptr<Impl> impl;
-    if (auto factory = MediaTimerHandleFactory::Create(timerName)) {
+    auto factory = CreateFactory(timerName);
+    if (factory) {
         impl.reset(new Impl(std::move(factory), std::move(timerName)));
     }
     else {
@@ -242,6 +247,19 @@ void MediaTimer::Impl::UnregisterTimer(uint64_t timerId)
             _handles->erase(it);
         }
     }
+}
+
+std::unique_ptr<MediaTimerHandleFactory> MediaTimer::Impl::
+    CreateFactory(const std::string& timerName)
+{
+    std::unique_ptr<MediaTimerHandleFactory> factory;
+#ifdef __APPLE__
+    factory = MediaTimerHandleFactoryApple::Create(timerName);
+#endif
+    if (!factory) {
+        factory = MediaTimerHandleFactoryUV::Create(timerName);
+    }
+    return factory;
 }
 
 void MediaTimer::Impl::SetTimeout(uint64_t timerId, uint32_t timeoutMs)

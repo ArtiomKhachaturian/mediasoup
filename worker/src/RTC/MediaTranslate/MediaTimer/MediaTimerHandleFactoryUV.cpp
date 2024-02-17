@@ -1,5 +1,5 @@
-#define MS_CLASS "RTC::MediaTimerHandleFactoryUnix"
-#include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactory.hpp"
+#define MS_CLASS "RTC::MediaTimerHandleFactoryUV"
+#include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUV.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandle.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "UVAsyncHandle.hpp"
@@ -70,30 +70,10 @@ public:
 
 class TimerCommandManager
 {
-    using CommandsQueue = std::queue<TimerCommand>;
 public:
-    TimerCommandManager(UVLoop loop);
-    ~TimerCommandManager();
-    int RunLoop();
-    void StopLoop();
-    void Add(TimerCommand command);
-    bool IsTimerStarted(uint64_t timerId) const;
-private:
-    static void OnCommand(uv_async_t* handle);
-    static void OnStop(uv_async_t* handle);
-    bool HasPendingCommands() const;
-    void OnCommand();
-    void AddTimer(uint64_t timerId, const std::weak_ptr<MediaTimerCallback>& callbackRef);
-    void RemoveTimer(uint64_t timerId);
-    void StartTimer(uint64_t timerId, bool singleshot);
-    void StopTimer(uint64_t timerId);
-    void SetTimeout(uint64_t timerId, uint32_t timeoutMs);
-private:
-    const UVLoop _loop;
-    const UVAsyncHandle _commandEvent;
-    const UVAsyncHandle _stopEvent;
-    ProtectedObj<absl::flat_hash_map<uint64_t, std::unique_ptr<TimerWrapper>>> _timers;
-    ProtectedObj<CommandsQueue> _commands;
+    virtual ~TimerCommandManager() = default;
+    virtual void Add(TimerCommand command) = 0;
+    virtual bool IsTimerStarted(uint64_t timerId) const = 0;
 };
 
 }
@@ -120,32 +100,34 @@ private:
     const std::weak_ptr<TimerCommandManager> _managerRef;
 };
 
-class MediaTimerHandleFactoryUV : public MediaTimerHandleFactory
+class MediaTimerHandleFactoryUV::Impl : public TimerCommandManager
 {
+    using CommandsQueue = std::queue<TimerCommand>;
 public:
-    MediaTimerHandleFactoryUV(const std::string& timerName, UVLoop loop);
-    ~MediaTimerHandleFactoryUV() final;
-    // impl. of MediaTimerHandleFactory
-    std::unique_ptr<MediaTimerHandle> CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback) final;
+    Impl(UVLoop loop);
+    ~Impl() final;
+    int RunLoop();
+    void StopLoop();
+    // impl. of TimerCommandManager
+    void Add(TimerCommand command) final;
+    bool IsTimerStarted(uint64_t timerId) const final;
 private:
-    void Run();
-    bool IsCancelled() const { return _cancelled.load(); }
-    static void SetThreadName(const std::string& timerName);
+    static void OnCommand(uv_async_t* handle);
+    static void OnStop(uv_async_t* handle);
+    bool HasPendingCommands() const;
+    void OnCommand();
+    void AddTimer(uint64_t timerId, const std::weak_ptr<MediaTimerCallback>& callbackRef);
+    void RemoveTimer(uint64_t timerId);
+    void StartTimer(uint64_t timerId, bool singleshot);
+    void StopTimer(uint64_t timerId);
+    void SetTimeout(uint64_t timerId, uint32_t timeoutMs);
 private:
-    const std::string _timerName;
-    const std::shared_ptr<TimerCommandManager> _commandsManager;
-    std::thread _thread;
-    std::atomic_bool _cancelled = false;
+    const UVLoop _loop;
+    const UVAsyncHandle _commandEvent;
+    const UVAsyncHandle _stopEvent;
+    ProtectedObj<absl::flat_hash_map<uint64_t, std::unique_ptr<TimerWrapper>>> _timers;
+    ProtectedObj<CommandsQueue> _commands;
 };
-
-std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactory::Create(const std::string& timerName)
-{
-    auto loop = UVLoop::CreateInitialized();
-    if (loop.IsValid()) {
-        return std::make_unique<MediaTimerHandleFactoryUV>(timerName, std::move(loop));
-    }
-    return nullptr;
-}
 
 MediaTimerHandleUV::MediaTimerHandleUV(const std::shared_ptr<MediaTimerCallback>& callback,
                                        const std::shared_ptr<TimerCommandManager>& manager)
@@ -199,9 +181,10 @@ void MediaTimerHandleUV::SetTimeout(uint32_t timeoutMs)
     }
 }
 
-MediaTimerHandleFactoryUV::MediaTimerHandleFactoryUV(const std::string& timerName, UVLoop loop)
+MediaTimerHandleFactoryUV::MediaTimerHandleFactoryUV(const std::string& timerName,
+                                                     std::shared_ptr<Impl> impl)
     : _timerName(timerName)
-    , _commandsManager(std::make_shared<TimerCommandManager>(std::move(loop)))
+    , _impl(std::move(impl))
     , _thread(std::bind(&MediaTimerHandleFactoryUV::Run, this))
 {
 }
@@ -209,18 +192,30 @@ MediaTimerHandleFactoryUV::MediaTimerHandleFactoryUV(const std::string& timerNam
 MediaTimerHandleFactoryUV::~MediaTimerHandleFactoryUV()
 {
     if (!_cancelled.exchange(true)) {
-        _commandsManager->StopLoop();
+        _impl->StopLoop();
     }
     if (_thread.joinable()) {
         _thread.join();
     }
 }
 
+std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactoryUV::
+    Create(const std::string& timerName)
+{
+    std::unique_ptr<MediaTimerHandleFactory> factory;
+    auto loop = UVLoop::CreateInitialized();
+    if (loop.IsValid()) {
+        auto impl = std::make_shared<Impl>(std::move(loop));
+        factory.reset(new MediaTimerHandleFactoryUV(timerName, std::move(impl)));
+    }
+    return factory;
+}
+
 std::unique_ptr<MediaTimerHandle> MediaTimerHandleFactoryUV::
     CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback)
 {
     if (!IsCancelled()) {
-        return std::make_unique<MediaTimerHandleUV>(callback, _commandsManager);
+        return std::make_unique<MediaTimerHandleUV>(callback, _impl);
     }
     return nullptr;
 }
@@ -229,7 +224,7 @@ void MediaTimerHandleFactoryUV::Run()
 {
     if (!IsCancelled()) {
         SetThreadName(_timerName);
-        _commandsManager->RunLoop();
+        _impl->RunLoop();
     }
 }
 
@@ -256,6 +251,165 @@ void MediaTimerHandleFactoryUV::SetThreadName(const std::string& timerName)
 #elif defined(__unix__) || defined(__linux__) || defined(_POSIX_VERSION)
         prctl(PR_SET_NAME, reinterpret_cast<unsigned long>(timerName.c_str())); // NOLINT
 #endif
+    }
+}
+
+MediaTimerHandleFactoryUV::Impl::Impl(UVLoop loop)
+    : _loop(std::move(loop))
+    , _commandEvent(_loop.GetHandle(), OnCommand, this)
+    , _stopEvent(_loop.GetHandle(), OnStop, this)
+{
+    MS_ASSERT(_loop, "wrong events loop");
+}
+
+MediaTimerHandleFactoryUV::Impl::~Impl()
+{
+    StopLoop();
+    LOCK_WRITE_PROTECTED_OBJ(_commands);
+    while (!_commands->empty()) {
+        _commands->pop();
+    }
+}
+
+int MediaTimerHandleFactoryUV::Impl::RunLoop()
+{
+    if (HasPendingCommands()) {
+        OnCommand();
+    }
+    const auto result = uv_run(_loop.GetHandle(), UV_RUN_DEFAULT);
+    LOCK_WRITE_PROTECTED_OBJ(_timers);
+    _timers->clear();
+    return result;
+}
+
+void MediaTimerHandleFactoryUV::Impl::StopLoop()
+{
+    _stopEvent.Invoke();
+}
+
+void MediaTimerHandleFactoryUV::Impl::Add(TimerCommand command)
+{
+    MS_ASSERT(command.GetTimerId(), "invalid timer ID");
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_commands);
+        _commands->push(std::move(command));
+    }
+    _commandEvent.Invoke();
+}
+
+bool MediaTimerHandleFactoryUV::Impl::IsTimerStarted(uint64_t timerId) const
+{
+    LOCK_READ_PROTECTED_OBJ(_timers);
+    const auto it = _timers->find(timerId);
+    if (it != _timers->end()) {
+        return it->second->IsActive();
+    }
+    return false;
+}
+
+bool MediaTimerHandleFactoryUV::Impl::HasPendingCommands() const
+{
+    LOCK_READ_PROTECTED_OBJ(_commands);
+    return !_commands->empty();
+}
+
+void MediaTimerHandleFactoryUV::Impl::OnCommand(uv_async_t* handle)
+{
+    if (handle && handle->data) {
+        reinterpret_cast<Impl*>(handle->data)->OnCommand();
+    }
+}
+
+void MediaTimerHandleFactoryUV::Impl::OnStop(uv_async_t* handle)
+{
+    if (handle && handle->data) {
+        const auto self = reinterpret_cast<Impl*>(handle->data);
+        uv_stop(self->_loop.GetHandle());
+    }
+}
+
+void MediaTimerHandleFactoryUV::Impl::OnCommand()
+{
+    CommandsQueue commands;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_commands);
+        commands = _commands.Take();
+    }
+    while (!commands.empty()) {
+        const auto& command = commands.front();
+        switch (command.GetType()) {
+            case TimerCommandType::Add:
+                AddTimer(command.GetTimerId(), command.GetCallback());
+                break;
+            case TimerCommandType::Remove:
+                RemoveTimer(command.GetTimerId());
+                break;
+            case TimerCommandType::Start:
+                StartTimer(command.GetTimerId(), command.IsSingleshot());
+                break;
+            case TimerCommandType::Stop:
+                StopTimer(command.GetTimerId());
+                break;
+            case TimerCommandType::SetTimeout:
+                SetTimeout(command.GetTimerId(), command.GetTimeout());
+                break;
+            default:
+                // TODO: log unhandled/unknown command
+                break;
+        }
+        commands.pop();
+    }
+}
+
+void MediaTimerHandleFactoryUV::Impl::AddTimer(uint64_t timerId,
+                                   const std::weak_ptr<MediaTimerCallback>& callbackRef)
+{
+    if (!callbackRef.expired()) {
+        auto timer = UVTimer::CreateInitialized(_loop.GetHandle());
+        if (timer.IsValid()) {
+            auto wrapper = std::make_unique<TimerWrapper>(callbackRef, std::move(timer));
+            LOCK_WRITE_PROTECTED_OBJ(_timers);
+            _timers->insert(std::make_pair(timerId, std::move(wrapper)));
+        }
+        else {
+            // TODO: log error
+        }
+    }
+}
+
+void MediaTimerHandleFactoryUV::Impl::RemoveTimer(uint64_t timerId)
+{
+    LOCK_WRITE_PROTECTED_OBJ(_timers);
+    const auto it = _timers->find(timerId);
+    if (it != _timers->end()) {
+        _timers->erase(it);
+    }
+}
+
+void MediaTimerHandleFactoryUV::Impl::StartTimer(uint64_t timerId, bool singleshot)
+{
+    LOCK_READ_PROTECTED_OBJ(_timers);
+    const auto it = _timers->find(timerId);
+    if (it != _timers->end()) {
+        it->second->Start(singleshot);
+    }
+}
+
+void MediaTimerHandleFactoryUV::Impl::StopTimer(uint64_t timerId)
+{
+    LOCK_READ_PROTECTED_OBJ(_timers);
+    const auto it = _timers->find(timerId);
+    if (it != _timers->end()) {
+        it->second->Stop();
+    }
+}
+
+void MediaTimerHandleFactoryUV::Impl::SetTimeout(uint64_t timerId, uint32_t timeoutMs)
+{
+    LOCK_READ_PROTECTED_OBJ(_timers);
+    const auto it = _timers->find(timerId);
+    if (it != _timers->end()) {
+        it->second->SetTimeout(timeoutMs);
     }
 }
 
@@ -360,165 +514,6 @@ uint32_t TimerCommand::GetTimeout() const
 bool TimerCommand::IsSingleshot() const
 {
     return std::get<bool>(_data);
-}
-
-TimerCommandManager::TimerCommandManager(UVLoop loop)
-    : _loop(std::move(loop))
-    , _commandEvent(_loop.GetHandle(), OnCommand, this)
-    , _stopEvent(_loop.GetHandle(), OnStop, this)
-{
-    MS_ASSERT(_loop, "wrong events loop");
-}
-
-TimerCommandManager::~TimerCommandManager()
-{
-    StopLoop();
-    LOCK_WRITE_PROTECTED_OBJ(_commands);
-    while (!_commands->empty()) {
-        _commands->pop();
-    }
-}
-
-int TimerCommandManager::RunLoop()
-{
-    if (HasPendingCommands()) {
-        OnCommand();
-    }
-    const auto result = uv_run(_loop.GetHandle(), UV_RUN_DEFAULT);
-    LOCK_WRITE_PROTECTED_OBJ(_timers);
-    _timers->clear();
-    return result;
-}
-
-void TimerCommandManager::StopLoop()
-{
-    _stopEvent.Invoke();
-}
-
-void TimerCommandManager::Add(TimerCommand command)
-{
-    MS_ASSERT(command.GetTimerId(), "invalid timer ID");
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_commands);
-        _commands->push(std::move(command));
-    }
-    _commandEvent.Invoke();
-}
-
-bool TimerCommandManager::IsTimerStarted(uint64_t timerId) const
-{
-    LOCK_READ_PROTECTED_OBJ(_timers);
-    const auto it = _timers->find(timerId);
-    if (it != _timers->end()) {
-        return it->second->IsActive();
-    }
-    return false;
-}
-
-bool TimerCommandManager::HasPendingCommands() const
-{
-    LOCK_READ_PROTECTED_OBJ(_commands);
-    return !_commands->empty();
-}
-
-void TimerCommandManager::OnCommand(uv_async_t* handle)
-{
-    if (handle && handle->data) {
-        reinterpret_cast<TimerCommandManager*>(handle->data)->OnCommand();
-    }
-}
-
-void TimerCommandManager::OnStop(uv_async_t* handle)
-{
-    if (handle && handle->data) {
-        const auto self = reinterpret_cast<TimerCommandManager*>(handle->data);
-        uv_stop(self->_loop.GetHandle());
-    }
-}
-
-void TimerCommandManager::OnCommand()
-{
-    CommandsQueue commands;
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_commands);
-        commands = _commands.Take();
-    }
-    while (!commands.empty()) {
-        const auto& command = commands.front();
-        switch (command.GetType()) {
-            case TimerCommandType::Add:
-                AddTimer(command.GetTimerId(), command.GetCallback());
-                break;
-            case TimerCommandType::Remove:
-                RemoveTimer(command.GetTimerId());
-                break;
-            case TimerCommandType::Start:
-                StartTimer(command.GetTimerId(), command.IsSingleshot());
-                break;
-            case TimerCommandType::Stop:
-                StopTimer(command.GetTimerId());
-                break;
-            case TimerCommandType::SetTimeout:
-                SetTimeout(command.GetTimerId(), command.GetTimeout());
-                break;
-            default:
-                // TODO: log unhandled/unknown command
-                break;
-        }
-        commands.pop();
-    }
-}
-
-void TimerCommandManager::AddTimer(uint64_t timerId,
-                                   const std::weak_ptr<MediaTimerCallback>& callbackRef)
-{
-    if (!callbackRef.expired()) {
-        auto timer = UVTimer::CreateInitialized(_loop.GetHandle());
-        if (timer.IsValid()) {
-            auto wrapper = std::make_unique<TimerWrapper>(callbackRef, std::move(timer));
-            LOCK_WRITE_PROTECTED_OBJ(_timers);
-            _timers->insert(std::make_pair(timerId, std::move(wrapper)));
-        }
-        else {
-            // TODO: log error
-        }
-    }
-}
-
-void TimerCommandManager::RemoveTimer(uint64_t timerId)
-{
-    LOCK_WRITE_PROTECTED_OBJ(_timers);
-    const auto it = _timers->find(timerId);
-    if (it != _timers->end()) {
-        _timers->erase(it);
-    }
-}
-
-void TimerCommandManager::StartTimer(uint64_t timerId, bool singleshot)
-{
-    LOCK_READ_PROTECTED_OBJ(_timers);
-    const auto it = _timers->find(timerId);
-    if (it != _timers->end()) {
-        it->second->Start(singleshot);
-    }
-}
-
-void TimerCommandManager::StopTimer(uint64_t timerId)
-{
-    LOCK_READ_PROTECTED_OBJ(_timers);
-    const auto it = _timers->find(timerId);
-    if (it != _timers->end()) {
-        it->second->Stop();
-    }
-}
-
-void TimerCommandManager::SetTimeout(uint64_t timerId, uint32_t timeoutMs)
-{
-    LOCK_READ_PROTECTED_OBJ(_timers);
-    const auto it = _timers->find(timerId);
-    if (it != _timers->end()) {
-        it->second->SetTimeout(timeoutMs);
-    }
 }
 
 }
