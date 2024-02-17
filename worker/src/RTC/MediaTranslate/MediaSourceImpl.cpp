@@ -27,6 +27,15 @@ void MediaSourceImpl::RemoveAllSinks()
     _sinks.Clear();
 }
 
+void MediaSourceImpl::Commmit(const std::shared_ptr<MemoryBuffer>& buffer)
+{
+    if (buffer) {
+        StartMediaSinksWriting();
+        WriteMediaSinksPayload(buffer);
+        EndMediaSinksWriting();
+    }
+}
+
 void MediaSourceImpl::StartMediaSinksWriting()
 {
     _sinks.InvokeMethod(&MediaSink::StartMediaWriting, *this);

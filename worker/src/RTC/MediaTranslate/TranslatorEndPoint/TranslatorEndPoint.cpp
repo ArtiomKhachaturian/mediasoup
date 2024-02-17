@@ -112,9 +112,7 @@ void TranslatorEndPoint::NotifyThatTranslatedMediaReceived(const std::shared_ptr
         MS_ERROR_STD("Received translation #%llu (%zu bytes) from %s",
                      media->GetId(), media->GetSize(),
                      GetDescription().c_str());
-        StartMediaSinksWriting();
-        WriteMediaSinksPayload(media);
-        EndMediaSinksWriting();
+        Commmit(media);
     }
 }
 

@@ -72,7 +72,6 @@ std::vector<uint8_t> FileReader::ReadAllAsBinary(const std::string_view& fileNam
         else {
             MS_WARN_DEV_STD("no data for read because file %s is empty", fileNameUtf8.c_str());
         }
-        Close(handle);
     }
     return data;
 }
@@ -83,7 +82,6 @@ bool FileReader::IsValidForRead(const std::string_view& fileNameUtf8)
     if (const auto handle = Base::Open(fileNameUtf8, true)) {
         auto size = GetFileSize(handle);
         valid = size > 0;
-        Close(handle);
     }
     return valid;
 }
@@ -173,7 +171,7 @@ std::shared_ptr<MemoryBuffer> FileReader::ReadBuffer(bool& eof, bool& ok) const
     return buffer;
 }
 
-int64_t FileReader::GetFileSize(FILE* handle)
+int64_t FileReader::GetFileSize(const std::shared_ptr<FILE>& handle)
 {
     int64_t len = 0LL;
     if (handle && FileSeek(handle, SEEK_END)) {
@@ -188,35 +186,35 @@ int64_t FileReader::GetFileSize(FILE* handle)
     return len;
 }
 
-int64_t FileReader::FileTell(FILE* handle)
+int64_t FileReader::FileTell(const std::shared_ptr<FILE>& handle)
 {
     if (handle) {
 #ifdef _MSC_VER
-        return ::_ftelli64(handle);
+        return ::_ftelli64(handle.get());
 #else
-        return ::ftell(handle);
+        return ::ftell(handle.get());
 #endif
     }
     return -1;
 }
 
-bool FileReader::FileSeek(FILE* handle, int command, long offset)
+bool FileReader::FileSeek(const std::shared_ptr<FILE>& handle, int command, long offset)
 {
     if (handle && offset >= 0L) {
 #ifdef _MSC_VER
-        return 0 == ::_fseeki64(handle, offset, command);
+        return 0 == ::_fseeki64(handle.get(), offset, command);
 #else
-        ::fseek(handle, offset, command);
+        ::fseek(handle.get(), offset, command);
         return true;
 #endif
     }
     return false;
 }
 
-size_t FileReader::FileRead(FILE* handle, std::vector<uint8_t>& to)
+size_t FileReader::FileRead(const std::shared_ptr<FILE>& handle, std::vector<uint8_t>& to)
 {
     if (handle && !to.empty()) {
-        return ::fread(to.data(), 1UL, to.size(), handle);
+        return ::fread(to.data(), 1UL, to.size(), handle.get());
     }
     return 0UL;
 }

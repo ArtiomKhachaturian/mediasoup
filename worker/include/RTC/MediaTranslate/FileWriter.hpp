@@ -10,6 +10,7 @@ namespace RTC
 
 class FileWriter : public FileDevice<MediaSink>
 {
+    using Base = FileDevice<MediaSink>;
 public:
     FileWriter(const std::string_view& fileNameUtf8, int* error = nullptr);
     ~FileWriter() final;
@@ -20,9 +21,11 @@ public:
     // false on write error. Note: Flushing when closing, is not required.
     bool Flush();
     // impl. of MediaSink
+    void StartMediaWriting(const MediaObject& sender) final;
     void WriteMediaPayload(const MediaObject&, const std::shared_ptr<MemoryBuffer>& buffer) final;
+    void EndMediaWriting(const MediaObject& sender) final;
 private:
-    static size_t FileWrite(FILE* handle, const std::shared_ptr<MemoryBuffer>& buffer);
+    static size_t FileWrite(const std::shared_ptr<FILE>& handle, const std::shared_ptr<MemoryBuffer>& buffer);
 };
 
 } // namespace RTC

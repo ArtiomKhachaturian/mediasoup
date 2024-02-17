@@ -6,6 +6,8 @@
 #ifdef _WIN32
 #include <io.h>
 #else
+#include <unistd.h>
+#include <sys/types.h>
 #include <sys/syslimits.h>
 #include <fcntl.h>
 #endif
@@ -30,7 +32,7 @@ namespace RTC
 {
 
 FileWriter::FileWriter(const std::string_view& fileNameUtf8, int* error)
-    : FileDevice<MediaSink>(fileNameUtf8, false, error)
+    : Base(fileNameUtf8, false, error)
 {
 }
 
@@ -51,9 +53,8 @@ bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const std::share
 {
     bool written = false;
     if (buffer && !buffer->IsEmpty()) {
-        if (const auto handle = Open(fileNameUtf8, false)) {
+        if (const auto handle = Base::Open(fileNameUtf8, false)) {
             written = FileWrite(handle, buffer) == buffer->GetSize();
-            Close(handle);
         }
     }
     return written;
@@ -65,13 +66,13 @@ bool FileWriter::DeleteFromStorage()
     if (const auto handle = GetHandle()) {
 #ifdef _WIN32
         char filePath[MAX_PATH] = { 0 };
-        const auto fileHandle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(handle)));
+        const auto fileHandle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(handle.get())));
         if (INVALID_HANDLE_VALUE != fileHandle) {
             // TODO: get file name from WinAPI handle
         }
 #else
         char filePath[PATH_MAX] = { 0 };
-        ok = -1 != fcntl(fileno(handle), F_GETPATH, filePath);
+        ok = -1 != fcntl(fileno(handle.get()), F_GETPATH, filePath);
 #endif
         if (ok) {
             Close();
@@ -83,7 +84,20 @@ bool FileWriter::DeleteFromStorage()
 
 bool FileWriter::Flush()
 {
-    return GetHandle() && 0 == ::fflush(GetHandle());
+    const auto handle = GetHandle();
+    return handle && 0 == ::fflush(handle.get());
+}
+
+void FileWriter::StartMediaWriting(const MediaObject& sender)
+{
+    MediaSink::StartMediaWriting(sender);
+    if (const auto handle = GetHandle()) { // truncate file
+#ifdef _WIN32
+        ::_chsize_s(_fileno(handle.get()), 0LL);
+#else
+        ::ftruncate(fileno(handle.get()), 0);
+#endif
+    }
 }
 
 void FileWriter::WriteMediaPayload(const MediaObject&, const std::shared_ptr<MemoryBuffer>& buffer)
@@ -101,10 +115,17 @@ void FileWriter::WriteMediaPayload(const MediaObject&, const std::shared_ptr<Mem
     }
 }
 
-size_t FileWriter::FileWrite(FILE* handle, const std::shared_ptr<MemoryBuffer>& buffer)
+void FileWriter::EndMediaWriting(const MediaObject& sender)
+{
+    MediaSink::EndMediaWriting(sender);
+    Flush();
+}
+
+size_t FileWriter::FileWrite(const std::shared_ptr<FILE>& handle,
+                             const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (handle && buffer) {
-        return ::fwrite(buffer->GetData(), 1U, buffer->GetSize(), handle);
+        return ::fwrite(buffer->GetData(), 1U, buffer->GetSize(), handle.get());
     }
     return 0UL;
 }

@@ -33,10 +33,10 @@ private:
     bool ReadContent(); // return false if error or stop requested
     bool SeekToStart();
     std::shared_ptr<MemoryBuffer> ReadBuffer(bool& eof, bool& ok) const;
-    static int64_t GetFileSize(FILE* handle);
-    static int64_t FileTell(FILE* handle);
-    static bool FileSeek(FILE* handle, int command, long offset = 0L);
-    static size_t FileRead(FILE* handle, std::vector<uint8_t>& to);
+    static int64_t GetFileSize(const std::shared_ptr<FILE>& handle);
+    static int64_t FileTell(const std::shared_ptr<FILE>& handle);
+    static bool FileSeek(const std::shared_ptr<FILE>& handle, int command, long offset = 0L);
+    static size_t FileRead(const std::shared_ptr<FILE>& handle, std::vector<uint8_t>& to);
 private:
 	const bool _loop;
     const int64_t _fileSize;

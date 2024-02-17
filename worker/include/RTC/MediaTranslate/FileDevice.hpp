@@ -1,4 +1,6 @@
 #pragma once
+#include <atomic>
+#include <memory>
 #include <string>
 #include <stddef.h>
 #include <stdio.h>
@@ -24,25 +26,22 @@ public:
     virtual ~FileDevice() { Close(); }
     // Returns true if a file has been opened. If the file is not open, no methods
     // but IsOpen and Close may be called.
-    virtual bool IsOpen() const { return nullptr != _handle; }
+    virtual bool IsOpen() const { return nullptr != GetHandle(); }
+    // Closes the file, and implies Flush
+    void Close();
 protected:
     FileDevice() = default;
-    explicit FileDevice(FILE* handle);
+    explicit FileDevice(std::shared_ptr<FILE> handle);
     FileDevice(const std::string_view& fileNameUtf8, bool readOnly, int* error = nullptr);
-    FILE* GetHandle() const { return _handle; }
-    // Closes the file, and implies Flush. Returns true on success, false if
-    // writing buffered data fails. On failure, the file is nevertheless closed.
-    // Calling Close on an already closed file does nothing and returns success.
-    bool Close();
-    static FILE* Open(const std::string_view& fileNameUtf8, bool readOnly, int* error = nullptr);
-    static bool Close(FILE* handle);
+    std::shared_ptr<FILE> GetHandle() const { return std::atomic_load(&_handle); }
+    static std::shared_ptr<FILE> Open(const std::string_view& fileNameUtf8, bool readOnly, int* error = nullptr);
 private:
-    FILE* _handle = nullptr;
+    std::shared_ptr<FILE> _handle = nullptr;
 };
 
 template<class TBase>
-FileDevice<TBase>::FileDevice(FILE* handle)
-    : _handle(handle)
+FileDevice<TBase>::FileDevice(std::shared_ptr<FILE> handle)
+    : _handle(std::move(handle))
 {
 }
 
@@ -53,18 +52,13 @@ FileDevice<TBase>::FileDevice(const std::string_view& fileNameUtf8, bool readOnl
 }
 
 template<class TBase>
-bool FileDevice<TBase>::Close()
+void FileDevice<TBase>::Close()
 {
-    if (_handle) {
-        const auto success = Close(_handle);
-        _handle = nullptr;
-        return success;
-    }
-    return true; // already closed
+    std::atomic_store(&_handle, std::shared_ptr<FILE>());
 }
 
 template<class TBase>
-FILE* FileDevice<TBase>::Open(const std::string_view& fileNameUtf8, bool readOnly, int* error)
+std::shared_ptr<FILE> FileDevice<TBase>::Open(const std::string_view& fileNameUtf8, bool readOnly, int* error)
 {
 #if defined(_WIN32)
     std::string fileName(fileNameUtf8);
@@ -78,13 +72,7 @@ FILE* FileDevice<TBase>::Open(const std::string_view& fileNameUtf8, bool readOnl
     if (!handle && error) {
         *error = errno;
     }
-    return handle;
-}
-
-template<class TBase>
-bool FileDevice<TBase>::Close(FILE* handle)
-{
-    return handle && 0 == ::fclose(handle);
+    return std::shared_ptr<FILE>(handle, [](FILE* handle) { ::fclose(handle); });
 }
 
 } // namespace RTC
