@@ -15,6 +15,7 @@ class FileEndPoint : public TranslatorEndPoint
 public:
     FileEndPoint(std::string fileName,
                  std::string ownerId = std::string(),
+                 const std::shared_ptr<MediaTimer>& timer = nullptr,
                  uint32_t intervalBetweenTranslationsMs = 1000, // 1sec
                  uint32_t connectionDelaylMs = 500U, // 0.5 sec
                  const std::optional<uint32_t>& disconnectAfterMs = std::nullopt);
@@ -32,7 +33,7 @@ private:
     static inline std::atomic<uint64_t> _instances = 0ULL;
     const bool _fileIsValid;
     const std::shared_ptr<TimerCallback> _callback;
-    const std::unique_ptr<MediaTimer> _timer;
+    const std::shared_ptr<MediaTimer> _timer;
     const uint64_t _timerId;
     const uint32_t _intervalBetweenTranslationsMs;
     const uint32_t _connectionDelaylMs;
