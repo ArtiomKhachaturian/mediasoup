@@ -1,6 +1,7 @@
 #pragma once // 
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
 #include <atomic>
+#include <optional>
 #include <string>
 
 namespace RTC
@@ -12,13 +13,13 @@ class FileEndPoint : public TranslatorEndPoint
 {
     class TimerCallback;
 public:
-    FileEndPoint(std::string fileName, std::string ownerId = std::string());
+    FileEndPoint(std::string fileName,
+                 std::string ownerId = std::string(),
+                 uint32_t intervalBetweenTranslationsMs = 1000, // 1sec
+                 uint32_t connectionDelaylMs = 500U, // 0.5 sec
+                 const std::optional<uint32_t>& disconnectAfterMs = std::nullopt);
     ~FileEndPoint() final;
     static uint64_t GetInstancesCount() { return _instances.load(); }
-    uint32_t GetIntervalBetweenTranslationsMs() const;
-    void SetIntervalBetweenTranslationsMs(uint32_t intervalMs);
-    uint32_t GetConnectionDelay() const;
-    void SetConnectionDelay(uint32_t delaylMs);
     bool IsValid() const { return 0UL != _timerId; }
     // impl. of TranslatorEndPoint
     bool IsConnected() const final;
@@ -33,8 +34,9 @@ private:
     const std::shared_ptr<TimerCallback> _callback;
     const std::unique_ptr<MediaTimer> _timer;
     const uint64_t _timerId;
-    std::atomic<uint32_t> _intervalBetweenTranslationsMs = 1000; // 1 sec
-    std::atomic<uint32_t> _connectionDelaylMs = 500; // 0.5 sec
+    const uint32_t _intervalBetweenTranslationsMs;
+    const uint32_t _connectionDelaylMs;
+    uint64_t _disconnectedTimerId = 0U;
 };
 
 } // namespace RTC

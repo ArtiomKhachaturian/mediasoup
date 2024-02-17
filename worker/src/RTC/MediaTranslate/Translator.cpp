@@ -341,13 +341,13 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
 
 std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
 {
-    auto fileEndPoint = std::make_shared<FileEndPoint>(_mockTranslationFileName, GetId());
+    auto fileEndPoint = std::make_shared<FileEndPoint>(_mockTranslationFileName, GetId(),
+                                                       _mockTranslationFileNameLenMs + 1000U,
+                                                       500U);
     if (!fileEndPoint->IsValid()) {
         MS_ERROR_STD("failed open %s as mock translation", _mockTranslationFileName);
     }
     else {
-        fileEndPoint->SetIntervalBetweenTranslationsMs(_mockTranslationFileNameLenMs + 1000U);
-        fileEndPoint->SetConnectionDelay(500U);
         _nonStubEndPointRef = fileEndPoint;
         return fileEndPoint;
     }

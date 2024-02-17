@@ -46,43 +46,39 @@ private:
     std::atomic_bool _hasWrittenInputMedia = false;
 };
 
-FileEndPoint::FileEndPoint(std::string fileName, std::string ownerId)
+FileEndPoint::FileEndPoint(std::string fileName,
+                           std::string ownerId,
+                           uint32_t intervalBetweenTranslationsMs,
+                           uint32_t connectionDelaylMs,
+                           const std::optional<uint32_t>& disconnectAfterMs)
     : TranslatorEndPoint(std::move(ownerId), std::move(fileName))
     , _fileIsValid(FileReader::IsValidForRead(GetName()))
     , _callback(_fileIsValid ? std::make_shared<TimerCallback>(this) : nullptr)
     , _timer(_fileIsValid ? std::make_unique<MediaTimer>(GetName()) : nullptr)
     , _timerId(_timer ? _timer->RegisterTimer(_callback) : 0UL)
+    , _intervalBetweenTranslationsMs(intervalBetweenTranslationsMs)
+    , _connectionDelaylMs(connectionDelaylMs)
 {
     _instances.fetch_add(1U);
+    if (_timer && _timerId && disconnectAfterMs.has_value()) {
+        // gap +10ms
+        const auto timeout = std::max<uint32_t>(connectionDelaylMs, disconnectAfterMs.value()) + 10U;
+        _disconnectedTimerId = _timer->Singleshot(timeout, [this]() { Disconnect(); });
+    }
 }
 
 FileEndPoint::~FileEndPoint()
 {
     FileEndPoint::Disconnect();
-    if (_timer && _timerId) {
-        _timer->UnregisterTimer(_timerId);
+    if (_timer) {
+        if (_timerId) {
+            _timer->UnregisterTimer(_timerId);
+        }
+        if (_disconnectedTimerId) {
+            _timer->UnregisterTimer(_disconnectedTimerId);
+        }
     }
     _instances.fetch_sub(1U);
-}
-
-uint32_t FileEndPoint::GetIntervalBetweenTranslationsMs() const
-{
-    return _intervalBetweenTranslationsMs.load();
-}
-
-void FileEndPoint::SetIntervalBetweenTranslationsMs(uint32_t intervalMs)
-{
-    _intervalBetweenTranslationsMs = intervalMs;
-}
-
-uint32_t FileEndPoint::GetConnectionDelay() const
-{
-    return _connectionDelaylMs.load();
-}
-
-void FileEndPoint::SetConnectionDelay(uint32_t delaylMs)
-{
-    _connectionDelaylMs = delaylMs;
 }
 
 bool FileEndPoint::IsConnected() const
@@ -94,7 +90,7 @@ void FileEndPoint::Connect()
 {
     if (_callback && _timer && _callback->SetConnectingState()) {
         // for emulation of connection establishing
-        _timer->SetTimeout(_timerId, GetConnectionDelay());
+        _timer->SetTimeout(_timerId, _connectionDelaylMs);
         _timer->Start(_timerId, true);
     }
 }
@@ -196,7 +192,7 @@ void FileEndPoint::TimerCallback::StartTimer(uint32_t interval, StartMode mode)
 
 void FileEndPoint::TimerCallback::StartTimer(StartMode mode)
 {
-    StartTimer(_owner->GetIntervalBetweenTranslationsMs(), mode);
+    StartTimer(_owner->_intervalBetweenTranslationsMs, mode);
 }
 
 void FileEndPoint::TimerCallback::SetHasWrittenInputMedia(bool has)

@@ -20,7 +20,6 @@ public:
     ~RtpPacketsPlayerStream();
     void Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media);
     bool IsPlaying() const;
-    uint32_t GetSsrc() const { return _ssrc; }
 private:
     const uint32_t _ssrc;
     const uint32_t _clockRate;
