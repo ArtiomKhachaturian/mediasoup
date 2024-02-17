@@ -1,16 +1,24 @@
 #define MS_CLASS "RTC::RtpPacketsPlayerStreamQueue"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerStreamQueue.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMediaFragment.hpp"
-#include "RTC/RtpPacket.hpp"
+#include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
+#include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
+#include "RTC/MediaTranslate/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
 
-RtpPacketsPlayerStreamQueue::RtpPacketsPlayerStreamQueue(RtpPacketsPlayerCallback* callback)
-    : _callback(callback)
+RtpPacketsPlayerStreamQueue::RtpPacketsPlayerStreamQueue(uint32_t ssrc, uint32_t clockRate,
+                                                         uint8_t payloadType,
+                                                         const RtpCodecMimeType& mime)
+    : _ssrc(ssrc)
+    , _clockRate(clockRate)
+    , _payloadType(payloadType)
+    , _mime(mime)
 {
-    MS_ASSERT(callback, "non-null callback is expected");
 }
 
 RtpPacketsPlayerStreamQueue::~RtpPacketsPlayerStreamQueue()
@@ -18,74 +26,83 @@ RtpPacketsPlayerStreamQueue::~RtpPacketsPlayerStreamQueue()
     ResetCallback();
 }
 
-void RtpPacketsPlayerStreamQueue::ResetCallback()
+std::shared_ptr<RtpPacketsPlayerStreamQueue> RtpPacketsPlayerStreamQueue::Create(uint32_t ssrc,
+                                                                                 uint32_t clockRate,
+                                                                                 uint8_t payloadType,
+                                                                                 const RtpCodecMimeType& mime,
+                                                                                 RtpPacketsPlayerCallback* callback)
 {
-    bool done = false;
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_callback);
-        if (_callback.ConstRef()) {
-            _callback = nullptr;
-            done = true;
+    std::shared_ptr<RtpPacketsPlayerStreamQueue> queue;
+    if (callback) {
+        if (WebMCodecs::IsSupported(mime)) {
+            queue.reset(new RtpPacketsPlayerStreamQueue(ssrc, clockRate, payloadType, mime));
+            queue->SetCallback(callback);
+        }
+        else {
+            MS_ERROR("WebM unsupported MIME type %s", GetStreamInfoString(mime, ssrc).c_str());
         }
     }
-    if (done) {
-        LOCK_WRITE_PROTECTED_OBJ(_fragments);
-        _fragments->clear();
+    return queue;
+}
+
+void RtpPacketsPlayerStreamQueue::Play(uint64_t mediaSourceId,
+                                       const std::shared_ptr<MemoryBuffer>& media,
+                                       const std::shared_ptr<MediaTimer>& timer)
+{
+    if (media && timer && !media->IsEmpty()) {
+        LOCK_READ_PROTECTED_OBJ(_callback);
+        if (_callback.ConstRef()) {
+            LOCK_WRITE_PROTECTED_OBJ(_pendingMedias);
+            _pendingMedias->push(std::make_pair(mediaSourceId, media));
+            if (!timer->Singleshot(0U, shared_from_this())) {
+                MS_ERROR_STD("RTP media play not started");
+                _pendingMedias->pop();
+            }
+        }
     }
 }
 
-void RtpPacketsPlayerStreamQueue::PushFragment(std::unique_ptr<RtpPacketsPlayerMediaFragment> fragment)
+bool RtpPacketsPlayerStreamQueue::IsEmpty() const
 {
-    if (fragment) {
-        const auto fragmentReference = fragment.get();
-        LOCK_WRITE_PROTECTED_OBJ(_fragments);
-        _fragments->insert(std::make_pair(fragmentReference->GetMediaId(), std::move(fragment)));
-        fragmentReference->PlayFrames();
-    }
+    LOCK_READ_PROTECTED_OBJ(_pendingMedias);
+    return _pendingMedias->empty();
 }
 
-bool RtpPacketsPlayerStreamQueue::HasFragments() const
-{
-    LOCK_READ_PROTECTED_OBJ(_fragments);
-    return !_fragments->empty();
-}
-
-void RtpPacketsPlayerStreamQueue::OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId)
-{
-    InvokeCallbackMethod(&RtpPacketsPlayerCallback::OnPlayStarted, ssrc, mediaId, mediaSourceId);
-}
-
-void RtpPacketsPlayerStreamQueue::OnPlay(const Timestamp& timestampOffset, RtpPacket* packet,
-                                         uint64_t mediaId, uint64_t mediaSourceId)
-{
-    if (packet && !InvokeCallbackMethod(&RtpPacketsPlayerCallback::OnPlay,
-                                        timestampOffset, packet,
-                                        mediaId, mediaSourceId)) {
-        delete packet;
-    }
-}
-
-void RtpPacketsPlayerStreamQueue::OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId)
-{
-    RemoveFinishedFragment(mediaId);
-    InvokeCallbackMethod(&RtpPacketsPlayerCallback::OnPlayFinished, ssrc, mediaId, mediaSourceId);
-}
-
-void RtpPacketsPlayerStreamQueue::RemoveFinishedFragment(uint64_t mediaId)
-{
-    LOCK_WRITE_PROTECTED_OBJ(_fragments);
-    _fragments->erase(mediaId);
-}
-
-template <class Method, typename... Args>
-bool RtpPacketsPlayerStreamQueue::InvokeCallbackMethod(const Method& method, Args&&... args) const
+void RtpPacketsPlayerStreamQueue::OnEvent()
 {
     LOCK_READ_PROTECTED_OBJ(_callback);
     if (const auto callback = _callback.ConstRef()) {
-        (callback->*method)(std::forward<Args>(args)...);
-        return true;
+        LOCK_WRITE_PROTECTED_OBJ(_pendingMedias);
+        while (!_pendingMedias->empty()) {
+            const auto& pendingMedia = _pendingMedias->front();
+            if (pendingMedia.second) {
+                RtpPacketsPlayerMediaFragment fragment(std::make_unique<WebMDeserializer>());
+                if (fragment.Parse(GetClockRate(), GetMime(), pendingMedia.second)) {
+                    const auto mediaId = pendingMedia.second->GetId();
+                    fragment.Play(GetSsrc(), GetPayloadType(), mediaId, pendingMedia.first, callback);
+                }
+            }
+            _pendingMedias->pop();
+        }
     }
-    return false;
+}
+
+void RtpPacketsPlayerStreamQueue::SetCallback(RtpPacketsPlayerCallback* callback)
+{
+    bool changed = false;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_callback);
+        if (callback != _callback.ConstRef()) {
+            _callback = callback;
+            changed = true;
+        }
+    }
+    if (changed && !callback) {
+        LOCK_WRITE_PROTECTED_OBJ(_pendingMedias);
+        while (!_pendingMedias->empty()) {
+            _pendingMedias->pop();
+        }
+    }
 }
 
 } // namespace RTC

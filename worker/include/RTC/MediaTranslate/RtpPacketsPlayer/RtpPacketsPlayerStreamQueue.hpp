@@ -1,34 +1,49 @@
 #pragma once
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
+#include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
+#include "RTC/RtpDictionaries.hpp"
 #include "ProtectedObj.hpp"
-#include <absl/container/flat_hash_map.h>
+#include <queue>
 
 namespace RTC
 {
 
 class RtpPacketsPlayerMediaFragment;
+class RtpPacketsPlayerCallback;
+class MemoryBuffer;
+class MediaTimer;
 
-class RtpPacketsPlayerStreamQueue : public RtpPacketsPlayerCallback
+class RtpPacketsPlayerStreamQueue : public MediaTimerCallback,
+                                    public std::enable_shared_from_this<RtpPacketsPlayerStreamQueue>
 {
-  using FragmentsMap = absl::flat_hash_map<uint64_t, std::unique_ptr<RtpPacketsPlayerMediaFragment>>;
+    using PendingMedia = std::pair<uint64_t, std::shared_ptr<MemoryBuffer>>;
 public:
-    RtpPacketsPlayerStreamQueue(RtpPacketsPlayerCallback* callback);
     ~RtpPacketsPlayerStreamQueue() final;
-    void ResetCallback();
-    void PushFragment(std::unique_ptr<RtpPacketsPlayerMediaFragment> fragment);
-    bool HasFragments() const;
-    // impl. of RtpPacketsPlayerCallback
-    void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
-    void OnPlay(const Timestamp& timestampOffset, RtpPacket* packet, uint64_t mediaId,
-                uint64_t mediaSourceId) final;
-    void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
+    static std::shared_ptr<RtpPacketsPlayerStreamQueue> Create(uint32_t ssrc, uint32_t clockRate,
+                                                               uint8_t payloadType,
+                                                               const RtpCodecMimeType& mime,
+                                                               RtpPacketsPlayerCallback* callback);
+    void ResetCallback() { SetCallback(nullptr); }
+    void Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media,
+              const std::shared_ptr<MediaTimer>& timer);
+    bool IsEmpty() const;
+    uint32_t GetSsrc() const { return _ssrc; }
+    uint32_t GetClockRate() const { return _clockRate; }
+    uint8_t GetPayloadType() const { return _payloadType; }
+    const RtpCodecMimeType& GetMime() const { return _mime; }
+    // impl. of MediaTimerCallback
+    void OnEvent() final;
 private:
-    void RemoveFinishedFragment(uint64_t mediaId);
-    template <class Method, typename... Args>
-    bool InvokeCallbackMethod(const Method& method, Args&&... args) const;
+    RtpPacketsPlayerStreamQueue(uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
+                                const RtpCodecMimeType& mime);
+    void SetCallback(RtpPacketsPlayerCallback* callback);
 private:
-    ProtectedObj<RtpPacketsPlayerCallback*> _callback;
-    ProtectedObj<FragmentsMap> _fragments;
+    const uint32_t _ssrc;
+    const uint32_t _clockRate;
+    const uint8_t _payloadType;
+    const RtpCodecMimeType _mime;
+    ProtectedObj<RtpPacketsPlayerCallback*> _callback = nullptr;
+    ProtectedObj<std::queue<PendingMedia>> _pendingMedias;
 };
 
 } // namespace RTC

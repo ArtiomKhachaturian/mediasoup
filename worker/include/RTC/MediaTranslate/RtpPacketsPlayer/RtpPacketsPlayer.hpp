@@ -2,7 +2,7 @@
 #include "ProtectedObj.hpp"
 #include "absl/container/flat_hash_map.h"
 
-//#define USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
+#define USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
 
 namespace RTC
 {

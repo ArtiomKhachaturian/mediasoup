@@ -1,35 +1,34 @@
 #pragma once
-#include "RTC/RtpDictionaries.hpp"
+#include "absl/container/flat_hash_map.h"
 #include <atomic>
 #include <memory>
 
 namespace RTC
 {
 
+class MediaFrame;
 class MemoryBuffer;
-class MediaTimer;
 class MediaFrameDeserializer;
+class RtpCodecMimeType;
 class RtpPacketsPlayerCallback;
-class RtpPacketsMediaFragmentPlayer;
+class RtpPacketizer;
+class RtpPacket;
 
 class RtpPacketsPlayerMediaFragment
 {
 public:
-    RtpPacketsPlayerMediaFragment(const std::shared_ptr<MediaTimer>& timer,
-                                  const std::weak_ptr<RtpPacketsPlayerCallback>& playerCallbackRef,
-                                  std::unique_ptr<MediaFrameDeserializer> deserializer,
-                                  uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
-                                  uint64_t mediaId, uint64_t mediaSourceId);
+    RtpPacketsPlayerMediaFragment(std::unique_ptr<MediaFrameDeserializer> deserializer);
     ~RtpPacketsPlayerMediaFragment();
-    bool Parse(const RtpCodecMimeType& mime, const std::shared_ptr<MemoryBuffer>& buffer);
-    void PlayFrames();
-    bool IsPlaying() const;
-    uint64_t GetMediaId() const;
+    bool Parse(uint32_t clockRate, const RtpCodecMimeType& mime, const std::shared_ptr<MemoryBuffer>& buffer);
+    void Play(uint32_t ssrc, uint8_t payloadType, uint64_t mediaId,
+              uint64_t mediaSourceId, RtpPacketsPlayerCallback* callback);
 private:
-    const std::shared_ptr<RtpPacketsMediaFragmentPlayer> _player;
-    const std::shared_ptr<MediaTimer> _timer;
-    std::atomic<uint64_t> _timerId = 0UL;
-    
+    RtpPacket* CreatePacket(size_t trackIndex, uint32_t ssrc, uint8_t payloadType,
+                            const std::shared_ptr<const MediaFrame>& frame) const;
+private:
+    const std::unique_ptr<MediaFrameDeserializer> _deserializer;
+    // key is track number, value - packetizer instance
+    absl::flat_hash_map<size_t, std::unique_ptr<RtpPacketizer>> _packetizers;
 };
 
 } // namespace RTC
