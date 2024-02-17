@@ -33,7 +33,7 @@ class TimerWrapper
 public:
     TimerWrapper(const std::weak_ptr<MediaTimerCallback>& callbackRef, UVTimer timer);
     ~TimerWrapper();
-    void SetTimeout(uint64_t timeoutMs);
+    void SetTimeout(uint32_t timeoutMs);
     void Start(bool singleshot);
     void Stop();
     bool IsActive() const;
@@ -48,20 +48,20 @@ private:
 
 class TimerCommand
 {
-    using Data = std::variant<std::weak_ptr<MediaTimerCallback>, bool, uint64_t>;
+    using Data = std::variant<std::weak_ptr<MediaTimerCallback>, bool, uint32_t>;
 public:
     TimerCommand() = delete;
     TimerCommand(uint64_t timerId, const std::weak_ptr<MediaTimerCallback>& callbackRef); // add
-    TimerCommand(uint64_t timerId, bool start, bool singleShot = false); // start/stop
-    TimerCommand(uint64_t timerId, uint64_t timeoutMs); // timeout
+    TimerCommand(uint64_t timerId, bool start, bool singleshot); // start/stop
+    TimerCommand(uint64_t timerId, uint32_t timeoutMs); // timeout
     TimerCommand(uint64_t timerId); // remove
     TimerCommand(TimerCommand&&) = default;
     TimerCommand(const TimerCommand&) = default;
     TimerCommandType GetType() const { return _type; }
     uint64_t GetTimerId() const { return _timerId; }
     std::weak_ptr<MediaTimerCallback> GetCallback() const noexcept(false);
-    uint64_t GetTimeout() const noexcept(false);
-    bool IsSingleShot() const noexcept(false);
+    uint32_t GetTimeout() const noexcept(false);
+    bool IsSingleshot() const noexcept(false);
 public:
     TimerCommandType _type;
     uint64_t _timerId = 0ULL;
@@ -87,7 +87,7 @@ private:
     void RemoveTimer(uint64_t timerId);
     void StartTimer(uint64_t timerId, bool singleshot);
     void StopTimer(uint64_t timerId);
-    void SetTimeout(uint64_t timerId, uint64_t timeoutMs);
+    void SetTimeout(uint64_t timerId, uint32_t timeoutMs);
 private:
     const UVLoop _loop;
     const UVAsyncHandle _commandEvent;
@@ -112,10 +112,10 @@ public:
     void Stop() final;
     bool IsStarted() const final;
 protected:
-    void OnTimeoutChanged(uint64_t timeoutMs) final;
+    void OnTimeoutChanged(uint32_t timeoutMs) final;
 private:
     uint64_t GetTimerId() const { return reinterpret_cast<uint64_t>(this); }
-    void SetTimeout(uint64_t timeoutMs);
+    void SetTimeout(uint32_t timeoutMs);
 private:
     const std::weak_ptr<TimerCommandManager> _managerRef;
 };
@@ -186,13 +186,13 @@ bool MediaTimerHandleUV::IsStarted() const
     return false;
 }
 
-void MediaTimerHandleUV::OnTimeoutChanged(uint64_t timeoutMs)
+void MediaTimerHandleUV::OnTimeoutChanged(uint32_t timeoutMs)
 {
     MediaTimerHandle::OnTimeoutChanged(timeoutMs);
     SetTimeout(timeoutMs);
 }
 
-void MediaTimerHandleUV::SetTimeout(uint64_t timeoutMs)
+void MediaTimerHandleUV::SetTimeout(uint32_t timeoutMs)
 {
     if (const auto manager = _managerRef.lock()) {
         manager->Add(TimerCommand(GetTimerId(), timeoutMs));
@@ -276,7 +276,7 @@ TimerWrapper::~TimerWrapper()
     _timer->data = nullptr;
 }
 
-void TimerWrapper::SetTimeout(uint64_t timeoutMs)
+void TimerWrapper::SetTimeout(uint32_t timeoutMs)
 {
     uv_timer_set_repeat(_timer.GetHandle(), timeoutMs);
 }
@@ -325,16 +325,16 @@ TimerCommand::TimerCommand(uint64_t timerId, const std::weak_ptr<MediaTimerCallb
 {
 }
 
-TimerCommand::TimerCommand(uint64_t timerId, bool start, bool singleShot)
+TimerCommand::TimerCommand(uint64_t timerId, bool start, bool singleshot)
     : _type(start ? TimerCommandType::Start : TimerCommandType::Stop)
     , _timerId(timerId)
 {
     if (start) {
-        _data = singleShot;
+        _data = singleshot;
     }
 }
 
-TimerCommand::TimerCommand(uint64_t timerId, uint64_t timeoutMs)
+TimerCommand::TimerCommand(uint64_t timerId, uint32_t timeoutMs)
     : _type(TimerCommandType::SetTimeout)
     , _timerId(timerId)
     , _data(timeoutMs)
@@ -352,12 +352,12 @@ std::weak_ptr<MediaTimerCallback> TimerCommand::GetCallback() const
     return std::get<std::weak_ptr<MediaTimerCallback>>(_data);
 }
 
-uint64_t TimerCommand::GetTimeout() const
+uint32_t TimerCommand::GetTimeout() const
 {
-    return std::get<uint64_t>(_data);
+    return std::get<uint32_t>(_data);
 }
 
-bool TimerCommand::IsSingleShot() const
+bool TimerCommand::IsSingleshot() const
 {
     return std::get<bool>(_data);
 }
@@ -453,7 +453,7 @@ void TimerCommandManager::OnCommand()
                 RemoveTimer(command.GetTimerId());
                 break;
             case TimerCommandType::Start:
-                StartTimer(command.GetTimerId(), command.IsSingleShot());
+                StartTimer(command.GetTimerId(), command.IsSingleshot());
                 break;
             case TimerCommandType::Stop:
                 StopTimer(command.GetTimerId());
@@ -512,7 +512,7 @@ void TimerCommandManager::StopTimer(uint64_t timerId)
     }
 }
 
-void TimerCommandManager::SetTimeout(uint64_t timerId, uint64_t timeoutMs)
+void TimerCommandManager::SetTimeout(uint64_t timerId, uint32_t timeoutMs)
 {
     LOCK_READ_PROTECTED_OBJ(_timers);
     const auto it = _timers->find(timerId);
