@@ -13,13 +13,11 @@ namespace RTC
 RtpPacketsPlayerStream::RtpPacketsPlayerStream(uint32_t ssrc, uint32_t clockRate,
                                                uint8_t payloadType,
                                                const RtpCodecMimeType& mime,
-                                               const std::shared_ptr<MediaTimer>& timer,
                                                RtpPacketsPlayerCallback* callback)
     : _ssrc(ssrc)
     , _clockRate(clockRate)
     , _payloadType(payloadType)
     , _mime(mime)
-    , _timer(timer)
     , _queue(std::make_shared<RtpPacketsPlayerStreamQueue>(callback))
 {
     MS_ASSERT(WebMCodecs::IsSupported(_mime), "WebM not available for this MIME %s", _mime.ToString().c_str());
@@ -30,11 +28,12 @@ RtpPacketsPlayerStream::~RtpPacketsPlayerStream()
     _queue->ResetCallback();
 }
 
-void RtpPacketsPlayerStream::Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media)
+void RtpPacketsPlayerStream::Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media,
+                                  const std::shared_ptr<MediaTimer>& timer)
 {
-    if (media) {
+    if (media && timer) {
         auto deserializer = std::make_unique<WebMDeserializer>();
-        auto fragment = std::make_unique<RtpPacketsPlayerMediaFragment>(_timer, _queue,
+        auto fragment = std::make_unique<RtpPacketsPlayerMediaFragment>(timer, _queue,
                                                                         std::move(deserializer),
                                                                         _ssrc, _clockRate,
                                                                         _payloadType,

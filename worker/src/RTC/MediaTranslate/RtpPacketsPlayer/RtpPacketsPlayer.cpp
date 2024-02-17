@@ -71,10 +71,10 @@ class RtpPacketsPlayer::StreamWrapper : private RtpPacketsPlayerCallback
 public:
     StreamWrapper(uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
                   const RtpCodecMimeType& mime,
-                  const std::shared_ptr<MediaTimer>& timer,
                   RtpPacketsPlayerCallback* callback);
     void ResetCallback();
-    void Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media);
+    void Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media,
+              const std::shared_ptr<MediaTimer>& timer);
     bool IsPlaying() const;
 private:
     // impl. of RtpPacketsPlayerCallback
@@ -120,7 +120,7 @@ void RtpPacketsPlayer::AddStream(uint32_t ssrc, uint32_t clockRate, uint8_t payl
         if (!_streams->count(ssrc)) {
             if (WebMCodecs::IsSupported(mime)) {
                 auto stream = std::make_unique<StreamType>(ssrc, clockRate, payloadType,
-                                                           mime, _timer, callback);
+                                                           mime, callback);
                 _streams.Ref()[ssrc] = std::move(stream);
             }
             else {
@@ -163,7 +163,7 @@ void RtpPacketsPlayer::Play(uint32_t ssrc, uint64_t mediaSourceId,
         LOCK_READ_PROTECTED_OBJ(_streams);
         const auto it = _streams->find(ssrc);
         if (it != _streams->end()) {
-            it->second->Play(mediaSourceId, media);
+            it->second->Play(mediaSourceId, media, _timer);
         }
     }
 }
@@ -172,10 +172,9 @@ void RtpPacketsPlayer::Play(uint32_t ssrc, uint64_t mediaSourceId,
 RtpPacketsPlayer::StreamWrapper::StreamWrapper(uint32_t ssrc, uint32_t clockRate,
                                                uint8_t payloadType,
                                                const RtpCodecMimeType& mime,
-                                               const std::shared_ptr<MediaTimer>& timer,
                                                RtpPacketsPlayerCallback* callback)
     : _handle(DepLibUV::GetLoop(), OnInvoke, this)
-    , _stream(new RtpPacketsPlayerStream(ssrc, clockRate, payloadType, mime, timer, this))
+    , _stream(new RtpPacketsPlayerStream(ssrc, clockRate, payloadType, mime, this))
     , _callback(callback)
 {
 }
@@ -193,9 +192,10 @@ void RtpPacketsPlayer::StreamWrapper::ResetCallback()
 }
 
 void RtpPacketsPlayer::StreamWrapper::Play(uint64_t mediaSourceId,
-                                           const std::shared_ptr<MemoryBuffer>& media)
+                                           const std::shared_ptr<MemoryBuffer>& media,
+                                           const std::shared_ptr<MediaTimer>& timer)
 {
-    _stream->Play(mediaSourceId, media);
+    _stream->Play(mediaSourceId, media, timer);
 }
 
 bool RtpPacketsPlayer::StreamWrapper::IsPlaying() const
