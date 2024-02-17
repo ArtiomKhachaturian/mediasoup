@@ -1,5 +1,5 @@
 #define MS_CLASS "RTC::RtpPacketsPlayerStreamQueue"
-#include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerStreamQueue.hpp"
+#include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerSimpleStreamQueue.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMediaFragment.hpp"
 #include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
 #include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
@@ -11,9 +11,10 @@
 namespace RTC
 {
 
-RtpPacketsPlayerStreamQueue::RtpPacketsPlayerStreamQueue(uint32_t ssrc, uint32_t clockRate,
-                                                         uint8_t payloadType,
-                                                         const RtpCodecMimeType& mime)
+RtpPacketsPlayerSimpleStreamQueue::RtpPacketsPlayerSimpleStreamQueue(uint32_t ssrc,
+                                                                     uint32_t clockRate,
+                                                                     uint8_t payloadType,
+                                                                     const RtpCodecMimeType& mime)
     : _ssrc(ssrc)
     , _clockRate(clockRate)
     , _payloadType(payloadType)
@@ -21,21 +22,19 @@ RtpPacketsPlayerStreamQueue::RtpPacketsPlayerStreamQueue(uint32_t ssrc, uint32_t
 {
 }
 
-RtpPacketsPlayerStreamQueue::~RtpPacketsPlayerStreamQueue()
+RtpPacketsPlayerSimpleStreamQueue::~RtpPacketsPlayerSimpleStreamQueue()
 {
     ResetCallback();
 }
 
-std::shared_ptr<RtpPacketsPlayerStreamQueue> RtpPacketsPlayerStreamQueue::Create(uint32_t ssrc,
-                                                                                 uint32_t clockRate,
-                                                                                 uint8_t payloadType,
-                                                                                 const RtpCodecMimeType& mime,
-                                                                                 RtpPacketsPlayerCallback* callback)
+std::shared_ptr<RtpPacketsPlayerSimpleStreamQueue> RtpPacketsPlayerSimpleStreamQueue::
+    Create(uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
+           const RtpCodecMimeType& mime, RtpPacketsPlayerCallback* callback)
 {
-    std::shared_ptr<RtpPacketsPlayerStreamQueue> queue;
+    std::shared_ptr<RtpPacketsPlayerSimpleStreamQueue> queue;
     if (callback) {
         if (WebMCodecs::IsSupported(mime)) {
-            queue.reset(new RtpPacketsPlayerStreamQueue(ssrc, clockRate, payloadType, mime));
+            queue.reset(new RtpPacketsPlayerSimpleStreamQueue(ssrc, clockRate, payloadType, mime));
             queue->SetCallback(callback);
         }
         else {
@@ -45,9 +44,9 @@ std::shared_ptr<RtpPacketsPlayerStreamQueue> RtpPacketsPlayerStreamQueue::Create
     return queue;
 }
 
-void RtpPacketsPlayerStreamQueue::Play(uint64_t mediaSourceId,
-                                       const std::shared_ptr<MemoryBuffer>& media,
-                                       const std::shared_ptr<MediaTimer>& timer)
+void RtpPacketsPlayerSimpleStreamQueue::Play(uint64_t mediaSourceId,
+                                             const std::shared_ptr<MemoryBuffer>& media,
+                                             const std::shared_ptr<MediaTimer>& timer)
 {
     if (media && timer && !media->IsEmpty()) {
         LOCK_READ_PROTECTED_OBJ(_callback);
@@ -62,13 +61,13 @@ void RtpPacketsPlayerStreamQueue::Play(uint64_t mediaSourceId,
     }
 }
 
-bool RtpPacketsPlayerStreamQueue::IsEmpty() const
+bool RtpPacketsPlayerSimpleStreamQueue::IsEmpty() const
 {
     LOCK_READ_PROTECTED_OBJ(_pendingMedias);
     return _pendingMedias->empty();
 }
 
-void RtpPacketsPlayerStreamQueue::OnEvent()
+void RtpPacketsPlayerSimpleStreamQueue::OnEvent()
 {
     LOCK_READ_PROTECTED_OBJ(_callback);
     if (const auto callback = _callback.ConstRef()) {
@@ -87,7 +86,7 @@ void RtpPacketsPlayerStreamQueue::OnEvent()
     }
 }
 
-void RtpPacketsPlayerStreamQueue::SetCallback(RtpPacketsPlayerCallback* callback)
+void RtpPacketsPlayerSimpleStreamQueue::SetCallback(RtpPacketsPlayerCallback* callback)
 {
     bool changed = false;
     {

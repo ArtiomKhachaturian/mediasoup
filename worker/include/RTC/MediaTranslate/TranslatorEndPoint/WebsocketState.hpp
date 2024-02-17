@@ -13,4 +13,4 @@ enum class WebsocketState
 
 const char* ToString(WebsocketState state);
 
-}
+} // namespace RTC

@@ -13,18 +13,19 @@ class RtpPacketsPlayerCallback;
 class MemoryBuffer;
 class MediaTimer;
 
-class RtpPacketsPlayerStreamQueue : public MediaTimerCallback,
-                                    public std::enable_shared_from_this<RtpPacketsPlayerStreamQueue>
+class RtpPacketsPlayerSimpleStreamQueue : public MediaTimerCallback,
+                                          public std::enable_shared_from_this<RtpPacketsPlayerSimpleStreamQueue>
 {
     using PendingMedia = std::pair<uint64_t, std::shared_ptr<MemoryBuffer>>;
 public:
-    ~RtpPacketsPlayerStreamQueue() final;
-    static std::shared_ptr<RtpPacketsPlayerStreamQueue> Create(uint32_t ssrc, uint32_t clockRate,
-                                                               uint8_t payloadType,
-                                                               const RtpCodecMimeType& mime,
-                                                               RtpPacketsPlayerCallback* callback);
+    ~RtpPacketsPlayerSimpleStreamQueue() final;
+    static std::shared_ptr<RtpPacketsPlayerSimpleStreamQueue> Create(uint32_t ssrc, uint32_t clockRate,
+                                                                     uint8_t payloadType,
+                                                                     const RtpCodecMimeType& mime,
+                                                                     RtpPacketsPlayerCallback* callback);
     void ResetCallback() { SetCallback(nullptr); }
-    void Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media,
+    void Play(uint64_t mediaSourceId,
+              const std::shared_ptr<MemoryBuffer>& media,
               const std::shared_ptr<MediaTimer>& timer);
     bool IsEmpty() const;
     uint32_t GetSsrc() const { return _ssrc; }
@@ -34,8 +35,8 @@ public:
     // impl. of MediaTimerCallback
     void OnEvent() final;
 private:
-    RtpPacketsPlayerStreamQueue(uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
-                                const RtpCodecMimeType& mime);
+    RtpPacketsPlayerSimpleStreamQueue(uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
+                                      const RtpCodecMimeType& mime);
     void SetCallback(RtpPacketsPlayerCallback* callback);
 private:
     const uint32_t _ssrc;
