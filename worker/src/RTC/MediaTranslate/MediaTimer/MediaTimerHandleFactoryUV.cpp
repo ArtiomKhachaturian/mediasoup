@@ -275,7 +275,7 @@ void MediaTimerHandleFactoryUV::SetTimerName(const std::string& timerName)
 bool MediaTimerHandleFactoryUV::SetTimerHighPriority()
 {
 #ifdef WIN32
-    return TRUE == :SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+    return TRUE == ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
 #elif defined(__APPLE__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
