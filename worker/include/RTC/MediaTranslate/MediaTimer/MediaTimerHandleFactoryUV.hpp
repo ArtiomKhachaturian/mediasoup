@@ -18,12 +18,6 @@ private:
 	MediaTimerHandleFactoryUV(const std::string& timerName, std::shared_ptr<Impl> impl);
     void Run();
     bool IsCancelled() const { return _cancelled.load(); }
-    static std::string LimitTimerName(const std::string& timerName);
-    static void SetTimerName(const std::string& timerName);
-    static bool SetTimerHighPriority();
-#ifndef WIN32
-    static bool SetPosixThreadHighPriority();
-#endif
 private:
     const std::string _timerName;
     const std::shared_ptr<Impl> _impl;

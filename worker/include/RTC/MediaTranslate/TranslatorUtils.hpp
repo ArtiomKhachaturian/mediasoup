@@ -22,5 +22,4 @@ const std::string& MimeTypeToString(const RtpCodecMimeType& mime);
 const std::string& MimeSubTypeToString(RtpCodecMimeType::Subtype subtype);
 const std::string& MimeSubTypeToString(const RtpCodecMimeType& mime);
 
-
 } // namespace RTC

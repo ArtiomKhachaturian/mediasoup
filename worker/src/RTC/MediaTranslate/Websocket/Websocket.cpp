@@ -4,6 +4,7 @@
 #include "RTC/MediaTranslate/Websocket/WebsocketState.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketFailure.hpp"
 #include "RTC/MediaTranslate/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/ThreadUtils.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 #include <websocketpp/config/asio_client.hpp>
@@ -96,7 +97,7 @@ struct Websocket::SocketConfig : public TConfig
 template<class TConfig>
 class Websocket::SocketImpl : public Socket
 {
-    using Client = websocketpp::client<SocketConfig<TConfig>>;
+    using Client = websocketpp::client<TConfig>;
     using MessagePtr = typename TConfig::message_type::ptr;
     using HdlWriteGuard = typename ProtectedObj<websocketpp::connection_hdl>::GuardTraits::MutexWriteGuard;
     using HdlReadGuard = typename ProtectedObj<websocketpp::connection_hdl>::GuardTraits::MutexReadGuard;
@@ -150,7 +151,7 @@ private:
     std::atomic_bool _opened = false;
 };
 
-class Websocket::SocketTls : public SocketImpl<websocketpp::config::asio_tls_client>
+class Websocket::SocketTls : public SocketImpl<SocketConfig<websocketpp::config::asio_tls_client>>
 {
     using SslContextPtr = websocketpp::lib::shared_ptr<asio::ssl::context>;
 public:
@@ -160,7 +161,7 @@ private:
     SslContextPtr OnTlsInit(websocketpp::connection_hdl);
 };
 
-class Websocket::SocketNoTls : public SocketImpl<websocketpp::config::asio_client>
+class Websocket::SocketNoTls : public SocketImpl<SocketConfig<websocketpp::config::asio_client>>
 {
 public:
     SocketNoTls(uint64_t id, const std::shared_ptr<const Config>& config,
@@ -365,6 +366,8 @@ WebsocketState Websocket::SocketImpl<TConfig>::GetState()
 template<class TConfig>
 void Websocket::SocketImpl<TConfig>::Run()
 {
+    SetCurrentThreadName(_config->GetUri()->str());
+    SetCurrentThreadPriority(ThreadPriority::Highest);
     _client.run();
     SetOpened(false);
 }
@@ -425,7 +428,8 @@ bool Websocket::SocketImpl<TConfig>::WriteBinary(const MemoryBuffer& buffer)
             websocketpp::lib::error_code ec;
             // overhead - deep copy of input buffer,
             // Websocketpp doesn't supports of buffers abstraction
-            _client.send(_hdl, buffer.GetData(), buffer.GetSize(), websocketpp::frame::opcode::binary, ec);
+            _client.send(_hdl.ConstRef(), buffer.GetData(), buffer.GetSize(),
+                         websocketpp::frame::opcode::binary, ec);
             if (ec) {
                 InvokeListenersMethod(&WebsocketListener::OnFailed,
                                       WebsocketFailure::WriteBinary,
@@ -617,7 +621,7 @@ std::shared_ptr<MemoryBuffer> Websocket::SocketImpl<TConfig>::ToBinary(MessagePt
 
 Websocket::SocketTls::SocketTls(uint64_t id, const std::shared_ptr<const Config>& config,
                                 const std::shared_ptr<SocketListeners>& listeners)
-    : SocketImpl<websocketpp::config::asio_tls_client>(id, config, listeners)
+    : SocketImpl<SocketConfig<websocketpp::config::asio_tls_client>>(id, config, listeners)
 {
     GetClient().set_tls_init_handler(bind(&SocketTls::OnTlsInit, this, _1));
 }
@@ -661,7 +665,7 @@ Websocket::SocketTls::SslContextPtr Websocket::SocketTls::OnTlsInit(websocketpp:
 
 Websocket::SocketNoTls::SocketNoTls(uint64_t id, const std::shared_ptr<const Config>& config,
                                     const std::shared_ptr<SocketListeners>& listeners)
-    : SocketImpl<websocketpp::config::asio_client>(id, config, listeners)
+    : SocketImpl<SocketConfig<websocketpp::config::asio_client>>(id, config, listeners)
 {
 }
 

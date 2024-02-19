@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUV.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandle.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
+#include "RTC/MediaTranslate/ThreadUtils.hpp"
 #include "UVAsyncHandle.hpp"
 #include "Logger.hpp"
 #include "ProtectedObj.hpp"
@@ -188,7 +189,7 @@ void MediaTimerHandleUV::SetTimeout(uint32_t timeoutMs)
 
 MediaTimerHandleFactoryUV::MediaTimerHandleFactoryUV(const std::string& timerName,
                                                      std::shared_ptr<Impl> impl)
-    : _timerName(LimitTimerName(timerName))
+    : _timerName(timerName)
     , _impl(std::move(impl))
     , _thread(std::bind(&MediaTimerHandleFactoryUV::Run, this))
 {
@@ -228,94 +229,13 @@ std::unique_ptr<MediaTimerHandle> MediaTimerHandleFactoryUV::
 void MediaTimerHandleFactoryUV::Run()
 {
     if (!IsCancelled()) {
-        if (!SetTimerHighPriority()) {
+        if (!SetCurrentThreadPriority(ThreadPriority::High)) {
             MS_WARN_DEV_STD("failed to set high prioriry for '%s' timer", _timerName.c_str());
         }
-        SetTimerName(_timerName);
+        SetCurrentThreadName(_timerName);
         _impl->RunLoop();
     }
 }
-
-std::string MediaTimerHandleFactoryUV::LimitTimerName(const std::string& timerName)
-{
-#ifdef WIN32
-    // Win32 has limitation for thread name - max 63 symbols
-    if (timerName.size() > 62U) {
-        return timerName.substr(0, 62U);
-    }
-#endif
-    return timerName;
-}
-
-void MediaTimerHandleFactoryUV::SetTimerName(const std::string& timerName)
-{
-    if (!timerName.empty()) {
-#ifdef WIN32
-        struct
-        {
-            DWORD dwType;
-            LPCSTR szName;
-            DWORD dwThreadID;
-            DWORD dwFlags;
-        } threadname_info = {0x1000, timerName.c_str(), static_cast<DWORD>(-1), 0};
-
-        __try {
-            ::RaiseException(0x406D1388, 0, sizeof(threadname_info) / sizeof(DWORD), reinterpret_cast<ULONG_PTR*>(&threadname_info));
-        } __except (EXCEPTION_EXECUTE_HANDLER) { /* NOLINT */ }
-#elif defined(__APPLE__)
-        if (0 != pthread_setname_np(timerName.c_str())) {
-            MS_WARN_DEV_STD("failed to set name %s for timer's thread", timerName.c_str());
-        }
-#else
-        prctl(PR_SET_NAME, reinterpret_cast<unsigned long>(timerName.c_str())); // NOLINT
-#endif
-    }
-}
-
-bool MediaTimerHandleFactoryUV::SetTimerHighPriority()
-{
-#ifdef WIN32
-    return TRUE == ::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
-#elif defined(__APPLE__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    if (auto current = dispatch_get_current_queue()) {
-        bool ok = false;
-        if (auto target = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0)) {
-            dispatch_set_target_queue(current, target);
-            ok = true;
-            target = nullptr;
-        }
-        current = nullptr;
-        if (ok) {
-            return true;
-        }
-    }
-#pragma GCC diagnostic pop
-    return SetPosixThreadHighPriority();
-#else
-    return SetPosixThreadHighPriority();
-#endif
-}
-
-#ifndef WIN32
-bool MediaTimerHandleFactoryUV::SetPosixThreadHighPriority()
-{
-    if (const auto thread = pthread_self()) {
-        const int policy = SCHED_FIFO;
-        const int minPrio = sched_get_priority_min(policy);
-        const int maxPrio = sched_get_priority_max(policy);
-        if (-1 != minPrio && -1 != maxPrio && maxPrio - minPrio > 2) {
-            sched_param param;
-            const int topPrio = maxPrio - 1;
-            const int lowPrio = maxPrio + 1;
-            param.sched_priority = std::max(topPrio - 2, lowPrio);
-            return 0 == pthread_setschedparam(thread, policy, &param);
-        }
-    }
-    return false;
-}
-#endif
 
 MediaTimerHandleFactoryUV::Impl::Impl(UVLoop loop)
     : _loop(std::move(loop))
