@@ -212,7 +212,6 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/TranslatorEndPoint/FileEndPoint.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint/StubEndPoint.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.cpp',
-  'src/RTC/MediaTranslate/TranslatorEndPoint/Websocket.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint/WebsocketEndPoint.cpp',
   'src/RTC/MediaTranslate/TranslatorSource.cpp',
   'src/RTC/MediaTranslate/TranslatorUtils.cpp',
@@ -221,6 +220,7 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/WebM/WebMCodecs.cpp',
   'src/RTC/MediaTranslate/WebM/WebMDeserializer.cpp',
   'src/RTC/MediaTranslate/WebM/WebMSerializer.cpp',
+  'src/RTC/MediaTranslate/Websocket/Websocket.cpp',
 ]
 
 if host_machine.system() == 'darwin'

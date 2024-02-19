@@ -1,6 +1,6 @@
 #pragma once
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
-#include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketListener.hpp"
+#include "RTC/MediaTranslate/Websocket/WebsocketListener.hpp"
 
 namespace RTC
 {

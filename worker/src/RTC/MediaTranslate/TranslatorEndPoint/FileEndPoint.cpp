@@ -1,6 +1,6 @@
 #define MS_CLASS "RTC::FileEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint/FileEndPoint.hpp"
-#include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketState.hpp"
+#include "RTC/MediaTranslate/Websocket/WebsocketState.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "RTC/MediaTranslate/FileReader.hpp"

@@ -2,10 +2,10 @@
 
 #include "ProtectedObj.hpp"
 #include "RTC/MediaTranslate/MediaObject.hpp"
+#include "RTC/MediaTranslate/Websocket/WebsocketOptions.hpp"
 #include "RTC/Listeners.hpp"
 #include <string>
 #include <memory>
-#include <unordered_map>
 
 namespace RTC
 {
@@ -28,13 +28,9 @@ public:
     Websocket(const std::string& uri,
               const std::string& user = std::string(),
               const std::string& password = std::string(),
-              std::unordered_map<std::string, std::string> headers = {},
-              std::string tlsTrustStore = std::string(),
-              std::string tlsKeyStore = std::string(),
-              std::string tlsPrivateKey = std::string(),
-              std::string tlsPrivateKeyPassword = std::string());
+              WebsocketOptions options = WebsocketOptions());
     ~Websocket() final;
-    bool Open(const std::string& userAgent = std::string());
+    bool Open();
     void Close();
     WebsocketState GetState() const;
     std::string GetUrl() const;

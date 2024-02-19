@@ -1,7 +1,7 @@
 #define MS_CLASS "RTC::WebsocketEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketEndPoint.hpp"
-#include "RTC/MediaTranslate/TranslatorEndPoint/Websocket.hpp"
-#include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketState.hpp"
+#include "RTC/MediaTranslate/Websocket/Websocket.hpp"
+#include "RTC/MediaTranslate/Websocket/WebsocketState.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #ifdef WRITE_TRANSLATION_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
