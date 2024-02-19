@@ -1454,7 +1454,7 @@ namespace RTC
     void Transport::AddPacket(RTC::RtpPacket* packet)
     {
         if (packet && !this->destroying) {
-            ReceiveRtpPacket(packet, true);
+            ReceiveRtpPacket(packet);
         }
     }
 
@@ -1559,7 +1559,7 @@ namespace RTC
 #endif
     }
 
-    void Transport::ReceiveRtpPacket(RTC::RtpPacket* packet, bool translated)
+    void Transport::ReceiveRtpPacket(RTC::RtpPacket* packet)
     {
         MS_TRACE();
 
@@ -1596,12 +1596,7 @@ namespace RTC
 
             return;
         }
-        
-        if (!translated && this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet)) {
-            delete packet;
-            return;
-        }
-        
+       
         // Feed the TransportCongestionControlServer.
         if (this->tccServer)
         {
@@ -2462,8 +2457,15 @@ namespace RTC
     inline void Transport::OnProducerRtpPacketReceived(RTC::Producer* producer, RTC::RtpPacket* packet)
     {
         MS_TRACE();
-
-        this->listener->OnTransportProducerRtpPacketReceived(this, producer, packet);
+        if (packet) {
+            bool accepted = packet->IsTranslated();
+            if (!accepted) {
+                accepted = !this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet);
+            }
+            if (accepted) {
+                this->listener->OnTransportProducerRtpPacketReceived(this, producer, packet);
+            }
+        }
     }
 
     inline void Transport::OnProducerSendRtcpPacket(RTC::Producer* /*producer*/, RTC::RTCP::Packet* packet)

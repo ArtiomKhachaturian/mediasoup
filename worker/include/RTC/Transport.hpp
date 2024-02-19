@@ -160,7 +160,6 @@ namespace RTC
     public:
         void CloseProducersAndConsumers();
         void ListenServerClosed();
-        void ReceiveRtpPacket(RTC::RtpPacket* packet, bool translated = false);
         RTC::Producer* GetProducer(const RTC::RtpPacket* packet);
         RTC::Producer* GetProducer(uint32_t ssrc) const;
         // Subclasses must also invoke the parent Close().
@@ -192,6 +191,7 @@ namespace RTC
         {
             this->sendTransmission.Update(len, DepLibUV::GetTimeMs());
         }
+        void ReceiveRtpPacket(RTC::RtpPacket* packet);
         void ReceiveRtcpPacket(RTC::RTCP::Packet* packet);
         void ReceiveSctpData(const uint8_t* data, size_t len);
         RTC::Producer* GetProducerById(const std::string& producerId) const;

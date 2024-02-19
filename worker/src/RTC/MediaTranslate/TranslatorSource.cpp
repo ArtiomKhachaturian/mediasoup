@@ -109,12 +109,12 @@ bool TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
             return handled;
         }
 #endif
-        if (const auto frame = _depacketizer->AddPacket(packet)) {
-            handled = _serializer->Push(frame);
+        // maybe empty packet if silence
+        if ((!packet->GetPayload() || 0U == packet->GetPayloadLength()) && GetMime().IsAudioCodec() && _serializer->HasSinks()) {
+            handled = true;
         }
-        else if (GetMime().IsAudioCodec() && _serializer->HasSinks()) {
-            // maybe empty packet if silence
-            handled = nullptr == packet->GetPayload() || 0U == packet->GetPayloadLength();
+        else if (const auto frame = _depacketizer->AddPacket(packet)) {
+            handled = _serializer->Push(frame);
         }
     }
     if (handled) {

@@ -158,6 +158,7 @@ void ConsumersManager::SendPacket(uint32_t rtpTimestampOffset, uint64_t mediaId,
                 const auto needsCopy = accepted.size() > 1U;
                 for (const auto& consumerInfo : accepted) {
                     const auto consumerPacket = needsCopy ? packet->Clone() : packet;
+                    consumerPacket->SetTranslated(true);
                     consumerInfo->SendPacket(rtpTimestampOffset, mediaId, consumerPacket, output);
                 }
                 if (needsCopy) {
