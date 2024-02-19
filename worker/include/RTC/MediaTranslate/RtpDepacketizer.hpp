@@ -6,7 +6,7 @@
 namespace RTC
 {
 
-class RtpMediaFrame;
+class MediaFrame;
 class RtpMediaFrameSerializer;
 class RtpPacket;
 
@@ -14,7 +14,7 @@ class RtpDepacketizer
 {
 public:
     virtual ~RtpDepacketizer() = default;
-    virtual std::shared_ptr<const RtpMediaFrame> AddPacket(const RtpPacket* packet) = 0;
+    virtual std::shared_ptr<const MediaFrame> AddPacket(const RtpPacket* packet) = 0;
     const RtpCodecMimeType& GetMimeType() const { return _mimeType; }
     uint32_t GetClockRate() const { return _clockRate; }
     static std::unique_ptr<RtpDepacketizer> Create(const RtpCodecMimeType& mimeType, uint32_t clockRate);

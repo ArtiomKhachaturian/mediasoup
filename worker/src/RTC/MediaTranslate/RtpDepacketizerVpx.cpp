@@ -42,7 +42,7 @@ RtpDepacketizerVpx::~RtpDepacketizerVpx()
 {
 }
 
-std::shared_ptr<const RtpMediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* packet)
+std::shared_ptr<const MediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* packet)
 {
     if (packet && packet->GetPayload() && packet->GetPayloadLength()) {
         auto it = _assemblies.find(packet->GetSsrc());

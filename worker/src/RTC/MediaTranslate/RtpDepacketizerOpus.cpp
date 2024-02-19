@@ -39,7 +39,7 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 {
 }
 
-std::shared_ptr<const RtpMediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet)
+std::shared_ptr<const MediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet)
 {
     if (const auto frame = RtpMediaFrame::Create(GetMimeType(), GetClockRate(),
                                                  packet, GetPayloadAllocator())) {

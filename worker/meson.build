@@ -214,6 +214,7 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint/Websocket.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint/WebsocketEndPoint.cpp',
+  'src/RTC/MediaTranslate/TranslatorSource.cpp',
   'src/RTC/MediaTranslate/TranslatorUtils.cpp',
   'src/RTC/MediaTranslate/WebM/MkvBufferedReader.cpp',
   'src/RTC/MediaTranslate/WebM/MkvBufferedWriter.cpp',

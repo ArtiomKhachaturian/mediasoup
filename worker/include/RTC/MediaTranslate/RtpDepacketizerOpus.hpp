@@ -15,7 +15,7 @@ public:
     RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t clockRate);
     ~RtpDepacketizerOpus() final;
     // impl. of RtpDepacketizer
-    std::shared_ptr<const RtpMediaFrame> AddPacket(const RtpPacket* packet) final;
+    std::shared_ptr<const MediaFrame> AddPacket(const RtpPacket* packet) final;
 private:
     std::shared_ptr<AudioFrameConfig> EnsureAudioConfig(uint8_t channelCount);
     std::shared_ptr<AudioFrameConfig> EnsureStereoAudioConfig(bool stereo);
