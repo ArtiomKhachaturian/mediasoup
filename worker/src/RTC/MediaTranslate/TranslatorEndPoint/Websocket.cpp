@@ -16,15 +16,17 @@ namespace {
 
 using namespace RTC;
 
-class StringMemoryBuffer : public MemoryBuffer
+template<class MessagePtr>
+class MessageMemoryBuffer : public MemoryBuffer
 {
 public:
-    StringMemoryBuffer(std::string payload);
-    size_t GetSize() const final { return _payload.size(); }
+    MessageMemoryBuffer(const MessagePtr& message);
+    ~MessageMemoryBuffer() final;
+    size_t GetSize() const final;
     uint8_t* GetData() final;
     const uint8_t* GetData() const final;
 private:
-    std::string _payload;
+    const MessagePtr _message;
 };
 
 class LogStreamBuf : public std::streambuf
@@ -607,7 +609,7 @@ template<class TConfig>
 std::shared_ptr<MemoryBuffer> Websocket::SocketImpl<TConfig>::ToBinary(const MessagePtr& message)
 {
     if (message) {
-        return std::make_shared<StringMemoryBuffer>(std::move(message->get_raw_payload()));
+        return std::make_shared<MessageMemoryBuffer<MessagePtr>>(message);
     }
     return nullptr;
 }
@@ -792,19 +794,34 @@ const char* ToString(WebsocketState state) {
 
 namespace {
 
-StringMemoryBuffer::StringMemoryBuffer(std::string payload)
-    : _payload(std::move(payload))
+template<class MessagePtr>
+MessageMemoryBuffer<MessagePtr>::MessageMemoryBuffer(const MessagePtr& message)
+    : _message(message)
 {
 }
 
-uint8_t* StringMemoryBuffer::GetData()
+template<class MessagePtr>
+MessageMemoryBuffer<MessagePtr>::~MessageMemoryBuffer()
 {
-    return reinterpret_cast<uint8_t*>(_payload.data());
+    _message->recycle();
 }
 
-const uint8_t* StringMemoryBuffer::GetData() const
+template<class MessagePtr>
+size_t MessageMemoryBuffer<MessagePtr>::GetSize() const
 {
-    return reinterpret_cast<const uint8_t*>(_payload.data());
+    return _message->get_payload().size();
+}
+
+template<class MessagePtr>
+uint8_t* MessageMemoryBuffer<MessagePtr>::GetData()
+{
+    return reinterpret_cast<uint8_t*>(_message->get_raw_payload().data());
+}
+
+template<class MessagePtr>
+const uint8_t* MessageMemoryBuffer<MessagePtr>::GetData() const
+{
+    return reinterpret_cast<const uint8_t*>(_message->get_payload().data());
 }
 
 LogStreamBuf::LogStreamBuf(uint64_t socketId, LogLevel level)
