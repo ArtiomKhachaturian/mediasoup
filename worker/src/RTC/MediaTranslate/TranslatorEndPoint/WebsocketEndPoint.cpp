@@ -1,7 +1,6 @@
 #define MS_CLASS "RTC::WebsocketEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketEndPoint.hpp"
-#include "RTC/MediaTranslate/Websocket/Websocket.hpp"
-#include "RTC/MediaTranslate/Websocket/WebsocketState.hpp"
+#include "RTC/MediaTranslate/Websocket/WebsocketTpp.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #ifdef WRITE_TRANSLATION_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
@@ -14,7 +13,7 @@ namespace RTC
 
 WebsocketEndPoint::WebsocketEndPoint(std::string ownerId)
     : TranslatorEndPoint(std::move(ownerId), _tsUri, _defaultTimeSliceMs)
-    , _socket(std::make_unique<Websocket>(_tsUri, _tsUser, _tsUserPassword))
+    , _socket(std::make_unique<WebsocketTpp>(_tsUri, _tsUser, _tsUserPassword))
 {
     _instances.fetch_add(1U);
     _socket->AddListener(this);
