@@ -3,6 +3,10 @@
 #include <Windows.h>
 #else
 #include <pthread.h>
+#ifndef __APPLE__
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+#endif
 #include <algorithm> // for std::max
 #endif
 

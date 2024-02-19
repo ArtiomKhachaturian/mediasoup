@@ -2,6 +2,7 @@
 
 #include "RTC/AtomicCounter.hpp"
 #include "ProtectedObj.hpp"
+#include <algorithm>
 #include <atomic>
 #include <vector>
 #include <memory>

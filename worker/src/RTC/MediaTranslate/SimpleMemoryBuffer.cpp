@@ -1,4 +1,5 @@
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include <cstring>
 
 namespace RTC
 {

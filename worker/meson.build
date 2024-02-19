@@ -336,6 +336,20 @@ flatbuffers_proj = subproject(
   ],
 )
 
+asio_proj = subproject(
+  'asio',
+  default_options: [
+    'warning_level=0',
+  ],
+)
+
+websocketpp_proj = subproject(
+  'websocketpp',
+  default_options: [
+    'warning_level=0',
+  ],
+)
+
 # flatbuffers schemas subdirectory.
 subdir('fbs')
 
@@ -370,8 +384,8 @@ dependencies = [
   usrsctp_proj.get_variable('usrsctp_dep'),
   nlohmann_json_proj.get_variable('nlohmann_json_dep'),
   flatbuffers_proj.get_variable('flatbuffers_dep'),
-  dependency('asio'),
-  dependency('websocketpp'),  
+  websocketpp_proj.get_variable('websocketpp_dep'),
+  asio_proj.get_variable('asio_dep'),
   flatbuffers_generator_dep,
   libwebrtc_dep,
   libwebm_dep,

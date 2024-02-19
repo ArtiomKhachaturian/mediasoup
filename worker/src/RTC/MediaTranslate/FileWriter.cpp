@@ -6,10 +6,14 @@
 #ifdef _WIN32
 #include <io.h>
 #else
+#include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
+#if __has_include (<sys/syslimits.h>)
 #include <sys/syslimits.h>
-#include <fcntl.h>
+#elif !defined F_GETPATH
+#define F_GETPATH 50
+#endif
 #endif
 
 namespace {
