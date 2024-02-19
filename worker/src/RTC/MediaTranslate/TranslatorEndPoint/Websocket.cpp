@@ -20,7 +20,7 @@ template<class MessagePtr>
 class MessageMemoryBuffer : public MemoryBuffer
 {
 public:
-    MessageMemoryBuffer(const MessagePtr& message);
+    MessageMemoryBuffer(MessagePtr message);
     ~MessageMemoryBuffer() final;
     size_t GetSize() const final;
     uint8_t* GetData() final;
@@ -146,8 +146,8 @@ private:
     template<class Guard = HdlWriteGuard>
     bool SetOpened(bool opened, std::unique_ptr<Guard> droppedGuard = nullptr);
     bool IsOpened() const { return _opened.load(std::memory_order_relaxed); }
-    static std::string ToText(const MessagePtr& message);
-    static std::shared_ptr<MemoryBuffer> ToBinary(const MessagePtr& message);
+    static std::string ToText(MessagePtr message);
+    static std::shared_ptr<MemoryBuffer> ToBinary(MessagePtr message);
 private:
     static inline constexpr uint16_t _closeCode = websocketpp::close::status::going_away;
     const uint64_t _id;
@@ -556,10 +556,12 @@ void Websocket::SocketImpl<TConfig>::OnMessage(websocketpp::connection_hdl hdl,
         if (accepted) {
             switch (message->get_opcode()) {
                 case websocketpp::frame::opcode::text:
-                    InvokeListenersMethod(&WebsocketListener::OnTextMessageReceived, ToText(message));
+                    InvokeListenersMethod(&WebsocketListener::OnTextMessageReceived,
+                                          ToText(std::move(message)));
                     break;
                 case websocketpp::frame::opcode::binary:
-                    InvokeListenersMethod(&WebsocketListener::OnBinaryMessageReceved, ToBinary(message));
+                    InvokeListenersMethod(&WebsocketListener::OnBinaryMessageReceved,
+                                          ToBinary(std::move(message)));
                     break;
                 default:
                     break;
@@ -597,19 +599,21 @@ bool Websocket::SocketImpl<TConfig>::SetOpened(bool opened, std::unique_ptr<Guar
 }
 
 template<class TConfig>
-std::string Websocket::SocketImpl<TConfig>::ToText(const MessagePtr& message)
+std::string Websocket::SocketImpl<TConfig>::ToText(MessagePtr message)
 {
     if (message) {
-        return std::move(message->get_raw_payload());
+        auto text = std::move(message->get_raw_payload());
+        message->recycle();
+        return text;
     }
     return std::string();
 }
 
 template<class TConfig>
-std::shared_ptr<MemoryBuffer> Websocket::SocketImpl<TConfig>::ToBinary(const MessagePtr& message)
+std::shared_ptr<MemoryBuffer> Websocket::SocketImpl<TConfig>::ToBinary(MessagePtr message)
 {
     if (message) {
-        return std::make_shared<MessageMemoryBuffer<MessagePtr>>(message);
+        return std::make_shared<MessageMemoryBuffer<MessagePtr>>(std::move(message));
     }
     return nullptr;
 }
@@ -795,8 +799,8 @@ const char* ToString(WebsocketState state) {
 namespace {
 
 template<class MessagePtr>
-MessageMemoryBuffer<MessagePtr>::MessageMemoryBuffer(const MessagePtr& message)
-    : _message(message)
+MessageMemoryBuffer<MessagePtr>::MessageMemoryBuffer(MessagePtr message)
+    : _message(std::move(message))
 {
 }
 
