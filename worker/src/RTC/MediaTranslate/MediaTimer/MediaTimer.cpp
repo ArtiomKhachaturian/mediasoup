@@ -1,6 +1,7 @@
 #define MS_CLASS "RTC::MediaTimer"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
+#include "RTC/MediaTranslate/MediaTimer/FunctorCallback.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandle.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUV.hpp"
 #ifdef __APPLE__
@@ -33,16 +34,6 @@ private:
     const std::shared_ptr<MediaTimerCallback> _callback;
     const std::weak_ptr<SingleshotOwner> _ownerRef;
     uint64_t _timerId = 0ULL;
-};
-
-class FunctorCallback : public MediaTimerCallback
-{
-public:
-    FunctorCallback(std::function<void(void)> onEvent);
-    // impl. of MediaTimerCallback
-    void OnEvent() final { _onEvent(); }
-private:
-    const std::function<void(void)> _onEvent;
 };
 
 }
@@ -317,11 +308,6 @@ void SingleShotCallback::OnEvent()
             owner->UnregisterTimer(_timerId);
         }
     }
-}
-
-FunctorCallback::FunctorCallback(std::function<void(void)> onEvent)
-    : _onEvent(std::move(onEvent))
-{
 }
 
 }

@@ -198,6 +198,7 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/RtpPacketsTimeline.cpp',
   'src/RTC/MediaTranslate/RtpMediaFrame.cpp',
   'src/RTC/MediaTranslate/RtpPacketizerOpus.cpp',
+  'src/RTC/MediaTranslate/MediaTimer/FunctorCallback.cpp',
   'src/RTC/MediaTranslate/MediaTimer/MediaTimer.cpp',
   'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUV.cpp',
   'src/RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.cpp',
