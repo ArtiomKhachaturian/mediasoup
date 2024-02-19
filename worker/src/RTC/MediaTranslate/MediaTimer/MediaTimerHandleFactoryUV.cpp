@@ -10,13 +10,6 @@
 #include <variant>
 #include <queue>
 #include <thread>
-#ifdef _WIN32
-#include <Windows.h>
-#elif defined(__APPLE__)
-#include <dispatch/dispatch.h>
-#else
-#include <pthread.h>
-#endif
 
 namespace {
 
