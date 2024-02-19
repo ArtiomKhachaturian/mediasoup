@@ -269,3 +269,22 @@ All tasks defined in `tasks.py` (see above) are available in `Makefile`. There i
   cd worker
   make update-wrap-file SUBPROJECT=openssl
   ```
+  
+## Linux build notes
+
+Use these commands for setup of your docker build:
+
+    * /Users/user/Documents/Sources/mediasoup/server -> sources location on your host machine
+    * /home/mediasoup_server -> target location in linux container
+    * 3db8720ecbf5 - ID of container
+
+1. docker run -it --rm -v /Users/user/Documents/Sources/mediasoup/server:/home/mediasoup_server 3db8720ecbf5 /bin/bash
+2. apt update
+3. apt-get install python3 python3-pip python3-setuptools python3-wheel ninja-build -y
+4. source ~/.bashrc
+5. apt install curl -y
+6. curl -s https://deb.nodesource.com/setup_18.x | bash
+7. apt install nodejs -y
+8. cd /home/mediasoup_server
+9. npm run worker:build
+
