@@ -5,6 +5,7 @@
 #include "RTC/Listeners.hpp"
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace RTC
 {
@@ -17,14 +18,16 @@ class Websocket : public MediaObject
 protected:
     using SocketListeners = Listeners<WebsocketListener*>;
 public:
-    void AddListener(WebsocketListener* listener);
-    void RemoveListener(WebsocketListener* listener);
     virtual bool Open() = 0;
     virtual void Close() = 0;
     virtual WebsocketState GetState() const = 0;
     virtual std::string GetUrl() const = 0;
-    virtual bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) = 0;
     virtual bool WriteText(const std::string& text) = 0;
+    virtual bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) = 0;
+    bool WriteBinary(std::vector<uint8_t> buffer);
+    bool WriteBinary(const void* buf, size_t len);
+    void AddListener(WebsocketListener* listener);
+    void RemoveListener(WebsocketListener* listener);
 protected:
     Websocket();
 protected:

@@ -13,6 +13,7 @@
 #include "RTC/PipeTransport.hpp"
 #include "RTC/PlainTransport.hpp"
 #include "RTC/WebRtcTransport.hpp"
+#include "RTC/MediaTranslate/Websocket/WebsocketTppFactory.hpp"
 
 namespace RTC
 {
@@ -22,7 +23,11 @@ namespace RTC
       : id(id), shared(shared), listener(listener)
     {
         MS_TRACE();
-
+#ifdef LOCAL_WEBSOCKET_TEST_SERVER
+        websocketFactory = std::make_unique<WebsocketTppTestFactory>(translatedPacketsPlayer.GetTimer());
+#else
+        websocketFactory = std::make_unique<WebsocketTppFactory>();
+#endif
         // NOTE: This may throw.
         this->shared->channelMessageRegistrator->RegisterHandler(
           this->id,
@@ -521,7 +526,8 @@ namespace RTC
         if (itp != itt->second.end()) {
             MS_THROW_ERROR("Producer translator already present in mapTransportTranslators [producerId:%s]", producer->id.c_str());
         }
-        if (auto translator = Translator::Create(producer, &translatedPacketsPlayer, transport)) {
+        if (auto translator = Translator::Create(producer, websocketFactory.get(),
+                                                 &translatedPacketsPlayer, transport)) {
             itt->second[producer] = std::move(translator);
         }
     }

@@ -18,9 +18,12 @@
 namespace RTC
 {
 
-Translator::Translator(const Producer* producer, RtpPacketsPlayer* rtpPacketsPlayer,
+Translator::Translator(const Producer* producer,
+                       const WebsocketFactory* websocketFactory,
+                       RtpPacketsPlayer* rtpPacketsPlayer,
                        RtpPacketsCollector* output)
     : _producer(producer)
+    , _websocketFactory(websocketFactory)
     , _rtpPacketsPlayer(rtpPacketsPlayer)
     , _output(output)
 {
@@ -38,11 +41,13 @@ Translator::~Translator()
 }
 
 std::unique_ptr<Translator> Translator::Create(const Producer* producer,
+                                               const WebsocketFactory* websocketFactory,
                                                RtpPacketsPlayer* rtpPacketsPlayer,
                                                RtpPacketsCollector* output)
 {
-    if (producer && rtpPacketsPlayer && output && Media::Kind::AUDIO == producer->GetKind()) {
-        auto translator = new Translator(producer, rtpPacketsPlayer, output);
+    if (producer && websocketFactory && rtpPacketsPlayer &&
+        output && Media::Kind::AUDIO == producer->GetKind()) {
+        auto translator = new Translator(producer, websocketFactory, rtpPacketsPlayer, output);
         // add streams
         const auto& streams = producer->GetRtpStreams();
         for (auto it = streams.begin(); it != streams.end(); ++it) {
@@ -270,13 +275,13 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeStubEndPoint() const
 {
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
     if (0 == WebsocketEndPoint::GetInstancesCount()) {
-        auto socketEndPoint = std::make_shared<WebsocketEndPoint>(GetId());
+        auto socketEndPoint = std::make_shared<WebsocketEndPoint>(*_websocketFactory, GetId());
         _nonStubEndPointRef = socketEndPoint;
         return socketEndPoint;
     }
     return std::make_shared<StubEndPoint>(GetId());
 #else
-    return std::make_shared<WebsocketEndPoint>(GetId());
+    return std::make_shared<WebsocketEndPoint>(*_websocketFactory, GetId());
 #endif
 }
 #endif

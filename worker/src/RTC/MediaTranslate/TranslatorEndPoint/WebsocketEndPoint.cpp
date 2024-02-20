@@ -1,6 +1,7 @@
 #define MS_CLASS "RTC::WebsocketEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketEndPoint.hpp"
-#include "RTC/MediaTranslate/Websocket/WebsocketTpp.hpp"
+#include "RTC/MediaTranslate/Websocket/Websocket.hpp"
+#include "RTC/MediaTranslate/Websocket/WebsocketFactory.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #ifdef WRITE_TRANSLATION_TO_FILE
@@ -12,10 +13,11 @@
 namespace RTC
 {
 
-WebsocketEndPoint::WebsocketEndPoint(std::string ownerId)
-    : TranslatorEndPoint(std::move(ownerId), _tsUri, _defaultTimeSliceMs)
-    , _socket(Create())
+WebsocketEndPoint::WebsocketEndPoint(const WebsocketFactory& factory, std::string ownerId)
+    : TranslatorEndPoint(std::move(ownerId), factory.GetUri(), _defaultTimeSliceMs)
+    , _socket(factory.Create())
 {
+    MS_ASSERT(_socket, "failed to create websocket");
     _instances.fetch_add(1U);
     _socket->AddListener(this);
 }
@@ -61,13 +63,6 @@ bool WebsocketEndPoint::SendBinary(const std::shared_ptr<MemoryBuffer>& buffer) 
 bool WebsocketEndPoint::SendText(const std::string& text) const
 {
     return _socket->WriteText(text);
-}
-
-std::unique_ptr<Websocket> WebsocketEndPoint::Create()
-{
-    auto options = WebsocketOptions::CreateWithAuthorization(_tsUser, _tsUserPassword);
-    options._userAgent = GetAgentName();
-    return std::make_unique<WebsocketTpp>(_tsUri, std::move(options));
 }
 
 void WebsocketEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)

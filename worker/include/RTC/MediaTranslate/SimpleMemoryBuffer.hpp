@@ -12,6 +12,7 @@ class SimpleMemoryBuffer : public MemoryBuffer
 public:
     explicit SimpleMemoryBuffer(size_t capacity);
     SimpleMemoryBuffer(std::vector<uint8_t> buffer = {});
+    SimpleMemoryBuffer(const void* buf, size_t len);
     bool Append(const void* buf, size_t len);
     bool Append(const std::shared_ptr<MemoryBuffer>& buffer);
     bool Prepend(const void* buf, size_t len);

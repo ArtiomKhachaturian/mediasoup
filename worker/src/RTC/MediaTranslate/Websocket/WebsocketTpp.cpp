@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/Websocket/WebsocketTpp.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketListener.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketFailure.hpp"
+#include "RTC/MediaTranslate/Websocket/WebsocketTppUtils.hpp"
 #include "RTC/MediaTranslate/MemoryBuffer.hpp"
 #include "RTC/MediaTranslate/ThreadUtils.hpp"
 #include "Logger.hpp"
@@ -239,6 +240,15 @@ std::string WebsocketTpp::GetUrl() const
     return _config ? _config->GetUri()->str() : std::string();
 }
 
+bool WebsocketTpp::WriteText(const std::string& text)
+{
+    LOCK_READ_PROTECTED_OBJ(_socket);
+    if (const auto& socket = _socket.ConstRef()) {
+        return socket->WriteText(text);
+    }
+    return false;
+}
+
 bool WebsocketTpp::WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     if (buffer) {
@@ -246,15 +256,6 @@ bool WebsocketTpp::WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer)
         if (const auto& socket = _socket.ConstRef()) {
             return socket->WriteBinary(buffer);
         }
-    }
-    return false;
-}
-
-bool WebsocketTpp::WriteText(const std::string& text)
-{
-    LOCK_READ_PROTECTED_OBJ(_socket);
-    if (const auto& socket = _socket.ConstRef()) {
-        return socket->WriteText(text);
     }
     return false;
 }
@@ -607,39 +608,12 @@ WebsocketTpp::SocketTls::SocketTls(uint64_t id, const std::shared_ptr<const Conf
 
 WebsocketTpp::SocketTls::SslContextPtr WebsocketTpp::SocketTls::OnTlsInit(websocketpp::connection_hdl)
 {
-    SslContextPtr ctx = websocketpp::lib::make_shared<asio::ssl::context>(asio::ssl::context::tlsv12_client);
     try {
-        const auto& tlsTrustStore = GetConfig()->GetOptions()._tlsTrustStore;
-        if (!tlsTrustStore.empty()) {
-            ctx->add_certificate_authority(asio::buffer(tlsTrustStore.data(), tlsTrustStore.size()));
-        }
-        const auto& tlsKeyStore = GetConfig()->GetOptions()._tlsKeyStore;
-        if (!tlsKeyStore.empty()) {
-            ctx->use_certificate_chain(asio::buffer(tlsKeyStore.data(), tlsKeyStore.size()));
-        }
-        const auto& tlsPrivateKey = GetConfig()->GetOptions()._tlsPrivateKey;
-        if (!tlsPrivateKey.empty()) {
-            ctx->set_password_callback([config = GetConfig()](std::size_t /*size*/,
-                                                              asio::ssl::context_base::password_purpose /*purpose*/) {
-                return config->GetOptions()._tlsPrivateKeyPassword;
-            });
-            ctx->use_private_key(asio::buffer(tlsPrivateKey.data(), tlsPrivateKey.size()),
-                                 asio::ssl::context::file_format::pem);
-        }
-        if (!tlsTrustStore.empty() || !tlsKeyStore.empty()) { // maybe 'and' (&&) ?
-            // Activates verification mode and rejects unverified peers
-            ctx->set_verify_mode(asio::ssl::context::verify_peer | asio::ssl::context::verify_fail_if_no_peer_cert);
-        }
-        ctx->set_options(asio::ssl::context::default_workarounds |
-                         asio::ssl::context::no_sslv2 |
-                         asio::ssl::context::no_sslv3 |
-                         asio::ssl::context::no_tlsv1 |
-                         asio::ssl::context::no_tlsv1_1 |
-                         asio::ssl::context::single_dh_use);
+        return WebsocketTppUtils::CreateSSLContext(GetConfig()->GetOptions()._tls);
     } catch (const std::exception& e) {
         InvokeListenersMethod(&WebsocketListener::OnFailed, WebsocketFailure::TlsOptions, e.what());
     }
-    return ctx;
+    return nullptr;
 }
 
 WebsocketTpp::SocketNoTls::SocketNoTls(uint64_t id, const std::shared_ptr<const Config>& config,

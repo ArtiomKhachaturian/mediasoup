@@ -223,6 +223,8 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/WebM/WebMSerializer.cpp',
   'src/RTC/MediaTranslate/Websocket/Websocket.cpp',
   'src/RTC/MediaTranslate/Websocket/WebsocketTpp.cpp',
+  'src/RTC/MediaTranslate/Websocket/WebsocketTppFactory.cpp',
+  'src/RTC/MediaTranslate/Websocket/WebsocketTppUtils.cpp',
 ]
 
 if host_machine.system() == 'darwin'

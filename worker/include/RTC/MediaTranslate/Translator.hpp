@@ -19,6 +19,7 @@ class Consumer;
 class TranslatorSource;
 class RtpPacket;
 class RtpPacketsCollector;
+class WebsocketFactory;
 
 class Translator : private TranslatorEndPointFactory
 {
@@ -27,6 +28,7 @@ class Translator : private TranslatorEndPointFactory
 public:
     ~Translator() final;
     static std::unique_ptr<Translator> Create(const Producer* producer,
+                                              const WebsocketFactory* websocketFactory,
                                               RtpPacketsPlayer* rtpPacketsPlayer,
                                               RtpPacketsCollector* output);
     bool AddStream(uint32_t mappedSsrc, const RtpStream* stream);
@@ -42,7 +44,9 @@ public:
     void UpdateProducerLanguage();
     void UpdateConsumerLanguageOrVoice(Consumer* consumer);
 private:
-    Translator(const Producer* producer, RtpPacketsPlayer* rtpPacketsPlayer,
+    Translator(const Producer* producer,
+               const WebsocketFactory* websocketFactory,
+               RtpPacketsPlayer* rtpPacketsPlayer,
                RtpPacketsCollector* output);
     // SSRC maybe mapped or original
     std::shared_ptr<TranslatorSource> GetSource(uint32_t ssrc) const;
@@ -64,6 +68,7 @@ private:
     static inline constexpr uint32_t _mockTranslationFileNameLenMs = 4000U; // ~4 sec
 #endif
     const Producer* const _producer;
+    const WebsocketFactory* const _websocketFactory;
     RtpPacketsPlayer* const _rtpPacketsPlayer;
     RtpPacketsCollector* const _output;
 #if defined(SINGLE_TRANSLATION_POINT_CONNECTION) || defined(NO_TRANSLATION_SERVICE)

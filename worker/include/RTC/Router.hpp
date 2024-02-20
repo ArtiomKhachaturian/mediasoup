@@ -23,6 +23,8 @@
 
 namespace RTC
 {
+    class WebsocketFactory;
+
     class Router : public RTC::Transport::Listener,
                    public RTC::RtpObserver::Listener,
                    public Channel::ChannelSocket::RequestHandler
@@ -134,6 +136,7 @@ namespace RTC
         Listener* listener{ nullptr };
         // Allocated by this.
         RtpPacketsPlayer translatedPacketsPlayer;
+        std::unique_ptr<WebsocketFactory> websocketFactory;
         absl::flat_hash_map<std::string, RTC::Transport*> mapTransports;
         absl::flat_hash_map<std::string, RTC::RtpObserver*> mapRtpObservers;
         // Others.

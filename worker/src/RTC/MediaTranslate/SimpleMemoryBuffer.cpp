@@ -14,6 +14,13 @@ SimpleMemoryBuffer::SimpleMemoryBuffer(std::vector<uint8_t> buffer)
 {
 }
 
+SimpleMemoryBuffer::SimpleMemoryBuffer(const void* buf, size_t len)
+{
+    if (buf && len) {
+        Insert(_buffer.begin(), buf, len);
+    }
+}
+
 bool SimpleMemoryBuffer::Append(const void* buf, size_t len)
 {
     return Insert(_buffer.end(), buf, len);

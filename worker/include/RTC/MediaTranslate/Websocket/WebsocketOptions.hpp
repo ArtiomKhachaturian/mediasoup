@@ -1,5 +1,5 @@
 #pragma once
-#include <string>
+#include "RTC/MediaTranslate/Websocket/WebsocketTls.hpp"
 #include <optional>
 #include <unordered_map>
 
@@ -17,12 +17,11 @@ public:
     void AddAuthorizationHeader(const std::string& user, const std::string& password);
     static WebsocketOptions CreateWithAuthorization(const std::string& user = std::string(),
                                                     const std::string& password = std::string());
+    // agent
+    std::string _userAgent;
+    // headers
 	std::unordered_map<std::string, std::string> _extraHeaders;
-	std::string _userAgent;
-	std::string _tlsTrustStore;
-    std::string _tlsKeyStore;
-    std::string _tlsPrivateKey;
-    std::string _tlsPrivateKeyPassword;
+    // options
     /* list of possible options:
      * asio::socket_base::broadcast @n
      * asio::socket_base::do_not_route @n
@@ -41,6 +40,8 @@ public:
      * asio::ip::tcp::no_delay
     */
     std::optional<bool> _tcpNoDelay;
+    // SSL/TLS
+    WebsocketTls _tls;
 };
 
 } // namespace RTC
