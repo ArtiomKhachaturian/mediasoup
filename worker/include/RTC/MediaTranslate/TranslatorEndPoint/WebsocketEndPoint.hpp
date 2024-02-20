@@ -31,6 +31,7 @@ private:
     static inline constexpr uint32_t _defaultTimeSliceMs = 400U;
     static inline std::atomic<uint64_t> _instances = 0ULL;
     const std::unique_ptr<Websocket> _socket;
+    uint64_t _receivedMessagesCount = 0ULL; // for debugging
 };
 
 }

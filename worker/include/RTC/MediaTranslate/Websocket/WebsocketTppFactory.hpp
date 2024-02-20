@@ -20,17 +20,19 @@ class MediaTimer;
 
 class WebsocketTppTestFactory : public WebsocketTppFactory
 {
-    class TestServer;
+    class MockServer;
 public:
-    WebsocketTppTestFactory();
-    WebsocketTppTestFactory(const std::shared_ptr<MediaTimer>& timer);
+    WebsocketTppTestFactory(std::string fileName, uint32_t repeatIntervalMs);
+    WebsocketTppTestFactory(const std::shared_ptr<MediaTimer>& timer,
+                            std::string fileName, uint32_t repeatIntervalMs);
     ~WebsocketTppTestFactory() final;
+    bool IsValid() const;
     // overrides of WebsocketTppFactory
     std::string GetUri() const final;
 private:
     static inline const uint16_t _port = 8080;
     static inline const std::string _localUri = "wss://localhost";
-    const std::unique_ptr<TestServer> _testServer;
+    const std::unique_ptr<MockServer> _server;
 };
 #endif
 

@@ -83,12 +83,13 @@ void WebsocketEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
 void WebsocketEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<MemoryBuffer>& message)
 {
     if (message) {
-        MS_ERROR_STD("Received translation from %s", GetDescription().c_str());
+        MS_ERROR_STD("Received translation #%llu from %s", ++_receivedMessagesCount, GetDescription().c_str());
 #ifdef WRITE_TRANSLATION_TO_FILE
         const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
         if (depacketizerPath && std::strlen(depacketizerPath)) {
             std::string fileName = std::string(depacketizerPath) + "/"
-                + "received_translation_" + std::to_string(DepLibUV::GetTimeMs()) + ".webm";
+                + "received_translation_#" + std::to_string(_receivedMessagesCount)
+                + "_" + std::to_string(DepLibUV::GetTimeMs()) + ".webm";
             FileWriter::WriteAll(fileName, message);
         }
 #endif

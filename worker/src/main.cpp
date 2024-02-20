@@ -6,18 +6,18 @@
 #include <cstdlib> // std::_Exit()
 #include <string>
 
-#include "RTC/MediaTranslate/Websocket/WebsocketTppFactory.hpp"
+/*#include "RTC/MediaTranslate/Websocket/WebsocketTppFactory.hpp"
 #include "RTC/MediaTranslate/Websocket/Websocket.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketListener.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketState.hpp"
-#include "RTC/MediaTranslate/Websocket/WebsocketFailure.hpp"
+#include "RTC/MediaTranslate/Websocket/WebsocketFailure.hpp"*/
 
 static constexpr int ConsumerChannelFd{ 3 };
 static constexpr int ProducerChannelFd{ 4 };
 
 int main(int argc, char* argv[])
 {
-    RTC::WebsocketTppTestFactory factory;
+    /*RTC::WebsocketTppTestFactory factory("/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_stereo_example.webm", 5000U);
     sleep(2);
     if (auto socket = factory.Create()) {
         auto listener = RTC::WebsocketListener::Create([&socket](uint64_t, RTC::WebsocketState state) {
@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
         }
         socket->RemoveListener(listener);
         delete listener;
-    }
+    }*/
 	// Ensure we are called by our Node library.
 	if (!std::getenv("MEDIASOUP_VERSION"))
 	{
