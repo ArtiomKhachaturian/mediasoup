@@ -192,6 +192,10 @@ WebsocketTppTestFactory::MockServer::MockServer(const std::shared_ptr<MediaTimer
         _server->set_close_handler(bind(&MockServer::OnClose, this, _1));
         // Listen on port 9002
         _thread = std::thread(std::bind(&MockServer::Run, this));
+        // wait
+        while (!_thread.joinable()) {
+            std::this_thread::yield();
+        }
     }
     else {
         MS_ERROR_STD("unable to read %s", _fileName.c_str());
@@ -218,7 +222,7 @@ WebsocketTppTestFactory::MockServer::~MockServer()
         _server->set_close_handler(nullptr);
         LOCK_WRITE_PROTECTED_OBJ(_connections);
         for (auto it = _connections->begin(); it != _connections->end(); ++it) {
-            _timer->UnregisterTimer(it->second.first);
+            _timer->Unregister(it->second.first);
         }
         _connections->clear();
     }
@@ -256,9 +260,7 @@ void WebsocketTppTestFactory::MockServer::OnMessage(connection_hdl hdl, MessageP
                     break;
             }
             if (!skip && !it->second.first && it->second.second->IsReadyForSendTranslation()) {
-                it->second.first = _timer->RegisterTimer(it->second.second);
-                _timer->SetTimeout(it->second.first, _repeatIntervalMs);
-                _timer->Start(it->second.first, false);
+                it->second.first = _timer->RegisterAndStart(it->second.second, _repeatIntervalMs);
             }
         }
     }
@@ -280,7 +282,7 @@ void WebsocketTppTestFactory::MockServer::OnClose(connection_hdl hdl)
     LOCK_WRITE_PROTECTED_OBJ(_connections);
     const auto it = _connections->find(hdl);
     if (it != _connections->end()) {
-        _timer->UnregisterTimer(it->second.first);
+        _timer->Unregister(it->second.first);
         _connections->erase(it);
     }
 }

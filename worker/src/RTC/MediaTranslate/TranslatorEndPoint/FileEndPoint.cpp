@@ -56,7 +56,7 @@ FileEndPoint::FileEndPoint(std::string fileName,
     , _fileIsValid(FileReader::IsValidForRead(GetName()))
     , _callback(_fileIsValid ? std::make_shared<TimerCallback>(this) : nullptr)
     , _timer(_fileIsValid ? (timer ? timer : std::make_shared<MediaTimer>(GetName())) : nullptr)
-    , _timerId(_timer ? _timer->RegisterTimer(_callback) : 0UL)
+    , _timerId(_timer ? _timer->Register(_callback) : 0UL)
     , _intervalBetweenTranslationsMs(intervalBetweenTranslationsMs)
     , _connectionDelaylMs(connectionDelaylMs)
 {
@@ -73,10 +73,10 @@ FileEndPoint::~FileEndPoint()
     FileEndPoint::Disconnect();
     if (_timer) {
         if (_timerId) {
-            _timer->UnregisterTimer(_timerId);
+            _timer->Unregister(_timerId);
         }
         if (_disconnectedTimerId) {
-            _timer->UnregisterTimer(_disconnectedTimerId);
+            _timer->Unregister(_disconnectedTimerId);
         }
     }
     _instances.fetch_sub(1U);

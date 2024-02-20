@@ -18,12 +18,16 @@ public:
     ~MediaTimer();
     MediaTimer& operator = (const MediaTimer&) = delete;
     MediaTimer& operator = (MediaTimer&&) = delete;
-    uint64_t RegisterTimer(const std::shared_ptr<MediaTimerCallback>& callback);
-    uint64_t RegisterTimer(std::function<void(void)> onEvent);
-    void UnregisterTimer(uint64_t timerId);
+    uint64_t Register(const std::shared_ptr<MediaTimerCallback>& callback);
+    uint64_t Register(std::function<void(void)> onEvent);
+    uint64_t RegisterAndStart(const std::shared_ptr<MediaTimerCallback>& callback,
+                              uint32_t timeoutMs, bool singleshot = false);
+    uint64_t RegisterAndStart(std::function<void(void)> onEvent,
+                              uint32_t timeoutMs, bool singleshot = false);
+    void Unregister(uint64_t timerId);
     // time-out in milliseconds, previous invokes will discarded
     void SetTimeout(uint64_t timerId, uint32_t timeoutMs);
-    void Start(uint64_t timerId, bool singleshot);
+    void Start(uint64_t timerId, bool singleshot = false);
     void Stop(uint64_t timerId);
     bool IsStarted(uint64_t timerId) const;
     // returns timer ID

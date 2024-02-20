@@ -18,7 +18,6 @@ static constexpr int ProducerChannelFd{ 4 };
 int main(int argc, char* argv[])
 {
     /*RTC::WebsocketTppTestFactory factory("/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_stereo_example.webm", 5000U);
-    sleep(2);
     if (auto socket = factory.Create()) {
         auto listener = RTC::WebsocketListener::Create([&socket](uint64_t, RTC::WebsocketState state) {
             MS_ERROR_STD("state changed to %s", RTC::ToString(state));
