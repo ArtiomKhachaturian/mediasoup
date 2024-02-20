@@ -27,7 +27,7 @@ public:
 protected:
     void Connect() final;
     void Disconnect() final;
-    bool SendBinary(const MemoryBuffer& buffer) const final;
+    bool SendBinary(const std::shared_ptr<MemoryBuffer>& buffer) const final;
     bool SendText(const std::string& text) const final;
 private:
     static inline std::atomic<uint64_t> _instances = 0ULL;

@@ -1,6 +1,7 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaObject.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketState.hpp"
+#include "RTC/MediaTranslate/Websocket/WebsocketOptions.hpp"
 #include "RTC/Listeners.hpp"
 #include <memory>
 #include <string>
@@ -22,7 +23,7 @@ public:
     virtual void Close() = 0;
     virtual WebsocketState GetState() const = 0;
     virtual std::string GetUrl() const = 0;
-    virtual bool WriteBinary(const MemoryBuffer& buffer) = 0;
+    virtual bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) = 0;
     virtual bool WriteText(const std::string& text) = 0;
 protected:
     Websocket();

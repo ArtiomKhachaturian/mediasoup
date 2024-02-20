@@ -21,9 +21,8 @@ private:
     uint64_t _singleTrackNumber = 0ULL;
 };
 
-WebMSerializer::WebMSerializer(const RtpCodecMimeType& mime, const char* app)
+WebMSerializer::WebMSerializer(const RtpCodecMimeType& mime)
     : MediaFrameSerializer(mime)
-    , _app(app)
 {
     MS_ASSERT(WebMCodecs::IsSupported(mime), "WebM not available for this MIME %s", mime.ToString().c_str());
 }
@@ -119,7 +118,7 @@ std::unique_ptr<WebMSerializer::Writer> WebMSerializer::CreateWriter(MediaSink* 
 {
     if (sink) {
         const auto& mime = GetMimeType();
-        auto writer = std::make_unique<Writer>(sink, _app);
+        auto writer = std::make_unique<Writer>(sink, GetAgentName());
         if (writer->IsInitialized()) {
             uint64_t trackNumber = 0ULL;
             switch (mime.GetType()) {

@@ -3,6 +3,7 @@
 #include "RTC/MediaTranslate/Websocket/WebsocketListener.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketState.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketFailure.hpp"
+#include "Utils.hpp"
 #include "Logger.hpp"
 
 namespace RTC
@@ -21,6 +22,22 @@ void Websocket::AddListener(WebsocketListener* listener)
 void Websocket::RemoveListener(WebsocketListener* listener)
 {
 	_listeners->Remove(listener);
+}
+
+void WebsocketOptions::AddAuthorizationHeader(const std::string& user, const std::string& password)
+{
+    if (!user.empty() || !password.empty()) {
+        auto auth = Utils::String::Base64Encode(user + ":" + password);
+        _extraHeaders["Authorization"] = "Basic " + auth;
+    }
+}
+
+WebsocketOptions WebsocketOptions::CreateWithAuthorization(const std::string& user,
+                                                           const std::string& password)
+{
+    WebsocketOptions options;
+    options.AddAuthorizationHeader(user, password);
+    return options;
 }
 
 void WebsocketListener::OnStateChanged(uint64_t socketId, WebsocketState state)

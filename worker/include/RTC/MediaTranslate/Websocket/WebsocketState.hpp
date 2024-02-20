@@ -8,6 +8,7 @@ enum class WebsocketState
     Invalid, // wrong URI
     Connecting,
     Connected,
+    Disconnecting,
     Disconnected,
 };
 

@@ -104,9 +104,9 @@ void FileEndPoint::Disconnect()
     }
 }
 
-bool FileEndPoint::SendBinary(const MemoryBuffer& buffer) const
+bool FileEndPoint::SendBinary(const std::shared_ptr<MemoryBuffer>& buffer) const
 {
-    if (_callback && IsConnected() && !buffer.IsEmpty()) {
+    if (_callback && buffer && IsConnected() && !buffer->IsEmpty()) {
         _callback->SetHasWrittenInputMedia(true);
         return true;
     }

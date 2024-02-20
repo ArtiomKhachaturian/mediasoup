@@ -20,9 +20,10 @@ public:
 protected:
     void Connect() final;
     void Disconnect() final;
-    bool SendBinary(const MemoryBuffer& buffer) const final;
+    bool SendBinary(const std::shared_ptr<MemoryBuffer>& buffer) const final;
     bool SendText(const std::string& text) const final;
 private:
+    static std::unique_ptr<Websocket> Create();
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
     void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message) final;
