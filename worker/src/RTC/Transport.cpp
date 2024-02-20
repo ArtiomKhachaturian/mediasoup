@@ -3084,8 +3084,8 @@ namespace RTC
 
 			/*
 			 * The interval between RTCP packets is varied randomly over the range
-			 * [1.0,1.5] times the calculated interval to avoid unintended synchronization
-			 * of all participants.
+			 * [1.0, 1.5] times the calculated interval to avoid unintended
+			 * synchronization of all participants.
 			 */
 			interval *= static_cast<float>(Utils::Crypto::GetRandomUInt(10, 15)) / 10;
 
