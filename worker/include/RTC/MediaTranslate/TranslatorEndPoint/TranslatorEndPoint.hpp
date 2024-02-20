@@ -3,8 +3,9 @@
 #include "RTC/MediaTranslate/MediaSourceImpl.hpp"
 #include "ProtectedObj.hpp"
 #include <nlohmann/json.hpp>
-#include <string>
+#include <memory>
 #include <optional>
+#include <string>
 
 namespace RTC
 {
@@ -33,7 +34,7 @@ protected:
     std::string GetDescription() const;
     virtual void Connect() = 0;
     virtual void Disconnect() = 0;
-    virtual bool SendBinary(const MemoryBuffer& buffer) const = 0;
+    virtual bool SendBinary(const std::shared_ptr<MemoryBuffer>& buffer) const = 0;
     virtual bool SendText(const std::string& text) const = 0;
     // override of MediaSourceImpl
     bool IsSinkValid(const MediaSink* sink) const final { return this != sink; }
@@ -57,7 +58,7 @@ private:
     void UpdateTranslationChanges();
     bool SendTranslationChanges();
     bool WriteJson(const nlohmann::json& data) const;
-    bool WriteBinary(const MemoryBuffer& buffer) const;
+    bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) const;
     // impl. of MediaSink
     void StartMediaWriting(const MediaObject& sender) final;
     void WriteMediaPayload(const MediaObject& sender, const std::shared_ptr<MemoryBuffer>& buffer) final;

@@ -278,14 +278,14 @@ bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
     return ok;
 }
 
-bool TranslatorEndPoint::WriteBinary(const MemoryBuffer& buffer) const
+bool TranslatorEndPoint::WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) const
 {
     bool ok = false;
-    if (IsConnected()) {
+    if (buffer && IsConnected()) {
         ok = SendBinary(buffer);
         if (!ok) {
             MS_ERROR_STD("failed write binary (%zu bytes)' into translation service %s",
-                         buffer.GetSize(), GetDescription().c_str());
+                         buffer->GetSize(), GetDescription().c_str());
         }
     }
     return ok;
@@ -307,7 +307,7 @@ void TranslatorEndPoint::WriteMediaPayload(const MediaObject& sender,
             _inputSlice->Add(buffer, this);
         }
         else {
-            WriteBinary(*buffer);
+            WriteBinary(buffer);
         }
     }
 }
@@ -334,8 +334,7 @@ void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<MemoryBuffe
             const auto now = DepLibUV::GetTimeMs();
             if (now > _sliceOriginTimestamp + _timeSliceMs) {
                 _sliceOriginTimestamp = now;
-                endPoint->WriteBinary(_impl.ConstRef());
-                _impl->Clear();
+                endPoint->WriteBinary(_impl->Take());
             }
         }
         else {

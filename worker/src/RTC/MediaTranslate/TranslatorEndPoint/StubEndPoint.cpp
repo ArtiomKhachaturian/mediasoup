@@ -30,9 +30,9 @@ void StubEndPoint::Disconnect()
     }
 }
 
-bool StubEndPoint::SendBinary(const MemoryBuffer& buffer) const
+bool StubEndPoint::SendBinary(const std::shared_ptr<MemoryBuffer>& buffer) const
 {
-    return IsConnected() && !buffer.IsEmpty();
+    return buffer && IsConnected() && !buffer->IsEmpty();
 }
 
 bool StubEndPoint::SendText(const std::string& text) const

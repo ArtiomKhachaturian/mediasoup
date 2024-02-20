@@ -8,11 +8,15 @@ namespace RTC
 
 struct WebsocketOptions
 {
+public:
 	WebsocketOptions() = default;
 	WebsocketOptions(const WebsocketOptions&) = default;
 	WebsocketOptions(WebsocketOptions&&) = default;
 	WebsocketOptions& operator = (const WebsocketOptions&) = default;
 	WebsocketOptions& operator = (WebsocketOptions&&) = default;
+    void AddAuthorizationHeader(const std::string& user, const std::string& password);
+    static WebsocketOptions CreateWithAuthorization(const std::string& user = std::string(),
+                                                    const std::string& password = std::string());
 	std::unordered_map<std::string, std::string> _extraHeaders;
 	std::string _userAgent;
 	std::string _tlsTrustStore;

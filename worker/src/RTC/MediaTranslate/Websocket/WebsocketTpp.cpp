@@ -5,7 +5,6 @@
 #include "RTC/MediaTranslate/MemoryBuffer.hpp"
 #include "RTC/MediaTranslate/ThreadUtils.hpp"
 #include "Logger.hpp"
-#include "Utils.hpp"
 #include <websocketpp/config/asio_client.hpp>
 #include <websocketpp/client.hpp>
 #include <websocketpp/close.hpp>
@@ -60,8 +59,6 @@ class WebsocketTpp::Config
 {
 public:
     static std::shared_ptr<const Config> VerifyAndParse(const std::string& uri,
-                                                        const std::string& user,
-                                                        const std::string& password,
                                                         WebsocketOptions options);
     bool IsSecure() const { return _uri->get_secure(); }
     const std::shared_ptr<websocketpp::uri>& GetUri() const { return _uri; }
@@ -81,7 +78,7 @@ public:
     virtual void Run() = 0;
     virtual bool Open() = 0;
     virtual void Close() = 0;
-    virtual bool WriteBinary(const MemoryBuffer& buffer) = 0;
+    virtual bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) = 0;
     virtual bool WriteText(const std::string& text) = 0;
     static std::shared_ptr<Socket> Create(uint64_t id, const std::shared_ptr<const Config>& config,
                                           const std::shared_ptr<SocketListeners>& listeners);
@@ -107,7 +104,7 @@ public:
     void Run() final;
     bool Open() final;
     void Close() final;
-    bool WriteBinary(const MemoryBuffer& buffer) final;
+    bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) final;
     bool WriteText(const std::string& text) final;
 protected:
     SocketImpl(uint64_t id, const std::shared_ptr<const Config>& config,
@@ -179,7 +176,7 @@ public:
     void Run() final;
     bool Open() final;
     void Close() final;
-    bool WriteBinary(const MemoryBuffer& buffer) final;
+    bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) final;
     bool WriteText(const std::string& text) final;
 private:
     std::shared_ptr<Socket> _impl;
@@ -187,10 +184,8 @@ private:
 };
 
 WebsocketTpp::WebsocketTpp(const std::string& uri,
-                           const std::string& user,
-                           const std::string& password,
                            WebsocketOptions options)
-    : _config(Config::VerifyAndParse(uri, user, password, std::move(options)))
+    : _config(Config::VerifyAndParse(uri, std::move(options)))
 {
 }
 
@@ -244,11 +239,13 @@ std::string WebsocketTpp::GetUrl() const
     return _config ? _config->GetUri()->str() : std::string();
 }
 
-bool WebsocketTpp::WriteBinary(const MemoryBuffer& buffer)
+bool WebsocketTpp::WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer)
 {
-    LOCK_READ_PROTECTED_OBJ(_socket);
-    if (const auto& socket = _socket.ConstRef()) {
-        return socket->WriteBinary(buffer);
+    if (buffer) {
+        LOCK_READ_PROTECTED_OBJ(_socket);
+        if (const auto& socket = _socket.ConstRef()) {
+            return socket->WriteBinary(buffer);
+        }
     }
     return false;
 }
@@ -269,17 +266,12 @@ WebsocketTpp::Config::Config(std::shared_ptr<websocketpp::uri> uri, WebsocketOpt
 }
 
 std::shared_ptr<const WebsocketTpp::Config> WebsocketTpp::Config::
-    VerifyAndParse(const std::string& uri, const std::string& user,
-                   const std::string& password, WebsocketOptions options)
+    VerifyAndParse(const std::string& uri, WebsocketOptions options)
 {
     std::shared_ptr<const Config> config;
     if (!uri.empty()) {
         auto validUri = std::make_shared<websocketpp::uri>(uri);
         if (validUri->get_valid()) {
-            if (!user.empty() || !password.empty()) {
-                auto auth = Utils::String::Base64Encode(user + ":" + password);
-                options._extraHeaders["Authorization"] = "Basic " + auth;
-            }
             config.reset(new Config(std::move(validUri), std::move(options)));
         }
         else {
@@ -406,16 +398,16 @@ void WebsocketTpp::SocketImpl<TConfig>::Close()
 }
 
 template<class TConfig>
-bool WebsocketTpp::SocketImpl<TConfig>::WriteBinary(const MemoryBuffer& buffer)
+bool WebsocketTpp::SocketImpl<TConfig>::WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     bool ok = false;
-    if (IsOpened()) {
+    if (buffer && IsOpened()) {
         LOCK_READ_PROTECTED_OBJ(_hdl);
         if (!_hdl->expired()) {
             websocketpp::lib::error_code ec;
             // overhead - deep copy of input buffer,
             // Websocketpp doesn't supports of buffers abstraction
-            _client.send(_hdl, buffer.GetData(), buffer.GetSize(),
+            _client.send(_hdl, buffer->GetData(), buffer->GetSize(),
                          websocketpp::frame::opcode::binary, ec);
             if (ec) {
                 InvokeListenersMethod(&WebsocketListener::OnFailed,
@@ -713,10 +705,12 @@ void WebsocketTpp::SocketWrapper::Close()
     }
 }
 
-bool WebsocketTpp::SocketWrapper::WriteBinary(const MemoryBuffer& buffer)
+bool WebsocketTpp::SocketWrapper::WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer)
 {
-    if (const auto impl = std::atomic_load(&_impl)) {
-        return impl->WriteBinary(buffer);
+    if (buffer) {
+        if (const auto impl = std::atomic_load(&_impl)) {
+            return impl->WriteBinary(buffer);
+        }
     }
     return false;
 }
@@ -728,7 +722,6 @@ bool WebsocketTpp::SocketWrapper::WriteText(const std::string& text)
     }
     return false;
 }
-
 
 } // namespace RTC
 

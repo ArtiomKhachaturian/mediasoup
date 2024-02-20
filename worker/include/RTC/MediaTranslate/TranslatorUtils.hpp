@@ -10,6 +10,8 @@ namespace RTC
 class RtpStream;
 class MediaFrame;
 
+inline const char* GetAgentName() { return "SpeakShiftSFU"; }
+
 std::string GetMediaFrameInfoString(const std::shared_ptr<const MediaFrame>& mediaFrame,
                                     uint32_t ssrc = 0U);
 
