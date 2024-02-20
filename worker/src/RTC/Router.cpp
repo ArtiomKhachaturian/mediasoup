@@ -48,7 +48,7 @@ namespace RTC
         MS_TRACE();
 
         this->shared->channelMessageRegistrator->UnregisterHandler(this->id);
-        
+
         // Close all Transports.
         this->mapTransportTranslators.clear();
         for (auto& kv : this->mapTransports)
@@ -327,7 +327,6 @@ namespace RTC
                 this->mapTransports[transportId] = pipeTransport;
                 this->mapTransportTranslators[pipeTransport] = TranslatorsMap();
 
-
                 MS_DEBUG_DEV("PipeTransport created [transportId:%s]", transportId.c_str());
 
                 auto dumpOffset = pipeTransport->FillBuffer(request->GetBufferBuilder());
@@ -538,6 +537,7 @@ namespace RTC
                                                  &translatedPacketsPlayer, transport)) {
             itt->second[producer] = std::move(translator);
         }
+
     }
 
     inline void Router::OnTransportProducerClosed(RTC::Transport* transport, RTC::Producer* producer)
@@ -562,6 +562,7 @@ namespace RTC
             MS_THROW_ERROR("Transport is not present in mapTransportTranslators [transportId:%s]", transport->id.c_str());
         }
         itt->second.erase(producer);
+
         // Close all Consumers associated to the closed Producer.
         auto& consumers = mapProducerConsumersIt->second;
 
@@ -1131,12 +1132,12 @@ namespace RTC
         // Remove from the map.
         this->mapProducerRtpObservers[producer].erase(rtpObserver);
     }
-    
+
     Translator* Router::GetTranslator(const RTC::Producer* producer) const
     {
         return producer ? GetTranslator(producer->id) : nullptr;
     }
-    
+
     Translator* Router::GetTranslator(const std::string& producerId) const
     {
         for (auto itt = this->mapTransportTranslators.begin(); itt != this->mapTransportTranslators.end(); ++itt) {

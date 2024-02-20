@@ -39,8 +39,8 @@ namespace RTC
       const std::string& id,
       RTC::Transport::Listener* listener,
       const FBS::Transport::Options* options)
-      : id(id), shared(shared), listener(listener),
-        recvRtxTransmission(1000u), sendRtxTransmission(1000u), sendProbationTransmission(100u)
+      : id(id), shared(shared), listener(listener), recvRtxTransmission(1000u),
+        sendRtxTransmission(1000u), sendProbationTransmission(100u)
     {
         MS_TRACE();
 
@@ -637,7 +637,6 @@ namespace RTC
 
                     throw;
                 }
-
 #ifdef MEDIA_TRANSLATIONS_TEST
                 producer->SetLanguageId("ru");
 #else
@@ -1035,7 +1034,7 @@ namespace RTC
                 {
                     consumer->TransportConnected();
                 }
-                
+
                 break;
             }
 
@@ -1574,8 +1573,16 @@ namespace RTC
         packet->SetAbsSendTimeExtensionId(this->recvRtpHeaderExtensionIds.absSendTime);
         packet->SetTransportWideCc01ExtensionId(this->recvRtpHeaderExtensionIds.transportWideCc01);
 
+        auto nowMs = DepLibUV::GetTimeMs();
+
+        // Feed the TransportCongestionControlServer.
+        if (this->tccServer)
+        {
+            this->tccServer->IncomingPacket(nowMs, packet);
+        }
+
         // Get the associated Producer.
-        RTC::Producer* producer = GetProducer(packet);
+        RTC::Producer* producer = this->rtpListener.GetProducer(packet);
 
         if (!producer)
         {
@@ -1596,22 +1603,16 @@ namespace RTC
 
             return;
         }
-       
-        // Feed the TransportCongestionControlServer.
-        if (this->tccServer)
-        {
-            this->tccServer->IncomingPacket(DepLibUV::GetTimeMs(), packet);
-        }
-        
+
         // MS_DEBUG_DEV(
         //   "RTP packet received [ssrc:%" PRIu32 ", payloadType:%" PRIu8 ", producerId:%s]",
         //   packet->GetSsrc(),
         //   packet->GetPayloadType(),
         //   producer->id.c_str());
-        
+
         // Pass the RTP packet to the corresponding Producer.
         auto result = producer->ReceiveRtpPacket(packet);
-        
+
         switch (result)
         {
             case RTC::Producer::ReceiveRtpPacketResult::MEDIA:
@@ -1626,18 +1627,8 @@ namespace RTC
                 break;
             default:;
         }
-        
-        delete packet;
-    }
 
-    RTC::Producer* Transport::GetProducer(const RTC::RtpPacket* packet)
-    {
-        return this->rtpListener.GetProducer(packet);
-    }
-        
-    RTC::Producer* Transport::GetProducer(uint32_t ssrc) const
-    {
-        return this->rtpListener.GetProducer(ssrc);
+        delete packet;
     }
 
     void Transport::ReceiveRtcpPacket(RTC::RTCP::Packet* packet)
@@ -2067,7 +2058,7 @@ namespace RTC
                 for (auto it = sr->Begin(); it != sr->End(); ++it)
                 {
                     auto& report   = *it;
-                    auto* producer = GetProducer(report->GetSsrc());
+                    auto* producer = this->rtpListener.GetProducer(report->GetSsrc());
 
                     if (!producer)
                     {
@@ -2128,7 +2119,7 @@ namespace RTC
                                     ssrcInfo->SetSsrc(xr->GetSsrc());
                                 }
 
-                                auto* producer = GetProducer(ssrcInfo->GetSsrc());
+                                auto* producer = this->rtpListener.GetProducer(ssrcInfo->GetSsrc());
 
                                 if (!producer)
                                 {
@@ -2407,16 +2398,6 @@ namespace RTC
           notification);
     }
 
-    inline void Transport::OnProducerReceiveData(RTC::Producer* /*producer*/, size_t len)
-    {
-        this->DataReceived(len);
-    }
-
-    inline void Transport::OnProducerReceiveRtpPacket(RTC::Producer* /*producer*/, RTC::RtpPacket* packet)
-    {
-        this->ReceiveRtpPacket(packet);
-    }
-
     inline void Transport::OnProducerPaused(RTC::Producer* producer)
     {
         MS_TRACE();
@@ -2435,6 +2416,7 @@ namespace RTC
       RTC::Producer* producer, RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc)
     {
         MS_TRACE();
+
         this->listener->OnTransportProducerNewRtpStream(this, producer, rtpStream, mappedSsrc);
     }
 
@@ -2711,7 +2693,7 @@ namespace RTC
     inline void Transport::OnConsumerProducerClosed(RTC::Consumer* consumer)
     {
         MS_TRACE();
-        
+
         // Remove it from the maps.
         this->mapConsumers.erase(consumer->id);
 
@@ -3125,8 +3107,8 @@ namespace RTC
 
             /*
              * The interval between RTCP packets is varied randomly over the range
-             * [1.0,1.5] times the calculated interval to avoid unintended synchronization
-             * of all participants.
+             * [1.0, 1.5] times the calculated interval to avoid unintended
+             * synchronization of all participants.
              */
             interval *= static_cast<float>(Utils::Crypto::GetRandomUInt(10, 15)) / 10;
 

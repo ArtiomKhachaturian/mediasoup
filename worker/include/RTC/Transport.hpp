@@ -37,7 +37,6 @@
 
 namespace RTC
 {
-    
     class Transport : public RTC::Producer::Listener,
                       public RTC::Consumer::Listener,
                       public RTC::DataProducer::Listener,
@@ -122,7 +121,7 @@ namespace RTC
               RTC::Transport* transport, RTC::DataConsumer* dataConsumer)         = 0;
             virtual void OnTransportListenServerClosed(RTC::Transport* transport) = 0;
             virtual bool OnTransportProducerRtpPacketTranslationRequired(
-              RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
+                  RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
         };
 
     public:
@@ -160,8 +159,6 @@ namespace RTC
     public:
         void CloseProducersAndConsumers();
         void ListenServerClosed();
-        RTC::Producer* GetProducer(const RTC::RtpPacket* packet);
-        RTC::Producer* GetProducer(uint32_t ssrc) const;
         // Subclasses must also invoke the parent Close().
         flatbuffers::Offset<FBS::Transport::Stats> FillBufferStats(flatbuffers::FlatBufferBuilder& builder);
         flatbuffers::Offset<FBS::Transport::Dump> FillBuffer(flatbuffers::FlatBufferBuilder& builder) const;
@@ -228,8 +225,14 @@ namespace RTC
 
         /* Pure virtual methods inherited from RTC::Producer::Listener. */
     public:
-        void OnProducerReceiveData(RTC::Producer* /*producer*/, size_t len) override;
-        void OnProducerReceiveRtpPacket(RTC::Producer* /*producer*/, RTC::RtpPacket* packet) override;
+        void OnProducerReceiveData(RTC::Producer* /*producer*/, size_t len) override
+        {
+            this->DataReceived(len);
+        }
+        void OnProducerReceiveRtpPacket(RTC::Producer* /*producer*/, RTC::RtpPacket* packet) override
+        {
+            this->ReceiveRtpPacket(packet);
+        }
         void OnProducerPaused(RTC::Producer* producer) override;
         void OnProducerResumed(RTC::Producer* producer) override;
         void OnProducerNewRtpStream(
