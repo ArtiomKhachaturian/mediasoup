@@ -21,14 +21,9 @@ MediaFrame::~MediaFrame()
 {
 }
 
-bool MediaFrame::AddPayload(const std::shared_ptr<MemoryBuffer>& payload)
+void MediaFrame::AddPayload(const std::shared_ptr<MemoryBuffer>& payload)
 {
-    return _payload->Append(payload);
-}
-
-bool MediaFrame::IsEmpty() const
-{
-    return _payload->IsEmpty();
+    _payload->Push(payload);
 }
 
 std::shared_ptr<const MemoryBuffer> MediaFrame::GetPayload() const

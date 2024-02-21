@@ -110,10 +110,7 @@ bool TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
         }
 #endif
         // maybe empty packet if silence
-        if ((!packet->GetPayload() || 0U == packet->GetPayloadLength()) && GetMime().IsAudioCodec() && _serializer->HasSinks()) {
-            handled = true;
-        }
-        else if (const auto frame = _depacketizer->AddPacket(packet)) {
+        if (const auto frame = _depacketizer->AddPacket(packet)) {
             handled = _serializer->Push(frame);
         }
     }

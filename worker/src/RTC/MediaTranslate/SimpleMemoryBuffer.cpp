@@ -70,11 +70,11 @@ std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Take()
 
 std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Create(const void* data, size_t len)
 {
-    if (data && len) {
-        const auto bytes = reinterpret_cast<const uint8_t*>(data);
-        return Create(std::vector<uint8_t>(bytes, bytes + len));
+    const auto buffer = Allocate(len);
+    if (buffer) {
+        buffer->Append(data, len);
     }
-    return nullptr;
+    return buffer;
 }
 
 std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Create(std::vector<uint8_t> buffer)

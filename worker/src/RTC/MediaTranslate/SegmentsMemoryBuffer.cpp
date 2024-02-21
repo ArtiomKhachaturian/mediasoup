@@ -12,9 +12,9 @@ SegmentsMemoryBuffer::SegmentsMemoryBuffer(size_t capacity)
     MS_ASSERT(_capacity, "capacity should be greater than zero");
 }
 
-SegmentsMemoryBuffer::AppendResult SegmentsMemoryBuffer::Append(const std::shared_ptr<MemoryBuffer>& buffer)
+SegmentsMemoryBuffer::Result SegmentsMemoryBuffer::Push(const std::shared_ptr<MemoryBuffer>& buffer)
 {
-    AppendResult result = AppendResult::Failed;
+    Result result = Result::Failed;
     if (buffer && !buffer->IsEmpty()) {
         MS_ASSERT(buffer.get() != this, "passed buffer is this instance");
         MS_ASSERT(buffer->GetSize() <= GetCapacity(), "buffer is too huge");
@@ -24,11 +24,11 @@ SegmentsMemoryBuffer::AppendResult SegmentsMemoryBuffer::Append(const std::share
                 _buffers.pop_front();
             }
             _buffers.push_front(buffer);
-            result = AppendResult::Front;
+            result = Result::Front;
         }
         else {
             _buffers.push_back(buffer);
-            result = AppendResult::Back;
+            result = Result::Back;
         }
         _size += buffer->GetSize();
     }

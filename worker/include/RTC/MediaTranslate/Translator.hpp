@@ -6,7 +6,7 @@
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
 
-#define NO_TRANSLATION_SERVICE
+//#define NO_TRANSLATION_SERVICE
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC
@@ -68,7 +68,9 @@ private:
     static inline constexpr uint32_t _mockTranslationFileNameLenMs = 17000U; // ~4 sec
 #endif
     const Producer* const _producer;
+#ifndef NO_TRANSLATION_SERVICE
     const WebsocketFactory* const _websocketFactory;
+#endif
     RtpPacketsPlayer* const _rtpPacketsPlayer;
     RtpPacketsCollector* const _output;
 #if defined(SINGLE_TRANSLATION_POINT_CONNECTION) || defined(NO_TRANSLATION_SERVICE)

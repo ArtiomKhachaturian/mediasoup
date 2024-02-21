@@ -107,23 +107,20 @@ bool MkvBufferedWriter::AddFrame(uint64_t trackNumber,
                                  const std::shared_ptr<const MediaFrame>& mediaFrame,
                                  uint64_t mkvTimestamp)
 {
-    const auto result = EnqueueFrame(mediaFrame, mkvTimestamp, trackNumber);
-    bool ok = EnqueueResult::Failure != result;
+    bool ok = EnqueueResult::Failure != EnqueueFrame(mediaFrame, mkvTimestamp, trackNumber);
     if (ok) {
-        if (EnqueueResult::Added == result) {
-            if (mediaFrame->IsAudio()) {
-                if (!HasVideoTracks()) {
-                    ok = WriteFrames(_mkvAudioLastTimestamp);
-                }
+        if (mediaFrame->IsAudio()) {
+            if (!HasVideoTracks()) {
+                ok = WriteFrames(_mkvAudioLastTimestamp);
             }
-            else { // video
-                if (!HasAudioTracks()) {
-                    ok = WriteFrames(_mkvVideoLastTimestamp);
-                }
-                else {
-                    const auto ts = std::min(_mkvVideoLastTimestamp, _mkvAudioLastTimestamp);
-                    ok = WriteFrames(ts);
-                }
+        }
+        else { // video
+            if (!HasAudioTracks()) {
+                ok = WriteFrames(_mkvVideoLastTimestamp);
+            }
+            else {
+                const auto ts = std::min(_mkvVideoLastTimestamp, _mkvAudioLastTimestamp);
+                ok = WriteFrames(ts);
             }
         }
     }
@@ -240,9 +237,6 @@ MkvBufferedWriter::EnqueueResult MkvBufferedWriter::EnqueueFrame(const std::shar
         }
         if (hasTrack) {
             auto& mkvLastTimestamp = mediaFrame->IsAudio() ? _mkvAudioLastTimestamp : _mkvVideoLastTimestamp;
-            /*if (mkvTimestamp < mkvLastTimestamp) { // timestamp is too old
-                mkvTimestamp = mkvLastTimestamp;
-             }*/
             if (mkvTimestamp >= mkvLastTimestamp) {
                 if (!mediaFrame->IsAudio() || SetAudioSampleRate(trackNumber, mediaFrame->GetClockRate())) {
                     mkvmuxer::Frame frame;
@@ -252,9 +246,12 @@ MkvBufferedWriter::EnqueueResult MkvBufferedWriter::EnqueueFrame(const std::shar
                         // is_key: -- always true for audio
                         frame.set_is_key(mediaFrame->IsKeyFrame() || mediaFrame->IsAudio());
                         _mkvFrames.push_back(std::move(frame));
-                        mkvLastTimestamp = mkvTimestamp;
                         result = EnqueueResult::Added;
                     }
+                    else {
+                        result = EnqueueResult::Dropped; // maybe empty
+                    }
+                    mkvLastTimestamp = mkvTimestamp;
                 }
             }
             else {

@@ -38,7 +38,8 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet)
 
 bool RtpMediaFrame::AddPacket(const RtpPacket* packet, const uint8_t* data, size_t len)
 {
-    if (packet && AddPayload(SimpleMemoryBuffer::Create(data, len))) {
+    if (packet) {
+        AddPayload(SimpleMemoryBuffer::Create(data, len));
         if (GetRtpTimestamp() > packet->GetTimestamp()) {
             MS_WARN_TAG(rtp, "time stamp of new packet is less than previous, SSRC = %du", packet->GetSsrc());
         }

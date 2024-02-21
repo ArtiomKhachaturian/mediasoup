@@ -223,14 +223,13 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
                 mkvResult = ToMkvReadResult(frame.Read(_segment->m_pReader, buffer.data()));
                 if (MaybeOk(mkvResult)) {
                     auto mediaFrame = std::make_shared<MediaFrame>(GetMime(), GetClockRate());
-                    if (mediaFrame->AddPayload(SimpleMemoryBuffer::Create(std::move(buffer)))) {
-                        mediaFrame->SetKeyFrame(block->IsKey());
-                        mediaFrame->SetMediaConfig(GetConfig());
-                        if (ts.has_value()) {
-                            mediaFrame->SetTimestamp(ts.value());
-                        }
-                        output.push_back(std::move(mediaFrame));
+                    mediaFrame->AddPayload(SimpleMemoryBuffer::Create(std::move(buffer)));
+                    mediaFrame->SetKeyFrame(block->IsKey());
+                    mediaFrame->SetMediaConfig(GetConfig());
+                    if (ts.has_value()) {
+                        mediaFrame->SetTimestamp(ts.value());
                     }
+                    output.push_back(std::move(mediaFrame));
                 }
                 else {
                     break;

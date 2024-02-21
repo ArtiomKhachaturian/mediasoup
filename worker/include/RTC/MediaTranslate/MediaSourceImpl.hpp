@@ -18,7 +18,6 @@ public:
     bool RemoveSink(MediaSink* sink) final;
     void RemoveAllSinks() final;
     bool HasSinks() const final { return !_sinks.IsEmpty(); }
-    size_t GetSinksCout() const final { return _sinks.GetSize(); }
 protected:
     MediaSourceImpl() = default;
     virtual bool IsSinkValid(const MediaSink* sink) const { return nullptr != sink; }

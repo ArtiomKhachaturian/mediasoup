@@ -4,21 +4,25 @@
 #include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
+#include "RTC/MediaTranslate/MediaFrameWriter.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
 
-class WebMSerializer::Writer : public MkvBufferedWriter
+class WebMSerializer::Writer : public MediaFrameWriter
 {
 public:
-    Writer(MediaSink* sink, const char* app);
-    bool AddFrame(const std::shared_ptr<const MediaFrame>& mediaFrame, uint64_t mkvTimestamp);
-    void SetTrackSettings(const std::shared_ptr<const AudioFrameConfig>& config);
-    void SetTrackSettings(const std::shared_ptr<const VideoFrameConfig>& config);
-    void SetSingleTrackNumber(uint64_t trackNumber) { _singleTrackNumber = trackNumber; }
+    Writer(const RtpCodecMimeType& mime, MediaSink* sink);
+    bool IsInitialized() const { return 0U != _trackNumber; }
+    // impl. of MediaFrameWriter
+    bool Write(const std::shared_ptr<const MediaFrame>& mediaFrame,
+               const webrtc::TimeDelta& offset) final;
+    void SetConfig(const std::shared_ptr<const AudioFrameConfig>& config) final;
+    void SetConfig(const std::shared_ptr<const VideoFrameConfig>& config) final;
 private:
-    uint64_t _singleTrackNumber = 0ULL;
+    MkvBufferedWriter _impl;
+    uint64_t _trackNumber = 0U;
 };
 
 WebMSerializer::WebMSerializer(const RtpCodecMimeType& mime)
@@ -26,168 +30,63 @@ WebMSerializer::WebMSerializer(const RtpCodecMimeType& mime)
 {
     MS_ASSERT(WebMCodecs::IsSupported(mime), "WebM not available for this MIME %s", mime.ToString().c_str());
 }
-
-WebMSerializer::~WebMSerializer()
-{
-    WebMSerializer::RemoveAllSinks();
-}
-
-bool WebMSerializer::AddSink(MediaSink* sink)
-{
-    bool added = false;
-    if (sink) {
-        added = _writers.end() != _writers.find(sink);
-        if (!added) {
-            if (auto writer = CreateWriter(sink)) {
-                _writers[sink] = std::move(writer);
-                added = true;
-            }
-        }
-    }
-    return added;
-}
-
-bool WebMSerializer::RemoveSink(MediaSink* sink)
+std::unique_ptr<MediaFrameWriter> WebMSerializer::CreateWriter(MediaSink* sink)
 {
     if (sink) {
-        const auto it = _writers.find(sink);
-        if (it != _writers.end()) {
-            _writers.erase(it);
-            return true;
-        }
-    }
-    return false;
-}
-
-void WebMSerializer::RemoveAllSinks()
-{
-    _writers.clear();
-}
-
-bool WebMSerializer::HasSinks() const
-{
-    return !_writers.empty();
-}
-
-size_t WebMSerializer::GetSinksCout() const
-{
-    return _writers.size();
-}
-
-bool WebMSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFrame)
-{
-    bool ok = false;
-    if (mediaFrame && (HasSinks() || _testWriter) && IsAccepted(mediaFrame)) {
-        const auto offset = UpdateTimeOffset(mediaFrame->GetTimestamp()).ns<uint64_t>();
-        ok = !_testWriter || Write(mediaFrame, offset, _testWriter.get());
-        if (ok) {
-            for (auto it = _writers.begin(); it != _writers.end(); ++it) {
-                ok = Write(mediaFrame, offset, it->second.get());
-                if (!ok) {
-                    break;
-                }
-            }
-        }
-        if (!ok) {
-            const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
-            MS_ERROR_STD("unable write frame to MKV data [%s]", frameInfo.c_str());
-        }
-    }
-    return ok;
-}
-
-bool WebMSerializer::AddTestSink(MediaSink* sink)
-{
-    if (auto writer = CreateWriter(sink)) {
-        _testWriter = std::move(writer);
-        return true;
-    }
-    return false;
-}
-
-bool WebMSerializer::RemoveTestSink()
-{
-    if (_testWriter) {
-        _testWriter.reset();
-        return true;
-    }
-    return false;
-}
-
-std::unique_ptr<WebMSerializer::Writer> WebMSerializer::CreateWriter(MediaSink* sink) const
-{
-    if (sink) {
-        const auto& mime = GetMimeType();
-        auto writer = std::make_unique<Writer>(sink, GetAgentName());
+        auto writer = std::make_unique<Writer>(GetMimeType(), sink);
         if (writer->IsInitialized()) {
-            uint64_t trackNumber = 0ULL;
-            switch (mime.GetType()) {
-                case RtpCodecMimeType::Type::AUDIO:
-                    trackNumber = writer->AddAudioTrack();
-                    break;
-                case RtpCodecMimeType::Type::VIDEO:
-                    trackNumber = writer->AddVideoTrack();
-                    break;
-                default:
-                    break;
-            }
-            if (trackNumber) {
-                if (writer->SetTrackCodec(trackNumber, mime)) {
-                    writer->SetSingleTrackNumber(trackNumber);
-                }
-                else {
-                    MS_ERROR_STD("failed to set MKV codec for %s", GetStreamInfoString(mime).c_str());
-                    writer.reset();
-                }
-                return writer;
-            }
-            else {
-                MS_ERROR_STD("failed to add MKV track for %s", GetStreamInfoString(mime).c_str());
-            }
-        }
-        else {
-            MS_ERROR_STD("failed to initialize MKV writer for %s", GetStreamInfoString(mime).c_str());
+            return writer;
         }
     }
     return nullptr;
 }
 
-bool WebMSerializer::Write(const std::shared_ptr<const MediaFrame>& mediaFrame,
-                           uint64_t mkvTimestamp, Writer* writer) const
+WebMSerializer::Writer::Writer(const RtpCodecMimeType& mime, MediaSink* sink)
+    : _impl(sink, GetAgentName())
 {
-    if (mediaFrame && writer) {
-        switch (GetMimeType().GetType()) {
+    if (_impl.IsInitialized()) {
+        uint64_t trackNumber = 0ULL;
+        switch (mime.GetType()) {
             case RtpCodecMimeType::Type::AUDIO:
-                writer->SetTrackSettings(mediaFrame->GetAudioConfig());
+                trackNumber = _impl.AddAudioTrack();
                 break;
             case RtpCodecMimeType::Type::VIDEO:
-                writer->SetTrackSettings(mediaFrame->GetVideoConfig());
+                trackNumber = _impl.AddVideoTrack();
+                break;
+            default:
                 break;
         }
-        return writer->AddFrame(mediaFrame, mkvTimestamp);
+        if (trackNumber) {
+            if (_impl.SetTrackCodec(trackNumber, mime)) {
+                _trackNumber = trackNumber;
+            }
+            else {
+                MS_ERROR_STD("failed to set MKV codec for %s", GetStreamInfoString(mime).c_str());
+            }
+        }
+        else {
+            MS_ERROR_STD("failed to add MKV track for %s", GetStreamInfoString(mime).c_str());
+        }
     }
-    return false;
+    else {
+        MS_ERROR_STD("failed to initialize MKV writer for %s", GetStreamInfoString(mime).c_str());
+    }
 }
 
-WebMSerializer::Writer::Writer(MediaSink* sink, const char* app)
-    : MkvBufferedWriter(sink, app)
+bool WebMSerializer::Writer::Write(const std::shared_ptr<const MediaFrame>& mediaFrame,
+                                   const webrtc::TimeDelta& offset)
 {
+    return _impl.AddFrame(_trackNumber, mediaFrame, offset.ns<uint64_t>());
 }
 
-bool WebMSerializer::Writer::AddFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
-                                      uint64_t mkvTimestamp)
+void WebMSerializer::Writer::SetConfig(const std::shared_ptr<const AudioFrameConfig>& config)
 {
-    return MkvBufferedWriter::AddFrame(_singleTrackNumber, mediaFrame, mkvTimestamp);
+    _impl.SetTrackSettings(_trackNumber, config);
 }
 
-void WebMSerializer::Writer::SetTrackSettings(const std::shared_ptr<const AudioFrameConfig>& config)
+void WebMSerializer::Writer::SetConfig(const std::shared_ptr<const VideoFrameConfig>& config)
 {
-    MkvBufferedWriter::SetTrackSettings(_singleTrackNumber, config);
-}
-
-void WebMSerializer::Writer::SetTrackSettings(const std::shared_ptr<const VideoFrameConfig>& config)
-{
-    MkvBufferedWriter::SetTrackSettings(_singleTrackNumber, config);
+    _impl.SetTrackSettings(_trackNumber, config);
 }
 
 } // namespace RTC

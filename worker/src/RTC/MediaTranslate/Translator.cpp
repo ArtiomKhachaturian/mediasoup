@@ -23,7 +23,9 @@ Translator::Translator(const Producer* producer,
                        RtpPacketsPlayer* rtpPacketsPlayer,
                        RtpPacketsCollector* output)
     : _producer(producer)
+#ifndef NO_TRANSLATION_SERVICE
     , _websocketFactory(websocketFactory)
+#endif
     , _rtpPacketsPlayer(rtpPacketsPlayer)
     , _output(output)
 {

@@ -19,7 +19,7 @@ class MkvBufferedWriter : public MediaObject, private mkvmuxer::IMkvWriter
    class MkvFrameMemory;
 public:
     MkvBufferedWriter(MediaSink* sink, const char* app);
-    ~MkvBufferedWriter() override;
+    ~MkvBufferedWriter() final;
     bool IsInitialized() const { return _initialized; }
     bool HasAudioTracks() const { return !_audioTracks.empty(); }
     bool HasVideoTracks() const { return !_videoTracks.empty(); }

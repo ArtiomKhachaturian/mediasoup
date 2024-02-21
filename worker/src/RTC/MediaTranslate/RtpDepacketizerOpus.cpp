@@ -42,9 +42,11 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 std::shared_ptr<const MediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet)
 {
     if (const auto frame = RtpMediaFrame::Create(GetMimeType(), GetClockRate(), packet)) {
-        bool stereo = false;
-        Codecs::Opus::ParseTOC(packet->GetPayload(), nullptr, nullptr, nullptr, &stereo);
-        frame->SetAudioConfig(EnsureStereoAudioConfig(stereo));
+        if (const auto payload = packet->GetPayload()) {
+            bool stereo = false;
+            Codecs::Opus::ParseTOC(payload, nullptr, nullptr, nullptr, &stereo);
+            frame->SetAudioConfig(EnsureStereoAudioConfig(stereo));
+        }
         return frame;
     }
     return nullptr;

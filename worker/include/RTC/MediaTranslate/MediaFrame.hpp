@@ -19,10 +19,7 @@ class MediaFrame
 public:
     MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate);
     virtual ~MediaFrame();
-    // add-methods return false if input arguments is incorrect: null or empty payload
-    bool AddPayload(const std::shared_ptr<MemoryBuffer>& payload);
-    bool IsEmpty() const;
-	// expensive operation, in difference from [GetPayloads] returns continuous area of payload data
+    void AddPayload(const std::shared_ptr<MemoryBuffer>& payload);
     std::shared_ptr<const MemoryBuffer> GetPayload() const;
     // common properties
     const RtpCodecMimeType& GetMimeType() const { return _mimeType; }

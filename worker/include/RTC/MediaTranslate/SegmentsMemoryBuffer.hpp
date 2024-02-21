@@ -12,7 +12,7 @@ class SegmentsMemoryBuffer : public MemoryBuffer
 {
     using BuffersList = std::list<std::shared_ptr<MemoryBuffer>>;
 public:
-    enum AppendResult {
+    enum Result {
         Failed = 0, // error
         Front,      // added to beginning of segments list
         Back        // added to the end of segments list
@@ -20,7 +20,7 @@ public:
 public:
     // capacity in bytes
     SegmentsMemoryBuffer(size_t capacity = std::numeric_limits<size_t>::max());
-    AppendResult Append(const std::shared_ptr<MemoryBuffer>& buffer);
+    Result Push(const std::shared_ptr<MemoryBuffer>& buffer);
     void Clear();
     size_t CopyTo(size_t offset, size_t len, uint8_t* output) const;
     size_t GetCapacity() const { return _capacity; }
