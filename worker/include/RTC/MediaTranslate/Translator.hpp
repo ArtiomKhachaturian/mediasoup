@@ -6,7 +6,7 @@
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
 
-//#define NO_TRANSLATION_SERVICE
+#define NO_TRANSLATION_SERVICE
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC

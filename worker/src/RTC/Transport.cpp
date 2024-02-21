@@ -1603,6 +1603,14 @@ namespace RTC
 
             return;
         }
+        
+        if (!packet->IsTranslated()) {
+            const auto handled = this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet);
+            if (handled) {
+                delete packet;
+                return;
+            }
+        }
 
         // MS_DEBUG_DEV(
         //   "RTP packet received [ssrc:%" PRIu32 ", payloadType:%" PRIu8 ", producerId:%s]",
@@ -2439,15 +2447,8 @@ namespace RTC
     inline void Transport::OnProducerRtpPacketReceived(RTC::Producer* producer, RTC::RtpPacket* packet)
     {
         MS_TRACE();
-        if (packet) {
-            bool accepted = packet->IsTranslated();
-            if (!accepted) {
-                accepted = !this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet);
-            }
-            if (accepted) {
-                this->listener->OnTransportProducerRtpPacketReceived(this, producer, packet);
-            }
-        }
+        
+        this->listener->OnTransportProducerRtpPacketReceived(this, producer, packet);
     }
 
     inline void Transport::OnProducerSendRtcpPacket(RTC::Producer* /*producer*/, RTC::RTCP::Packet* packet)
