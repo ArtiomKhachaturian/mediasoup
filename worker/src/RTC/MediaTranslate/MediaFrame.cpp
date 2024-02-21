@@ -21,17 +21,6 @@ MediaFrame::~MediaFrame()
 {
 }
 
-bool MediaFrame::AddPayload(std::vector<uint8_t> payload)
-{
-    return _payload->Append(std::move(payload));
-}
-
-bool MediaFrame::AddPayload(const uint8_t* data, size_t len,
-                            const std::allocator<uint8_t>& payloadAllocator)
-{
-    return _payload->Append(data, len, payloadAllocator);
-}
-
 bool MediaFrame::AddPayload(const std::shared_ptr<MemoryBuffer>& payload)
 {
     return _payload->Append(payload);

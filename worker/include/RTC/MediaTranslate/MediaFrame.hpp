@@ -20,8 +20,6 @@ public:
     MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate);
     virtual ~MediaFrame();
     // add-methods return false if input arguments is incorrect: null or empty payload
-    bool AddPayload(std::vector<uint8_t> payload);
-    bool AddPayload(const uint8_t* data, size_t len, const std::allocator<uint8_t>& payloadAllocator = {});
     bool AddPayload(const std::shared_ptr<MemoryBuffer>& payload);
     bool IsEmpty() const;
 	// expensive operation, in difference from [GetPayloads] returns continuous area of payload data

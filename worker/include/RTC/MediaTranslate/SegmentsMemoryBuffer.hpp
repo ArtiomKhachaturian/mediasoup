@@ -20,8 +20,6 @@ public:
 public:
     // capacity in bytes
     SegmentsMemoryBuffer(size_t capacity = std::numeric_limits<size_t>::max());
-    AppendResult Append(std::vector<uint8_t> data);
-    AppendResult Append(const void* buf, size_t len, const std::allocator<uint8_t>& allocator = {});
     AppendResult Append(const std::shared_ptr<MemoryBuffer>& buffer);
     void Clear();
     size_t CopyTo(size_t offset, size_t len, uint8_t* output) const;

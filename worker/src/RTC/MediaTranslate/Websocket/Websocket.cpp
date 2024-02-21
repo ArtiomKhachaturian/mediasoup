@@ -5,7 +5,6 @@
 #include "RTC/MediaTranslate/Websocket/WebsocketFailure.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketFactory.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
-#include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
 
@@ -40,16 +39,6 @@ namespace RTC
 Websocket::Websocket()
     : _listeners(std::make_shared<SocketListeners>())
 {
-}
-
-bool Websocket::WriteBinary(std::vector<uint8_t> buffer)
-{
-    return WriteBinary(MakeMemoryBuffer<SimpleMemoryBuffer>(std::move(buffer)));
-}
-
-bool Websocket::WriteBinary(const void* buf, size_t len)
-{
-    return WriteBinary(MakeMemoryBuffer<SimpleMemoryBuffer>(buf, len));
 }
 
 void Websocket::AddListener(WebsocketListener* listener)

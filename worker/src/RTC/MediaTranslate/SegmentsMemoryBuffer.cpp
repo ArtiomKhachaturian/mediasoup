@@ -12,16 +12,6 @@ SegmentsMemoryBuffer::SegmentsMemoryBuffer(size_t capacity)
     MS_ASSERT(_capacity, "capacity should be greater than zero");
 }
 
-SegmentsMemoryBuffer::AppendResult SegmentsMemoryBuffer::Append(std::vector<uint8_t> data)
-{
-    return Append(SimpleMemoryBuffer::Create(std::move(data)));
-}
-
-SegmentsMemoryBuffer::AppendResult SegmentsMemoryBuffer::Append(const void* buf, size_t len, const std::allocator<uint8_t>& allocator)
-{
-    return Append(SimpleMemoryBuffer::Create(buf, len, allocator));
-}
-
 SegmentsMemoryBuffer::AppendResult SegmentsMemoryBuffer::Append(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     AppendResult result = AppendResult::Failed;

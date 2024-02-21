@@ -7,6 +7,7 @@ namespace RTC
 {
 
 class MediaFrame;
+class RtpMediaFrame;
 class RtpMediaFrameSerializer;
 class RtpPacket;
 
@@ -20,11 +21,9 @@ public:
     static std::unique_ptr<RtpDepacketizer> Create(const RtpCodecMimeType& mimeType, uint32_t clockRate);
 protected:
     RtpDepacketizer(const RtpCodecMimeType& mimeType, uint32_t clockRate);
-    const std::allocator<uint8_t>& GetPayloadAllocator() const { return _payloadAllocator; }
 private:
     const RtpCodecMimeType _mimeType;
     const uint32_t _clockRate;
-    const std::allocator<uint8_t> _payloadAllocator;
 };
 
 } // namespace RTC

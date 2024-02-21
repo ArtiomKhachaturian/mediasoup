@@ -5,6 +5,7 @@
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
+#include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
 #include "Logger.hpp"
 
 namespace {
@@ -222,7 +223,7 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
                 mkvResult = ToMkvReadResult(frame.Read(_segment->m_pReader, buffer.data()));
                 if (MaybeOk(mkvResult)) {
                     auto mediaFrame = std::make_shared<MediaFrame>(GetMime(), GetClockRate());
-                    if (mediaFrame->AddPayload(std::move(buffer))) {
+                    if (mediaFrame->AddPayload(SimpleMemoryBuffer::Create(std::move(buffer)))) {
                         mediaFrame->SetKeyFrame(block->IsKey());
                         mediaFrame->SetMediaConfig(GetConfig());
                         if (ts.has_value()) {

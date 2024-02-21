@@ -18,25 +18,12 @@ public:
     void SetRtpTimestamp(uint32_t rtpTimestamp) { SetTimestamp(rtpTimestamp); }
     // packets management
     // add-methods return false if input arguments is incorrect: null or empty packet/payload
-    bool AddPacket(const RtpPacket* packet, std::vector<uint8_t> payload);
-    bool AddPacket(const RtpPacket* packet, const uint8_t* data, size_t len,
-                   const std::allocator<uint8_t>& payloadAllocator = {});
-    bool AddPacket(const RtpPacket* packet, const std::allocator<uint8_t>& payloadAllocator = {});
-    bool AddPacket(const RtpPacket* packet, const std::shared_ptr<MemoryBuffer>& payload);
+    bool AddPacket(const RtpPacket* packet);
+    bool AddPacket(const RtpPacket* packet, const uint8_t* data, size_t len);
+
     // factory methods (for single-packet frames)
     static std::shared_ptr<RtpMediaFrame> Create(const RtpCodecMimeType& mimeType,
-                                                 uint32_t clockRate, const RtpPacket* packet,
-                                                 std::vector<uint8_t> payload);
-    static std::shared_ptr<RtpMediaFrame> Create(const RtpCodecMimeType& mimeType,
-                                                 uint32_t clockRate, const RtpPacket* packet,
-                                                 const uint8_t* data, size_t len,
-                                                 const std::allocator<uint8_t>& payloadAllocator = {});
-    static std::shared_ptr<RtpMediaFrame> Create(const RtpCodecMimeType& mimeType,
-                                                 uint32_t clockRate, const RtpPacket* packet,
-                                                 const std::allocator<uint8_t>& payloadAllocator = {});
-    static std::shared_ptr<RtpMediaFrame> Create(const RtpCodecMimeType& mimeType,
-                                                 uint32_t clockRate, const RtpPacket* packet,
-                                                 const std::shared_ptr<MemoryBuffer>& payload);
+                                                 uint32_t clockRate, const RtpPacket* packet);
     // null_opt if no descriptor for the packet
     static std::optional<size_t> GetPayloadDescriptorSize(const RtpPacket* packet);
     static bool ParseVp8VideoConfig(const RtpPacket* packet, const std::shared_ptr<VideoFrameConfig>& applyTo);

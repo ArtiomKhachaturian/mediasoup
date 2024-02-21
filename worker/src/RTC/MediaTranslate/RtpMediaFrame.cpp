@@ -31,30 +31,14 @@ RtpMediaFrame::~RtpMediaFrame()
 {
 }
 
-bool RtpMediaFrame::AddPacket(const RtpPacket* packet, std::vector<uint8_t> payload)
+bool RtpMediaFrame::AddPacket(const RtpPacket* packet)
 {
-    return packet && AddPacket(packet, SimpleMemoryBuffer::Create(std::move(payload)));
+    return packet && AddPacket(packet, packet->GetPayload(), packet->GetPayloadLength());
 }
 
-bool RtpMediaFrame::AddPacket(const RtpPacket* packet, const uint8_t* data, size_t len,
-                              const std::allocator<uint8_t>& payloadAllocator)
+bool RtpMediaFrame::AddPacket(const RtpPacket* packet, const uint8_t* data, size_t len)
 {
-    return packet && AddPacket(packet, SimpleMemoryBuffer::Create(data, len, payloadAllocator));
-}
-
-bool RtpMediaFrame::AddPacket(const RtpPacket* packet,
-                              const std::allocator<uint8_t>& payloadAllocator)
-{
-    if (packet) {
-        return AddPacket(packet, packet->GetPayload(), packet->GetPayloadLength(), payloadAllocator);
-    }
-    return false;
-}
-
-bool RtpMediaFrame::AddPacket(const RtpPacket* packet,
-                              const std::shared_ptr<MemoryBuffer>& payload)
-{
-    if (packet && AddPayload(payload)) {
+    if (packet && AddPayload(SimpleMemoryBuffer::Create(data, len))) {
         if (GetRtpTimestamp() > packet->GetTimestamp()) {
             MS_WARN_TAG(rtp, "time stamp of new packet is less than previous, SSRC = %du", packet->GetSsrc());
         }
@@ -71,55 +55,11 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet,
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,
                                                      uint32_t clockRate,
-                                                     const RtpPacket* packet,
-                                                     std::vector<uint8_t> payload)
-{
-    if (packet && !payload.empty()) {
-        auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate);
-        if (frame->AddPacket(packet, std::move(payload))) {
-            return frame;
-        }
-    }
-    return nullptr;
-}
-
-std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,
-                                                     uint32_t clockRate,
-                                                     const RtpPacket* packet,
-                                                     const uint8_t* data, size_t len,
-                                                     const std::allocator<uint8_t>& payloadAllocator)
-{
-    if (packet && data && len) {
-        auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate);
-        if (frame->AddPacket(packet, data, len, payloadAllocator)) {
-            return frame;
-        }
-    }
-    return nullptr;
-}
-
-std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,
-                                                     uint32_t clockRate,
-                                                     const RtpPacket* packet,
-                                                     const std::allocator<uint8_t>& payloadAllocator)
+                                                     const RtpPacket* packet)
 {
     if (packet) {
         auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate);
-        if (frame->AddPacket(packet, payloadAllocator)) {
-            return frame;
-        }
-    }
-    return nullptr;
-}
-
-std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,
-                                                     uint32_t clockRate,
-                                                     const RtpPacket* packet,
-                                                     const std::shared_ptr<MemoryBuffer>& payload)
-{
-    if (packet && payload) {
-        auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate);
-        if (frame->AddPacket(packet, payload)) {
+        if (frame->AddPacket(packet)) {
             return frame;
         }
     }
