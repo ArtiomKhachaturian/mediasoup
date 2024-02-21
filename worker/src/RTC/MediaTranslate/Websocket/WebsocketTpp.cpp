@@ -307,6 +307,7 @@ WebsocketTpp::SocketImpl<TConfig>::SocketImpl(uint64_t id, const std::shared_ptr
     , _errorStream(&_errorStreamBuf)
 {
     // Initialize ASIO
+    _client.set_user_agent(_config->GetOptions()._userAgent);
     _client.get_alog().set_ostream(&_debugStream);
     _client.get_elog().set_ostream(&_errorStream);
     _client.init_asio();

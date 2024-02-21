@@ -168,6 +168,7 @@ WebsocketTppTestFactory::MockServer::MockServer(const std::shared_ptr<MediaTimer
 {
     MS_ASSERT(_timer, "media timer must not be null");
     if (_fileIsAccessible) {
+        _server->set_user_agent("WebsocketTppTestFactory");
         _tls._certificate = g_cert;
         _tls._certificatePrivateKey = g_certKey;
         _tls._certificateIsPem = true;
@@ -179,7 +180,7 @@ WebsocketTppTestFactory::MockServer::MockServer(const std::shared_ptr<MediaTimer
         _server->set_tls_init_handler(bind(&MockServer::OnTlsInit, this, _1));
         _server->set_open_handler(bind(&MockServer::OnOpen, this, _1));
         _server->set_close_handler(bind(&MockServer::OnClose, this, _1));
-        // Listen on port 9002
+        // Listen on port
         _thread = std::thread(std::bind(&MockServer::Run, this));
         // wait
         while (!_thread.joinable()) {
