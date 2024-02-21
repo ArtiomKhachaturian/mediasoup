@@ -25,7 +25,7 @@ using MessagePtr = websocketpp::config::asio::message_type::ptr;
 class Client : public RTC::MediaTimerCallback
 {
 public:
-    Client(const websocketpp::connection_hdl& connection, std::string_view filename,
+    Client(const websocketpp::connection_hdl& hdl, std::string_view filename,
            std::weak_ptr<Server> serverRef);
     void SetReceivedTextMessage(const std::string& text);
     void AddReceivedBinarySize(size_t size) { _receivedBinarySize.fetch_add(size); }
@@ -36,7 +36,7 @@ public:
     void OnEvent() final;
 private:
     static inline constexpr uint64_t _translationThreshold = 4U * 1024U; // 4kb
-    const websocketpp::connection_hdl _connection;
+    const websocketpp::connection_hdl _hdl;
     const std::string_view _filename;
     const std::weak_ptr<Server> _serverRef;
     std::atomic_bool _receivedTextMessage;
@@ -289,9 +289,9 @@ std::shared_ptr<asio::ssl::context> WebsocketTppTestFactory::MockServer::
 #ifdef LOCAL_WEBSOCKET_TEST_SERVER
 namespace {
 
-Client::Client(const websocketpp::connection_hdl& connection, std::string_view filename,
+Client::Client(const websocketpp::connection_hdl& hdl, std::string_view filename,
                std::weak_ptr<Server> serverRef)
-    : _connection(connection)
+    : _hdl(hdl)
     , _filename(std::move(filename))
     , _serverRef(std::move(serverRef))
 {
@@ -311,14 +311,16 @@ bool Client::IsReadyForSendTranslation() const
 
 void Client::OnEvent()
 {
-    if (const auto server = _serverRef.lock()) {
-        const auto content = RTC::FileReader::ReadAllAsBinary(_filename);
-        if (!content.empty()) {
-            websocketpp::lib::error_code ec;
-            server->send(_connection, content.data(), content.size(),
-                         websocketpp::frame::opcode::binary, ec);
-            if (ec) {
-                MS_ERROR_STD("broadcast audio failed: %s", ec.message().c_str());
+    if (!_hdl.expired()) {
+        if (const auto server = _serverRef.lock()) {
+            const auto content = RTC::FileReader::ReadAllAsBinary(_filename);
+            if (!content.empty()) {
+                websocketpp::lib::error_code ec;
+                server->send(_hdl, content.data(), content.size(),
+                             websocketpp::frame::opcode::binary, ec);
+                if (ec) {
+                    MS_ERROR_STD("broadcast audio failed: %s", ec.message().c_str());
+                }
             }
         }
     }
