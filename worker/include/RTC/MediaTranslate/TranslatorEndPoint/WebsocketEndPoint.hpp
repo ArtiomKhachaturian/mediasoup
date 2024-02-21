@@ -5,7 +5,7 @@
 namespace RTC
 {
 
-//#define WRITE_TRANSLATION_TO_FILE
+#define WRITE_TRANSLATION_TO_FILE
 
 class Websocket;
 class WebsocketFactory;

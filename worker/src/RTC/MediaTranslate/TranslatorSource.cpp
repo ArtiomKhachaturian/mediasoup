@@ -240,6 +240,7 @@ void TranslatorSource::OnPlayStarted(uint32_t ssrc, uint64_t mediaId,
                                      uint64_t mediaSourceId)
 {
     RtpPacketsPlayerCallback::OnPlayStarted(ssrc, mediaId, mediaSourceId);
+    MS_ERROR_STD("Start replay RTP packets from %llu", mediaSourceId);
     LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
     _consumersManager->BeginPacketsSending(mediaId, mediaSourceId);
 }
@@ -260,6 +261,7 @@ void TranslatorSource::OnPlayFinished(uint32_t ssrc, uint64_t mediaId,
     RtpPacketsPlayerCallback::OnPlayFinished(ssrc, mediaId, mediaSourceId);
     LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
     _consumersManager->EndPacketsSending(mediaId, mediaSourceId);
+    MS_ERROR_STD("End replay RTP packets from %llu", mediaSourceId);
 }
 
 void TranslatorSource::WriteMediaPayload(const MediaObject& sender,
