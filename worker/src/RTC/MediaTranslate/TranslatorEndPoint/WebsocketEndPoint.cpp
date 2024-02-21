@@ -3,7 +3,6 @@
 #include "RTC/MediaTranslate/Websocket/Websocket.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketFactory.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
-#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #ifdef WRITE_TRANSLATION_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
 #include "DepLibUV.hpp"
@@ -83,8 +82,8 @@ void WebsocketEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
 void WebsocketEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<MemoryBuffer>& message)
 {
     if (message) {
-        const auto num = NotifyThatTranslationReceived(message);
 #ifdef WRITE_TRANSLATION_TO_FILE
+        const auto num = NotifyThatTranslationReceived(message);
         const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
         if (depacketizerPath && std::strlen(depacketizerPath)) {
             std::string fileName = std::string(depacketizerPath) + "/"
@@ -92,8 +91,9 @@ void WebsocketEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<M
                 + "_" + std::to_string(DepLibUV::GetTimeMs()) + ".webm";
             FileWriter::WriteAll(fileName, message);
         }
+#else
+        NotifyThatTranslationReceived(message);
 #endif
-        Commit(message);
     }
 }
 

@@ -15,6 +15,8 @@ inline const char* GetAgentName() { return "SpeakShiftSFU"; }
 std::string GetMediaFrameInfoString(const std::shared_ptr<const MediaFrame>& mediaFrame,
                                     uint32_t ssrc = 0U);
 
+std::string GetCurrentTime();
+
 std::string GetStreamInfoString(const RtpCodecMimeType& mime, uint32_t ssrc = 0U);
 std::string GetStreamInfoString(uint32_t ssrc, const RtpStream* stream);
 
