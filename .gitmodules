@@ -1,3 +1,3 @@
 [submodule "worker/external/libwebm"]
 	path = worker/external/libwebm
-	url = https://github.com/webmproject/libwebm
+url=git@github.com:ArtiomKhachaturian/libwebm.git
