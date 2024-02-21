@@ -15,8 +15,8 @@ class VideoFrameConfig;
 
 class MkvBufferedWriter : public MediaObject, private mkvmuxer::IMkvWriter
 {
-   class MkvFrame;
    enum class EnqueueResult;
+   class MkvFrameMemory;
 public:
     MkvBufferedWriter(MediaSink* sink, const char* app);
     ~MkvBufferedWriter() override;
@@ -63,7 +63,7 @@ private:
     absl::flat_hash_map<uint64_t,  mkvmuxer::VideoTrack*> _videoTracks;
     uint64_t _mkvVideoLastTimestamp = 0ULL;
     uint64_t _mkvAudioLastTimestamp = 0ULL;
-    std::vector<MkvFrame> _mkvFrames;
+    std::vector<mkvmuxer::Frame> _mkvFrames;
     SimpleMemoryBuffer _buffer;
 };
 
