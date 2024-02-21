@@ -1,7 +1,7 @@
 #define MS_CLASS "RTC::MediaFrame"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
-#include "RTC/MediaTranslate/SegmentsMemoryBuffer.hpp"
-#include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/SegmentsBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "Logger.hpp"
@@ -11,7 +11,7 @@ namespace RTC
 
 MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate)
     : _mimeType(mimeType)
-    , _payload(MakeMemoryBuffer<SegmentsMemoryBuffer>())
+    , _payload(MakeMemoryBuffer<SegmentsBuffer>())
     , _timestamp(clockRate)
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
@@ -89,7 +89,7 @@ void MediaFrameConfig::SetCodecSpecificData(const std::shared_ptr<const MemoryBu
 
 void MediaFrameConfig::SetCodecSpecificData(const uint8_t* data, size_t len)
 {
-    SetCodecSpecificData(SimpleMemoryBuffer::Create(data, len));
+    SetCodecSpecificData(SimpleBuffer::Create(data, len));
 }
 
 void AudioFrameConfig::SetChannelCount(uint8_t channelCount)

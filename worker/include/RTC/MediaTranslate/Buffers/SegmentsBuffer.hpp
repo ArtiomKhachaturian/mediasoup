@@ -1,14 +1,13 @@
 #pragma once
-#include "RTC/MediaTranslate/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
 #include <list>
 #include <limits>
 #include <memory>
-#include <vector>
 
 namespace RTC
 {
 
-class SegmentsMemoryBuffer : public MemoryBuffer
+class SegmentsBuffer : public MemoryBuffer
 {
     using BuffersList = std::list<std::shared_ptr<MemoryBuffer>>;
 public:
@@ -19,7 +18,7 @@ public:
     };
 public:
     // capacity in bytes
-    SegmentsMemoryBuffer(size_t capacity = std::numeric_limits<size_t>::max());
+    SegmentsBuffer(size_t capacity = std::numeric_limits<size_t>::max());
     Result Push(const std::shared_ptr<MemoryBuffer>& buffer);
     void Clear();
     size_t CopyTo(size_t offset, size_t len, uint8_t* output) const;

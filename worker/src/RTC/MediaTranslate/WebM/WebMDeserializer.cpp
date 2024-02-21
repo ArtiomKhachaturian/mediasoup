@@ -5,15 +5,10 @@
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
-#include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "Logger.hpp"
 
 namespace {
-
-template<typename T>
-inline constexpr T ValueFromNano(unsigned long long nano) {
-    return static_cast<T>(nano / 1000 / 1000 / 1000);
-}
 
 enum class StreamState {
     BeforeTheStart,
@@ -223,7 +218,7 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
                 mkvResult = ToMkvReadResult(frame.Read(_segment->m_pReader, buffer.data()));
                 if (MaybeOk(mkvResult)) {
                     auto mediaFrame = std::make_shared<MediaFrame>(GetMime(), GetClockRate());
-                    mediaFrame->AddPayload(SimpleMemoryBuffer::Create(std::move(buffer)));
+                    mediaFrame->AddPayload(SimpleBuffer::Create(std::move(buffer)));
                     mediaFrame->SetKeyFrame(block->IsKey());
                     mediaFrame->SetMediaConfig(GetConfig());
                     if (ts.has_value()) {

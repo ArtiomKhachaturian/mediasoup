@@ -1,6 +1,6 @@
 #define MS_CLASS "RTC::TranslatorEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
-#include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "DepLibUV.hpp"
@@ -19,7 +19,7 @@ public:
 private:
     const uint32_t _timeSliceMs;
     uint64_t _sliceOriginTimestamp = 0ULL;
-    ProtectedObj<SimpleMemoryBuffer> _impl;
+    ProtectedObj<SimpleBuffer> _impl;
 };
 
 TranslatorEndPoint::TranslatorEndPoint(std::string ownerId, std::string name, uint32_t timeSliceMs)

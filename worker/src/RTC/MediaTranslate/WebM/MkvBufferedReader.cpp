@@ -20,7 +20,7 @@ MkvReadResult MkvBufferedReader::AddBuffer(const std::shared_ptr<MemoryBuffer>& 
                          "for WebM decoding, remaining capacity is %zu bytes",
                          buffer->GetSize(), _buffers.GetCapacity() - _buffers.GetSize());
         }
-        else if (SegmentsMemoryBuffer::Failed != _buffers.Push(buffer)) {
+        else if (SegmentsBuffer::Failed != _buffers.Push(buffer)) {
             result = ParseEBMLHeader();
             if (IsOk(result)) {
                 result = ParseSegment();

@@ -7,7 +7,7 @@
 #include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
 #include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
-#include "RTC/MediaTranslate/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/Timestamp.hpp"

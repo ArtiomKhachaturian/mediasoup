@@ -1,6 +1,6 @@
 #define MS_CLASS "RTC::RtpMemoryBufferPacket"
 #include "RTC/MediaTranslate/RtpMemoryBufferPacket.hpp"
-#include "RTC/MediaTranslate/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
 #include "Logger.hpp"
 
 namespace RTC

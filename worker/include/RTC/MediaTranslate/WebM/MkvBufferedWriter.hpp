@@ -1,5 +1,5 @@
 #pragma once
-#include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "RTC/MediaTranslate/MediaObject.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <mkvmuxer/mkvmuxer.h>
@@ -64,7 +64,7 @@ private:
     uint64_t _mkvVideoLastTimestamp = 0ULL;
     uint64_t _mkvAudioLastTimestamp = 0ULL;
     std::vector<mkvmuxer::Frame> _mkvFrames;
-    SimpleMemoryBuffer _buffer;
+    SimpleBuffer _buffer;
 };
 
 }

@@ -1,6 +1,6 @@
 #define MS_CLASS "RTC::FileReader"
 #include "RTC/MediaTranslate/FileReader.hpp"
-#include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "Logger.hpp"
 #include <algorithm> // for std::min/max
 
@@ -88,7 +88,7 @@ bool FileReader::IsValidForRead(const std::string_view& fileNameUtf8)
 
 std::shared_ptr<MemoryBuffer> FileReader::ReadAllAsBuffer(const std::string_view& fileNameUtf8)
 {
-    return SimpleMemoryBuffer::Create(ReadAllAsBinary(fileNameUtf8));
+    return SimpleBuffer::Create(ReadAllAsBinary(fileNameUtf8));
 }
 
 void FileReader::Run()
@@ -153,7 +153,7 @@ std::shared_ptr<MemoryBuffer> FileReader::ReadBuffer(bool& eof, bool& ok) const
         const auto size = FileRead(handle, chunk);
         if (size) {
             chunk.resize(size);
-            buffer = SimpleMemoryBuffer::Create(std::move(chunk));
+            buffer = SimpleBuffer::Create(std::move(chunk));
         }
         else {
             ok = 0 == errno;

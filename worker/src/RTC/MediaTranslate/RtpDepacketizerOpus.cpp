@@ -3,7 +3,7 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
-#include "RTC/MediaTranslate/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
 #include "RTC/Codecs/Opus.hpp"
 #include "RTC/Codecs/Tools.hpp"
 #include "RTC/RtpPacket.hpp"

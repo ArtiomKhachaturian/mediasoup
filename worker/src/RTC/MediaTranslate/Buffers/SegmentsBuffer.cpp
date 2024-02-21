@@ -1,18 +1,18 @@
-#define MS_CLASS "RTC::SegmentsMemoryBuffer"
-#include "RTC/MediaTranslate/SegmentsMemoryBuffer.hpp"
-#include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#define MS_CLASS "RTC::SegmentsBuffer"
+#include "RTC/MediaTranslate/Buffers/SegmentsBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
 
-SegmentsMemoryBuffer::SegmentsMemoryBuffer(size_t capacity)
+SegmentsBuffer::SegmentsBuffer(size_t capacity)
     : _capacity(capacity)
 {
     MS_ASSERT(_capacity, "capacity should be greater than zero");
 }
 
-SegmentsMemoryBuffer::Result SegmentsMemoryBuffer::Push(const std::shared_ptr<MemoryBuffer>& buffer)
+SegmentsBuffer::Result SegmentsBuffer::Push(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     Result result = Result::Failed;
     if (buffer && !buffer->IsEmpty()) {
@@ -35,13 +35,13 @@ SegmentsMemoryBuffer::Result SegmentsMemoryBuffer::Push(const std::shared_ptr<Me
     return result;
 }
 
-void SegmentsMemoryBuffer::Clear()
+void SegmentsBuffer::Clear()
 {
     _buffers.clear();
     _size = 0UL;
 }
 
-auto SegmentsMemoryBuffer::GetBuffer(size_t& offset) const
+auto SegmentsBuffer::GetBuffer(size_t& offset) const
 {
     if (!_buffers.empty()) {
         size_t current = 0ULL;
@@ -57,7 +57,7 @@ auto SegmentsMemoryBuffer::GetBuffer(size_t& offset) const
     return _buffers.end();
 }
 
-size_t SegmentsMemoryBuffer::CopyTo(size_t offset, size_t len, uint8_t* output) const
+size_t SegmentsBuffer::CopyTo(size_t offset, size_t len, uint8_t* output) const
 {
     size_t actual = 0UL;
     if (output && len) {
@@ -75,21 +75,21 @@ size_t SegmentsMemoryBuffer::CopyTo(size_t offset, size_t len, uint8_t* output) 
     return actual;
 }
 
-uint8_t* SegmentsMemoryBuffer::GetData()
+uint8_t* SegmentsBuffer::GetData()
 {
     return Merge();
 }
 
-const uint8_t* SegmentsMemoryBuffer::GetData() const
+const uint8_t* SegmentsBuffer::GetData() const
 {
     return Merge();
 }
 
-uint8_t* SegmentsMemoryBuffer::Merge() const
+uint8_t* SegmentsBuffer::Merge() const
 {
     if (const auto count = _buffers.size()) {
         if (count > 1U) {
-            auto merged = MakeMemoryBuffer<SimpleMemoryBuffer>();
+            auto merged = MakeMemoryBuffer<SimpleBuffer>();
             merged->Reserve(_size);
             for (const auto& buffer : _buffers) {
                 merged->Append(buffer);

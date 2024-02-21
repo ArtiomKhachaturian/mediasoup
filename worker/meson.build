@@ -185,6 +185,8 @@ common_sources = [
 ]
 
 media_translate_sources = [
+  'src/RTC/MediaTranslate/Buffers/SegmentsBuffer.cpp',
+  'src/RTC/MediaTranslate/Buffers/SimpleBuffer.cpp',
   'src/RTC/MediaTranslate/ConsumersManager.cpp',
   'src/RTC/MediaTranslate/FileReader.cpp',
   'src/RTC/MediaTranslate/FileWriter.cpp',
@@ -205,8 +207,6 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMainLoopStream.cpp',
   'src/RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMediaFragment.cpp',
   'src/RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerSimpleStream.cpp',
-  'src/RTC/MediaTranslate/SegmentsMemoryBuffer.cpp',
-  'src/RTC/MediaTranslate/SimpleMemoryBuffer.cpp',
   'src/RTC/MediaTranslate/ThreadUtils.cpp',
   'src/RTC/MediaTranslate/Translator.cpp',
   'src/RTC/MediaTranslate/TranslatorEndPoint/FileEndPoint.cpp',

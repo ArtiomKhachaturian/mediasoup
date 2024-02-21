@@ -12,7 +12,7 @@ class MediaFrameConfig;
 class AudioFrameConfig;
 class VideoFrameConfig;
 class MemoryBuffer;
-class SegmentsMemoryBuffer;
+class SegmentsBuffer;
 
 class MediaFrame
 {
@@ -39,7 +39,7 @@ public:
     std::shared_ptr<const VideoFrameConfig> GetVideoConfig() const;
 private:
 	const RtpCodecMimeType _mimeType;
-    const std::shared_ptr<SegmentsMemoryBuffer> _payload;
+    const std::shared_ptr<SegmentsBuffer> _payload;
     bool _keyFrame = false;
     Timestamp _timestamp;
     std::shared_ptr<const MediaFrameConfig> _config;

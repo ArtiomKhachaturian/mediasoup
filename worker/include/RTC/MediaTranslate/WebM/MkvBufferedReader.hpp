@@ -1,6 +1,6 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaFrameDeserializeResult.hpp"
-#include "RTC/MediaTranslate/SegmentsMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/SegmentsBuffer.hpp"
 #include "RTC/MediaTranslate/WebM/MkvReadResult.hpp"
 #include <mkvparser/mkvreader.h>
 
@@ -28,7 +28,7 @@ private:
     static inline constexpr uint64_t _maxBufferSize = 1024UL * 1024UL; // 1 Mb
     std::unique_ptr<mkvparser::EBMLHeader> _ebmlHeader;
     std::unique_ptr<mkvparser::Segment> _segment;
-    SegmentsMemoryBuffer _buffers;
+    SegmentsBuffer _buffers;
 };
 
 } // namespace RTC
