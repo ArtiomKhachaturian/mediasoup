@@ -20,6 +20,7 @@ public:
     void SetRtpTime(uint32_t rtpTime) { _rtpTime = rtpTime; }
     webrtc::Timestamp GetTime() const;
     void SetTime(const webrtc::Timestamp& time);
+    bool IsZero() const { return 0U == GetRtpTime(); }
     // operators
     bool operator == (const Timestamp& other) const;
     bool operator == (const webrtc::Timestamp& other) const;

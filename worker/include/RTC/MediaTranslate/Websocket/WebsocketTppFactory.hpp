@@ -1,7 +1,7 @@
 #pragma once
 #include "RTC/MediaTranslate/Websocket/WebsocketFactory.hpp"
 
-#define LOCAL_WEBSOCKET_TEST_SERVER
+//#define LOCAL_WEBSOCKET_TEST_SERVER
 
 namespace RTC
 {

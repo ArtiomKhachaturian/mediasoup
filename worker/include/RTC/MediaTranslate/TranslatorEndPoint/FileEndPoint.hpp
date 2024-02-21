@@ -17,8 +17,7 @@ public:
                  std::string ownerId = std::string(),
                  uint32_t intervalBetweenTranslationsMs = 1000, // 1sec
                  uint32_t connectionDelaylMs = 500U, // 0.5 sec
-                 const std::optional<uint32_t>& disconnectAfterMs = std::nullopt,
-                 const std::shared_ptr<MediaTimer>& timer = nullptr);
+                 const std::optional<uint32_t>& disconnectAfterMs = std::nullopt);
     ~FileEndPoint() final;
     static uint64_t GetInstancesCount() { return _instances.load(); }
     bool IsValid() const { return 0UL != _timerId; }

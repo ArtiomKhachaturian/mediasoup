@@ -1,5 +1,8 @@
 #pragma once
 #include "absl/container/flat_hash_map.h"
+
+#include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
+
 #include <atomic>
 #include <memory>
 
@@ -7,6 +10,7 @@ namespace RTC
 {
 
 class MediaFrame;
+class MediaTimer;
 class MemoryBuffer;
 class MediaFrameDeserializer;
 class RtpCodecMimeType;
@@ -14,7 +18,7 @@ class RtpPacketsPlayerCallback;
 class RtpPacketizer;
 class RtpPacket;
 
-class RtpPacketsPlayerMediaFragment
+/*class RtpPacketsPlayerMediaFragment
 {
 public:
     RtpPacketsPlayerMediaFragment(std::unique_ptr<MediaFrameDeserializer> deserializer);
@@ -29,6 +33,30 @@ private:
     const std::unique_ptr<MediaFrameDeserializer> _deserializer;
     // key is track number, value - packetizer instance
     absl::flat_hash_map<size_t, std::unique_ptr<RtpPacketizer>> _packetizers;
+};*/
+
+class RtpPacketsPlayerMediaFragment : public MediaTimerCallback
+{
+    // key is track number, value - packetizer instance
+    using Packetizers = absl::flat_hash_map<size_t, std::unique_ptr<RtpPacketizer>>;
+    class TasksQueue;
+private:
+    RtpPacketsPlayerMediaFragment(std::shared_ptr<TasksQueue> queue);
+public:
+    static std::shared_ptr<RtpPacketsPlayerMediaFragment> Parse(const RtpCodecMimeType& mime,
+                                                                const std::shared_ptr<MemoryBuffer>& buffer,
+                                                                const std::shared_ptr<MediaTimer> timer,
+                                                                uint32_t ssrc,
+                                                                uint32_t clockRate,
+                                                                uint8_t payloadType,
+                                                                uint64_t mediaId,
+                                                                uint64_t mediaSourceId,
+                                                                RtpPacketsPlayerCallback* callback);
+    ~RtpPacketsPlayerMediaFragment() final;
+    // impl. of MediaTimerCallback
+    void OnEvent() final;
+private:
+    const std::shared_ptr<TasksQueue> _queue;
 };
 
 } // namespace RTC

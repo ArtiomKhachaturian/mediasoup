@@ -106,6 +106,17 @@ void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
     }
 }
 
+uint64_t TranslatorEndPoint::NotifyThatTranslationReceived(const std::shared_ptr<MemoryBuffer>& media)
+{
+    if (media) {
+        const auto number = _translationsCount.fetch_add(1U) + 1U;
+        MS_ERROR_STD("Received translation #%llu from %s", number, GetDescription().c_str());
+        Commit(media);
+        return number;
+    }
+    return 0UL;
+}
+
 std::string TranslatorEndPoint::GetDescription() const
 {
     auto name = GetName();
