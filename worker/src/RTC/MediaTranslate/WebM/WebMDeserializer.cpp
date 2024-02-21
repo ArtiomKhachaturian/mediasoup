@@ -68,7 +68,7 @@ WebMDeserializer::~WebMDeserializer()
 {
 }
 
-MediaFrameDeserializeResult WebMDeserializer::AddBuffer(const std::shared_ptr<MemoryBuffer>& buffer)
+MediaFrameDeserializeResult WebMDeserializer::Add(const std::shared_ptr<MemoryBuffer>& buffer)
 {
     auto result = _reader->AddBuffer(buffer);
     if (MaybeOk(result) && _tracks.empty()) {
@@ -84,6 +84,12 @@ MediaFrameDeserializeResult WebMDeserializer::AddBuffer(const std::shared_ptr<Me
         }
     }
     return FromMkvReadResult(result);
+}
+
+void WebMDeserializer::Clear()
+{
+    _reader->ClearBuffers();
+    _tracks.clear();
 }
 
 std::vector<std::shared_ptr<const MediaFrame>> WebMDeserializer::ReadNextFrames(size_t trackIndex,

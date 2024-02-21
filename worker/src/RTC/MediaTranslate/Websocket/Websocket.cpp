@@ -44,12 +44,12 @@ Websocket::Websocket()
 
 bool Websocket::WriteBinary(std::vector<uint8_t> buffer)
 {
-    return WriteBinary(std::make_shared<SimpleMemoryBuffer>(std::move(buffer)));
+    return WriteBinary(MakeMemoryBuffer<SimpleMemoryBuffer>(std::move(buffer)));
 }
 
 bool Websocket::WriteBinary(const void* buf, size_t len)
 {
-    return WriteBinary(std::make_shared<SimpleMemoryBuffer>(buf, len));
+    return WriteBinary(MakeMemoryBuffer<SimpleMemoryBuffer>(buf, len));
 }
 
 void Websocket::AddListener(WebsocketListener* listener)

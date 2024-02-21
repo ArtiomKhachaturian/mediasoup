@@ -49,7 +49,7 @@ void WebsocketEndPoint::Connect()
 void WebsocketEndPoint::Disconnect()
 {
     if (IsConnected()) {
-        _socket->WriteBinary(std::make_shared<SimpleMemoryBuffer>());
+        _socket->WriteBinary(MakeMemoryBuffer<SimpleMemoryBuffer>());
     }
     _socket->Close();
 }

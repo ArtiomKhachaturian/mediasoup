@@ -14,7 +14,8 @@ public:
     WebMDeserializer();
     ~WebMDeserializer() final;
     // impl. of RtpMediaFrameDeserializer
-    MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<MemoryBuffer>& buffer) final;
+    MediaFrameDeserializeResult Add(const std::shared_ptr<MemoryBuffer>& buffer) final;
+    void Clear() final;
     std::vector<std::shared_ptr<const MediaFrame>> ReadNextFrames(size_t trackIndex,
                                                                   MediaFrameDeserializeResult* result) final;
     size_t GetTracksCount() const final;

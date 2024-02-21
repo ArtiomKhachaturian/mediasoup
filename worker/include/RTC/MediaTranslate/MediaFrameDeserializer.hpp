@@ -17,7 +17,8 @@ public:
     MediaFrameDeserializer(const MediaFrameDeserializer&) = delete;
     MediaFrameDeserializer(MediaFrameDeserializer&&) = delete;
     virtual ~MediaFrameDeserializer() = default;
-    virtual MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<MemoryBuffer>& buffer) = 0;
+    virtual MediaFrameDeserializeResult Add(const std::shared_ptr<MemoryBuffer>& buffer) = 0;
+    virtual void Clear() {}
     // read all available frames,
     // timestamp of media frames is offset from the beginning of the stream:
     // 1st frame has zero timestamp/offset

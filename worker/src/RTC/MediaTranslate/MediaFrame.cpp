@@ -11,7 +11,7 @@ namespace RTC
 
 MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate)
     : _mimeType(mimeType)
-    , _payload(std::make_shared<SegmentsMemoryBuffer>())
+    , _payload(MakeMemoryBuffer<SegmentsMemoryBuffer>())
     , _timestamp(clockRate)
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");

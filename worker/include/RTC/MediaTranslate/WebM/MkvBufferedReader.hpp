@@ -9,11 +9,11 @@ namespace RTC
 
 class MkvBufferedReader : private mkvparser::IMkvReader
 {
-    using Buffer = SegmentsMemoryBuffer;
 public:
     MkvBufferedReader();
     ~MkvBufferedReader() final = default;
     MkvReadResult AddBuffer(const std::shared_ptr<MemoryBuffer>& buffer);
+    void ClearBuffers();
     const mkvparser::Segment* GetSegment() const { return _segment.get(); }
     mkvparser::Segment* GetSegment() { return _segment.get(); }
     const mkvparser::Tracks* GetTracks() const;
@@ -28,7 +28,7 @@ private:
     static inline constexpr uint64_t _maxBufferSize = 1024UL * 1024UL; // 1 Mb
     std::unique_ptr<mkvparser::EBMLHeader> _ebmlHeader;
     std::unique_ptr<mkvparser::Segment> _segment;
-    Buffer _buffer;
+    SegmentsMemoryBuffer _buffers;
 };
 
 } // namespace RTC

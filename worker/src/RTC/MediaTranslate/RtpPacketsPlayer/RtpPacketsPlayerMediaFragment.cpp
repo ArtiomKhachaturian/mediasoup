@@ -116,7 +116,7 @@ std::shared_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
     if (buffer && callback && timer) {
         if (WebMCodecs::IsSupported(mime)) {
             auto deserializer = std::make_unique<WebMDeserializer>();
-            const auto result = deserializer->AddBuffer(buffer);
+            const auto result = deserializer->Add(buffer);
             if (MaybeOk(result)) {
                 if (const auto tracksCount = deserializer->GetTracksCount()) {
                     size_t acceptedTracksCount = 0UL;
@@ -238,6 +238,7 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::Start()
     if (started) {
         EnqueTask(std::make_unique<StartFinishTask>(false));
     }
+    _deserializer->Clear();
 }
 
 void RtpPacketsPlayerMediaFragment::TasksQueue::OnEvent()

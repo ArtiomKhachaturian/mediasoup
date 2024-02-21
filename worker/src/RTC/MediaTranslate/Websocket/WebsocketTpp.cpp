@@ -25,6 +25,7 @@ public:
     size_t GetSize() const final;
     uint8_t* GetData() final;
     const uint8_t* GetData() const final;
+    void Recycle() final { _message->recycle(); }
 private:
     const MessagePtr _message;
 };
@@ -595,7 +596,7 @@ template<class TConfig>
 std::shared_ptr<MemoryBuffer> WebsocketTpp::SocketImpl<TConfig>::ToBinary(MessagePtr message)
 {
     if (message) {
-        return std::make_shared<MessageMemoryBuffer<MessagePtr>>(std::move(message));
+        return MakeMemoryBuffer<MessageMemoryBuffer<MessagePtr>>(std::move(message));
     }
     return nullptr;
 }

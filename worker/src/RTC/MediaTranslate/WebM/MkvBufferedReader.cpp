@@ -6,7 +6,7 @@ namespace RTC
 {
 
 MkvBufferedReader::MkvBufferedReader()
-	: _buffer(_maxBufferSize)
+	: _buffers(_maxBufferSize)
 {
 }
 
@@ -15,12 +15,12 @@ MkvReadResult MkvBufferedReader::AddBuffer(const std::shared_ptr<MemoryBuffer>& 
     auto result = MkvReadResult::InvalidInputArg;
     if (buffer && !buffer->IsEmpty()) {
         result = MkvReadResult::OutOfMemory;
-        if (buffer->GetSize() > _buffer.GetCapacity()) {
+        if (buffer->GetSize() + _buffers.GetSize() > _buffers.GetCapacity()) {
             MS_ERROR_STD("size of input data buffer (%zu bytes) is too big "
-                         "for WebM decoding, max allowed size is %zu bytes",
-                         buffer->GetSize(), _buffer.GetCapacity());
+                         "for WebM decoding, remaining capacity is %zu bytes",
+                         buffer->GetSize(), _buffers.GetCapacity() - _buffers.GetSize());
         }
-        else if (_buffer.Append(buffer)) {
+        else if (_buffers.Append(buffer)) {
             result = ParseEBMLHeader();
             if (IsOk(result)) {
                 result = ParseSegment();
@@ -28,6 +28,13 @@ MkvReadResult MkvBufferedReader::AddBuffer(const std::shared_ptr<MemoryBuffer>& 
         }
     }
     return result;
+}
+
+void MkvBufferedReader::ClearBuffers()
+{
+    _buffers.Clear();
+    _ebmlHeader.reset();
+    _segment.reset();
 }
 
 const mkvparser::Tracks* MkvBufferedReader::GetTracks() const
@@ -81,7 +88,7 @@ int MkvBufferedReader::Read(long long pos, long len, unsigned char* buf)
 {
     if (len >= 0 && pos >= 0) {
         const auto expected = static_cast<size_t>(len);
-        const auto actual = _buffer.CopyTo(static_cast<size_t>(pos), expected, buf);
+        const auto actual = _buffers.CopyTo(static_cast<size_t>(pos), expected, buf);
         if (expected == actual) {
             return 0;
         }
@@ -96,7 +103,7 @@ int MkvBufferedReader::Length(long long* total, long long* available)
         *total = -1; // // total file size is unknown
     }
     if (available) {
-        *available = _buffer.GetSize();
+        *available = _buffers.GetSize();
     }
     return 0;
 }

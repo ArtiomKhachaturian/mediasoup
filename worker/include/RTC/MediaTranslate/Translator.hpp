@@ -6,7 +6,7 @@
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
 
-//#define NO_TRANSLATION_SERVICE
+#define NO_TRANSLATION_SERVICE
 #define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC
@@ -65,7 +65,7 @@ private:
 #ifdef NO_TRANSLATION_SERVICE
     static inline const char* _mockTranslationFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_long.webm";
     static inline constexpr uint32_t _mockTranslationConnectionTimeoutMs = 300U; // 1 sec
-    static inline constexpr uint32_t _mockTranslationFileNameLenMs = 15000U; // ~4 sec
+    static inline constexpr uint32_t _mockTranslationFileNameLenMs = 17000U; // ~4 sec
 #endif
     const Producer* const _producer;
     const WebsocketFactory* const _websocketFactory;

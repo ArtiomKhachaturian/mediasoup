@@ -40,19 +40,12 @@ void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId, const std::share
     if (media) {
         const uint64_t mediaId = media->GetId();
         LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
-        bool exists = false;
-        auto its = _playingMedias->find(mediaSourceId);
-        if (its != _playingMedias->end()) {
-            exists = its->second.count(mediaId) > 0U;
-        }
-        if (!exists) {
+        auto& playingMedias = _playingMedias.Ref();
+        if (!IsPlaying(mediaSourceId, mediaId, playingMedias)) {
             if (auto fragment = RtpPacketsPlayerMediaFragment::Parse(_mime, media, _timer, _ssrc,
                                                                      _clockRate, _payloadType,
                                                                      mediaId, mediaSourceId, this)) {
-                if (its == _playingMedias->end()) {
-                    its = _playingMedias->insert(std::make_pair(mediaSourceId, MediasMap())).first;
-                }
-                its->second[mediaId] = fragment;
+                playingMedias[mediaSourceId][mediaId] = fragment;
                 _timer->Singleshot(0U, fragment);
             }
         }
@@ -63,6 +56,18 @@ bool RtpPacketsPlayerSimpleStream::IsPlaying() const
 {
     LOCK_READ_PROTECTED_OBJ(_playingMedias);
     return !_playingMedias->empty();
+}
+
+bool RtpPacketsPlayerSimpleStream::IsPlaying(uint64_t mediaSourceId, uint64_t mediaId,
+                                             const MediaSourcesMap& playingMedias)
+{
+    if (!playingMedias.empty()) {
+        const auto its = playingMedias.find(mediaSourceId);
+        if (its != playingMedias.end()) {
+            return its->second.count(mediaId) > 0U;
+        }
+    }
+    return false;
 }
 
 void RtpPacketsPlayerSimpleStream::OnPlayStarted(uint32_t ssrc, uint64_t mediaId,

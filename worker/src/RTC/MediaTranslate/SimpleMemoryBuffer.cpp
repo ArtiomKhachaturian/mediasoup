@@ -81,7 +81,7 @@ std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Create(const void* data,
 std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Create(std::vector<uint8_t> buffer)
 {
     if (!buffer.empty()) {
-        return std::make_shared<SimpleMemoryBuffer>(std::move(buffer));
+        return MakeMemoryBuffer<SimpleMemoryBuffer>(std::move(buffer));
     }
     return nullptr;
 }

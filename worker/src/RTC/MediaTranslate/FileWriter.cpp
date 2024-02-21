@@ -48,7 +48,7 @@ FileWriter::~FileWriter()
 bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const std::vector<uint8_t>& buffer)
 {
     if (!fileNameUtf8.empty() && !buffer.empty()) {
-        return WriteAll(fileNameUtf8, std::make_shared<BufferView>(buffer));
+        return WriteAll(fileNameUtf8, MakeMemoryBuffer<BufferView>(buffer));
     }
     return false;
 }
