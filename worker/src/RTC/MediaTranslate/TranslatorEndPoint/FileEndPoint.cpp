@@ -50,12 +50,11 @@ FileEndPoint::FileEndPoint(std::string fileName,
                            std::string ownerId,
                            uint32_t intervalBetweenTranslationsMs,
                            uint32_t connectionDelaylMs,
-                           const std::optional<uint32_t>& disconnectAfterMs,
-                           const std::shared_ptr<MediaTimer>& timer)
+                           const std::optional<uint32_t>& disconnectAfterMs)
     : TranslatorEndPoint(std::move(ownerId), std::move(fileName))
     , _fileIsValid(FileReader::IsValidForRead(GetName()))
     , _callback(_fileIsValid ? std::make_shared<TimerCallback>(this) : nullptr)
-    , _timer(_fileIsValid ? (timer ? timer : std::make_shared<MediaTimer>(GetName())) : nullptr)
+    , _timer(_fileIsValid ? std::make_shared<MediaTimer>(GetName()) : nullptr)
     , _timerId(_timer ? _timer->Register(_callback) : 0UL)
     , _intervalBetweenTranslationsMs(intervalBetweenTranslationsMs)
     , _connectionDelaylMs(connectionDelaylMs)
@@ -138,7 +137,7 @@ void FileEndPoint::TimerCallback::OnEvent()
     if (SetConnectedState()) {
         NotifyThatConnected();
     }
-    else if (WebsocketState::Connected == GetState()) {
+    if (WebsocketState::Connected == GetState()) {
         if (HasWrittenInputMedia()) {
             if (const auto media = ReadMediaFromFile()) {
                 NotifyAboutReceivedMedia(media);
@@ -170,7 +169,7 @@ std::shared_ptr<MemoryBuffer> FileEndPoint::TimerCallback::ReadMediaFromFile() c
 void FileEndPoint::TimerCallback::NotifyAboutReceivedMedia(const std::shared_ptr<MemoryBuffer>& media)
 {
     if (media) {
-        _owner->Commit(media);
+        _owner->NotifyThatTranslationReceived(media);
     }
 }
 

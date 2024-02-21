@@ -22,15 +22,16 @@ class WebsocketTppTestFactory : public WebsocketTppFactory
 {
     class MockServer;
 public:
-    WebsocketTppTestFactory(std::string fileName, uint32_t repeatIntervalMs);
-    WebsocketTppTestFactory(const std::shared_ptr<MediaTimer>& timer,
-                            std::string fileName, uint32_t repeatIntervalMs);
+    WebsocketTppTestFactory();
+    WebsocketTppTestFactory(const std::shared_ptr<MediaTimer>& timer);
     ~WebsocketTppTestFactory() final;
     bool IsValid() const;
     // overrides of WebsocketTppFactory
     std::string GetUri() const final;
 private:
-    static inline const uint16_t _port = 8080;
+    static inline const char*  _filename = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_long.webm";
+    static inline constexpr uint32_t _repeatIntervalMs = 15000;
+    static inline constexpr uint16_t _port = 8080U;
     static inline const std::string _localUri = "wss://localhost";
     const std::unique_ptr<MockServer> _server;
 };

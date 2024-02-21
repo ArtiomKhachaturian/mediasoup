@@ -39,9 +39,11 @@ void RtpPacketsPlayer::AddStream(uint32_t ssrc, uint32_t clockRate, uint8_t payl
         LOCK_WRITE_PROTECTED_OBJ(_streams);
         if (!_streams->count(ssrc)) {
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
-            auto stream = RtpPacketsPlayerMainLoopStream::Create(ssrc, clockRate, payloadType, mime, callback);
+            auto stream = RtpPacketsPlayerMainLoopStream::Create(_timer, ssrc, clockRate,
+                                                                 payloadType, mime, callback);
 #else
-            auto stream = RtpPacketsPlayerSimpleStream::Create(ssrc, clockRate, payloadType, mime, callback);
+            auto stream = RtpPacketsPlayerSimpleStream::Create(_timer, ssrc, clockRate,
+                                                               payloadType, mime, callback);
 #endif
             if (stream) {
                 _streams->insert(std::make_pair(ssrc, std::move(stream)));
@@ -80,7 +82,7 @@ void RtpPacketsPlayer::Play(uint32_t ssrc, uint64_t mediaSourceId,
         LOCK_READ_PROTECTED_OBJ(_streams);
         const auto it = _streams->find(ssrc);
         if (it != _streams->end()) {
-            it->second->Play(mediaSourceId, media, _timer);
+            it->second->Play(mediaSourceId, media);
         }
     }
 }

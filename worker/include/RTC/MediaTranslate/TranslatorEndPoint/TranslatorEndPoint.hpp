@@ -29,6 +29,7 @@ protected:
     bool HasInput() const;
     bool HasValidTranslationSettings() const;
     void NotifyThatConnectionEstablished(bool connected);
+    uint64_t NotifyThatTranslationReceived(const std::shared_ptr<MemoryBuffer>& media);
     const std::string& GetOwnerId() const { return _ownerId; }
     const std::string& GetName() const { return _name; }
     std::string GetDescription() const;
@@ -72,6 +73,7 @@ private:
     ProtectedString _outputVoiceId;
     ProtectedObj<MediaSource*> _inputMediaSource;
     std::atomic_bool _notifyedThatConnected = false; // for logs
+    std::atomic<uint64_t> _translationsCount = 0ULL;
 };
 
 } // namespace RTC

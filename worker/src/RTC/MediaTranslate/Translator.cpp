@@ -256,9 +256,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
 {
     auto fileEndPoint = std::make_shared<FileEndPoint>(_mockTranslationFileName, GetId(),
                                                        _mockTranslationFileNameLenMs,
-                                                       _mockTranslationConnectionTimeoutMs,
-                                                       std::nullopt,
-                                                       _rtpPacketsPlayer->GetTimer());
+                                                       _mockTranslationConnectionTimeoutMs);
     if (!fileEndPoint->IsValid()) {
         MS_ERROR_STD("failed open %s as mock translation", _mockTranslationFileName);
     }

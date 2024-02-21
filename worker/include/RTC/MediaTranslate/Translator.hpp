@@ -63,9 +63,9 @@ private:
     std::shared_ptr<TranslatorEndPoint> CreateEndPoint() final;
 private:
 #ifdef NO_TRANSLATION_SERVICE
-    static inline const char* _mockTranslationFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_stereo_example.webm";
-    static inline constexpr uint32_t _mockTranslationConnectionTimeoutMs = 1000U; // 1 sec
-    static inline constexpr uint32_t _mockTranslationFileNameLenMs = 4000U; // ~4 sec
+    static inline const char* _mockTranslationFileName = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_long.webm";
+    static inline constexpr uint32_t _mockTranslationConnectionTimeoutMs = 300U; // 1 sec
+    static inline constexpr uint32_t _mockTranslationFileNameLenMs = 15000U; // ~4 sec
 #endif
     const Producer* const _producer;
     const WebsocketFactory* const _websocketFactory;

@@ -205,7 +205,6 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMainLoopStream.cpp',
   'src/RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMediaFragment.cpp',
   'src/RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerSimpleStream.cpp',
-  'src/RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerSimpleStreamQueue.cpp',
   'src/RTC/MediaTranslate/SegmentsMemoryBuffer.cpp',
   'src/RTC/MediaTranslate/SimpleMemoryBuffer.cpp',
   'src/RTC/MediaTranslate/ThreadUtils.cpp',

@@ -24,13 +24,12 @@ namespace RTC
     {
         MS_TRACE();
 #ifdef LOCAL_WEBSOCKET_TEST_SERVER
-        const auto filename = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_stereo_example.webm";
-        auto factory = std::make_unique<WebsocketTppTestFactory>(filename, 4000U);
-        if (factory->IsValid()) {
-            websocketFactory = std::move(factory);
+        auto testFactory = std::make_unique<WebsocketTppTestFactory>();
+        if (testFactory->IsValid()) {
+            websocketFactory = std::move(testFactory);
         }
         else {
-            factory.reset();
+            testFactory.reset();
             websocketFactory = std::make_unique<WebsocketTppFactory>();
         }
 #else

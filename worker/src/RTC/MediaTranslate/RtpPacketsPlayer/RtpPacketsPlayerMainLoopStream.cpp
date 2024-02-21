@@ -61,9 +61,9 @@ class QueuedMediaTasks
 {
 public:
     QueuedMediaTasks() = default;
-    bool IsReadyForPlay() const;
     void Enqueue(std::unique_ptr<Task> task);
-    void Play(uint64_t mediaId, uint64_t mediaSourceId, RtpPacketsPlayerCallback* callback);
+    // return true if finished task was played
+    bool Play(uint64_t mediaId, uint64_t mediaSourceId, RtpPacketsPlayerCallback* callback);
 private:
     std::queue<std::unique_ptr<Task>> _tasks;
 };
@@ -117,13 +117,13 @@ RtpPacketsPlayerMainLoopStream::~RtpPacketsPlayerMainLoopStream()
 }
 
 std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerMainLoopStream::
-    Create(uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
-           const RtpCodecMimeType& mime, RtpPacketsPlayerCallback* callback)
+    Create(const std::shared_ptr<MediaTimer>& timer, uint32_t ssrc, uint32_t clockRate,
+           uint8_t payloadType, const RtpCodecMimeType& mime, RtpPacketsPlayerCallback* callback)
 {
     std::unique_ptr<RtpPacketsPlayerStream> stream;
-    if (callback) {
+    if (timer && callback) {
         auto impl = std::make_unique<Impl>(callback);
-        if (auto simpleStream = RtpPacketsPlayerSimpleStream::Create(ssrc, clockRate,
+        if (auto simpleStream = RtpPacketsPlayerSimpleStream::Create(timer, ssrc, clockRate,
                                                                      payloadType, mime,
                                                                      impl.get())) {
             stream.reset(new RtpPacketsPlayerMainLoopStream(std::move(impl), std::move(simpleStream)));
@@ -133,10 +133,9 @@ std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerMainLoopStream::
 }
 
 void RtpPacketsPlayerMainLoopStream::Play(uint64_t mediaSourceId,
-                                          const std::shared_ptr<MemoryBuffer>& media,
-                                          const std::shared_ptr<MediaTimer>& timer)
+                                          const std::shared_ptr<MemoryBuffer>& media)
 {
-    _simpleStream->Play(mediaSourceId, media, timer);
+    _simpleStream->Play(mediaSourceId, media);
 }
 
 bool RtpPacketsPlayerMainLoopStream::IsPlaying() const
@@ -197,14 +196,11 @@ void RtpPacketsPlayerMainLoopStream::Impl::EnqueTask(uint64_t mediaId, uint64_t 
                                                      std::unique_ptr<Task> task)
 {
     if (task) {
-        const auto type = task->GetType();
         {
             LOCK_WRITE_PROTECTED_OBJ(_tasks);
             _tasks.Ref()[mediaSourceId].Enqueue(mediaId, std::move(task));
         }
-        if (TaskType::Finish == type) {
-            _handle.Invoke();
-        }
+        _handle.Invoke();
     }
 }
 
@@ -249,31 +245,28 @@ void RtpPacketTask::Run(uint64_t mediaId, uint64_t mediaSourceId, RtpPacketsPlay
     }
 }
 
-bool QueuedMediaTasks::IsReadyForPlay() const
-{
-    if (!_tasks.empty()) {
-        return _tasks.front()->IsStartTask() && _tasks.back()->IsFinishTask();
-    }
-    return false;
-}
-
 void QueuedMediaTasks::Enqueue(std::unique_ptr<Task> task)
 {
     if (task) {
-        if (_tasks.empty()) {
-            MS_ASSERT(task->IsStartTask(), "The 1st task in the queue must be the start task");
-        }
         _tasks.push(std::move(task));
     }
 }
 
-void QueuedMediaTasks::Play(uint64_t mediaId, uint64_t mediaSourceId,
+bool QueuedMediaTasks::Play(uint64_t mediaId, uint64_t mediaSourceId,
                             RtpPacketsPlayerCallback* callback)
 {
+    bool finished = false;
     while (!_tasks.empty()) {
-        _tasks.front()->Run(mediaId, mediaSourceId, callback);
+        const auto& task = _tasks.front();
+        if (!finished) {
+            task->Run(mediaId, mediaSourceId, callback);
+        }
+        if (TaskType::Finish == task->GetType()) {
+            finished = true;
+        }
         _tasks.pop();
     }
+    return finished;
 }
 
 void QueuedMediaSouceTasks::Enqueue(uint64_t mediaId, std::unique_ptr<Task> task)
@@ -288,8 +281,7 @@ void QueuedMediaSouceTasks::Play(uint64_t mediaSourceId, RtpPacketsPlayerCallbac
     if (!IsEmpty()) {
         std::list<uint64_t> completedMedias;
         for (auto it = _mediaTasks.begin(); it != _mediaTasks.end(); ++it) {
-            if (it->second.IsReadyForPlay()) {
-                it->second.Play(it->first, mediaSourceId, callback);
+            if (it->second.Play(it->first, mediaSourceId, callback)) {
                 completedMedias.push_back(it->first);
             }
         }

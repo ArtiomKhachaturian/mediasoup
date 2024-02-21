@@ -1,6 +1,7 @@
 #define MS_CLASS "RTC::TranslatorEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/SimpleMemoryBuffer.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
@@ -104,6 +105,19 @@ void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
     else {
         ConnectToMediaInput(false);
     }
+}
+
+uint64_t TranslatorEndPoint::NotifyThatTranslationReceived(const std::shared_ptr<MemoryBuffer>& media)
+{
+    if (media) {
+        const auto number = _translationsCount.fetch_add(1U) + 1U;
+        MS_ERROR_STD("Received translation #%llu at %s from %s", number,
+                     GetCurrentTime().c_str(),
+                     GetDescription().c_str());
+        Commit(media);
+        return number;
+    }
+    return 0UL;
 }
 
 std::string TranslatorEndPoint::GetDescription() const

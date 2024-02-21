@@ -7,15 +7,14 @@
 #include "RTC/RtpStream.hpp"
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
+#include <iostream>
+#include <iomanip>
+#include <ctime>
+#include <sstream>
 
 namespace {
 
 const std::string g_emptyString;
-
-template<typename T>
-inline constexpr uint64_t ValueToMicro(T value) {
-    return value * 1000ULL * 1000ULL;
-}
 
 }
 
@@ -42,6 +41,15 @@ std::string GetMediaFrameInfoString(const std::shared_ptr<const MediaFrame>& med
         }
     }
     return std::string();
+}
+
+std::string GetCurrentTime()
+{
+    auto t = std::time(nullptr);
+    auto tm = std::localtime(&t);
+    std::ostringstream oss;
+    oss << std::put_time(tm, "%H-%M-%S");
+    return oss.str();
 }
 
 std::string GetStreamInfoString(const RtpCodecMimeType& mime, uint32_t ssrc)

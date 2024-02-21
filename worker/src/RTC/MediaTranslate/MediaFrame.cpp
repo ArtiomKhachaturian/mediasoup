@@ -6,26 +6,13 @@
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "Logger.hpp"
 
-namespace {
-
-inline constexpr uint64_t ValueToMicro(uint64_t value) {
-    return value * 1000 * 1000;
-}
-
-template<typename T>
-inline constexpr T ValueFromMicro(uint64_t micro) {
-    return static_cast<T>(micro / 1000 / 1000);
-}
-
-}
-
 namespace RTC
 {
 
 MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate)
     : _mimeType(mimeType)
-    , _timestamp(clockRate)
     , _payload(std::make_shared<SegmentsMemoryBuffer>())
+    , _timestamp(clockRate)
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
 }
