@@ -17,9 +17,9 @@ SegmentsMemoryBuffer::AppendResult SegmentsMemoryBuffer::Append(const std::share
     AppendResult result = AppendResult::Failed;
     if (buffer && !buffer->IsEmpty()) {
         MS_ASSERT(buffer.get() != this, "passed buffer is this instance");
-        MS_ASSERT(buffer->GetSize() <= _capacity, "buffer is too huge");
-        if (buffer->GetSize() + _size > _capacity) {
-            while(buffer->GetSize() + _size > _capacity) {
+        MS_ASSERT(buffer->GetSize() <= GetCapacity(), "buffer is too huge");
+        if (buffer->GetSize() + _size > GetCapacity()) {
+            while(buffer->GetSize() + _size > GetCapacity()) {
                 _size -= _buffers.front()->GetSize();
                 _buffers.pop_front();
             }
@@ -31,7 +31,6 @@ SegmentsMemoryBuffer::AppendResult SegmentsMemoryBuffer::Append(const std::share
             result = AppendResult::Back;
         }
         _size += buffer->GetSize();
-        _merged = nullptr;
     }
     return result;
 }
@@ -40,7 +39,6 @@ void SegmentsMemoryBuffer::Clear()
 {
     _buffers.clear();
     _size = 0UL;
-    _merged.reset();
 }
 
 auto SegmentsMemoryBuffer::GetBuffer(size_t& offset) const
@@ -90,20 +88,19 @@ const uint8_t* SegmentsMemoryBuffer::GetData() const
 uint8_t* SegmentsMemoryBuffer::Merge() const
 {
     if (const auto count = _buffers.size()) {
-        if (1UL == count) {
-            return _buffers.front()->GetData();
-        }
-        if (!_merged) {
-            auto merged = std::make_unique<SimpleMemoryBuffer>();
+        if (count > 1U) {
+            auto merged = MakeMemoryBuffer<SimpleMemoryBuffer>();
             merged->Reserve(_size);
             for (const auto& buffer : _buffers) {
                 merged->Append(buffer);
             }
             MS_ASSERT(_size == merged->GetSize(), "merged size is incorrect");
-            _merged = std::move(merged);
+            _buffers.clear();
+            _buffers.push_back(std::move(merged));
         }
+        return _buffers.front()->GetData();
     }
-    return _merged ? _merged->GetData() : nullptr;
+    return nullptr;
 }
 
 } // namespace RTC

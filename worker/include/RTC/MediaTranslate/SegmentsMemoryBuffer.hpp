@@ -34,9 +34,8 @@ private:
     uint8_t* Merge() const;
 private:
     const size_t _capacity;
-    BuffersList _buffers;
+    mutable BuffersList _buffers;
     size_t _size = 0UL;
-    mutable std::unique_ptr<MemoryBuffer> _merged;
 };
 
 } // namespace RTC

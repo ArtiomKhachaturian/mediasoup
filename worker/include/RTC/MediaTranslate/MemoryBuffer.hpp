@@ -13,7 +13,7 @@ public:
     virtual uint8_t* GetData() = 0;
     virtual const uint8_t* GetData() const = 0;
     virtual void Recycle() {}
-    bool IsEmpty() const { return 0U == GetSize() || nullptr == GetData() ; }
+    bool IsEmpty() const { return 0U == GetSize(); }
 };
 
 template<class TBufferImpl, class... Args>

@@ -68,22 +68,25 @@ std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Take()
     return Create(TakeData());
 }
 
-std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Create(const void* data, size_t len,
-                                                               const std::allocator<uint8_t>& allocator)
+std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Create(const void* data, size_t len)
 {
     if (data && len) {
         const auto bytes = reinterpret_cast<const uint8_t*>(data);
-        return Create(std::vector<uint8_t>(bytes, bytes + len, allocator));
+        return Create(std::vector<uint8_t>(bytes, bytes + len));
     }
     return nullptr;
 }
 
 std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Create(std::vector<uint8_t> buffer)
 {
-    if (!buffer.empty()) {
-        return MakeMemoryBuffer<SimpleMemoryBuffer>(std::move(buffer));
-    }
-    return nullptr;
+    return MakeMemoryBuffer<SimpleMemoryBuffer>(std::move(buffer));
+}
+
+std::shared_ptr<SimpleMemoryBuffer> SimpleMemoryBuffer::Allocate(size_t capacity, size_t size)
+{
+    auto buffer = MakeMemoryBuffer<SimpleMemoryBuffer>(capacity);
+    buffer->Resize(size);
+    return buffer;
 }
 
 bool SimpleMemoryBuffer::Insert(const std::vector<uint8_t>::iterator& where,

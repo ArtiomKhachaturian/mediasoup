@@ -29,9 +29,9 @@ public:
     std::shared_ptr<SimpleMemoryBuffer> Take();
     bool IsEmpty() const { return _buffer.empty(); }
     // create buffer with deep copy of input [data]
-    static std::shared_ptr<SimpleMemoryBuffer> Create(const void* data, size_t len,
-                                                      const std::allocator<uint8_t>& allocator = {});
+    static std::shared_ptr<SimpleMemoryBuffer> Create(const void* data, size_t len);
     static std::shared_ptr<SimpleMemoryBuffer> Create(std::vector<uint8_t> buffer);
+    static std::shared_ptr<SimpleMemoryBuffer> Allocate(size_t capacity, size_t size = 0U);
     // impl. of MemoryBuffer
     size_t GetSize() const final { return _buffer.size(); }
     uint8_t* GetData() { return _buffer.data(); }
