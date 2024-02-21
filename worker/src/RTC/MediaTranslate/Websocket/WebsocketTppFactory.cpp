@@ -116,10 +116,8 @@ class WebsocketTppTestFactory::MockServer
     using IncomingConnection = std::pair<volatile uint64_t, std::shared_ptr<Client>>;
     using IncomingConnections = std::map<connection_hdl, IncomingConnection, std::owner_less<connection_hdl>>;
 public:
-    MockServer(const std::shared_ptr<MediaTimer>& timer, std::string fileName,
-               uint32_t repeatIntervalMs, WebsocketTls tls);
-    MockServer(const std::shared_ptr<MediaTimer>& timer, std::string fileName,
-               uint32_t repeatIntervalMs, WebsocketOptions options);
+    MockServer(const std::shared_ptr<MediaTimer>& timer, WebsocketTls tls);
+    MockServer(const std::shared_ptr<MediaTimer>& timer, WebsocketOptions options);
     ~MockServer();
     bool IsValid() const { return _fileIsAccessible && _thread.joinable(); }
 private:
@@ -130,8 +128,6 @@ private:
     std::shared_ptr<asio::ssl::context> OnTlsInit(connection_hdl hdl);
 private:
     const std::shared_ptr<MediaTimer> _timer;
-    const std::string _fileName;
-    const uint32_t _repeatIntervalMs;
     const bool _fileIsAccessible;
     const std::shared_ptr<Server> _server;
     WebsocketTls _tls;
@@ -139,16 +135,13 @@ private:
     ProtectedObj<IncomingConnections> _connections;
 };
 
-WebsocketTppTestFactory::WebsocketTppTestFactory(const std::shared_ptr<MediaTimer>& timer,
-                                                 std::string fileName, uint32_t repeatIntervalMs)
-    : _server(std::make_unique<MockServer>(timer, std::move(fileName),
-                                           repeatIntervalMs, CreateOptions()))
+WebsocketTppTestFactory::WebsocketTppTestFactory(const std::shared_ptr<MediaTimer>& timer)
+    : _server(std::make_unique<MockServer>(timer, CreateOptions()))
 {
 }
 
-WebsocketTppTestFactory::WebsocketTppTestFactory(std::string fileName, uint32_t repeatIntervalMs)
-    : WebsocketTppTestFactory(std::make_shared<MediaTimer>(GetUri() + " server"),
-                              std::move(fileName), repeatIntervalMs)
+WebsocketTppTestFactory::WebsocketTppTestFactory()
+    : WebsocketTppTestFactory(std::make_shared<MediaTimer>(GetUri() + " server"))
 {
 }
 
@@ -167,17 +160,13 @@ std::string WebsocketTppTestFactory::GetUri() const
 }
 
 WebsocketTppTestFactory::MockServer::MockServer(const std::shared_ptr<MediaTimer>& timer,
-                                                std::string fileName, uint32_t repeatIntervalMs,
                                                 WebsocketTls tls)
     : _timer(timer)
-    , _fileName(std::move(fileName))
-    , _repeatIntervalMs(repeatIntervalMs)
-    , _fileIsAccessible(FileReader::IsValidForRead(_fileName))
+    , _fileIsAccessible(FileReader::IsValidForRead(WebsocketTppTestFactory::_filename))
     , _server(std::make_shared<Server>())
     , _tls(std::move(tls))
 {
     MS_ASSERT(_timer, "media timer must not be null");
-    MS_ASSERT(!_fileName.empty(), "file name should not be empty");
     if (_fileIsAccessible) {
         _tls._certificate = g_cert;
         _tls._certificatePrivateKey = g_certKey;
@@ -198,14 +187,13 @@ WebsocketTppTestFactory::MockServer::MockServer(const std::shared_ptr<MediaTimer
         }
     }
     else {
-        MS_ERROR_STD("unable to read %s", _fileName.c_str());
+        MS_ERROR_STD("unable to read %s", WebsocketTppTestFactory::_filename);
     }
 }
 
 WebsocketTppTestFactory::MockServer::MockServer(const std::shared_ptr<MediaTimer>& timer,
-                                                std::string fileName, uint32_t repeatIntervalMs,
                                                 WebsocketOptions options)
-    : MockServer(timer, std::move(fileName), repeatIntervalMs, std::move(options._tls))
+    : MockServer(timer, std::move(options._tls))
 {
 }
 
@@ -271,7 +259,7 @@ void WebsocketTppTestFactory::MockServer::OnOpen(connection_hdl hdl)
     if (_fileIsAccessible) {
         LOCK_WRITE_PROTECTED_OBJ(_connections);
         if (!_connections->count(hdl)) {
-            auto client = std::make_shared<Client>(hdl, _fileName, _server);
+            auto client = std::make_shared<Client>(hdl, WebsocketTppTestFactory::_filename, _server);
             _connections->insert(std::make_pair(hdl, std::make_pair(0U, std::move(client))));
         }
     }
