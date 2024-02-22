@@ -3,22 +3,46 @@
 #include "RTC/MediaTranslate/Websocket/Websocket.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketFactory.hpp"
 #include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
+#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #ifdef WRITE_TRANSLATION_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
 #include "DepLibUV.hpp"
 #endif
 #include "Logger.hpp"
 
+namespace {
+
+inline std::string GetUrl(const std::unique_ptr<RTC::Websocket>& socket) {
+    return socket ? socket->GetUrl() : std::string();
+}
+
+}
+
 namespace RTC
 {
 
-WebsocketEndPoint::WebsocketEndPoint(const WebsocketFactory& factory, std::string ownerId)
-    : TranslatorEndPoint(std::move(ownerId), factory.GetUri(), _defaultTimeSliceMs)
-    , _socket(factory.Create())
+WebsocketEndPoint::WebsocketEndPoint(std::unique_ptr<Websocket> socket, std::string ownerId)
+    : TranslatorEndPoint(std::move(ownerId), GetUrl(socket), _defaultTimeSliceMs)
+    , _socket(std::move(socket))
 {
-    MS_ASSERT(_socket, "failed to create websocket");
+    MS_ASSERT(_socket, "websocket must not be null");
     _instances.fetch_add(1U);
     _socket->AddListener(this);
+}
+
+std::shared_ptr<WebsocketEndPoint> WebsocketEndPoint::Create(const WebsocketFactory* factory,
+                                                             std::string ownerId)
+{
+    std::shared_ptr<WebsocketEndPoint> endPoint;
+    if (factory) {
+        if (auto socket = factory->Create()) {
+            endPoint = std::make_shared<WebsocketEndPoint>(std::move(socket), std::move(ownerId));
+        }
+        else {
+            MS_ERROR_STD("failed to create websocket");
+        }
+    }
+    return endPoint;
 }
 
 WebsocketEndPoint::~WebsocketEndPoint()

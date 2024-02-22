@@ -1,9 +1,10 @@
 #include "RTC/MediaTranslate/Websocket/WebsocketTppFactory.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTpp.hpp"
+#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #ifdef LOCAL_WEBSOCKET_TEST_SERVER
 #define MS_CLASS "RTC::WebsocketTppFactory::TestServer"
 #include "RTC/MediaTranslate/FileReader.hpp"
-#include "RTC/MediaTranslate/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTppUtils.hpp"
@@ -99,13 +100,45 @@ const std::string g_certKey = "-----BEGIN PRIVATE KEY-----\n"
 namespace RTC
 {
 
+#ifdef LOCAL_WEBSOCKET_TEST_SERVER
+class WebsocketTppTestFactory : public WebsocketTppFactory
+{
+    class MockServer;
+public:
+    WebsocketTppTestFactory();
+    ~WebsocketTppTestFactory() final;
+    bool IsValid() const;
+    // overrides of WebsocketTppFactory
+    std::string GetUri() const final;
+private:
+    static inline const char*  _filename = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_long.webm";
+    static inline constexpr uint32_t _repeatIntervalMs = 15000;
+    static inline constexpr uint16_t _port = 8080U;
+    static inline const std::string _localUri = "wss://localhost";
+    const std::unique_ptr<MockServer> _server;
+};
+#endif
+
+std::unique_ptr<WebsocketFactory> WebsocketTppFactory::CreateFactory()
+{
+#ifndef NO_TRANSLATION_SERVICE
+#ifdef LOCAL_WEBSOCKET_TEST_SERVER
+    auto testFactory = std::make_unique<WebsocketTppTestFactory>();
+    if (testFactory->IsValid()) {
+        return testFactory;
+    }
+#endif
+    return std::unique_ptr<WebsocketFactory>(new WebsocketTppFactory);
+#endif
+    return nullptr;
+}
+
 std::unique_ptr<Websocket> WebsocketTppFactory::Create() const
 {
     return std::make_unique<WebsocketTpp>(GetUri(), CreateOptions());
 }
 
 #ifdef LOCAL_WEBSOCKET_TEST_SERVER
-
 using namespace websocketpp;
 using lib::placeholders::_1;
 using lib::placeholders::_2;
@@ -116,8 +149,8 @@ class WebsocketTppTestFactory::MockServer
     using IncomingConnection = std::pair<volatile uint64_t, std::shared_ptr<Client>>;
     using IncomingConnections = std::map<connection_hdl, IncomingConnection, std::owner_less<connection_hdl>>;
 public:
-    MockServer(const std::shared_ptr<MediaTimer>& timer, WebsocketTls tls);
-    MockServer(const std::shared_ptr<MediaTimer>& timer, WebsocketOptions options);
+    MockServer(const std::string& uri, WebsocketTls tls);
+    MockServer(const std::string& uri, WebsocketOptions options);
     ~MockServer();
     bool IsValid() const { return _fileIsAccessible && _thread.joinable(); }
 private:
@@ -127,21 +160,16 @@ private:
     void OnClose(connection_hdl hdl);
     std::shared_ptr<asio::ssl::context> OnTlsInit(connection_hdl hdl);
 private:
-    const std::shared_ptr<MediaTimer> _timer;
     const bool _fileIsAccessible;
-    const std::shared_ptr<Server> _server;
+    std::shared_ptr<Server> _server;
+    std::shared_ptr<MediaTimer> _timer;
     WebsocketTls _tls;
     std::thread _thread;
     ProtectedObj<IncomingConnections> _connections;
 };
 
-WebsocketTppTestFactory::WebsocketTppTestFactory(const std::shared_ptr<MediaTimer>& timer)
-    : _server(std::make_unique<MockServer>(timer, CreateOptions()))
-{
-}
-
 WebsocketTppTestFactory::WebsocketTppTestFactory()
-    : WebsocketTppTestFactory(std::make_shared<MediaTimer>(GetUri() + " server"))
+    : _server(std::make_unique<MockServer>(GetUri(), CreateOptions()))
 {
 }
 
@@ -159,15 +187,13 @@ std::string WebsocketTppTestFactory::GetUri() const
     return _localUri + ":" + std::to_string(_port);
 }
 
-WebsocketTppTestFactory::MockServer::MockServer(const std::shared_ptr<MediaTimer>& timer,
-                                                WebsocketTls tls)
-    : _timer(timer)
-    , _fileIsAccessible(FileReader::IsValidForRead(WebsocketTppTestFactory::_filename))
-    , _server(std::make_shared<Server>())
+WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri, WebsocketTls tls)
+    : _fileIsAccessible(FileReader::IsValidForRead(WebsocketTppTestFactory::_filename))
     , _tls(std::move(tls))
 {
-    MS_ASSERT(_timer, "media timer must not be null");
     if (_fileIsAccessible) {
+        _server = std::make_shared<Server>();
+        _timer = std::make_shared<MediaTimer>(uri + " server");
         _server->set_user_agent("WebsocketTppTestFactory");
         _tls._certificate = g_cert;
         _tls._certificatePrivateKey = g_certKey;
@@ -192,9 +218,8 @@ WebsocketTppTestFactory::MockServer::MockServer(const std::shared_ptr<MediaTimer
     }
 }
 
-WebsocketTppTestFactory::MockServer::MockServer(const std::shared_ptr<MediaTimer>& timer,
-                                                WebsocketOptions options)
-    : MockServer(timer, std::move(options._tls))
+WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri, WebsocketOptions options)
+    : MockServer(uri, std::move(options._tls))
 {
 }
 

@@ -23,18 +23,7 @@ namespace RTC
       : id(id), shared(shared), listener(listener)
     {
         MS_TRACE();
-#ifdef LOCAL_WEBSOCKET_TEST_SERVER
-        auto testFactory = std::make_unique<WebsocketTppTestFactory>();
-        if (testFactory->IsValid()) {
-            websocketFactory = std::move(testFactory);
-        }
-        else {
-            testFactory.reset();
-            websocketFactory = std::make_unique<WebsocketTppFactory>();
-        }
-#else
-        websocketFactory = std::make_unique<WebsocketTppFactory>();
-#endif
+        websocketFactory = WebsocketTppFactory::CreateFactory();
         // NOTE: This may throw.
         this->shared->channelMessageRegistrator->RegisterHandler(
           this->id,

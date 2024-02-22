@@ -5,16 +5,16 @@
 namespace RTC
 {
 
-#define WRITE_TRANSLATION_TO_FILE
-
 class Websocket;
 class WebsocketFactory;
 
 class WebsocketEndPoint : public TranslatorEndPoint, private WebsocketListener
 {
 public:
-    WebsocketEndPoint(const WebsocketFactory& factory, std::string ownerId = std::string());
+    WebsocketEndPoint(std::unique_ptr<Websocket> socket, std::string ownerId = std::string());
     ~WebsocketEndPoint() final;
+    static std::shared_ptr<WebsocketEndPoint> Create(const WebsocketFactory* factory,
+                                                     std::string ownerId = std::string());
     static uint64_t GetInstancesCount() { return _instances.load(); }
     // impl. of TranslatorEndPoint
     bool IsConnected() const final;

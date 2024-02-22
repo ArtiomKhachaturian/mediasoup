@@ -23,6 +23,7 @@
 #include "RTC/SimpleConsumer.hpp"
 #include "RTC/SimulcastConsumer.hpp"
 #include "RTC/SvcConsumer.hpp"
+#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #include <libwebrtc/modules/rtp_rtcp/include/rtp_rtcp_defines.h> // webrtc::RtpPacketSendInfo
 #include <iterator>                                              // std::ostream_iterator
 #include <map>                                                   // std::multimap

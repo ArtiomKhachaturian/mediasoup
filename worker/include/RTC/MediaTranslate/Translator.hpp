@@ -3,11 +3,9 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointFactory.hpp"
+#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
-
-//#define NO_TRANSLATION_SERVICE
-#define SINGLE_TRANSLATION_POINT_CONNECTION
 
 namespace RTC
 {

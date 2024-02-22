@@ -47,8 +47,7 @@ std::unique_ptr<Translator> Translator::Create(const Producer* producer,
                                                RtpPacketsPlayer* rtpPacketsPlayer,
                                                RtpPacketsCollector* output)
 {
-    if (producer && websocketFactory && rtpPacketsPlayer &&
-        output && Media::Kind::AUDIO == producer->GetKind()) {
+    if (producer && rtpPacketsPlayer && output && Media::Kind::AUDIO == producer->GetKind()) {
         auto translator = new Translator(producer, websocketFactory, rtpPacketsPlayer, output);
         // add streams
         const auto& streams = producer->GetRtpStreams();
@@ -275,13 +274,15 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeStubEndPoint() const
 {
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
     if (0 == WebsocketEndPoint::GetInstancesCount()) {
-        auto socketEndPoint = std::make_shared<WebsocketEndPoint>(*_websocketFactory, GetId());
-        _nonStubEndPointRef = socketEndPoint;
-        return socketEndPoint;
+        const auto socketEndPoint = WebsocketEndPoint::Create(_websocketFactory, GetId());
+        if (socketEndPoint) {
+            _nonStubEndPointRef = socketEndPoint;
+            return socketEndPoint;
+        }
     }
     return std::make_shared<StubEndPoint>(GetId());
 #else
-    return std::make_shared<WebsocketEndPoint>(*_websocketFactory, GetId());
+    return WebsocketEndPoint::Create(_websocketFactory, GetId());
 #endif
 }
 #endif
