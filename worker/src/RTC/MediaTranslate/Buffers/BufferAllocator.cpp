@@ -10,7 +10,7 @@ using namespace RTC;
 inline std::shared_ptr<Buffer> AllocateSimple(size_t size)
 {
     if (size) {
-        const auto buffer = MakeMemoryBuffer<SimpleBuffer>(size);
+        const auto buffer = std::make_shared<SimpleBuffer>(size);
         buffer->Resize(size);
         return buffer;
     }

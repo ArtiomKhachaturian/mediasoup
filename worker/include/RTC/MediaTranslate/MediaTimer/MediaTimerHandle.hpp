@@ -1,4 +1,5 @@
 #pragma once
+#include "RTC/MediaTranslate/MediaObject.hpp"
 #include <atomic>
 #include <memory>
 
@@ -7,7 +8,7 @@ namespace RTC
 
 class MediaTimerCallback;
 
-class MediaTimerHandle
+class MediaTimerHandle : public MediaObject
 {
 public:
     virtual ~MediaTimerHandle() = default;

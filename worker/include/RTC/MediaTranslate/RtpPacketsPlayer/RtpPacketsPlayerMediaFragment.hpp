@@ -1,6 +1,5 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
-#include "absl/container/flat_hash_map.h"
 #include <atomic>
 #include <memory>
 
@@ -19,8 +18,6 @@ class RtpPacket;
 
 class RtpPacketsPlayerMediaFragment : public MediaTimerCallback
 {
-    // key is track number, value - packetizer instance
-    using Packetizers = absl::flat_hash_map<size_t, std::unique_ptr<RtpPacketizer>>;
     class TasksQueue;
 private:
     RtpPacketsPlayerMediaFragment(std::shared_ptr<TasksQueue> queue);
@@ -37,7 +34,7 @@ public:
                                                                 const std::weak_ptr<BufferAllocator>& allocator);
     ~RtpPacketsPlayerMediaFragment() final;
     // impl. of MediaTimerCallback
-    void OnEvent() final;
+    void OnEvent(uint64_t timerId) final;
 private:
     const std::shared_ptr<TasksQueue> _queue;
 };

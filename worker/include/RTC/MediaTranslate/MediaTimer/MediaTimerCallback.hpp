@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 
 namespace RTC
 {
@@ -6,7 +7,7 @@ namespace RTC
 class MediaTimerCallback
 {
 public:
-    virtual void OnEvent() = 0;
+    virtual void OnEvent(uint64_t timerId) = 0;
 protected:
     virtual ~MediaTimerCallback() = default;
 };

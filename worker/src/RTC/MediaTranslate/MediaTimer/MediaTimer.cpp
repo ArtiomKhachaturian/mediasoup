@@ -27,13 +27,11 @@ class SingleShotCallback : public MediaTimerCallback
 public:
     SingleShotCallback(const std::shared_ptr<MediaTimerCallback>& callback,
                        const std::weak_ptr<SingleshotOwner>& ownerRef);
-    void SetTimerId(uint64_t timerId);
     // impl. of MediaTimerCallback
-    void OnEvent() final;
+    void OnEvent(uint64_t timerId) final;
 private:
     const std::shared_ptr<MediaTimerCallback> _callback;
     const std::weak_ptr<SingleshotOwner> _ownerRef;
-    uint64_t _timerId = 0ULL;
 };
 
 }
@@ -82,7 +80,7 @@ uint64_t MediaTimer::Register(const std::shared_ptr<MediaTimerCallback>& callbac
     return _impl ? _impl->Register(callback) : 0ULL;
 }
 
-uint64_t MediaTimer::Register(std::function<void(void)> onEvent)
+uint64_t MediaTimer::Register(std::function<void(uint64_t)> onEvent)
 {
     return _impl && onEvent ? Register(CreateCallback(std::move(onEvent))) : 0ULL;
 }
@@ -93,7 +91,7 @@ uint64_t MediaTimer::RegisterAndStart(const std::shared_ptr<MediaTimerCallback>&
     return _impl ? _impl->Register(callback, std::make_pair(timeoutMs, singleshot)) : 0ULL;
 }
 
-uint64_t MediaTimer::RegisterAndStart(std::function<void(void)> onEvent,
+uint64_t MediaTimer::RegisterAndStart(std::function<void(uint64_t)> onEvent,
                                       uint32_t timeoutMs, bool singleshot)
 {
     return _impl ? _impl->Register(CreateCallback(std::move(onEvent)),
@@ -138,7 +136,6 @@ uint64_t MediaTimer::Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTim
     if (_impl && callback) {
         const auto singleshotCallback = std::make_shared<SingleShotCallback>(callback, _impl);
         if (const auto timerId = _impl->Register(singleshotCallback)) {
-            singleshotCallback->SetTimerId(timerId);
             _impl->SetTimeout(timerId, afterMs);
             _impl->Start(timerId, true);
             return timerId;
@@ -147,7 +144,7 @@ uint64_t MediaTimer::Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTim
     return 0ULL;
 }
 
-uint64_t MediaTimer::Singleshot(uint32_t afterMs, std::function<void(void)> onEvent)
+uint64_t MediaTimer::Singleshot(uint32_t afterMs, std::function<void(uint64_t)> onEvent)
 {
     if (_impl && onEvent) {
         return Singleshot(afterMs, CreateCallback(std::move(onEvent)));
@@ -155,7 +152,7 @@ uint64_t MediaTimer::Singleshot(uint32_t afterMs, std::function<void(void)> onEv
     return 0ULL;
 }
 
-std::shared_ptr<MediaTimerCallback> MediaTimer::CreateCallback(std::function<void(void)> onEvent)
+std::shared_ptr<MediaTimerCallback> MediaTimer::CreateCallback(std::function<void(uint64_t)> onEvent)
 {
     if (onEvent) {
         return std::make_shared<FunctorCallback>(std::move(onEvent));
@@ -222,7 +219,7 @@ uint64_t MediaTimer::Impl::Register(const std::shared_ptr<MediaTimerCallback>& c
     uint64_t timerId = 0ULL;
     if (callback) {
         if (auto handle = _factory->CreateHandle(callback)) {
-            timerId = reinterpret_cast<uint64_t>(handle.get());
+            timerId = handle->GetId();
             LOCK_WRITE_PROTECTED_OBJ(_handles);
             if (start) {
                 handle->SetTimeout(start->first);
@@ -313,18 +310,11 @@ SingleShotCallback::SingleShotCallback(const std::shared_ptr<MediaTimerCallback>
 {
 }
 
-void SingleShotCallback::SetTimerId(uint64_t timerId)
+void SingleShotCallback::OnEvent(uint64_t timerId)
 {
-    _timerId = timerId;
-}
-
-void SingleShotCallback::OnEvent()
-{
-    _callback->OnEvent();
-    if (_timerId) {
-        if (const auto owner = _ownerRef.lock()) {
-            owner->Unregister(_timerId);
-        }
+    _callback->OnEvent(timerId);
+    if (const auto owner = _ownerRef.lock()) {
+        owner->Unregister(timerId);
     }
 }
 

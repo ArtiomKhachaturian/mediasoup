@@ -323,7 +323,7 @@ mkvmuxer::VideoTrack* MkvBufferedWriter::GetVideoTrack(uint64_t trackNumber) con
 void MkvBufferedWriter::WriteMediaPayloadToSink()
 {
     if (_buffer) {
-        const auto buffer = MakeMemoryBuffer<MkvBufferView>(std::move(_buffer), _bufferOffset);
+        const auto buffer = std::make_shared<MkvBufferView>(std::move(_buffer), _bufferOffset);
         _sink->WriteMediaPayload(*this, buffer);
         _bufferOffset = 0U;
     }

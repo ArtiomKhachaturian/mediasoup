@@ -19,10 +19,10 @@ public:
     MediaTimer& operator = (const MediaTimer&) = delete;
     MediaTimer& operator = (MediaTimer&&) = delete;
     uint64_t Register(const std::shared_ptr<MediaTimerCallback>& callback);
-    uint64_t Register(std::function<void(void)> onEvent);
+    uint64_t Register(std::function<void(uint64_t)> onEvent);
     uint64_t RegisterAndStart(const std::shared_ptr<MediaTimerCallback>& callback,
                               uint32_t timeoutMs, bool singleshot = false);
-    uint64_t RegisterAndStart(std::function<void(void)> onEvent,
+    uint64_t RegisterAndStart(std::function<void(uint64_t)> onEvent,
                               uint32_t timeoutMs, bool singleshot = false);
     void Unregister(uint64_t timerId);
     // time-out in milliseconds, previous invokes will discarded
@@ -32,9 +32,9 @@ public:
     bool IsStarted(uint64_t timerId) const;
     // returns timer ID
     uint64_t Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback);
-    uint64_t Singleshot(uint32_t afterMs, std::function<void(void)> onEvent);
+    uint64_t Singleshot(uint32_t afterMs, std::function<void(uint64_t)> onEvent);
 private:
-    static std::shared_ptr<MediaTimerCallback> CreateCallback(std::function<void(void)> onEvent);
+    static std::shared_ptr<MediaTimerCallback> CreateCallback(std::function<void(uint64_t)> onEvent);
 private:
     const std::shared_ptr<Impl> _impl;
 };

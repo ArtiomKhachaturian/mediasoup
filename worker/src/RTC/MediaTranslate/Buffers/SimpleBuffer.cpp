@@ -79,12 +79,12 @@ std::shared_ptr<SimpleBuffer> SimpleBuffer::Create(const void* data, size_t len)
 
 std::shared_ptr<SimpleBuffer> SimpleBuffer::Create(std::vector<uint8_t> buffer)
 {
-    return MakeMemoryBuffer<SimpleBuffer>(std::move(buffer));
+    return std::make_shared<SimpleBuffer>(std::move(buffer));
 }
 
 std::shared_ptr<SimpleBuffer> SimpleBuffer::Allocate(size_t capacity, size_t size)
 {
-    auto buffer = MakeMemoryBuffer<SimpleBuffer>(capacity);
+    auto buffer = std::make_shared<SimpleBuffer>(capacity);
     buffer->Resize(size);
     return buffer;
 }

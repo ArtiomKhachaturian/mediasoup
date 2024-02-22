@@ -67,7 +67,7 @@ void MediaTimerHandleApple::Start(bool singleshot)
                         Stop();
                     }
                     if (const auto callback = GetCallback()) {
-                        callback->OnEvent();
+                        callback->OnEvent(GetId());
                     }
                 });
                 dispatch_resume(timer);

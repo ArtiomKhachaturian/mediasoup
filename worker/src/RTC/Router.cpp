@@ -14,7 +14,7 @@
 #include "RTC/PlainTransport.hpp"
 #include "RTC/WebRtcTransport.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTppFactory.hpp"
-#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
+#include "RTC/MediaTranslate/Buffers/PoolAllocator.hpp"
 
 namespace RTC
 {
@@ -22,7 +22,7 @@ namespace RTC
 
     Router::Router(RTC::Shared* shared, const std::string& id, Listener* listener)
       : id(id), shared(shared), listener(listener)
-      , buffersAllocator(std::make_shared<BufferAllocator>())
+      , buffersAllocator(std::make_shared</*PoolAllocator*/BufferAllocator>())
       , translatedPacketsPlayer(buffersAllocator)
     {
         MS_TRACE();

@@ -186,6 +186,7 @@ common_sources = [
 
 media_translate_sources = [
   'src/RTC/MediaTranslate/Buffers/BufferAllocator.cpp',
+  'src/RTC/MediaTranslate/Buffers/PoolAllocator.cpp',
   'src/RTC/MediaTranslate/Buffers/SegmentsBuffer.cpp',
   'src/RTC/MediaTranslate/Buffers/SimpleBuffer.cpp',
   'src/RTC/MediaTranslate/ConsumersManager.cpp',

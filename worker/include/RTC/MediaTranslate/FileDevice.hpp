@@ -1,4 +1,5 @@
 #pragma once
+#include "RTC/MediaTranslate/InheritanceSelector.hpp"
 #include <atomic>
 #include <memory>
 #include <string>
@@ -16,7 +17,7 @@ namespace RTC
 {
 
 template<class TBase>
-class FileDevice : public TBase
+class FileDevice : public InheritanceSelector<TBase>
 {
 public:
     FileDevice(const FileDevice&) = delete;

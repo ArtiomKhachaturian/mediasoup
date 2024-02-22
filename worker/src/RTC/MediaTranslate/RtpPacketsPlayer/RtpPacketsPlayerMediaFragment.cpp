@@ -13,7 +13,7 @@
 #include "RTC/Timestamp.hpp"
 #include "ProtectedObj.hpp"
 #include "Logger.hpp"
-
+#include "absl/container/flat_hash_map.h"
 #include <queue>
 
 namespace {
@@ -59,6 +59,9 @@ private:
     const size_t _trackIndex;
 };
 
+// key is track number, value - packetizer instance
+using Packetizers = absl::flat_hash_map<size_t, std::unique_ptr<RTC::RtpPacketizer>>;
+
 }
 
 namespace RTC
@@ -75,7 +78,7 @@ public:
     void SetTimerId(uint64_t timerId);
     void Start();
     // impl. of MediaTimerCallback
-    void OnEvent() final;
+    void OnEvent(uint64_t timerId) final;
 private:
     uint64_t GetTimerId() const { return _timerId.load(); }
     void EnqueTask(std::unique_ptr<Task> task);
@@ -92,7 +95,8 @@ private:
     const Packetizers _packetizers;
     RtpPacketsPlayerCallback* const _callback;
     std::atomic<uint64_t> _timerId = 0;
-    Timestamp _previous;
+    // used for adjust of timer interval
+    Timestamp _previous; // TODO: it should be separate for each track, because maybe diffrent clock rate on tracks
     ProtectedObj<std::queue<std::unique_ptr<Task>>> _tasks;
 };
 
@@ -177,7 +181,7 @@ std::shared_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
     return fragment;
 }
 
-void RtpPacketsPlayerMediaFragment::OnEvent()
+void RtpPacketsPlayerMediaFragment::OnEvent(uint64_t /*timerId*/)
 {
     _queue->Start();
 }
@@ -242,7 +246,7 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::Start()
     _deserializer->Clear();
 }
 
-void RtpPacketsPlayerMediaFragment::TasksQueue::OnEvent()
+void RtpPacketsPlayerMediaFragment::TasksQueue::OnEvent(uint64_t /*timerId*/)
 {
     std::unique_ptr<Task> task;
     bool nextIsFinishTask = false;

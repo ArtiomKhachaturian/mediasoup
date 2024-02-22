@@ -1,5 +1,6 @@
 #pragma once
 #include "RTC/MediaTranslate/Buffers/Buffer.hpp"
+#include <memory>
 
 namespace RTC
 {

@@ -29,7 +29,7 @@ public:
     bool SetConnectingState();
     bool SetDisconnectedState();
     // impl. of MediaTimerCallback
-    void OnEvent() final;
+    void OnEvent(uint64_t timerId) final;
 private:
     WebsocketState GetState() const { return _state.load(); }
     bool SetConnectedState();
@@ -63,7 +63,7 @@ FileEndPoint::FileEndPoint(std::string fileName,
     if (_timer && _timerId && disconnectAfterMs.has_value()) {
         // gap +10ms
         const auto timeout = std::max<uint32_t>(connectionDelaylMs, disconnectAfterMs.value()) + 10U;
-        _disconnectedTimerId = _timer->Singleshot(timeout, [this]() { Disconnect(); });
+        _disconnectedTimerId = _timer->Singleshot(timeout, [this](uint64_t) { Disconnect(); });
     }
 }
 
@@ -132,7 +132,7 @@ bool FileEndPoint::TimerCallback::SetDisconnectedState()
     return WebsocketState::Disconnected != _state.exchange(WebsocketState::Disconnected);
 }
 
-void FileEndPoint::TimerCallback::OnEvent()
+void FileEndPoint::TimerCallback::OnEvent(uint64_t /*timerId*/)
 {
     if (SetConnectedState()) {
         NotifyThatConnected();

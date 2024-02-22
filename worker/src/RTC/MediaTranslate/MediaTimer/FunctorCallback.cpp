@@ -3,14 +3,14 @@
 namespace RTC
 {
 
-FunctorCallback::FunctorCallback(std::function<void(void)> onEvent)
+FunctorCallback::FunctorCallback(std::function<void(uint64_t)> onEvent)
     : _onEvent(std::move(onEvent))
 {
 }
 
-void FunctorCallback::OnEvent() 
+void FunctorCallback::OnEvent(uint64_t timerId)
 { 
-	_onEvent(); 
+	_onEvent(timerId);
 }
 
 } // namespace RTC

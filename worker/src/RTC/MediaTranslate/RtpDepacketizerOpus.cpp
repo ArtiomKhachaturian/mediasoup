@@ -31,7 +31,7 @@ private:
 RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t clockRate,
                                          const std::weak_ptr<BufferAllocator>& allocator)
     : RtpDepacketizer(mimeType, clockRate, allocator)
-    , _opusCodecData(MakeMemoryBuffer<OpusHeadBuffer>(clockRate))
+    , _opusCodecData(std::make_shared<OpusHeadBuffer>(clockRate))
 {
     EnsureStereoAudioConfig(true);
 }
@@ -61,7 +61,7 @@ std::shared_ptr<AudioFrameConfig> RtpDepacketizerOpus::EnsureAudioConfig(uint8_t
         _audioConfig->SetBitsPerSample(_bitsPerSample);
     }
     if (_opusCodecData->GetChannelCount() != channelCount) {
-        _opusCodecData = MakeMemoryBuffer<OpusHeadBuffer>(channelCount, GetClockRate());
+        _opusCodecData = std::make_shared<OpusHeadBuffer>(channelCount, GetClockRate());
     }
     _audioConfig->SetCodecSpecificData(_opusCodecData);
     return _audioConfig;

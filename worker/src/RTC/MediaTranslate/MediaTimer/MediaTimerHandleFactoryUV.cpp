@@ -29,7 +29,8 @@ enum class TimerCommandType {
 class TimerWrapper
 {
 public:
-    TimerWrapper(const std::weak_ptr<MediaTimerCallback>& callbackRef, UVTimer timer);
+    TimerWrapper(const std::weak_ptr<MediaTimerCallback>& callbackRef,
+                 uint64_t timerId, UVTimer timer);
     ~TimerWrapper();
     void SetTimeout(uint32_t timeoutMs);
     void Start(bool singleshot);
@@ -40,6 +41,7 @@ private:
     void OnFired();
 private:
     const std::weak_ptr<MediaTimerCallback> _callbackRef;
+    const uint64_t _timerId;
     const UVTimer _timer;
     uint32_t _timeoutMs = 0;
     bool _singleshot = false;
@@ -343,7 +345,7 @@ void MediaTimerHandleFactoryUV::Impl::AddTimer(uint64_t timerId,
     if (!callbackRef.expired()) {
         auto timer = UVTimer::CreateInitialized(_loop.GetHandle());
         if (timer.IsValid()) {
-            auto wrapper = std::make_unique<TimerWrapper>(callbackRef, std::move(timer));
+            auto wrapper = std::make_unique<TimerWrapper>(callbackRef, timerId, std::move(timer));
             LOCK_WRITE_PROTECTED_OBJ(_timers);
             _timers->insert(std::make_pair(timerId, std::move(wrapper)));
         }
@@ -393,8 +395,10 @@ void MediaTimerHandleFactoryUV::Impl::SetTimeout(uint64_t timerId, uint32_t time
 
 namespace {
 
-TimerWrapper::TimerWrapper(const std::weak_ptr<MediaTimerCallback>& callbackRef, UVTimer timer)
+TimerWrapper::TimerWrapper(const std::weak_ptr<MediaTimerCallback>& callbackRef,
+                           uint64_t timerId, UVTimer timer)
     : _callbackRef(callbackRef)
+    , _timerId(timerId)
     , _timer(std::move(timer))
 {
     _timer->data = this;
@@ -444,7 +448,7 @@ bool TimerWrapper::IsActive() const
 void TimerWrapper::Invoke()
 {
     if (const auto callback = _callbackRef.lock()) {
-        callback->OnEvent();
+        callback->OnEvent(_timerId);
     }
 }
 
