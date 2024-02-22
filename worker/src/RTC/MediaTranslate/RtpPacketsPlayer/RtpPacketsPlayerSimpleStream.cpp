@@ -6,14 +6,12 @@
 namespace RTC
 {
 
-RtpPacketsPlayerSimpleStream::RtpPacketsPlayerSimpleStream(const std::shared_ptr<MediaTimer>& timer,
-                                                           uint32_t ssrc, uint32_t clockRate,
+RtpPacketsPlayerSimpleStream::RtpPacketsPlayerSimpleStream(uint32_t ssrc, uint32_t clockRate,
                                                            uint8_t payloadType,
                                                            const RtpCodecMimeType& mime,
                                                            RtpPacketsPlayerCallback* callback,
                                                            const std::weak_ptr<BufferAllocator>& allocator)
     : BufferAllocations<RtpPacketsPlayerStream>(allocator)
-    , _timer(timer)
     , _ssrc(ssrc)
     , _clockRate(clockRate)
     , _payloadType(payloadType)
@@ -27,33 +25,37 @@ RtpPacketsPlayerSimpleStream::~RtpPacketsPlayerSimpleStream()
 }
 
 std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerSimpleStream::
-    Create(const std::shared_ptr<MediaTimer>& timer, uint32_t ssrc, uint32_t clockRate,
+    Create(uint32_t ssrc, uint32_t clockRate,
            uint8_t payloadType, const RtpCodecMimeType& mime,
            RtpPacketsPlayerCallback* callback,
            const std::weak_ptr<BufferAllocator>& allocator)
 {
     std::unique_ptr<RtpPacketsPlayerStream> stream;
-    if (timer && callback) {
-        stream.reset(new RtpPacketsPlayerSimpleStream(timer, ssrc, clockRate, payloadType,
+    if (callback) {
+        stream.reset(new RtpPacketsPlayerSimpleStream(ssrc, clockRate, payloadType,
                                                       mime, callback, allocator));
     }
     return stream;
 }
 
-void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId, const std::shared_ptr<Buffer>& media)
+void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId,
+                                        const std::shared_ptr<Buffer>& media,
+                                        const std::shared_ptr<MediaTimer> timer)
 {
-    if (media) {
+    if (media && timer) {
         const uint64_t mediaId = media->GetId();
         LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
         auto& playingMedias = _playingMedias.Ref();
         if (!IsPlaying(mediaSourceId, mediaId, playingMedias)) {
-            if (auto fragment = RtpPacketsPlayerMediaFragment::Parse(_mime, media, _timer,
-                                                                     _ssrc, _clockRate,
-                                                                     _payloadType, mediaId,
+            if (auto fragment = RtpPacketsPlayerMediaFragment::Parse(_mime, media,
+                                                                     timer, _ssrc,
+                                                                     _clockRate,
+                                                                     _payloadType,
+                                                                     mediaId,
                                                                      mediaSourceId, this,
                                                                      GetAllocator())) {
                 playingMedias[mediaSourceId][mediaId] = fragment;
-                _timer->Singleshot(0U, fragment);
+                fragment->Start();
             }
         }
     }

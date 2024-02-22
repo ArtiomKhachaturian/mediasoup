@@ -17,8 +17,8 @@ public:
     // impl. of RtpMediaFrameDeserializer
     MediaFrameDeserializeResult Add(const std::shared_ptr<Buffer>& buffer) final;
     void Clear() final;
-    std::vector<std::shared_ptr<const MediaFrame>> ReadNextFrames(size_t trackIndex,
-                                                                  MediaFrameDeserializeResult* result) final;
+    std::shared_ptr<MediaFrame> ReadNextFrame(size_t trackIndex,
+                                              MediaFrameDeserializeResult* result) final;
     size_t GetTracksCount() const final;
     std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const final;
     void SetClockRate(size_t trackIndex, uint32_t clockRate) final;

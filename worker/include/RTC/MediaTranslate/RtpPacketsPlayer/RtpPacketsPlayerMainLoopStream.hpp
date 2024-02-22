@@ -14,14 +14,14 @@ class RtpPacketsPlayerMainLoopStream : public RtpPacketsPlayerStream
     class Impl;
 public:
     ~RtpPacketsPlayerMainLoopStream() final;
-    static std::unique_ptr<RtpPacketsPlayerStream> Create(const std::shared_ptr<MediaTimer>& timer,
-                                                          uint32_t ssrc, uint32_t clockRate,
+    static std::unique_ptr<RtpPacketsPlayerStream> Create(uint32_t ssrc, uint32_t clockRate,
                                                           uint8_t payloadType,
                                                           const RtpCodecMimeType& mime,
                                                           RtpPacketsPlayerCallback* callback,
                                                           const std::weak_ptr<BufferAllocator>& allocator);
     // impl. of RtpPacketsPlayerStream
-    void Play(uint64_t mediaSourceId, const std::shared_ptr<Buffer>& media) final;
+    void Play(uint64_t mediaSourceId, const std::shared_ptr<Buffer>& media,
+              const std::shared_ptr<MediaTimer> timer) final;
     bool IsPlaying() const final;
 private:
     RtpPacketsPlayerMainLoopStream(std::unique_ptr<Impl> impl,

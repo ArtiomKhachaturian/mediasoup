@@ -3,6 +3,7 @@
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerStream.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/Buffers/Buffer.hpp"
+#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMainLoopStream.hpp"
 #else
@@ -14,16 +15,9 @@ namespace RTC
 {
 
 RtpPacketsPlayer::RtpPacketsPlayer(const std::weak_ptr<BufferAllocator>& allocator)
-    : RtpPacketsPlayer(std::make_shared<MediaTimer>("RtpPacketsPlayer"), allocator)
-{
-}
-
-RtpPacketsPlayer::RtpPacketsPlayer(const std::shared_ptr<MediaTimer>& timer,
-                                   const std::weak_ptr<BufferAllocator>& allocator)
     : BufferAllocations<void>(allocator)
-    , _timer(timer)
+    , _timer(std::make_shared<MediaTimer>("RtpPacketsPlayer"))
 {
-    MS_ASSERT(_timer, "media timer must not be null");
 }
 
 RtpPacketsPlayer::~RtpPacketsPlayer()
@@ -40,13 +34,13 @@ void RtpPacketsPlayer::AddStream(uint32_t ssrc, uint32_t clockRate, uint8_t payl
         LOCK_WRITE_PROTECTED_OBJ(_streams);
         if (!_streams->count(ssrc)) {
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
-            auto stream = RtpPacketsPlayerMainLoopStream::Create(_timer, ssrc, clockRate,
+            auto stream = RtpPacketsPlayerMainLoopStream::Create(ssrc, clockRate,
                                                                  payloadType, mime,
                                                                  callback, GetAllocator());
 #else
-            auto stream = RtpPacketsPlayerSimpleStream::Create(_timer, ssrc, clockRate,
+            auto stream = RtpPacketsPlayerSimpleStream::Create(ssrc, clockRate,
                                                                payloadType, mime,
-                                                               callback, _allocator);
+                                                               callback, GetAllocator());
 #endif
             if (stream) {
                 _streams->insert(std::make_pair(ssrc, std::move(stream)));
@@ -85,7 +79,7 @@ void RtpPacketsPlayer::Play(uint32_t ssrc, uint64_t mediaSourceId,
         LOCK_READ_PROTECTED_OBJ(_streams);
         const auto it = _streams->find(ssrc);
         if (it != _streams->end()) {
-            it->second->Play(mediaSourceId, media);
+            it->second->Play(mediaSourceId, media, _timer);
         }
     }
 }

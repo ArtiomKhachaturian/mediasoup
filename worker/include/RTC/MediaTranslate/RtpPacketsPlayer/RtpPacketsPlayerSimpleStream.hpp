@@ -10,7 +10,6 @@
 namespace RTC
 {
 
-class MediaTimer;
 class RtpPacketsPlayerMediaFragment;
 
 class RtpPacketsPlayerSimpleStream : public BufferAllocations<RtpPacketsPlayerStream>,
@@ -23,18 +22,17 @@ class RtpPacketsPlayerSimpleStream : public BufferAllocations<RtpPacketsPlayerSt
     using MediaSourcesMap = UInt64Map<MediaFragmentsMap>;
 public:
     ~RtpPacketsPlayerSimpleStream() final;
-    static std::unique_ptr<RtpPacketsPlayerStream> Create(const std::shared_ptr<MediaTimer>& timer,
-                                                          uint32_t ssrc, uint32_t clockRate,
+    static std::unique_ptr<RtpPacketsPlayerStream> Create(uint32_t ssrc, uint32_t clockRate,
                                                           uint8_t payloadType,
                                                           const RtpCodecMimeType& mime,
                                                           RtpPacketsPlayerCallback* callback,
                                                           const std::weak_ptr<BufferAllocator>& allocator);
     // impl. of RtpPacketsPlayerStream
-    void Play(uint64_t mediaSourceId, const std::shared_ptr<Buffer>& media) final;
+    void Play(uint64_t mediaSourceId, const std::shared_ptr<Buffer>& media,
+              const std::shared_ptr<MediaTimer> timer) final;
     bool IsPlaying() const final;
 private:
-    RtpPacketsPlayerSimpleStream(const std::shared_ptr<MediaTimer>& timer,
-                                 uint32_t ssrc, uint32_t clockRate,
+    RtpPacketsPlayerSimpleStream(uint32_t ssrc, uint32_t clockRate,
                                  uint8_t payloadType,
                                  const RtpCodecMimeType& mime,
                                  RtpPacketsPlayerCallback* callback,
@@ -47,7 +45,6 @@ private:
                 uint64_t mediaSourceId) final;
     void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
 private:
-    const std::shared_ptr<MediaTimer> _timer;
     const uint32_t _ssrc;
     const uint32_t _clockRate;
     const uint8_t _payloadType;

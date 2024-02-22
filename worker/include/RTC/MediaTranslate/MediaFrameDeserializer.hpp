@@ -2,7 +2,6 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/MediaTranslate/MediaFrameDeserializeResult.hpp"
 #include <memory>
-#include <vector>
 #include <optional>
 
 namespace RTC
@@ -22,8 +21,8 @@ public:
     // read all available frames,
     // timestamp of media frames is offset from the beginning of the stream:
     // 1st frame has zero timestamp/offset
-    virtual std::vector<std::shared_ptr<const MediaFrame>> ReadNextFrames(size_t trackIndex,
-                                                                          MediaFrameDeserializeResult* result = nullptr) = 0;
+    virtual std::shared_ptr<MediaFrame> ReadNextFrame(size_t trackIndex,
+                                                      MediaFrameDeserializeResult* result = nullptr) = 0;
     // tracks info maybe actual after 1st calling of 'AddBuffer'
     virtual size_t GetTracksCount() const = 0; // all tracks, including subtitles
     virtual std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const = 0;

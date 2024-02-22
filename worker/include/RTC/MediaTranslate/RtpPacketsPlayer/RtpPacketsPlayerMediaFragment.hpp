@@ -1,6 +1,4 @@
 #pragma once
-#include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
-#include <atomic>
 #include <memory>
 
 namespace RTC
@@ -16,7 +14,7 @@ class RtpPacketsPlayerCallback;
 class RtpPacketizer;
 class RtpPacket;
 
-class RtpPacketsPlayerMediaFragment : public MediaTimerCallback
+class RtpPacketsPlayerMediaFragment
 {
     class TasksQueue;
 private:
@@ -24,7 +22,7 @@ private:
 public:
     static std::shared_ptr<RtpPacketsPlayerMediaFragment> Parse(const RtpCodecMimeType& mime,
                                                                 const std::shared_ptr<Buffer>& buffer,
-                                                                const std::shared_ptr<MediaTimer> timer,
+                                                                const std::shared_ptr<MediaTimer> playerTimer,
                                                                 uint32_t ssrc,
                                                                 uint32_t clockRate,
                                                                 uint8_t payloadType,
@@ -32,9 +30,8 @@ public:
                                                                 uint64_t mediaSourceId,
                                                                 RtpPacketsPlayerCallback* callback,
                                                                 const std::weak_ptr<BufferAllocator>& allocator);
-    ~RtpPacketsPlayerMediaFragment() final;
-    // impl. of MediaTimerCallback
-    void OnEvent(uint64_t timerId) final;
+    ~RtpPacketsPlayerMediaFragment();
+    void Start();
 private:
     const std::shared_ptr<TasksQueue> _queue;
 };

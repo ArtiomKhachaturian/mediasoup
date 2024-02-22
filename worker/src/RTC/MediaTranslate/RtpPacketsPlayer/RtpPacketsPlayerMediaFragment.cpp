@@ -2,18 +2,21 @@
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMediaFragment.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
+#include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
 #include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
 #include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/Buffers/Buffer.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/Timestamp.hpp"
 #include "ProtectedObj.hpp"
 #include "Logger.hpp"
 #include "absl/container/flat_hash_map.h"
+#include <atomic>
 #include <queue>
 
 namespace {
@@ -83,7 +86,7 @@ private:
     uint64_t GetTimerId() const { return _timerId.load(); }
     void EnqueTask(std::unique_ptr<Task> task);
     void ProcessTask(std::unique_ptr<Task> task, bool nextIsFinishTask);
-    void ProcessFrame(const std::shared_ptr<const MediaFrame>& frame,
+    bool ProcessFrame(const std::shared_ptr<const MediaFrame>& frame,
                       size_t trackIndex, bool nextIsFinishTask);
 private:
     const std::weak_ptr<MediaTimer> _timerRef;
@@ -110,15 +113,21 @@ RtpPacketsPlayerMediaFragment::~RtpPacketsPlayerMediaFragment()
     _queue->SetTimerId(0ULL);
 }
 
+void RtpPacketsPlayerMediaFragment::Start()
+{
+    _queue->Start();
+}
+
 std::shared_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
     Parse(const RtpCodecMimeType& mime, const std::shared_ptr<Buffer>& buffer,
-          const std::shared_ptr<MediaTimer> timer, uint32_t ssrc, uint32_t clockRate,
+          const std::shared_ptr<MediaTimer> playerTimer,
+          uint32_t ssrc, uint32_t clockRate,
           uint8_t payloadType, uint64_t mediaId, uint64_t mediaSourceId,
           RtpPacketsPlayerCallback* callback,
           const std::weak_ptr<BufferAllocator>& allocator)
 {
     std::shared_ptr<RtpPacketsPlayerMediaFragment> fragment;
-    if (buffer && callback && timer) {
+    if (buffer && callback && playerTimer) {
         if (WebMCodecs::IsSupported(mime)) {
             auto deserializer = std::make_unique<WebMDeserializer>(allocator);
             const auto result = deserializer->Add(buffer);
@@ -148,7 +157,8 @@ std::shared_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
                         }
                     }
                     if (acceptedTracksCount > 0U) {
-                        auto queue = std::make_shared<TasksQueue>(timer, ssrc,
+                        auto queue = std::make_shared<TasksQueue>(playerTimer,
+                                                                  ssrc,
                                                                   clockRate,
                                                                   payloadType,
                                                                   mediaId,
@@ -156,11 +166,8 @@ std::shared_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
                                                                   std::move(deserializer),
                                                                   std::move(packetizers),
                                                                   callback);
-                        const auto timerId = timer->Register(queue);
-                        if (timerId) {
-                            queue->SetTimerId(timerId);
-                            fragment.reset(new RtpPacketsPlayerMediaFragment(std::move(queue)));
-                        }
+                        queue->SetTimerId(playerTimer->Register(queue));
+                        fragment.reset(new RtpPacketsPlayerMediaFragment(std::move(queue)));
                     }
                     else {
                         // TODO: log error
@@ -179,11 +186,6 @@ std::shared_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
         }
     }
     return fragment;
-}
-
-void RtpPacketsPlayerMediaFragment::OnEvent(uint64_t /*timerId*/)
-{
-    _queue->Start();
 }
 
 RtpPacketsPlayerMediaFragment::TasksQueue::TasksQueue(const std::weak_ptr<MediaTimer> timerRef,
@@ -228,22 +230,20 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::Start()
     MediaFrameDeserializeResult result = MediaFrameDeserializeResult::Success;
     bool started = false;
     for (auto it = _packetizers.begin(); it != _packetizers.end(); ++it) {
-        for (auto& frame : _deserializer->ReadNextFrames(it->first, &result)) {
+        while (auto frame = _deserializer->ReadNextFrame(it->first, &result)) {
             if (!started) {
-                started = true;
                 EnqueTask(std::make_unique<StartFinishTask>(true));
+                started = true;
             }
             EnqueTask(std::make_unique<MediaFrameTask>(std::move(frame), it->first));
-        }
-        if (!MaybeOk(result)) {
-            MS_ERROR_STD("read of deserialized frames was failed: %s", ToString(result));
-            break;
         }
     }
     if (started) {
         EnqueTask(std::make_unique<StartFinishTask>(false));
     }
-    _deserializer->Clear();
+    if (!MaybeOk(result)) {
+        MS_ERROR_STD("read of deserialized frames was failed: %s", ToString(result));
+    }
 }
 
 void RtpPacketsPlayerMediaFragment::TasksQueue::OnEvent(uint64_t /*timerId*/)
@@ -306,7 +306,7 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::ProcessTask(std::unique_ptr<Task
     }
 }
 
-void RtpPacketsPlayerMediaFragment::TasksQueue::
+bool RtpPacketsPlayerMediaFragment::TasksQueue::
     ProcessFrame(const std::shared_ptr<const MediaFrame>& frame, size_t trackIndex,
                  bool nextIsFinishTask)
 {
@@ -329,9 +329,11 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::
                     }
                 }
                 _previous = timestamp;
+                return true;
             }
         }
     }
+    return false;
 }
 
 } // namespace RTC
