@@ -21,7 +21,6 @@ public:
     virtual const uint8_t* GetData() const = 0;
     bool Acquire() { return !_busy.exchange(true); }
     bool Release() { return _busy.exchange(false); }
-    void ZeroMemory() { std::memset(GetData(), 0, GetSize()); }
 protected:
     MemoryChunk() = default;
 private:
@@ -77,14 +76,15 @@ namespace RTC
 class PoolAllocator::BufferImpl : public Buffer
 {
 public:
-    BufferImpl(const MemoryChunkPtr& chunk);
+    BufferImpl(MemoryChunkPtr chunk, size_t size);
     ~BufferImpl() final;
     // impl. of Buffer
-    size_t GetSize() const final { return _chunk->GetSize(); }
+    size_t GetSize() const final { return _size; }
     const uint8_t* GetData() const final { return _chunk->GetData(); }
     uint8_t* GetData() final { return _chunk->GetData(); }
 private:
     const MemoryChunkPtr _chunk;
+    const size_t _size;
 };
 
 
@@ -123,8 +123,9 @@ std::shared_ptr<Buffer> PoolAllocator::Allocate(size_t size)
     return BufferAllocator::Allocate(size);
 }
 
-PoolAllocator::BufferImpl::BufferImpl(const MemoryChunkPtr& chunk)
+PoolAllocator::BufferImpl::BufferImpl(MemoryChunkPtr chunk, size_t size)
     : _chunk(chunk)
+    , _size(size)
 {
 }
 
@@ -134,7 +135,7 @@ PoolAllocator::BufferImpl::~BufferImpl()
 }
 
 PoolAllocator::AllocatorImpl::AllocatorImpl()
-    //: _stackChunks(CreateStackChunks())
+    : _stackChunks(CreateStackChunks())
 {
 }
 
@@ -146,8 +147,7 @@ std::shared_ptr<Buffer> PoolAllocator::AllocatorImpl::Allocate(size_t size)
             chunk = AcquireHeapChunk(size);
         }
         if (chunk) {
-            chunk->ZeroMemory();
-            return std::make_shared<BufferImpl>(std::move(chunk));
+            return std::make_shared<BufferImpl>(std::move(chunk), size);
         }
     }
     return nullptr;
@@ -162,7 +162,7 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t size)
             auto newChunk = std::make_shared<HeapChunk>(std::unique_ptr<uint8_t[]>(memory), size);
             if (newChunk->Acquire()) {
                 _heapChunks->insert({size, newChunk});
-                return newChunk ;
+                return newChunk;
             }
         }
     }
