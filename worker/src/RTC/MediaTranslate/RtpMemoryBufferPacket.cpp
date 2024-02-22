@@ -1,13 +1,13 @@
 #define MS_CLASS "RTC::RtpMemoryBufferPacket"
 #include "RTC/MediaTranslate/RtpMemoryBufferPacket.hpp"
-#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
 
 RtpMemoryBufferPacket::RtpMemoryBufferPacket(std::unique_ptr<uint8_t[]> headerBuffer,
-                                             const std::shared_ptr<const MemoryBuffer>& payload)
+                                             const std::shared_ptr<const Buffer>& payload)
     : RtpPacket(reinterpret_cast<Header*>(headerBuffer.get()), nullptr,
                 payload->GetData(), payload->GetSize(), 0U, payload->GetSize() + HeaderSize)
     , _headerBuffer(std::move(headerBuffer))
@@ -22,7 +22,7 @@ RtpMemoryBufferPacket::~RtpMemoryBufferPacket()
 {
 }
 
-RtpPacket* RtpMemoryBufferPacket::Create(const std::shared_ptr<const MemoryBuffer>& payload)
+RtpPacket* RtpMemoryBufferPacket::Create(const std::shared_ptr<const Buffer>& payload)
 {
     RtpPacket* packet = nullptr;
     if (payload && !payload->IsEmpty()) {

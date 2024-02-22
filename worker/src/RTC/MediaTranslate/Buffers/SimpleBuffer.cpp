@@ -26,7 +26,7 @@ bool SimpleBuffer::Append(const void* buf, size_t len)
     return Insert(_buffer.end(), buf, len);
 }
 
-bool SimpleBuffer::Append(const std::shared_ptr<MemoryBuffer>& buffer)
+bool SimpleBuffer::Append(const std::shared_ptr<Buffer>& buffer)
 {
     return buffer && Append(buffer->GetData(), buffer->GetSize());
 }
@@ -36,7 +36,7 @@ bool SimpleBuffer::Prepend(const void* buf, size_t len)
     return Insert(_buffer.begin(), buf, len);
 }
 
-bool SimpleBuffer::Prepend(const std::shared_ptr<MemoryBuffer>& buffer)
+bool SimpleBuffer::Prepend(const std::shared_ptr<Buffer>& buffer)
 {
     return buffer && Prepend(buffer->GetData(), buffer->GetSize());
 }

@@ -15,17 +15,17 @@ public:
     FileWriter(const std::string_view& fileNameUtf8, int* error = nullptr);
     ~FileWriter() final;
     static bool WriteAll(const std::string_view& fileNameUtf8, const std::vector<uint8_t>& buffer);
-    static bool WriteAll(const std::string_view& fileNameUtf8, const std::shared_ptr<MemoryBuffer>& buffer);
+    static bool WriteAll(const std::string_view& fileNameUtf8, const std::shared_ptr<Buffer>& buffer);
     bool DeleteFromStorage();
     // Write any buffered data to the underlying file. Returns true on success,
     // false on write error. Note: Flushing when closing, is not required.
     bool Flush();
     // impl. of MediaSink
     void StartMediaWriting(const MediaObject& sender) final;
-    void WriteMediaPayload(const MediaObject&, const std::shared_ptr<MemoryBuffer>& buffer) final;
+    void WriteMediaPayload(const MediaObject&, const std::shared_ptr<Buffer>& buffer) final;
     void EndMediaWriting(const MediaObject& sender) final;
 private:
-    static size_t FileWrite(const std::shared_ptr<FILE>& handle, const std::shared_ptr<MemoryBuffer>& buffer);
+    static size_t FileWrite(const std::shared_ptr<FILE>& handle, const std::shared_ptr<Buffer>& buffer);
 };
 
 } // namespace RTC

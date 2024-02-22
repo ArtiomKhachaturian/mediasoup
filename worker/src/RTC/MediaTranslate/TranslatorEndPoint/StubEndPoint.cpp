@@ -1,5 +1,5 @@
 #include "RTC/MediaTranslate/TranslatorEndPoint/StubEndPoint.hpp"
-#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 
 namespace RTC
 {
@@ -30,7 +30,7 @@ void StubEndPoint::Disconnect()
     }
 }
 
-bool StubEndPoint::SendBinary(const std::shared_ptr<MemoryBuffer>& buffer) const
+bool StubEndPoint::SendBinary(const std::shared_ptr<Buffer>& buffer) const
 {
     return buffer && IsConnected() && !buffer->IsEmpty();
 }

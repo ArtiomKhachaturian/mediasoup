@@ -67,11 +67,12 @@ std::shared_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeTyp
                                                            TranslatorEndPointFactory* endPointsFactory,
                                                            RtpPacketsPlayer* rtpPacketsPlayer,
                                                            RtpPacketsCollector* output,
-                                                           const std::string& producerId)
+                                                           const std::string& producerId,
+                                                           const std::weak_ptr<BufferAllocator>& allocator)
 {
     std::shared_ptr<TranslatorSource> source;
     if (endPointsFactory && rtpPacketsPlayer && output) {
-        if (auto depacketizer = RtpDepacketizer::Create(mime, clockRate)) {
+        if (auto depacketizer = RtpDepacketizer::Create(mime, clockRate, allocator)) {
             auto serializer = std::make_unique<WebMSerializer>(mime);
             source.reset(new TranslatorSource(clockRate, originalSsrc, payloadType,
                                              std::move(serializer), std::move(depacketizer),
@@ -109,9 +110,11 @@ bool TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
             return handled;
         }
 #endif
-        // maybe empty packet if silence
-        if (const auto frame = _depacketizer->AddPacket(packet)) {
-            handled = _serializer->Push(frame);
+        if (_serializer->HasSinks() || _serializer->HasTestSink()) {
+            // maybe empty packet if silence
+            if (const auto frame = _depacketizer->AddPacket(packet)) {
+                handled = _serializer->Push(frame);
+            }
         }
     }
     if (handled) {
@@ -260,7 +263,7 @@ void TranslatorSource::OnPlayFinished(uint32_t ssrc, uint64_t mediaId,
 }
 
 void TranslatorSource::WriteMediaPayload(const MediaObject& sender,
-                                         const std::shared_ptr<MemoryBuffer>& buffer)
+                                         const std::shared_ptr<Buffer>& buffer)
 {
     if (buffer) {
         _rtpPacketsPlayer->Play(GetOriginalSsrc(), sender.GetId(), buffer);

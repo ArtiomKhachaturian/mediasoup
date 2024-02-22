@@ -1,7 +1,7 @@
 #define MS_CLASS "RTC::MediaFrame"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/Buffers/SegmentsBuffer.hpp"
-#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "Logger.hpp"
@@ -9,9 +9,10 @@
 namespace RTC
 {
 
-MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate)
+MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+                       const std::weak_ptr<BufferAllocator>& allocator)
     : _mimeType(mimeType)
-    , _payload(MakeMemoryBuffer<SegmentsBuffer>())
+    , _payload(std::make_shared<SegmentsBuffer>(allocator))
     , _timestamp(clockRate)
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
@@ -21,12 +22,19 @@ MediaFrame::~MediaFrame()
 {
 }
 
-void MediaFrame::AddPayload(const std::shared_ptr<MemoryBuffer>& payload)
+void MediaFrame::AddPayload(const std::shared_ptr<Buffer>& payload)
 {
     _payload->Push(payload);
 }
 
-std::shared_ptr<const MemoryBuffer> MediaFrame::GetPayload() const
+void MediaFrame::AddPayload(const uint8_t* data, size_t len)
+{
+    if (data && len) {
+        AddPayload(AllocateBuffer(len, data, _payload->GetAllocator()));
+    }
+}
+
+std::shared_ptr<const Buffer> MediaFrame::GetPayload() const
 {
     return _payload;
 }
@@ -77,19 +85,20 @@ MediaFrameConfig::~MediaFrameConfig()
 {
 }
 
-const std::shared_ptr<const MemoryBuffer>& MediaFrameConfig::GetCodecSpecificData() const
+const std::shared_ptr<const Buffer>& MediaFrameConfig::GetCodecSpecificData() const
 {
     return _codecSpecificData;
 }
 
-void MediaFrameConfig::SetCodecSpecificData(const std::shared_ptr<const MemoryBuffer>& data)
+void MediaFrameConfig::SetCodecSpecificData(const std::shared_ptr<const Buffer>& data)
 {
     _codecSpecificData = data;
 }
 
-void MediaFrameConfig::SetCodecSpecificData(const uint8_t* data, size_t len)
+void MediaFrameConfig::SetCodecSpecificData(const uint8_t* data, size_t len,
+                                            const std::weak_ptr<BufferAllocator>& allocator)
 {
-    SetCodecSpecificData(SimpleBuffer::Create(data, len));
+    SetCodecSpecificData(AllocateBuffer(len, data, allocator));
 }
 
 void AudioFrameConfig::SetChannelCount(uint8_t channelCount)

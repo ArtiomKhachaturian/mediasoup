@@ -2,7 +2,7 @@
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerStream.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
-#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMainLoopStream.hpp"
 #else
@@ -13,13 +13,15 @@
 namespace RTC
 {
 
-RtpPacketsPlayer::RtpPacketsPlayer()
-    : RtpPacketsPlayer(std::make_shared<MediaTimer>("RtpPacketsPlayer"))
+RtpPacketsPlayer::RtpPacketsPlayer(const std::weak_ptr<BufferAllocator>& allocator)
+    : RtpPacketsPlayer(std::make_shared<MediaTimer>("RtpPacketsPlayer"), allocator)
 {
 }
 
-RtpPacketsPlayer::RtpPacketsPlayer(const std::shared_ptr<MediaTimer>& timer)
+RtpPacketsPlayer::RtpPacketsPlayer(const std::shared_ptr<MediaTimer>& timer,
+                                   const std::weak_ptr<BufferAllocator>& allocator)
     : _timer(timer)
+    , _allocator(allocator)
 {
     MS_ASSERT(_timer, "media timer must not be null");
 }
@@ -39,10 +41,12 @@ void RtpPacketsPlayer::AddStream(uint32_t ssrc, uint32_t clockRate, uint8_t payl
         if (!_streams->count(ssrc)) {
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
             auto stream = RtpPacketsPlayerMainLoopStream::Create(_timer, ssrc, clockRate,
-                                                                 payloadType, mime, callback);
+                                                                 payloadType, mime,
+                                                                 callback, _allocator);
 #else
             auto stream = RtpPacketsPlayerSimpleStream::Create(_timer, ssrc, clockRate,
-                                                               payloadType, mime, callback);
+                                                               payloadType, mime,
+                                                               callback, _allocator);
 #endif
             if (stream) {
                 _streams->insert(std::make_pair(ssrc, std::move(stream)));
@@ -75,7 +79,7 @@ bool RtpPacketsPlayer::IsPlaying(uint32_t ssrc) const
 }
 
 void RtpPacketsPlayer::Play(uint32_t ssrc, uint64_t mediaSourceId,
-                            const std::shared_ptr<MemoryBuffer>& media)
+                            const std::shared_ptr<Buffer>& media)
 {
     if (media && !media->IsEmpty()) {
         LOCK_READ_PROTECTED_OBJ(_streams);

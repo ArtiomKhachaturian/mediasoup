@@ -5,7 +5,7 @@
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
-#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
 
 namespace {
@@ -34,10 +34,12 @@ public:
     StreamState GetState() const;
     void Reset();
     void SetClockRate(uint32_t clockRate);
-    MediaFrameDeserializeResult ReadFrames(std::vector<std::shared_ptr<const MediaFrame>>& output);
+    MediaFrameDeserializeResult ReadFrames(const std::weak_ptr<BufferAllocator>& allocator,
+                                           std::vector<std::shared_ptr<const MediaFrame>>& output);
     static std::unique_ptr<TrackInfo> Create(const mkvparser::Tracks* tracks,
                                              mkvparser::Segment* segment,
-                                             unsigned long trackIndex);
+                                             unsigned long trackIndex,
+                                             const std::weak_ptr<BufferAllocator>& allocator);
 private:
     MkvReadResult GetNextBlock(const mkvparser::Block*& block);
     std::optional<webrtc::Timestamp> GetBlockTime(const mkvparser::Block* block) const;
@@ -55,8 +57,9 @@ private:
     uint32_t _clockRate = 0U;
 };
 
-WebMDeserializer::WebMDeserializer()
-    : _reader(std::make_unique<MkvBufferedReader>())
+WebMDeserializer::WebMDeserializer(const std::weak_ptr<BufferAllocator>& allocator)
+    : _allocator(allocator)
+    , _reader(std::make_unique<MkvBufferedReader>(_allocator))
 {
 }
 
@@ -64,14 +67,15 @@ WebMDeserializer::~WebMDeserializer()
 {
 }
 
-MediaFrameDeserializeResult WebMDeserializer::Add(const std::shared_ptr<MemoryBuffer>& buffer)
+MediaFrameDeserializeResult WebMDeserializer::Add(const std::shared_ptr<Buffer>& buffer)
 {
     auto result = _reader->AddBuffer(buffer);
     if (MaybeOk(result) && _tracks.empty()) {
         if (const auto tracks = _reader->GetTracks()) {
             if (const auto tracksCount = tracks->GetTracksCount()) {
                 for (unsigned long i = 0UL; i < tracksCount; ++i) {
-                    if (auto trackInfo = TrackInfo::Create(tracks, _reader->GetSegment(), i)) {
+                    if (auto trackInfo = TrackInfo::Create(tracks, _reader->GetSegment(),
+                                                           i, _allocator)) {
                         _tracks[i] = std::move(trackInfo);
                     }
                 }
@@ -98,7 +102,7 @@ std::vector<std::shared_ptr<const MediaFrame>> WebMDeserializer::ReadNextFrames(
             const auto& track = it->second;
             MediaFrameDeserializeResult result = MediaFrameDeserializeResult::NeedMoreData;
             if (StreamState::End != track->GetState()) {
-                result = track->ReadFrames(output);
+                result = track->ReadFrames(_allocator, output);
             }
             // lookup the next blocks if any
             if (MediaFrameDeserializeResult::NeedMoreData == result) {
@@ -202,7 +206,8 @@ void WebMDeserializer::TrackInfo::SetClockRate(uint32_t clockRate)
 }
 
 MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
-    ReadFrames(std::vector<std::shared_ptr<const MediaFrame>>& output)
+    ReadFrames(const std::weak_ptr<BufferAllocator>& allocator,
+               std::vector<std::shared_ptr<const MediaFrame>>& output)
 {
     MkvReadResult mkvResult = MkvReadResult::Success;
     output.clear();
@@ -214,19 +219,24 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
             output.reserve(output.size() + static_cast<size_t>(block->GetFrameCount()));
             for (int i = 0; i < block->GetFrameCount(); ++i) {
                 const auto& frame = block->GetFrame(i);
-                std::vector<uint8_t> buffer(frame.len);
-                mkvResult = ToMkvReadResult(frame.Read(_segment->m_pReader, buffer.data()));
-                if (MaybeOk(mkvResult)) {
-                    auto mediaFrame = std::make_shared<MediaFrame>(GetMime(), GetClockRate());
-                    mediaFrame->AddPayload(SimpleBuffer::Create(std::move(buffer)));
-                    mediaFrame->SetKeyFrame(block->IsKey());
-                    mediaFrame->SetMediaConfig(GetConfig());
-                    if (ts.has_value()) {
-                        mediaFrame->SetTimestamp(ts.value());
+                if (const auto buffer = AllocateBuffer(frame.len, allocator)) {
+                    mkvResult = ToMkvReadResult(frame.Read(_segment->m_pReader, buffer->GetData()));
+                    if (MaybeOk(mkvResult)) {
+                        auto mediaFrame = std::make_shared<MediaFrame>(GetMime(), GetClockRate(), allocator);
+                        mediaFrame->AddPayload(buffer);
+                        mediaFrame->SetKeyFrame(block->IsKey());
+                        mediaFrame->SetMediaConfig(GetConfig());
+                        if (ts.has_value()) {
+                            mediaFrame->SetTimestamp(ts.value());
+                        }
+                        output.push_back(std::move(mediaFrame));
                     }
-                    output.push_back(std::move(mediaFrame));
+                    else {
+                        break;
+                    }
                 }
                 else {
+                    // TODO: add warning
                     break;
                 }
             }
@@ -239,7 +249,9 @@ MediaFrameDeserializeResult WebMDeserializer::TrackInfo::
 }
 
 std::unique_ptr<WebMDeserializer::TrackInfo> WebMDeserializer::TrackInfo::
-    Create(const mkvparser::Tracks* tracks, mkvparser::Segment* segment, unsigned long trackIndex)
+    Create(const mkvparser::Tracks* tracks, mkvparser::Segment* segment,
+           unsigned long trackIndex,
+           const std::weak_ptr<BufferAllocator>& allocator)
 {
     if (tracks && segment) {
         if (const auto track = tracks->GetTrackByIndex(trackIndex)) {
@@ -285,7 +297,7 @@ std::unique_ptr<WebMDeserializer::TrackInfo> WebMDeserializer::TrackInfo::
                         }
                         size_t len = 0UL;
                         if (const auto data = track->GetCodecPrivate(len)) {
-                            config->SetCodecSpecificData(data, len);
+                            config->SetCodecSpecificData(data, len, allocator);
                         }
                         auto trackInfo = std::make_unique<TrackInfo>(type.value(),
                                                                      subtype.value(),

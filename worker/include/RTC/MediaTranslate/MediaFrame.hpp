@@ -11,16 +11,19 @@ namespace RTC
 class MediaFrameConfig;
 class AudioFrameConfig;
 class VideoFrameConfig;
-class MemoryBuffer;
+class Buffer;
+class BufferAllocator;
 class SegmentsBuffer;
 
 class MediaFrame
 {
 public:
-    MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate);
+    MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+               const std::weak_ptr<BufferAllocator>& allocator);
     virtual ~MediaFrame();
-    void AddPayload(const std::shared_ptr<MemoryBuffer>& payload);
-    std::shared_ptr<const MemoryBuffer> GetPayload() const;
+    void AddPayload(const std::shared_ptr<Buffer>& payload);
+    void AddPayload(const uint8_t* data, size_t len);
+    std::shared_ptr<const Buffer> GetPayload() const;
     // common properties
     const RtpCodecMimeType& GetMimeType() const { return _mimeType; }
     bool IsAudio() const { return GetMimeType().IsAudioCodec(); }

@@ -21,12 +21,12 @@ public:
 protected:
     void Connect() final;
     void Disconnect() final;
-    bool SendBinary(const std::shared_ptr<MemoryBuffer>& buffer) const final;
+    bool SendBinary(const std::shared_ptr<Buffer>& buffer) const final;
     bool SendText(const std::string& text) const final;
 private:
     // impl. of WebsocketListener
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
-    void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message) final;
+    void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<Buffer>& message) final;
 private:
     static inline constexpr uint32_t _defaultTimeSliceMs = 400U;
     static inline std::atomic<uint64_t> _instances = 0ULL;

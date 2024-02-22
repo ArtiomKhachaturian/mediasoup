@@ -19,8 +19,7 @@ class MediaFrameWriter;
 
 class MediaFrameSerializer : public MediaSource
 {
-    class OffsetEstimator;
-    using SinkData = std::pair<std::unique_ptr<MediaFrameWriter>, std::unique_ptr<OffsetEstimator>>;
+    class SinkWriter;
 public:
     MediaFrameSerializer(const MediaFrameSerializer&) = delete;
     MediaFrameSerializer(MediaFrameSerializer&&) = delete;
@@ -28,6 +27,7 @@ public:
     bool Push(const std::shared_ptr<const MediaFrame>& mediaFrame);
     bool AddTestSink(MediaSink* sink);
     void RemoveTestSink();
+    bool HasTestSink() const;
     const RtpCodecMimeType& GetMimeType() const { return _mime; }
     // impl. of MediaSource
     bool AddSink(MediaSink* sink) final;
@@ -39,12 +39,12 @@ protected:
     MediaFrameSerializer(const RtpCodecMimeType& mime);
     virtual std::unique_ptr<MediaFrameWriter> CreateWriter(MediaSink* sink) = 0;
 private:
-    void PushToTestSink(const std::shared_ptr<const MediaFrame>& mediaFrame) const;
-    static bool Push(const std::shared_ptr<const MediaFrame>& mediaFrame, const SinkData& sink);
+    std::unique_ptr<SinkWriter> CreateSinkWriter(MediaSink* sink);
+    void WriteToTestSink(const std::shared_ptr<const MediaFrame>& mediaFrame) const;
 private:
     const RtpCodecMimeType _mime;
-    ProtectedObj<absl::flat_hash_map<MediaSink*, SinkData>> _sinks;
-    ProtectedObj<SinkData> _testSink;
+    ProtectedObj<absl::flat_hash_map<MediaSink*, std::unique_ptr<SinkWriter>>> _writers;
+    ProtectedUniquePtr<SinkWriter> _testWriter;
 };
 
 } // namespace RTC

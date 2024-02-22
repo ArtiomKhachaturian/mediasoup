@@ -1,7 +1,7 @@
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerSimpleStream.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMediaFragment.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
-#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 
 namespace RTC
 {
@@ -10,13 +10,15 @@ RtpPacketsPlayerSimpleStream::RtpPacketsPlayerSimpleStream(const std::shared_ptr
                                                            uint32_t ssrc, uint32_t clockRate,
                                                            uint8_t payloadType,
                                                            const RtpCodecMimeType& mime,
-                                                           RtpPacketsPlayerCallback* callback)
+                                                           RtpPacketsPlayerCallback* callback,
+                                                           const std::weak_ptr<BufferAllocator>& allocator)
     : _timer(timer)
     , _ssrc(ssrc)
     , _clockRate(clockRate)
     , _payloadType(payloadType)
     , _mime(mime)
     , _callback(callback)
+    , _allocator(allocator)
 {
 }
 
@@ -26,25 +28,30 @@ RtpPacketsPlayerSimpleStream::~RtpPacketsPlayerSimpleStream()
 
 std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerSimpleStream::
     Create(const std::shared_ptr<MediaTimer>& timer, uint32_t ssrc, uint32_t clockRate,
-           uint8_t payloadType, const RtpCodecMimeType& mime, RtpPacketsPlayerCallback* callback)
+           uint8_t payloadType, const RtpCodecMimeType& mime,
+           RtpPacketsPlayerCallback* callback,
+           const std::weak_ptr<BufferAllocator>& allocator)
 {
     std::unique_ptr<RtpPacketsPlayerStream> stream;
     if (timer && callback) {
-        stream.reset(new RtpPacketsPlayerSimpleStream(timer, ssrc, clockRate, payloadType, mime, callback));
+        stream.reset(new RtpPacketsPlayerSimpleStream(timer, ssrc, clockRate, payloadType,
+                                                      mime, callback, allocator));
     }
     return stream;
 }
 
-void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media)
+void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId, const std::shared_ptr<Buffer>& media)
 {
     if (media) {
         const uint64_t mediaId = media->GetId();
         LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
         auto& playingMedias = _playingMedias.Ref();
         if (!IsPlaying(mediaSourceId, mediaId, playingMedias)) {
-            if (auto fragment = RtpPacketsPlayerMediaFragment::Parse(_mime, media, _timer, _ssrc,
-                                                                     _clockRate, _payloadType,
-                                                                     mediaId, mediaSourceId, this)) {
+            if (auto fragment = RtpPacketsPlayerMediaFragment::Parse(_mime, media, _timer,
+                                                                     _ssrc, _clockRate,
+                                                                     _payloadType, mediaId,
+                                                                     mediaSourceId, this,
+                                                                     _allocator)) {
                 playingMedias[mediaSourceId][mediaId] = fragment;
                 _timer->Singleshot(0U, fragment);
             }

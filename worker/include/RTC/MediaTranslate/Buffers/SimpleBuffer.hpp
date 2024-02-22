@@ -1,21 +1,21 @@
 #pragma once
-#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 #include <vector>
 #include <memory>
 
 namespace RTC
 {
 
-class SimpleBuffer : public MemoryBuffer
+class SimpleBuffer : public Buffer
 {
 public:
     explicit SimpleBuffer(size_t capacity);
     SimpleBuffer(std::vector<uint8_t> buffer = {});
     SimpleBuffer(const void* buf, size_t len);
     bool Append(const void* buf, size_t len);
-    bool Append(const std::shared_ptr<MemoryBuffer>& buffer);
+    bool Append(const std::shared_ptr<Buffer>& buffer);
     bool Prepend(const void* buf, size_t len);
-    bool Prepend(const std::shared_ptr<MemoryBuffer>& buffer);
+    bool Prepend(const std::shared_ptr<Buffer>& buffer);
     void Clear();
     void Reserve(size_t size) { _buffer.reserve(size); }
     void Resize(size_t size) { _buffer.resize(size); }
@@ -31,7 +31,7 @@ public:
     static std::shared_ptr<SimpleBuffer> Create(const void* data, size_t len);
     static std::shared_ptr<SimpleBuffer> Create(std::vector<uint8_t> buffer);
     static std::shared_ptr<SimpleBuffer> Allocate(size_t capacity, size_t size = 0U);
-    // impl. of MemoryBuffer
+    // impl. of Buffer
     size_t GetSize() const final { return _buffer.size(); }
     uint8_t* GetData() { return _buffer.data(); }
     const uint8_t* GetData() const { return _buffer.data(); }

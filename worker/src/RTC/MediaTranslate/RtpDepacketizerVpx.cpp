@@ -15,7 +15,7 @@ namespace RTC
 class RtpDepacketizerVpx::RtpAssembly
 {
 public:
-    RtpAssembly(const RtpCodecMimeType& mime, uint32_t clockRate);
+    RtpAssembly(const RtpDepacketizerVpx* depacketizer);
     std::shared_ptr<const RtpMediaFrame> AddPacket(const RtpPacket* packet);
 private:
     bool AddPayload(const RtpPacket* packet);
@@ -23,16 +23,16 @@ private:
     std::shared_ptr<const RtpMediaFrame> ResetFrame();
     void SetLastTimeStamp(uint32_t lastTimeStamp);
 private:
-    const RtpCodecMimeType _mime;
-    const uint32_t _clockRate;
+    const RtpDepacketizerVpx* const _depacketizer;
     uint32_t _lastTimeStamp = 0U;
     std::shared_ptr<RtpMediaFrame> _frame;
     std::shared_ptr<VideoFrameConfig> _config;
 };
 
 
-RtpDepacketizerVpx::RtpDepacketizerVpx(const RtpCodecMimeType& mimeType, uint32_t clockRate)
-    : RtpDepacketizer(mimeType, clockRate)
+RtpDepacketizerVpx::RtpDepacketizerVpx(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+                                       const std::weak_ptr<BufferAllocator>& allocator)
+    : RtpDepacketizer(mimeType, clockRate, allocator)
 {
 }
 
@@ -45,7 +45,7 @@ std::shared_ptr<const MediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket*
     if (packet && packet->GetPayload() && packet->GetPayloadLength()) {
         auto it = _assemblies.find(packet->GetSsrc());
         if (it == _assemblies.end()) {
-            auto assembly = std::make_unique<RtpAssembly>(GetMimeType(), GetClockRate());
+            auto assembly = std::make_unique<RtpAssembly>(this);
             it = _assemblies.insert({packet->GetSsrc(), std::move(assembly)}).first;
         }
         return it->second->AddPacket(packet);
@@ -53,9 +53,8 @@ std::shared_ptr<const MediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket*
     return nullptr;
 }
 
-RtpDepacketizerVpx::RtpAssembly::RtpAssembly(const RtpCodecMimeType& mime, uint32_t clockRate)
-    : _mime(mime)
-    , _clockRate(clockRate)
+RtpDepacketizerVpx::RtpAssembly::RtpAssembly(const RtpDepacketizerVpx* depacketizer)
+    : _depacketizer(depacketizer)
 {
 }
 
@@ -72,12 +71,12 @@ std::shared_ptr<const RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::
                 }
             }
             else {
-                const auto error = GetStreamInfoString(_mime, packet->GetSsrc());
+                const auto error = GetStreamInfoString(_depacketizer->GetMimeType(), packet->GetSsrc());
                 MS_ERROR("failed to parse video config for stream [%s]", error.c_str());
             }
         }
         else {
-            const auto error = GetStreamInfoString(_mime, packet->GetSsrc());
+            const auto error = GetStreamInfoString(_depacketizer->GetMimeType(), packet->GetSsrc());
             MS_ERROR("failed to add payload for stream [%s]", error.c_str());
         }
     }
@@ -104,7 +103,7 @@ bool RtpDepacketizerVpx::RtpAssembly::ParseVideoConfig(const RtpPacket* packet)
     if (packet) {
         if (packet->IsKeyFrame()) {
             _config = std::make_shared<VideoFrameConfig>();
-            switch (_mime.GetSubtype()) {
+            switch (_depacketizer->GetMimeType().GetSubtype()) {
                 case RtpCodecMimeType::Subtype::VP8:
                     ok = RtpMediaFrame::ParseVp8VideoConfig(packet, _config);
                     break;
@@ -131,7 +130,7 @@ std::shared_ptr<const RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::ResetFrame
     if (frame) {
         frame->SetVideoConfig(std::move(_config));
     }
-    _frame = std::make_shared<RtpMediaFrame>(_mime, _clockRate);
+    _frame = _depacketizer->CreateMediaFrame();
     return frame;
 }
 
@@ -139,7 +138,7 @@ void RtpDepacketizerVpx::RtpAssembly::SetLastTimeStamp(uint32_t lastTimeStamp)
 {
     if (_lastTimeStamp != lastTimeStamp) {
         _lastTimeStamp = lastTimeStamp;
-        _frame = std::make_shared<RtpMediaFrame>(_mime, _clockRate);
+        _frame = _depacketizer->CreateMediaFrame();
     }
 }
 

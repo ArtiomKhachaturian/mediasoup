@@ -86,7 +86,7 @@ bool FileReader::IsValidForRead(const std::string_view& fileNameUtf8)
     return valid;
 }
 
-std::shared_ptr<MemoryBuffer> FileReader::ReadAllAsBuffer(const std::string_view& fileNameUtf8)
+std::shared_ptr<Buffer> FileReader::ReadAllAsBuffer(const std::string_view& fileNameUtf8)
 {
     return SimpleBuffer::Create(ReadAllAsBinary(fileNameUtf8));
 }
@@ -144,9 +144,9 @@ bool FileReader::SeekToStart()
     return FileSeek(GetHandle(), SEEK_SET, 0L);
 }
 
-std::shared_ptr<MemoryBuffer> FileReader::ReadBuffer(bool& eof, bool& ok) const
+std::shared_ptr<Buffer> FileReader::ReadBuffer(bool& eof, bool& ok) const
 {
-    std::shared_ptr<MemoryBuffer> buffer;
+    std::shared_ptr<Buffer> buffer;
     if (const auto handle = GetHandle()) {
         std::vector<uint8_t> chunk;
         chunk.resize(_chunkSize, 0);

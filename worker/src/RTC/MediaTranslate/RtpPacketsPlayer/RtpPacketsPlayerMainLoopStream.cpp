@@ -118,14 +118,16 @@ RtpPacketsPlayerMainLoopStream::~RtpPacketsPlayerMainLoopStream()
 
 std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerMainLoopStream::
     Create(const std::shared_ptr<MediaTimer>& timer, uint32_t ssrc, uint32_t clockRate,
-           uint8_t payloadType, const RtpCodecMimeType& mime, RtpPacketsPlayerCallback* callback)
+           uint8_t payloadType, const RtpCodecMimeType& mime,
+           RtpPacketsPlayerCallback* callback,
+           const std::weak_ptr<BufferAllocator>& allocator)
 {
     std::unique_ptr<RtpPacketsPlayerStream> stream;
     if (timer && callback) {
         auto impl = std::make_unique<Impl>(callback);
         if (auto simpleStream = RtpPacketsPlayerSimpleStream::Create(timer, ssrc, clockRate,
                                                                      payloadType, mime,
-                                                                     impl.get())) {
+                                                                     impl.get(), allocator)) {
             stream.reset(new RtpPacketsPlayerMainLoopStream(std::move(impl), std::move(simpleStream)));
         }
     }
@@ -133,7 +135,7 @@ std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerMainLoopStream::
 }
 
 void RtpPacketsPlayerMainLoopStream::Play(uint64_t mediaSourceId,
-                                          const std::shared_ptr<MemoryBuffer>& media)
+                                          const std::shared_ptr<Buffer>& media)
 {
     _simpleStream->Play(mediaSourceId, media);
 }

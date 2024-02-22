@@ -1,6 +1,6 @@
 #define MS_CLASS "RTC::FileWriter"
 #include "RTC/MediaTranslate/FileWriter.hpp"
-#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 #include "Logger.hpp"
 #include <stdio.h>
 #ifdef _WIN32
@@ -18,11 +18,11 @@
 
 namespace {
 
-class BufferView : public RTC::MemoryBuffer
+class BufferView : public RTC::Buffer
 {
 public:
     BufferView(const std::vector<uint8_t>& buffer);
-    // impl. of RTC::MemoryBuffer
+    // impl. of RTC::Buffer
     size_t GetSize() const final { return _buffer.size(); }
     uint8_t* GetData() final { return const_cast<uint8_t*>(_buffer.data()); }
     const uint8_t* GetData() const { return _buffer.data(); }
@@ -53,7 +53,7 @@ bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const std::vecto
     return false;
 }
 
-bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const std::shared_ptr<MemoryBuffer>& buffer)
+bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const std::shared_ptr<Buffer>& buffer)
 {
     bool written = false;
     if (buffer && !buffer->IsEmpty()) {
@@ -104,7 +104,7 @@ void FileWriter::StartMediaWriting(const MediaObject& sender)
     }
 }
 
-void FileWriter::WriteMediaPayload(const MediaObject&, const std::shared_ptr<MemoryBuffer>& buffer)
+void FileWriter::WriteMediaPayload(const MediaObject&, const std::shared_ptr<Buffer>& buffer)
 {
     if (const auto handle = GetHandle()) {
         if (buffer && !buffer->IsEmpty()) {
@@ -126,7 +126,7 @@ void FileWriter::EndMediaWriting(const MediaObject& sender)
 }
 
 size_t FileWriter::FileWrite(const std::shared_ptr<FILE>& handle,
-                             const std::shared_ptr<MemoryBuffer>& buffer)
+                             const std::shared_ptr<Buffer>& buffer)
 {
     if (handle && buffer) {
         return ::fwrite(buffer->GetData(), 1U, buffer->GetSize(), handle.get());

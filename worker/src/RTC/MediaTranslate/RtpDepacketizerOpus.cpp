@@ -3,7 +3,7 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
-#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 #include "RTC/Codecs/Opus.hpp"
 #include "RTC/Codecs/Tools.hpp"
 #include "RTC/RtpPacket.hpp"
@@ -13,14 +13,14 @@
 namespace RTC
 {
 
-class RtpDepacketizerOpus::OpusHeadBuffer : public MemoryBuffer
+class RtpDepacketizerOpus::OpusHeadBuffer : public Buffer
 {
 public:
     OpusHeadBuffer() = default;
     OpusHeadBuffer(uint32_t sampleRate);
     OpusHeadBuffer(uint8_t channelCount, uint32_t sampleRate);
     uint8_t GetChannelCount() const { return _head._channelCount; }
-    // impl. of MemoryBuffer
+    // impl. of Buffer
     size_t GetSize() const final { return sizeof(_head); }
     uint8_t* GetData() final { return reinterpret_cast<uint8_t*>(&_head); }
     const uint8_t* GetData() const final { return reinterpret_cast<const uint8_t*>(&_head); }
@@ -28,8 +28,9 @@ private:
     Codecs::Opus::OpusHead _head;
 };
 
-RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t clockRate)
-    : RtpDepacketizer(mimeType, clockRate)
+RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+                                         const std::weak_ptr<BufferAllocator>& allocator)
+    : RtpDepacketizer(mimeType, clockRate, allocator)
     , _opusCodecData(MakeMemoryBuffer<OpusHeadBuffer>(clockRate))
 {
     EnsureStereoAudioConfig(true);
@@ -41,7 +42,7 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 
 std::shared_ptr<const MediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet)
 {
-    if (const auto frame = RtpMediaFrame::Create(GetMimeType(), GetClockRate(), packet)) {
+    if (const auto frame = CreateMediaFrame(packet)) {
         if (const auto payload = packet->GetPayload()) {
             bool stereo = false;
             Codecs::Opus::ParseTOC(payload, nullptr, nullptr, nullptr, &stereo);

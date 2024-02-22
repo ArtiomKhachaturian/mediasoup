@@ -35,7 +35,7 @@ public:
     void SetTrackSettings(uint64_t trackNumber, const std::shared_ptr<const VideoFrameConfig>& config);
 private:
     static bool SetCodecSpecific(mkvmuxer::Track* track,
-                                 const std::shared_ptr<const MemoryBuffer>& specific);
+                                 const std::shared_ptr<const Buffer>& specific);
     bool SetAudioSampleRate(uint64_t trackNumber, uint32_t sampleRate);
     void WriteMediaPayloadToSink();
     bool HasWroteMedia() const { return _wroteMedia; }

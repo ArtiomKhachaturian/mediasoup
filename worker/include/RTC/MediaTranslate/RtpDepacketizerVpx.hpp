@@ -10,7 +10,8 @@ class RtpDepacketizerVpx : public RtpDepacketizer
 {
     class RtpAssembly;
 public:
-    RtpDepacketizerVpx(const RtpCodecMimeType& mimeType, uint32_t clockRate);
+    RtpDepacketizerVpx(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+                       const std::weak_ptr<BufferAllocator>& allocator);
     ~RtpDepacketizerVpx() final;
     // impl. of RtpDepacketizer
     std::shared_ptr<const MediaFrame> AddPacket(const RtpPacket* packet) final;

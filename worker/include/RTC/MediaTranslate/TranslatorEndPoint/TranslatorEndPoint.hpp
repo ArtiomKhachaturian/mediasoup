@@ -24,18 +24,19 @@ public:
     void SetOutputVoiceId(const std::string& voiceId);
     virtual bool IsConnected() const = 0;
 protected:
-    TranslatorEndPoint(std::string ownerId = std::string(), std::string name = std::string(),
+    TranslatorEndPoint(std::string ownerId = std::string(),
+                       std::string name = std::string(),
                        uint32_t timeSliceMs = 0U);
     bool HasInput() const;
     bool HasValidTranslationSettings() const;
     void NotifyThatConnectionEstablished(bool connected);
-    uint64_t NotifyThatTranslationReceived(const std::shared_ptr<MemoryBuffer>& media);
+    uint64_t NotifyThatTranslationReceived(const std::shared_ptr<Buffer>& media);
     const std::string& GetOwnerId() const { return _ownerId; }
     const std::string& GetName() const { return _name; }
     std::string GetDescription() const;
     virtual void Connect() = 0;
     virtual void Disconnect() = 0;
-    virtual bool SendBinary(const std::shared_ptr<MemoryBuffer>& buffer) const = 0;
+    virtual bool SendBinary(const std::shared_ptr<Buffer>& buffer) const = 0;
     virtual bool SendText(const std::string& text) const = 0;
     // override of MediaSourceImpl
     bool IsSinkValid(const MediaSink* sink) const final { return this != sink; }
@@ -59,10 +60,10 @@ private:
     void UpdateTranslationChanges();
     bool SendTranslationChanges();
     bool WriteJson(const nlohmann::json& data) const;
-    bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) const;
+    bool WriteBinary(const std::shared_ptr<Buffer>& buffer) const;
     // impl. of MediaSink
     void StartMediaWriting(const MediaObject& sender) final;
-    void WriteMediaPayload(const MediaObject& sender, const std::shared_ptr<MemoryBuffer>& buffer) final;
+    void WriteMediaPayload(const MediaObject& sender, const std::shared_ptr<Buffer>& buffer) final;
     void EndMediaWriting(const MediaObject& sender) final;
 private:
     const std::unique_ptr<InputSliceBuffer> _inputSlice;

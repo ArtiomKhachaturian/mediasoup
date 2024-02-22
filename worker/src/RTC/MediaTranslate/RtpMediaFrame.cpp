@@ -2,32 +2,15 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
-#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
-
-namespace {
-
-inline RTC::RtpCodecMimeType::Type GetType(bool audio) {
-    return audio ? RTC::RtpCodecMimeType::Type::AUDIO : RTC::RtpCodecMimeType::Type::VIDEO;
-}
-
-}
 
 namespace RTC
 {
 
-RtpMediaFrame::RtpMediaFrame(bool audio, RtpCodecMimeType::Subtype codecType, uint32_t clockRate)
-    : RtpMediaFrame(RtpCodecMimeType(GetType(audio), codecType), clockRate)
-{
-}
-
-RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate)
-    : MediaFrame(mimeType, clockRate)
-{
-}
-
-RtpMediaFrame::~RtpMediaFrame()
+RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+                             const std::weak_ptr<BufferAllocator>& allocator)
+    : MediaFrame(mimeType, clockRate, allocator)
 {
 }
 
@@ -39,7 +22,7 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet)
 bool RtpMediaFrame::AddPacket(const RtpPacket* packet, const uint8_t* data, size_t len)
 {
     if (packet) {
-        AddPayload(SimpleBuffer::Create(data, len));
+        AddPayload(data, len);
         if (GetRtpTimestamp() > packet->GetTimestamp()) {
             MS_WARN_TAG(rtp, "time stamp of new packet is less than previous, SSRC = %du", packet->GetSsrc());
         }
@@ -54,12 +37,12 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet, const uint8_t* data, size
     return false;
 }
 
-std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpCodecMimeType& mimeType,
-                                                     uint32_t clockRate,
-                                                     const RtpPacket* packet)
+std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpPacket* packet,
+                                                     const RtpCodecMimeType& mimeType, uint32_t clockRate,
+                                                     const std::weak_ptr<BufferAllocator>& allocator)
 {
     if (packet) {
-        auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate);
+        auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate, allocator);
         if (frame->AddPacket(packet)) {
             return frame;
         }

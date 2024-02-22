@@ -7,7 +7,7 @@
 #include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
 #include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
-#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/Timestamp.hpp"
@@ -107,15 +107,16 @@ RtpPacketsPlayerMediaFragment::~RtpPacketsPlayerMediaFragment()
 }
 
 std::shared_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
-    Parse(const RtpCodecMimeType& mime, const std::shared_ptr<MemoryBuffer>& buffer,
+    Parse(const RtpCodecMimeType& mime, const std::shared_ptr<Buffer>& buffer,
           const std::shared_ptr<MediaTimer> timer, uint32_t ssrc, uint32_t clockRate,
           uint8_t payloadType, uint64_t mediaId, uint64_t mediaSourceId,
-          RtpPacketsPlayerCallback* callback)
+          RtpPacketsPlayerCallback* callback,
+          const std::weak_ptr<BufferAllocator>& allocator)
 {
     std::shared_ptr<RtpPacketsPlayerMediaFragment> fragment;
     if (buffer && callback && timer) {
         if (WebMCodecs::IsSupported(mime)) {
-            auto deserializer = std::make_unique<WebMDeserializer>();
+            auto deserializer = std::make_unique<WebMDeserializer>(allocator);
             const auto result = deserializer->Add(buffer);
             if (MaybeOk(result)) {
                 if (const auto tracksCount = deserializer->GetTracksCount()) {

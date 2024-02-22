@@ -18,7 +18,7 @@ public:
                int* error = nullptr);
     ~FileReader() final;
     static std::vector<uint8_t> ReadAllAsBinary(const std::string_view& fileNameUtf8);
-    static std::shared_ptr<MemoryBuffer> ReadAllAsBuffer(const std::string_view& fileNameUtf8);
+    static std::shared_ptr<Buffer> ReadAllAsBuffer(const std::string_view& fileNameUtf8);
     static bool IsValidForRead(const std::string_view& fileNameUtf8);
     // overrides of FileDevice<>
     bool IsOpen() const final;
@@ -32,7 +32,7 @@ private:
     void Stop();
     bool ReadContent(); // return false if error or stop requested
     bool SeekToStart();
-    std::shared_ptr<MemoryBuffer> ReadBuffer(bool& eof, bool& ok) const;
+    std::shared_ptr<Buffer> ReadBuffer(bool& eof, bool& ok) const;
     static int64_t GetFileSize(const std::shared_ptr<FILE>& handle);
     static int64_t FileTell(const std::shared_ptr<FILE>& handle);
     static bool FileSeek(const std::shared_ptr<FILE>& handle, int command, long offset = 0L);

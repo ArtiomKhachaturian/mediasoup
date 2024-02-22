@@ -1,18 +1,29 @@
 #define MS_CLASS "RTC::SegmentsBuffer"
 #include "RTC/MediaTranslate/Buffers/SegmentsBuffer.hpp"
-#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
 
 SegmentsBuffer::SegmentsBuffer(size_t capacity)
-    : _capacity(capacity)
+    : SegmentsBuffer(std::weak_ptr<BufferAllocator>(), capacity)
+{
+}
+
+SegmentsBuffer::SegmentsBuffer(const std::weak_ptr<BufferAllocator>& allocator)
+    : SegmentsBuffer(allocator, std::numeric_limits<size_t>::max())
+{
+}
+
+SegmentsBuffer::SegmentsBuffer(const std::weak_ptr<BufferAllocator>& allocator, size_t capacity)
+    : _allocator(allocator)
+    , _capacity(capacity)
 {
     MS_ASSERT(_capacity, "capacity should be greater than zero");
 }
 
-SegmentsBuffer::Result SegmentsBuffer::Push(const std::shared_ptr<MemoryBuffer>& buffer)
+SegmentsBuffer::Result SegmentsBuffer::Push(const std::shared_ptr<Buffer>& buffer)
 {
     Result result = Result::Failed;
     if (buffer && !buffer->IsEmpty()) {
@@ -89,12 +100,15 @@ uint8_t* SegmentsBuffer::Merge() const
 {
     if (const auto count = _buffers.size()) {
         if (count > 1U) {
-            auto merged = MakeMemoryBuffer<SimpleBuffer>();
-            merged->Reserve(_size);
-            for (const auto& buffer : _buffers) {
-                merged->Append(buffer);
-            }
+            auto merged = AllocateBuffer(_size, _allocator);
+            MS_ASSERT(merged, "failed to create merged buffer");
             MS_ASSERT(_size == merged->GetSize(), "merged size is incorrect");
+            size_t offset = 0U;
+            for (const auto& buffer : _buffers) {
+                const auto size = buffer->GetSize();
+                std::memcpy(merged->GetData() + offset, buffer->GetData(), size);
+                offset += size;
+            }
             _buffers.clear();
             _buffers.push_back(std::move(merged));
         }

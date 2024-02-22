@@ -13,7 +13,7 @@ class TranslatorEndPoint::InputSliceBuffer
 {
 public:
     InputSliceBuffer(uint32_t timeSliceMs);
-    void Add(const std::shared_ptr<MemoryBuffer>& buffer, TranslatorEndPoint* endPoint);
+    void Add(const std::shared_ptr<Buffer>& buffer, TranslatorEndPoint* endPoint);
     void Reset(bool start);
     static std::unique_ptr<InputSliceBuffer> Create(uint32_t timeSliceMs);
 private:
@@ -107,7 +107,7 @@ void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
     }
 }
 
-uint64_t TranslatorEndPoint::NotifyThatTranslationReceived(const std::shared_ptr<MemoryBuffer>& media)
+uint64_t TranslatorEndPoint::NotifyThatTranslationReceived(const std::shared_ptr<Buffer>& media)
 {
     if (media) {
         const auto number = _translationsCount.fetch_add(1U) + 1U;
@@ -292,7 +292,7 @@ bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
     return ok;
 }
 
-bool TranslatorEndPoint::WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) const
+bool TranslatorEndPoint::WriteBinary(const std::shared_ptr<Buffer>& buffer) const
 {
     bool ok = false;
     if (buffer && IsConnected()) {
@@ -314,7 +314,7 @@ void TranslatorEndPoint::StartMediaWriting(const MediaObject& sender)
 }
 
 void TranslatorEndPoint::WriteMediaPayload(const MediaObject& sender,
-                                           const std::shared_ptr<MemoryBuffer>& buffer)
+                                           const std::shared_ptr<Buffer>& buffer)
 {
     if (buffer && !buffer->IsEmpty() && IsConnected()) {
         if (_inputSlice) {
@@ -339,7 +339,7 @@ TranslatorEndPoint::InputSliceBuffer::InputSliceBuffer(uint32_t timeSliceMs)
 {
 }
 
-void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<MemoryBuffer>& buffer,
+void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<Buffer>& buffer,
                                                TranslatorEndPoint* endPoint)
 {
     if (buffer && endPoint) {

@@ -1,5 +1,5 @@
 #pragma once
-#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 #include <list>
 #include <limits>
 #include <memory>
@@ -7,9 +7,11 @@
 namespace RTC
 {
 
-class SegmentsBuffer : public MemoryBuffer
+class BufferAllocator;
+
+class SegmentsBuffer : public Buffer
 {
-    using BuffersList = std::list<std::shared_ptr<MemoryBuffer>>;
+    using BuffersList = std::list<std::shared_ptr<Buffer>>;
 public:
     enum Result {
         Failed = 0, // error
@@ -19,11 +21,14 @@ public:
 public:
     // capacity in bytes
     SegmentsBuffer(size_t capacity = std::numeric_limits<size_t>::max());
-    Result Push(const std::shared_ptr<MemoryBuffer>& buffer);
+    SegmentsBuffer(const std::weak_ptr<BufferAllocator>& allocator);
+    SegmentsBuffer(const std::weak_ptr<BufferAllocator>& allocator, size_t capacity);
+    Result Push(const std::shared_ptr<Buffer>& buffer);
     void Clear();
     size_t CopyTo(size_t offset, size_t len, uint8_t* output) const;
     size_t GetCapacity() const { return _capacity; }
-    // impl. of MemoryBuffer
+    const std::weak_ptr<BufferAllocator>& GetAllocator() const { return _allocator; }
+    // impl. of Buffer
     size_t GetSize() const final { return _size; }
     uint8_t* GetData() final;
     const uint8_t* GetData() const final;
@@ -32,6 +37,7 @@ private:
     // expensive operation
     uint8_t* Merge() const;
 private:
+    const std::weak_ptr<BufferAllocator> _allocator;
     const size_t _capacity;
     mutable BuffersList _buffers;
     size_t _size = 0UL;

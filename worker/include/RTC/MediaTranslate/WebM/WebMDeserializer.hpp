@@ -4,6 +4,7 @@
 namespace RTC
 {
 
+class BufferAllocator;
 class MkvBufferedReader;
 enum class MkvReadResult;
 
@@ -11,10 +12,10 @@ class WebMDeserializer : public MediaFrameDeserializer
 {
     class TrackInfo;
 public:
-    WebMDeserializer();
+    WebMDeserializer(const std::weak_ptr<BufferAllocator>& allocator);
     ~WebMDeserializer() final;
     // impl. of RtpMediaFrameDeserializer
-    MediaFrameDeserializeResult Add(const std::shared_ptr<MemoryBuffer>& buffer) final;
+    MediaFrameDeserializeResult Add(const std::shared_ptr<Buffer>& buffer) final;
     void Clear() final;
     std::vector<std::shared_ptr<const MediaFrame>> ReadNextFrames(size_t trackIndex,
                                                                   MediaFrameDeserializeResult* result) final;
@@ -24,6 +25,7 @@ public:
 private:
     static MediaFrameDeserializeResult FromMkvReadResult(MkvReadResult result);
 private:
+    const std::weak_ptr<BufferAllocator> _allocator;
     const std::unique_ptr<MkvBufferedReader> _reader;
     absl::flat_hash_map<size_t, std::unique_ptr<TrackInfo>> _tracks;
 };

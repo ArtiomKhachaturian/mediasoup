@@ -3,7 +3,7 @@
 #include "RTC/MediaTranslate/Websocket/WebsocketListener.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketFailure.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTppUtils.hpp"
-#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 #include "RTC/MediaTranslate/ThreadUtils.hpp"
 #include "Logger.hpp"
 #include <websocketpp/config/asio_client.hpp>
@@ -17,11 +17,12 @@ namespace {
 using namespace RTC;
 
 template<class MessagePtr>
-class MessageMemoryBuffer : public MemoryBuffer
+class MessageBuffer : public Buffer
 {
 public:
-    MessageMemoryBuffer(MessagePtr message);
-    ~MessageMemoryBuffer() final;
+    MessageBuffer(MessagePtr message);
+    ~MessageBuffer() final;
+    // impl. of Buffer
     size_t GetSize() const final;
     uint8_t* GetData() final;
     const uint8_t* GetData() const final;
@@ -80,7 +81,7 @@ public:
     virtual void Run() = 0;
     virtual bool Open() = 0;
     virtual void Close() = 0;
-    virtual bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) = 0;
+    virtual bool WriteBinary(const std::shared_ptr<Buffer>& buffer) = 0;
     virtual bool WriteText(const std::string& text) = 0;
     static std::shared_ptr<Socket> Create(uint64_t id, const std::shared_ptr<const Config>& config,
                                           const std::shared_ptr<SocketListeners>& listeners);
@@ -106,7 +107,7 @@ public:
     void Run() final;
     bool Open() final;
     void Close() final;
-    bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) final;
+    bool WriteBinary(const std::shared_ptr<Buffer>& buffer) final;
     bool WriteText(const std::string& text) final;
 protected:
     SocketImpl(uint64_t id, const std::shared_ptr<const Config>& config,
@@ -134,7 +135,7 @@ private:
     bool SetOpened(bool opened, std::unique_ptr<Guard> droppedGuard = nullptr);
     bool IsOpened() const { return _opened.load(std::memory_order_relaxed); }
     static std::string ToText(MessagePtr message);
-    static std::shared_ptr<MemoryBuffer> ToBinary(MessagePtr message);
+    static std::shared_ptr<Buffer> ToBinary(MessagePtr message);
 private:
     static inline constexpr uint16_t _closeCode = websocketpp::close::status::going_away;
     const uint64_t _id;
@@ -178,7 +179,7 @@ public:
     void Run() final;
     bool Open() final;
     void Close() final;
-    bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) final;
+    bool WriteBinary(const std::shared_ptr<Buffer>& buffer) final;
     bool WriteText(const std::string& text) final;
 private:
     std::shared_ptr<Socket> _impl;
@@ -250,7 +251,7 @@ bool WebsocketTpp::WriteText(const std::string& text)
     return false;
 }
 
-bool WebsocketTpp::WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer)
+bool WebsocketTpp::WriteBinary(const std::shared_ptr<Buffer>& buffer)
 {
     if (buffer) {
         LOCK_READ_PROTECTED_OBJ(_socket);
@@ -401,7 +402,7 @@ void WebsocketTpp::SocketImpl<TConfig>::Close()
 }
 
 template<class TConfig>
-bool WebsocketTpp::SocketImpl<TConfig>::WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer)
+bool WebsocketTpp::SocketImpl<TConfig>::WriteBinary(const std::shared_ptr<Buffer>& buffer)
 {
     bool ok = false;
     if (buffer && IsOpened()) {
@@ -593,10 +594,10 @@ std::string WebsocketTpp::SocketImpl<TConfig>::ToText(MessagePtr message)
 }
 
 template<class TConfig>
-std::shared_ptr<MemoryBuffer> WebsocketTpp::SocketImpl<TConfig>::ToBinary(MessagePtr message)
+std::shared_ptr<Buffer> WebsocketTpp::SocketImpl<TConfig>::ToBinary(MessagePtr message)
 {
     if (message) {
-        return MakeMemoryBuffer<MessageMemoryBuffer<MessagePtr>>(std::move(message));
+        return MakeMemoryBuffer<MessageBuffer<MessagePtr>>(std::move(message));
     }
     return nullptr;
 }
@@ -681,7 +682,7 @@ void WebsocketTpp::SocketWrapper::Close()
     }
 }
 
-bool WebsocketTpp::SocketWrapper::WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer)
+bool WebsocketTpp::SocketWrapper::WriteBinary(const std::shared_ptr<Buffer>& buffer)
 {
     if (buffer) {
         if (const auto impl = std::atomic_load(&_impl)) {
@@ -704,31 +705,31 @@ bool WebsocketTpp::SocketWrapper::WriteText(const std::string& text)
 namespace {
 
 template<class MessagePtr>
-MessageMemoryBuffer<MessagePtr>::MessageMemoryBuffer(MessagePtr message)
+MessageBuffer<MessagePtr>::MessageBuffer(MessagePtr message)
     : _message(std::move(message))
 {
 }
 
 template<class MessagePtr>
-MessageMemoryBuffer<MessagePtr>::~MessageMemoryBuffer()
+MessageBuffer<MessagePtr>::~MessageBuffer()
 {
     _message->recycle();
 }
 
 template<class MessagePtr>
-size_t MessageMemoryBuffer<MessagePtr>::GetSize() const
+size_t MessageBuffer<MessagePtr>::GetSize() const
 {
     return _message->get_payload().size();
 }
 
 template<class MessagePtr>
-uint8_t* MessageMemoryBuffer<MessagePtr>::GetData()
+uint8_t* MessageBuffer<MessagePtr>::GetData()
 {
     return reinterpret_cast<uint8_t*>(_message->get_raw_payload().data());
 }
 
 template<class MessagePtr>
-const uint8_t* MessageMemoryBuffer<MessagePtr>::GetData() const
+const uint8_t* MessageBuffer<MessagePtr>::GetData() const
 {
     return reinterpret_cast<const uint8_t*>(_message->get_payload().data());
 }

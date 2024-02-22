@@ -6,7 +6,7 @@
 namespace RTC
 {
 
-class MemoryBuffer : public MediaObject
+class Buffer : public MediaObject
 {
 public:
     virtual size_t GetSize() const = 0;
@@ -18,7 +18,7 @@ public:
 
 template<class TBufferImpl, class... Args>
 inline std::shared_ptr<TBufferImpl> MakeMemoryBuffer(Args&&... args) {
-    static_assert(std::is_base_of_v<MemoryBuffer, TBufferImpl>, "class must be derived from MemoryBuffer");
+    static_assert(std::is_base_of_v<Buffer, TBufferImpl>, "class must be derived from Buffer");
     auto buffer = new TBufferImpl(std::forward<Args>(args)...);
     return std::shared_ptr<TBufferImpl>(buffer, [](TBufferImpl* buffer) {
         buffer->Recycle();

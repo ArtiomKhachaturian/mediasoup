@@ -9,7 +9,7 @@
 namespace RTC
 {
 
-class MemoryBuffer;
+class BufferAllocator;
 class MediaTimer;
 class RtpPacketsPlayerMediaFragment;
 
@@ -27,16 +27,18 @@ public:
                                                           uint32_t ssrc, uint32_t clockRate,
                                                           uint8_t payloadType,
                                                           const RtpCodecMimeType& mime,
-                                                          RtpPacketsPlayerCallback* callback);
+                                                          RtpPacketsPlayerCallback* callback,
+                                                          const std::weak_ptr<BufferAllocator>& allocator);
     // impl. of RtpPacketsPlayerStream
-    void Play(uint64_t mediaSourceId, const std::shared_ptr<MemoryBuffer>& media) final;
+    void Play(uint64_t mediaSourceId, const std::shared_ptr<Buffer>& media) final;
     bool IsPlaying() const final;
 private:
     RtpPacketsPlayerSimpleStream(const std::shared_ptr<MediaTimer>& timer,
                                  uint32_t ssrc, uint32_t clockRate,
                                  uint8_t payloadType,
                                  const RtpCodecMimeType& mime,
-                                 RtpPacketsPlayerCallback* callback);
+                                 RtpPacketsPlayerCallback* callback,
+                                 const std::weak_ptr<BufferAllocator>& allocator);
     static bool IsPlaying(uint64_t mediaSourceId, uint64_t mediaId,
                           const MediaSourcesMap& playingMedias);
     // impl. of RtpPacketsPlayerCallback
@@ -51,6 +53,7 @@ private:
     const uint8_t _payloadType;
     const RtpCodecMimeType _mime;
     RtpPacketsPlayerCallback* const _callback;
+    const std::weak_ptr<BufferAllocator> _allocator;
     // key is media source ID
     ProtectedObj<MediaSourcesMap> _playingMedias;
 };

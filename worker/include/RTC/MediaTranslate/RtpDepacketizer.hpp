@@ -10,6 +10,7 @@ class MediaFrame;
 class RtpMediaFrame;
 class RtpMediaFrameSerializer;
 class RtpPacket;
+class BufferAllocator;
 
 class RtpDepacketizer
 {
@@ -18,12 +19,18 @@ public:
     virtual std::shared_ptr<const MediaFrame> AddPacket(const RtpPacket* packet) = 0;
     const RtpCodecMimeType& GetMimeType() const { return _mimeType; }
     uint32_t GetClockRate() const { return _clockRate; }
-    static std::unique_ptr<RtpDepacketizer> Create(const RtpCodecMimeType& mimeType, uint32_t clockRate);
+    static std::unique_ptr<RtpDepacketizer> Create(const RtpCodecMimeType& mimeType,
+                                                   uint32_t clockRate,
+                                                   const std::weak_ptr<BufferAllocator>& allocator);
 protected:
-    RtpDepacketizer(const RtpCodecMimeType& mimeType, uint32_t clockRate);
+    RtpDepacketizer(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+                    const std::weak_ptr<BufferAllocator>& allocator);
+    std::shared_ptr<RtpMediaFrame> CreateMediaFrame() const;
+    std::shared_ptr<RtpMediaFrame> CreateMediaFrame(const RtpPacket* packet) const;
 private:
     const RtpCodecMimeType _mimeType;
     const uint32_t _clockRate;
+    const std::weak_ptr<BufferAllocator> _allocator;
 };
 
 } // namespace RTC

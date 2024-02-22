@@ -23,7 +23,7 @@ public:
     void OnStateChanged(uint64_t socketId, WebsocketState state) final;
     void OnFailed(uint64_t socketId, WebsocketFailure failure, const std::string& what) final;
     void OnTextMessageReceived(uint64_t socketId, const std::string& message) final;
-    void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<MemoryBuffer>& message) final;
+    void OnBinaryMessageReceved(uint64_t socketId, const std::shared_ptr<Buffer>& message) final;
 private:
     const OnStateChangedFn _onStateChanged;
     const OnFailedFn _onFailed;
@@ -172,7 +172,7 @@ void FunctorListener::OnTextMessageReceived(uint64_t socketId, const std::string
 }
 
 void FunctorListener::OnBinaryMessageReceved(uint64_t socketId,
-                                             const std::shared_ptr<MemoryBuffer>& message)
+                                             const std::shared_ptr<Buffer>& message)
 {
     if (_onBinaryMessageReceved) {
         _onBinaryMessageReceved(socketId, message);

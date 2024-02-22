@@ -10,6 +10,7 @@
 namespace RTC
 {
 
+class BufferAllocator;
 class RtpStream;
 class RtpPacketsPlayer;
 class Producer;
@@ -28,7 +29,8 @@ public:
     static std::unique_ptr<Translator> Create(const Producer* producer,
                                               const WebsocketFactory* websocketFactory,
                                               RtpPacketsPlayer* rtpPacketsPlayer,
-                                              RtpPacketsCollector* output);
+                                              RtpPacketsCollector* output,
+                                              const std::weak_ptr<BufferAllocator>& allocator);
     bool AddStream(uint32_t mappedSsrc, const RtpStream* stream);
     bool RemoveStream(uint32_t mappedSsrc);
     // returns true if packet was sent to translation service
@@ -45,7 +47,8 @@ private:
     Translator(const Producer* producer,
                const WebsocketFactory* websocketFactory,
                RtpPacketsPlayer* rtpPacketsPlayer,
-               RtpPacketsCollector* output);
+               RtpPacketsCollector* output,
+               const std::weak_ptr<BufferAllocator>& allocator);
     // SSRC maybe mapped or original
     std::shared_ptr<TranslatorSource> GetSource(uint32_t ssrc) const;
     void AddConsumersToSource(const std::shared_ptr<TranslatorSource>& source) const;
@@ -71,6 +74,7 @@ private:
 #endif
     RtpPacketsPlayer* const _rtpPacketsPlayer;
     RtpPacketsCollector* const _output;
+    const std::weak_ptr<BufferAllocator> _allocator;
 #if defined(SINGLE_TRANSLATION_POINT_CONNECTION) || defined(NO_TRANSLATION_SERVICE)
     // websocket or file end-point, valid for 1st created instance, just for debug
     mutable std::weak_ptr<TranslatorEndPoint> _nonStubEndPointRef;

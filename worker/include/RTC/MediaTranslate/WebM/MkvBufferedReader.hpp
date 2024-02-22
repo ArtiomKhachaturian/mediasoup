@@ -7,12 +7,14 @@
 namespace RTC
 {
 
+class BufferAllocator;
+
 class MkvBufferedReader : private mkvparser::IMkvReader
 {
 public:
-    MkvBufferedReader();
+    MkvBufferedReader(const std::weak_ptr<BufferAllocator>& allocator);
     ~MkvBufferedReader() final = default;
-    MkvReadResult AddBuffer(const std::shared_ptr<MemoryBuffer>& buffer);
+    MkvReadResult AddBuffer(const std::shared_ptr<Buffer>& buffer);
     void ClearBuffers();
     const mkvparser::Segment* GetSegment() const { return _segment.get(); }
     mkvparser::Segment* GetSegment() { return _segment.get(); }

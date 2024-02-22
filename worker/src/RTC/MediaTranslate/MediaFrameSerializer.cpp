@@ -12,13 +12,16 @@
 namespace RTC
 {
 
-class MediaFrameSerializer::OffsetEstimator
+class MediaFrameSerializer::SinkWriter
 {
 public:
-    OffsetEstimator() = default;
+    SinkWriter(std::unique_ptr<MediaFrameWriter> impl);
+    bool Write(const std::shared_ptr<const MediaFrame>& mediaFrame);
+private:
     const webrtc::TimeDelta& Update(const Timestamp& timestamp);
     bool IsAccepted(const Timestamp& timestamp) const;
 private:
+    const std::unique_ptr<MediaFrameWriter> _impl;
     // TODO: think about thread-safety for these members
     std::optional<Timestamp> _lastTimestamp;
     webrtc::TimeDelta _offset = webrtc::TimeDelta::Zero();
@@ -38,11 +41,11 @@ bool MediaFrameSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFr
 {
     bool ok = false;
     if (mediaFrame && mediaFrame->GetMimeType() == GetMimeType()) {
-        PushToTestSink(mediaFrame);
-        LOCK_READ_PROTECTED_OBJ(_sinks);
-        if (!_sinks->empty()) {
-            for (auto it = _sinks->begin(); it != _sinks->end(); ++it) {
-                if (Push(mediaFrame, it->second)) {
+        WriteToTestSink(mediaFrame);
+        LOCK_READ_PROTECTED_OBJ(_writers);
+        if (!_writers->empty()) {
+            for (auto it = _writers->begin(); it != _writers->end(); ++it) {
+                if (it->second->Write(mediaFrame)) {
                     ok = true;
                 }
             }
@@ -58,10 +61,9 @@ bool MediaFrameSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFr
 bool MediaFrameSerializer::AddTestSink(MediaSink* sink)
 {
     if (sink) {
-        if (auto writer = CreateWriter(sink)) {
-            LOCK_WRITE_PROTECTED_OBJ(_testSink);
-            _testSink->first = std::move(writer);
-            _testSink->second = std::make_unique<OffsetEstimator>();
+        if (auto writer = CreateSinkWriter(sink)) {
+            LOCK_WRITE_PROTECTED_OBJ(_testWriter);
+            _testWriter = std::move(writer);
             return true;
         }
     }
@@ -70,21 +72,25 @@ bool MediaFrameSerializer::AddTestSink(MediaSink* sink)
 
 void MediaFrameSerializer::RemoveTestSink()
 {
-    LOCK_WRITE_PROTECTED_OBJ(_testSink);
-    _testSink->first.reset();
-    _testSink->second.reset();
+    LOCK_WRITE_PROTECTED_OBJ(_testWriter);
+    _testWriter->reset();
+}
+
+bool MediaFrameSerializer::HasTestSink() const
+{
+    LOCK_READ_PROTECTED_OBJ(_testWriter);
+    return nullptr != _testWriter->get();
 }
 
 bool MediaFrameSerializer::AddSink(MediaSink* sink)
 {
     bool added = false;
     if (sink) {
-        LOCK_WRITE_PROTECTED_OBJ(_sinks);
-        added = _sinks->count(sink) > 0U;
+        LOCK_WRITE_PROTECTED_OBJ(_writers);
+        added = _writers->count(sink) > 0U;
         if (!added) {
-            if (auto writer = CreateWriter(sink)) {
-                auto sinkData = std::make_pair(std::move(writer), std::make_unique<OffsetEstimator>());
-                _sinks->insert(std::make_pair(sink, std::move(sinkData)));
+            if (auto writer = CreateSinkWriter(sink)) {
+                _writers->insert(std::make_pair(sink, std::move(writer)));
                 added = true;
             }
         }
@@ -95,22 +101,22 @@ bool MediaFrameSerializer::AddSink(MediaSink* sink)
 bool MediaFrameSerializer::RemoveSink(MediaSink* sink)
 {
     if (sink) {
-        LOCK_WRITE_PROTECTED_OBJ(_sinks);
-        return _sinks->erase(sink) > 0U;
+        LOCK_WRITE_PROTECTED_OBJ(_writers);
+        return _writers->erase(sink) > 0U;
     }
     return false;
 }
 
 void MediaFrameSerializer::RemoveAllSinks()
 {
-    LOCK_WRITE_PROTECTED_OBJ(_sinks);
-    _sinks->clear();
+    LOCK_WRITE_PROTECTED_OBJ(_writers);
+    _writers->clear();
 }
 
 bool MediaFrameSerializer::HasSinks() const
 {
-    LOCK_READ_PROTECTED_OBJ(_sinks);
-    return !_sinks->empty();
+    LOCK_READ_PROTECTED_OBJ(_writers);
+    return !_writers->empty();
 }
 
 std::string_view MediaFrameSerializer::GetFileExtension() const
@@ -118,41 +124,51 @@ std::string_view MediaFrameSerializer::GetFileExtension() const
     return MimeSubTypeToString(GetMimeType().GetSubtype());
 }
 
-void MediaFrameSerializer::PushToTestSink(const std::shared_ptr<const MediaFrame>& mediaFrame) const
+std::unique_ptr<MediaFrameSerializer::SinkWriter> MediaFrameSerializer::CreateSinkWriter(MediaSink* sink)
+{
+    if (auto impl = CreateWriter(sink)) {
+        return std::make_unique<SinkWriter>(std::move(impl));
+    }
+    return nullptr;
+}
+
+void MediaFrameSerializer::WriteToTestSink(const std::shared_ptr<const MediaFrame>& mediaFrame) const
 {
     if (mediaFrame) {
-        LOCK_READ_PROTECTED_OBJ(_testSink);
-        if (!Push(mediaFrame, _testSink.ConstRef())) {
-            // TODO: log warning, maybe at debug level
+        LOCK_READ_PROTECTED_OBJ(_testWriter);
+        if (const auto& testWriter = _testWriter.ConstRef()) {
+            if (!testWriter->Write(mediaFrame)) {
+                // TODO: log warning, maybe at debug level
+            }
         }
     }
 }
 
-bool MediaFrameSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFrame,
-                                const SinkData& sink)
+MediaFrameSerializer::SinkWriter::SinkWriter(std::unique_ptr<MediaFrameWriter> impl)
+    : _impl(std::move(impl))
+{
+}
+
+bool MediaFrameSerializer::SinkWriter::Write(const std::shared_ptr<const MediaFrame>& mediaFrame)
 {
     if (mediaFrame) {
-        const auto& writer = sink.first;
-        const auto& offset = sink.second;
-        if (writer && offset) {
-            const auto& timestamp = mediaFrame->GetTimestamp();
-            if (offset->IsAccepted(timestamp)) {
-                switch (mediaFrame->GetMimeType().GetType()) {
-                    case RtpCodecMimeType::Type::AUDIO:
-                        writer->SetConfig(mediaFrame->GetAudioConfig());
-                        break;
-                    case RtpCodecMimeType::Type::VIDEO:
-                        writer->SetConfig(mediaFrame->GetVideoConfig());
-                        break;
-                }
-                return writer->Write(mediaFrame, offset->Update(timestamp));
+        const auto& timestamp = mediaFrame->GetTimestamp();
+        if (IsAccepted(timestamp)) {
+            switch (mediaFrame->GetMimeType().GetType()) {
+                case RtpCodecMimeType::Type::AUDIO:
+                    _impl->SetConfig(mediaFrame->GetAudioConfig());
+                    break;
+                case RtpCodecMimeType::Type::VIDEO:
+                    _impl->SetConfig(mediaFrame->GetVideoConfig());
+                    break;
             }
+            return _impl->Write(mediaFrame, Update(timestamp));
         }
     }
     return false;
 }
 
-const webrtc::TimeDelta& MediaFrameSerializer::OffsetEstimator::Update(const Timestamp& timestamp)
+const webrtc::TimeDelta& MediaFrameSerializer::SinkWriter::Update(const Timestamp& timestamp)
 {
     if (!_lastTimestamp) {
         _lastTimestamp = timestamp;
@@ -164,7 +180,7 @@ const webrtc::TimeDelta& MediaFrameSerializer::OffsetEstimator::Update(const Tim
     return _offset;
 }
 
-bool MediaFrameSerializer::OffsetEstimator::IsAccepted(const Timestamp& timestamp) const
+bool MediaFrameSerializer::SinkWriter::IsAccepted(const Timestamp& timestamp) const
 {
     return !_lastTimestamp.has_value() || timestamp >= _lastTimestamp.value();
 }

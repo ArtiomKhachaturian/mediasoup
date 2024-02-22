@@ -10,7 +10,7 @@ namespace RTC
 {
 
 class WebsocketListener;
-class MemoryBuffer;
+class Buffer;
 
 class Websocket : public MediaObject
 {
@@ -22,7 +22,7 @@ public:
     virtual WebsocketState GetState() const = 0;
     virtual std::string GetUrl() const = 0;
     virtual bool WriteText(const std::string& text) = 0;
-    virtual bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) = 0;
+    virtual bool WriteBinary(const std::shared_ptr<Buffer>& buffer) = 0;
     void AddListener(WebsocketListener* listener);
     void RemoveListener(WebsocketListener* listener);
 protected:

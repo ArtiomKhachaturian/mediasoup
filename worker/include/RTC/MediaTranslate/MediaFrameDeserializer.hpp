@@ -9,7 +9,7 @@ namespace RTC
 {
 
 class MediaFrame;
-class MemoryBuffer;
+class Buffer;
 
 class MediaFrameDeserializer
 {
@@ -17,7 +17,7 @@ public:
     MediaFrameDeserializer(const MediaFrameDeserializer&) = delete;
     MediaFrameDeserializer(MediaFrameDeserializer&&) = delete;
     virtual ~MediaFrameDeserializer() = default;
-    virtual MediaFrameDeserializeResult Add(const std::shared_ptr<MemoryBuffer>& buffer) = 0;
+    virtual MediaFrameDeserializeResult Add(const std::shared_ptr<Buffer>& buffer) = 0;
     virtual void Clear() {}
     // read all available frames,
     // timestamp of media frames is offset from the beginning of the stream:

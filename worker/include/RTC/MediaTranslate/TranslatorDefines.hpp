@@ -14,4 +14,4 @@
 #define LOCAL_WEBSOCKET_TEST_SERVER
 #endif
 
-#endif
+#endif // MEDIA_TRANSLATIONS_TEST

@@ -3,7 +3,7 @@
 #include "RTC/MediaTranslate/Websocket/WebsocketState.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
-#include "RTC/MediaTranslate/Buffers/MemoryBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 #include "RTC/MediaTranslate/FileReader.hpp"
 #include "Logger.hpp"
 
@@ -34,8 +34,8 @@ private:
     WebsocketState GetState() const { return _state.load(); }
     bool SetConnectedState();
     bool SetStrongState(WebsocketState actual, WebsocketState expected);
-    std::shared_ptr<MemoryBuffer> ReadMediaFromFile() const;
-    void NotifyAboutReceivedMedia(const std::shared_ptr<MemoryBuffer>& media);
+    std::shared_ptr<Buffer> ReadMediaFromFile() const;
+    void NotifyAboutReceivedMedia(const std::shared_ptr<Buffer>& media);
     void NotifyThatConnected(bool connected = true);
     void StartTimer(uint32_t interval, StartMode mode);
     void StartTimer(StartMode mode);
@@ -103,7 +103,7 @@ void FileEndPoint::Disconnect()
     }
 }
 
-bool FileEndPoint::SendBinary(const std::shared_ptr<MemoryBuffer>& buffer) const
+bool FileEndPoint::SendBinary(const std::shared_ptr<Buffer>& buffer) const
 {
     if (_callback && buffer && IsConnected() && !buffer->IsEmpty()) {
         _callback->SetHasWrittenInputMedia(true);
@@ -161,12 +161,12 @@ bool FileEndPoint::TimerCallback::SetStrongState(WebsocketState actual, Websocke
     return _state.compare_exchange_strong(expected, actual);
 }
 
-std::shared_ptr<MemoryBuffer> FileEndPoint::TimerCallback::ReadMediaFromFile() const
+std::shared_ptr<Buffer> FileEndPoint::TimerCallback::ReadMediaFromFile() const
 {
     return FileReader::ReadAllAsBuffer(_owner->GetName());
 }
 
-void FileEndPoint::TimerCallback::NotifyAboutReceivedMedia(const std::shared_ptr<MemoryBuffer>& media)
+void FileEndPoint::TimerCallback::NotifyAboutReceivedMedia(const std::shared_ptr<Buffer>& media)
 {
     if (media) {
         _owner->NotifyThatTranslationReceived(media);

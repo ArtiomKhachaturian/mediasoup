@@ -5,12 +5,12 @@
 namespace RTC
 {
 
-MkvBufferedReader::MkvBufferedReader()
-	: _buffers(_maxBufferSize)
+MkvBufferedReader::MkvBufferedReader(const std::weak_ptr<BufferAllocator>& allocator)
+	: _buffers(allocator, _maxBufferSize)
 {
 }
 
-MkvReadResult MkvBufferedReader::AddBuffer(const std::shared_ptr<MemoryBuffer>& buffer)
+MkvReadResult MkvBufferedReader::AddBuffer(const std::shared_ptr<Buffer>& buffer)
 {
     auto result = MkvReadResult::InvalidInputArg;
     if (buffer && !buffer->IsEmpty()) {

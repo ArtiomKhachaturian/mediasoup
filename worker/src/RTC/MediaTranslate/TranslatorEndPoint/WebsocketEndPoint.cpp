@@ -78,7 +78,7 @@ void WebsocketEndPoint::Disconnect()
     _socket->Close();
 }
 
-bool WebsocketEndPoint::SendBinary(const std::shared_ptr<MemoryBuffer>& buffer) const
+bool WebsocketEndPoint::SendBinary(const std::shared_ptr<Buffer>& buffer) const
 {
     return _socket->WriteBinary(buffer);
 }
@@ -103,7 +103,7 @@ void WebsocketEndPoint::OnStateChanged(uint64_t socketId, WebsocketState state)
     }
 }
 
-void WebsocketEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<MemoryBuffer>& message)
+void WebsocketEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<Buffer>& message)
 {
     if (message) {
 #ifdef WRITE_TRANSLATION_TO_FILE

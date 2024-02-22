@@ -17,6 +17,7 @@ class FileReader;
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 class FileWriter;
 #endif
+class BufferAllocator;
 class MediaFrameSerializer;
 class RtpDepacketizer;
 class RtpPacket;
@@ -37,7 +38,8 @@ public:
                                                 	TranslatorEndPointFactory* endPointsFactory,
                                                 	RtpPacketsPlayer* rtpPacketsPlayer,
                                                 	RtpPacketsCollector* output,
-                                                	const std::string& producerId);
+                                                	const std::string& producerId,
+                                                    const std::weak_ptr<BufferAllocator>& allocator);
     const RtpCodecMimeType& GetMime() const;
     uint32_t GetClockRate() const;
     uint8_t GetPayloadType() const { return _payloadType; }
@@ -76,7 +78,7 @@ private:
                 uint64_t mediaId, uint64_t mediaSourceId) final;
     void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
     // impl. of MediaSink
-    void WriteMediaPayload(const MediaObject& sender, const std::shared_ptr<MemoryBuffer>& buffer) final;
+    void WriteMediaPayload(const MediaObject& sender, const std::shared_ptr<Buffer>& buffer) final;
 private:
 #ifdef READ_PRODUCER_RECV_FROM_FILE
     //static inline const char* _testFileName = "/Users/user/Downloads/1b0cefc4-abdb-48d0-9c50-f5050755be94.webm";

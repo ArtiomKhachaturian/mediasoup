@@ -21,13 +21,15 @@ namespace RTC
 Translator::Translator(const Producer* producer,
                        const WebsocketFactory* websocketFactory,
                        RtpPacketsPlayer* rtpPacketsPlayer,
-                       RtpPacketsCollector* output)
+                       RtpPacketsCollector* output,
+                       const std::weak_ptr<BufferAllocator>& allocator)
     : _producer(producer)
 #ifndef NO_TRANSLATION_SERVICE
     , _websocketFactory(websocketFactory)
 #endif
     , _rtpPacketsPlayer(rtpPacketsPlayer)
     , _output(output)
+    , _allocator(allocator)
 {
 }
 
@@ -45,10 +47,12 @@ Translator::~Translator()
 std::unique_ptr<Translator> Translator::Create(const Producer* producer,
                                                const WebsocketFactory* websocketFactory,
                                                RtpPacketsPlayer* rtpPacketsPlayer,
-                                               RtpPacketsCollector* output)
+                                               RtpPacketsCollector* output,
+                                               const std::weak_ptr<BufferAllocator>& allocator)
 {
     if (producer && rtpPacketsPlayer && output && Media::Kind::AUDIO == producer->GetKind()) {
-        auto translator = new Translator(producer, websocketFactory, rtpPacketsPlayer, output);
+        auto translator = new Translator(producer, websocketFactory, rtpPacketsPlayer,
+                                         output, allocator);
         // add streams
         const auto& streams = producer->GetRtpStreams();
         for (auto it = streams.begin(); it != streams.end(); ++it) {
@@ -76,7 +80,7 @@ bool Translator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
             if (it == _mappedSsrcToStreams->end()) {
                 auto source = TranslatorSource::Create(mime, clockRate, originalSsrc,
                                                        payloadType, this, _rtpPacketsPlayer,
-                                                       _output, _producer->id);
+                                                       _output, _producer->id, _allocator);
                 if (source) {
                     source->SetInputLanguage(_producer->GetLanguageId());
                     AddConsumersToSource(source);

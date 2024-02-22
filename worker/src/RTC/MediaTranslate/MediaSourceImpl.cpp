@@ -27,7 +27,7 @@ void MediaSourceImpl::RemoveAllSinks()
     _sinks.Clear();
 }
 
-void MediaSourceImpl::Commit(const std::shared_ptr<MemoryBuffer>& buffer)
+void MediaSourceImpl::Commit(const std::shared_ptr<Buffer>& buffer)
 {
     if (buffer) {
         StartMediaSinksWriting();
@@ -41,7 +41,7 @@ void MediaSourceImpl::StartMediaSinksWriting()
     _sinks.InvokeMethod(&MediaSink::StartMediaWriting, *this);
 }
 
-void MediaSourceImpl::WriteMediaSinksPayload(const std::shared_ptr<MemoryBuffer>& buffer)
+void MediaSourceImpl::WriteMediaSinksPayload(const std::shared_ptr<Buffer>& buffer)
 {
     if (buffer) {
         _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, *this, buffer);

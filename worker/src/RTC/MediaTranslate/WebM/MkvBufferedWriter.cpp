@@ -28,12 +28,12 @@ enum class MkvBufferedWriter::EnqueueResult {
 class MkvBufferedWriter::MkvFrameMemory : public mkvmuxer::FrameMemory
 {
 public:
-    MkvFrameMemory(std::shared_ptr<const MemoryBuffer> data);
+    MkvFrameMemory(std::shared_ptr<const Buffer> data);
     // impl. of mkvmuxer::FrameMemory
     const uint8_t* GetData() const final { return _data->GetData(); }
     uint64_t GetSize() const final { return _data->GetSize(); }
 private:
-    const std::shared_ptr<const MemoryBuffer> _data;
+    const std::shared_ptr<const Buffer> _data;
 };
 
 MkvBufferedWriter::MkvBufferedWriter(MediaSink* sink, const char* app)
@@ -198,7 +198,7 @@ void MkvBufferedWriter::SetTrackSettings(uint64_t trackNumber,
 }
 
 bool MkvBufferedWriter::SetCodecSpecific(mkvmuxer::Track* track,
-                                         const std::shared_ptr<const MemoryBuffer>& specific)
+                                         const std::shared_ptr<const Buffer>& specific)
 {
     if (track) {
         return !specific || track->SetCodecPrivate(specific->GetData(), specific->GetSize());
@@ -327,7 +327,7 @@ mkvmuxer::int64 MkvBufferedWriter::Position() const
     return static_cast<mkvmuxer::int64>(_buffer.GetSize());
 }
 
-MkvBufferedWriter::MkvFrameMemory::MkvFrameMemory(std::shared_ptr<const MemoryBuffer> data)
+MkvBufferedWriter::MkvFrameMemory::MkvFrameMemory(std::shared_ptr<const Buffer> data)
     : _data(std::move(data))
 {
 }

@@ -7,7 +7,6 @@ namespace RTC
 {
 
 class WebsocketListener;
-class MemoryBuffer;
 struct WebsocketTls;
 enum class WebsocketState;
 
@@ -30,7 +29,7 @@ public:
     WebsocketState GetState() const final;
     std::string GetUrl() const final;
     bool WriteText(const std::string& text) final;
-    bool WriteBinary(const std::shared_ptr<MemoryBuffer>& buffer) final;
+    bool WriteBinary(const std::shared_ptr<Buffer>& buffer) final;
 private:
     const std::shared_ptr<const Config> _config;
     ProtectedUniquePtr<Socket> _socket;

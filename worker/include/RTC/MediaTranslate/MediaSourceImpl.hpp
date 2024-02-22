@@ -8,7 +8,7 @@ namespace RTC
 {
 
 class MediaSink;
-class MemoryBuffer;
+class Buffer;
 
 class MediaSourceImpl : public MediaSource
 {
@@ -24,9 +24,9 @@ protected:
     virtual void OnSinkWasAdded(MediaSink* /*sink*/, bool /*first*/) {}
     virtual void OnSinkWasRemoved(MediaSink* /*sink*/, bool /*last*/) {}
     // StartMediaSinksWriting + WriteMediaSinksPayload + EndMediaSinksWriting
-    void Commit(const std::shared_ptr<MemoryBuffer>& buffer);
+    void Commit(const std::shared_ptr<Buffer>& buffer);
     void StartMediaSinksWriting();
-    void WriteMediaSinksPayload(const std::shared_ptr<MemoryBuffer>& buffer);
+    void WriteMediaSinksPayload(const std::shared_ptr<Buffer>& buffer);
     void EndMediaSinksWriting();
 private:
     Listeners<MediaSink*> _sinks;
