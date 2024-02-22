@@ -14,7 +14,6 @@ namespace RTC
 {
 
 class MediaFrame;
-class MemoryBuffer;
 class MediaFrameWriter;
 
 class MediaFrameSerializer : public MediaSource

@@ -5,8 +5,6 @@
 namespace RTC
 {
 
-class MemoryBuffer;
-
 class VideoFrameConfig : public MediaFrameConfig
 {
 public:
