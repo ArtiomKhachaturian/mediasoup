@@ -73,7 +73,7 @@ std::shared_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeTyp
     std::shared_ptr<TranslatorSource> source;
     if (endPointsFactory && rtpPacketsPlayer && output) {
         if (auto depacketizer = RtpDepacketizer::Create(mime, clockRate, allocator)) {
-            auto serializer = std::make_unique<WebMSerializer>(mime);
+            auto serializer = std::make_unique<WebMSerializer>(mime, allocator);
             source.reset(new TranslatorSource(clockRate, originalSsrc, payloadType,
                                              std::move(serializer), std::move(depacketizer),
                                               endPointsFactory, rtpPacketsPlayer,

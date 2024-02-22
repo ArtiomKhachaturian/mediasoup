@@ -5,6 +5,7 @@
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
 #include <algorithm> // for stable_sort
 
@@ -36,12 +37,26 @@ private:
     const std::shared_ptr<const Buffer> _data;
 };
 
-MkvBufferedWriter::MkvBufferedWriter(MediaSink* sink, const char* app)
+class MkvBufferedWriter::MkvBufferView : public Buffer
+{
+public:
+    MkvBufferView(std::shared_ptr<Buffer> buffer, size_t size);
+    // impl. of Buffer
+    size_t GetSize() const final { return _size; }
+    uint8_t* GetData() final { return _buffer->GetData(); }
+    const uint8_t* GetData() const final { return _buffer->GetData(); }
+private:
+    const std::shared_ptr<Buffer> _buffer;
+    const size_t _size;
+};
+
+MkvBufferedWriter::MkvBufferedWriter(MediaSink* sink, const char* app,
+                                     const std::weak_ptr<BufferAllocator>& allocator)
     : _sink(sink)
+    , _allocator(allocator)
     , _initialized(_segment.Init(this))
 {
     if (IsInitialized()) {
-        ReserveBuffer();
         _segment.set_mode(mkvmuxer::Segment::kLive);
         _segment.set_estimate_file_duration(false);
         _segment.OutputCues(false);
@@ -206,18 +221,10 @@ bool MkvBufferedWriter::SetCodecSpecific(mkvmuxer::Track* track,
     return true;
 }
 
-void MkvBufferedWriter::WriteMediaPayloadToSink()
-{
-    if (const auto buffer = _buffer.Take()) {
-        _sink->WriteMediaPayload(*this, buffer);
-        ReserveBuffer();
-    }
-}
-
 bool MkvBufferedWriter::IsValidForTracksAdding() const
 {
     if (IsInitialized()) {
-        MS_ASSERT(!HasWroteMedia(), "has wrotten bytes - reinitialization of MKV writer required");
+        MS_ASSERT(!HadWroteMedia(), "has wrotten bytes - reinitialization of MKV writer required");
         return true;
     }
     return false;
@@ -272,13 +279,13 @@ bool MkvBufferedWriter::WriteFrames(uint64_t mkvTimestamp)
         size_t addedCount = 0UL;
         for (const auto& mkvFrame : _mkvFrames) {
             if (mkvFrame.timestamp() <= mkvTimestamp) {
-                if (!HasWroteMedia() && !_startMediaSinkWriting) {
+                if (!HadWroteMedia() && !_startMediaSinkWriting) {
                     _sink->StartMediaWriting(*this);
                     _startMediaSinkWriting = true;
                 }
                 ok = _segment.AddGenericFrame(&mkvFrame);
                 if (ok) {
-                    MS_ASSERT(HasWroteMedia(), "incorrect writing");
+                    MS_ASSERT(HadWroteMedia(), "incorrect writing");
                     ++addedCount;
                 }
                 else {
@@ -313,23 +320,54 @@ mkvmuxer::VideoTrack* MkvBufferedWriter::GetVideoTrack(uint64_t trackNumber) con
     return nullptr;
 }
 
+void MkvBufferedWriter::WriteMediaPayloadToSink()
+{
+    if (_buffer) {
+        const auto buffer = MakeMemoryBuffer<MkvBufferView>(std::move(_buffer), _bufferOffset);
+        _sink->WriteMediaPayload(*this, buffer);
+        _bufferOffset = 0U;
+    }
+}
+
 mkvmuxer::int32 MkvBufferedWriter::Write(const void* buf, mkvmuxer::uint32 len)
 {
-    if (_buffer.Append(buf, len)) {
-        _wroteMedia = true;
-        return 0;
+    if (buf && len) {
+        if (!_buffer) {
+            const auto allocSize = std::max<size_t>(len, _bufferInitialCapacity);
+            _buffer = AllocateBuffer(allocSize, buf, len, _allocator);
+        }
+        else {
+            if (_bufferOffset + len > _buffer->GetSize()) {
+                _buffer = AllocateBuffer(_bufferOffset + len, _buffer->GetData(),
+                                         _buffer->GetSize(), _allocator);
+            }
+            if (_buffer) {
+                std::memcpy(_buffer->GetData() + _bufferOffset, buf, len);
+            }
+        }
+        if (_buffer) {
+            _bufferOffset += len;
+            _hadWroteMedia = true;
+        }
     }
-    return -1;
+    return _buffer ? 0 : -1;
 }
 
 mkvmuxer::int64 MkvBufferedWriter::Position() const
 {
-    return static_cast<mkvmuxer::int64>(_buffer.GetSize());
+    return static_cast<mkvmuxer::int64>(_bufferOffset);
 }
 
 MkvBufferedWriter::MkvFrameMemory::MkvFrameMemory(std::shared_ptr<const Buffer> data)
     : _data(std::move(data))
 {
+}
+
+MkvBufferedWriter::MkvBufferView::MkvBufferView(std::shared_ptr<Buffer> buffer, size_t size)
+    : _buffer(buffer)
+    , _size(size)
+{
+    MS_ASSERT(_buffer->GetSize() >= _size, "incorrect buffer size");
 }
 
 }

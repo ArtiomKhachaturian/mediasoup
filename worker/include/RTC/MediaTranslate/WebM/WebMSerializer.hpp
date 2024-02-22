@@ -6,17 +6,20 @@
 namespace RTC
 {
 
-// https://www.webmproject.org/docs/container/#muxer-guidelines
+class BufferAllocator;
+
 class WebMSerializer : public MediaFrameSerializer
 {
     class Writer;
 public:
-    WebMSerializer(const RtpCodecMimeType& mime);
+    WebMSerializer(const RtpCodecMimeType& mime, const std::weak_ptr<BufferAllocator>& allocator);
     ~WebMSerializer() final = default;
 protected:
     // impl. of MediaFrameSerializer
     std::string_view GetFileExtension() const final { return "webm"; }
     std::unique_ptr<MediaFrameWriter> CreateWriter(MediaSink* sink);
+private:
+    const std::weak_ptr<BufferAllocator> _allocator;
 };
 
 } // namespace RTC

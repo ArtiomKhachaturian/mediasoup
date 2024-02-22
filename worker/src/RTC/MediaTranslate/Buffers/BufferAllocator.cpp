@@ -17,7 +17,7 @@ inline std::shared_ptr<Buffer> AllocateSimple(size_t size)
     return nullptr;
 }
 
-inline void Copy(const std::shared_ptr<Buffer>& dst, const uint8_t* source, size_t size)
+inline void Copy(const std::shared_ptr<Buffer>& dst, const void* source, size_t size)
 {
     if (dst && source && size) {
         MS_ASSERT(size <= dst->GetSize(), "size of source memory chunk is greater than buffer");
@@ -35,12 +35,12 @@ std::shared_ptr<Buffer> BufferAllocator::Allocate(size_t size)
     return AllocateSimple(size);
 }
 
-std::shared_ptr<Buffer> BufferAllocator::Allocate(size_t size, const uint8_t* data)
+std::shared_ptr<Buffer> BufferAllocator::Allocate(size_t size, const void* data)
 {
     return Allocate(size, data, size);
 }
 
-std::shared_ptr<Buffer> BufferAllocator::Allocate(size_t size, const uint8_t* data,
+std::shared_ptr<Buffer> BufferAllocator::Allocate(size_t size, const void* data,
                                                   size_t dataSize)
 {
     const auto buffer = Allocate(size);
@@ -56,13 +56,13 @@ std::shared_ptr<Buffer> AllocateBuffer(size_t size, const std::weak_ptr<BufferAl
     return AllocateSimple(size);
 }
 
-std::shared_ptr<Buffer> AllocateBuffer(size_t size, const uint8_t* data,
+std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data,
                                        const std::weak_ptr<BufferAllocator>& allocatorRef)
 {
     return AllocateBuffer(size, data, size, allocatorRef);
 }
 
-std::shared_ptr<Buffer> AllocateBuffer(size_t size, const uint8_t* data, size_t dataSize,
+std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data, size_t dataSize,
                                        const std::weak_ptr<BufferAllocator>& allocatorRef)
 {
     std::shared_ptr<Buffer> buffer;

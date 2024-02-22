@@ -1,5 +1,4 @@
 #pragma once
-#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "RTC/MediaTranslate/MediaObject.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <mkvmuxer/mkvmuxer.h>
@@ -7,18 +6,23 @@
 namespace RTC
 {
 
+class Buffer;
+class BufferAllocator;
 class MediaSink;
 class MediaFrame;
 class RtpCodecMimeType;
 class AudioFrameConfig;
 class VideoFrameConfig;
 
+// https://www.webmproject.org/docs/container/#muxer-guidelines
 class MkvBufferedWriter : public MediaObject, private mkvmuxer::IMkvWriter
 {
-   enum class EnqueueResult;
-   class MkvFrameMemory;
+    enum class EnqueueResult;
+    class MkvFrameMemory;
+    class MkvBufferView;
 public:
-    MkvBufferedWriter(MediaSink* sink, const char* app);
+    MkvBufferedWriter(MediaSink* sink, const char* app,
+                      const std::weak_ptr<BufferAllocator>& allocator);
     ~MkvBufferedWriter() final;
     bool IsInitialized() const { return _initialized; }
     bool HasAudioTracks() const { return !_audioTracks.empty(); }
@@ -37,15 +41,14 @@ private:
     static bool SetCodecSpecific(mkvmuxer::Track* track,
                                  const std::shared_ptr<const Buffer>& specific);
     bool SetAudioSampleRate(uint64_t trackNumber, uint32_t sampleRate);
-    void WriteMediaPayloadToSink();
-    bool HasWroteMedia() const { return _wroteMedia; }
-    void ReserveBuffer() { _buffer.Reserve(1024); } // 1kb chunk reserved
+    bool HadWroteMedia() const { return _hadWroteMedia; }
     bool IsValidForTracksAdding() const;
     EnqueueResult EnqueueFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
                                uint64_t mkvTimestamp, uint64_t trackNumber);
     bool WriteFrames(uint64_t mkvTimestamp);
     mkvmuxer::AudioTrack* GetAudioTrack(uint64_t trackNumber) const;
     mkvmuxer::VideoTrack* GetVideoTrack(uint64_t trackNumber) const;
+    void WriteMediaPayloadToSink();
     // impl. of mkvmuxer::IMkvWriter
     mkvmuxer::int32 Write(const void* buf, mkvmuxer::uint32 len) final;
     mkvmuxer::int64 Position() const final;
@@ -53,10 +56,12 @@ private:
     bool Seekable() const final { return false; }
     void ElementStartNotify(mkvmuxer::uint64 /*elementId*/, mkvmuxer::int64 /*position*/) final {}
 private:
+    static inline constexpr size_t _bufferInitialCapacity = 1024U; // 1kb chunk reserved
     MediaSink* const _sink;
+    const std::weak_ptr<BufferAllocator> _allocator;
     mkvmuxer::Segment _segment;
     const bool _initialized;
-    bool _wroteMedia = false;
+    bool _hadWroteMedia = false;
     bool _startMediaSinkWriting = false;
     int32_t _nextNumber = 0;
     absl::flat_hash_map<uint64_t,  mkvmuxer::AudioTrack*> _audioTracks;
@@ -64,7 +69,8 @@ private:
     uint64_t _mkvVideoLastTimestamp = 0ULL;
     uint64_t _mkvAudioLastTimestamp = 0ULL;
     std::vector<mkvmuxer::Frame> _mkvFrames;
-    SimpleBuffer _buffer;
+    std::shared_ptr<Buffer> _buffer;
+    size_t _bufferOffset = 0UL;
 };
 
 }
