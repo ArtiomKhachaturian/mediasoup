@@ -1,7 +1,6 @@
 #define MS_CLASS "RTC::RtpDepacketizerVpx"
 #include "RTC/MediaTranslate/RtpDepacketizerVpx.hpp"
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
-#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/Codecs/VP8.hpp"

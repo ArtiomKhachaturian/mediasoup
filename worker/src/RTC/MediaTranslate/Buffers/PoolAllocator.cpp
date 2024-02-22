@@ -20,10 +20,12 @@ public:
     virtual uint8_t* GetData() = 0;
     virtual const uint8_t* GetData() const = 0;
     bool IsAcquired() const { return _acquired.load(); }
-    bool Acquire() { return !_acquired.exchange(true); }
-    bool Release() { return _acquired.exchange(false); }
+    bool Acquire();
+    void Release();
 protected:
     MemoryChunk() = default;
+    virtual void OnAcquired() {}
+    virtual void OnReleased() {}
 private:
     std::atomic_bool _acquired = false;
 };
@@ -68,6 +70,10 @@ private:
 };
 
 using MemoryChunkPtr = std::shared_ptr<MemoryChunk>;
+using HeapChunkPtr = std::shared_ptr<HeapChunk>;
+// key is allocated size
+using StackChunksMap = std::multimap<size_t, MemoryChunkPtr>;
+using HeapChunksMap = std::multimap<size_t, HeapChunkPtr>;
 
 }
 
@@ -92,20 +98,22 @@ private:
 
 class PoolAllocator::AllocatorImpl
 {
-    using ChunksMap = std::multimap<size_t, MemoryChunkPtr>;
 public:
     AllocatorImpl();
     std::shared_ptr<Buffer> Allocate(size_t size);
+    void PurgeGarbage();
 private:
     MemoryChunkPtr AcquireHeapChunk(size_t size);
     template<size_t count, size_t chunkSize>
-    static void FillStackChunks(ChunksMap& chunks);
-    static ChunksMap CreateStackChunks();
-    static MemoryChunkPtr GetAcquired(size_t size, const ChunksMap& chunks);
-    static MemoryChunkPtr GetAcquired(ChunksMap::const_iterator from, ChunksMap::const_iterator to);
+    static void FillStackChunks(StackChunksMap& chunks);
+    static StackChunksMap CreateStackChunks();
+    template<class TMap>
+    static MemoryChunkPtr GetAcquired(size_t size, const TMap& chunks);
+    template<class TIterator>
+    static MemoryChunkPtr GetAcquired(TIterator from, TIterator to);
 private:
-    const ChunksMap _stackChunks;
-    ProtectedObj<ChunksMap> _heapChunks;
+    const StackChunksMap _stackChunks;
+    ProtectedObj<HeapChunksMap> _heapChunks;
 };
 
 PoolAllocator::PoolAllocator()
@@ -123,6 +131,12 @@ std::shared_ptr<Buffer> PoolAllocator::Allocate(size_t size)
         return buffer;
     }
     return BufferAllocator::Allocate(size);
+}
+
+void PoolAllocator::PurgeGarbage()
+{
+    BufferAllocator::PurgeGarbage();
+    _impl->PurgeGarbage();
 }
 
 PoolAllocator::BufferImpl::BufferImpl(MemoryChunkPtr chunk, size_t size)
@@ -174,6 +188,11 @@ std::shared_ptr<Buffer> PoolAllocator::AllocatorImpl::Allocate(size_t size)
     return nullptr;
 }
 
+void PoolAllocator::AllocatorImpl::PurgeGarbage()
+{
+    // TODO: 
+}
+
 MemoryChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t size)
 {
     LOCK_WRITE_PROTECTED_OBJ(_heapChunks);
@@ -191,16 +210,16 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t size)
 }
 
 template<size_t count, size_t chunkSize>
-void PoolAllocator::AllocatorImpl::FillStackChunks(ChunksMap& chunks)
+void PoolAllocator::AllocatorImpl::FillStackChunks(StackChunksMap& chunks)
 {
     for (size_t i = 0U; i < count; ++i) {
         chunks.insert({chunkSize, std::make_shared<StackChunk<chunkSize>>()});
     }
 }
 
-PoolAllocator::AllocatorImpl::ChunksMap PoolAllocator::AllocatorImpl::CreateStackChunks()
+StackChunksMap PoolAllocator::AllocatorImpl::CreateStackChunks()
 {
-    ChunksMap stackChunks;
+    StackChunksMap stackChunks;
     FillStackChunks<MAX_BLOCKS, 1U>(stackChunks);
     FillStackChunks<MAX_BLOCKS, 2U>(stackChunks);
     FillStackChunks<MAX_BLOCKS, 4U>(stackChunks);
@@ -217,7 +236,8 @@ PoolAllocator::AllocatorImpl::ChunksMap PoolAllocator::AllocatorImpl::CreateStac
     return stackChunks;
 }
 
-MemoryChunkPtr PoolAllocator::AllocatorImpl::GetAcquired(size_t size, const ChunksMap& chunks)
+template<class TMap>
+MemoryChunkPtr PoolAllocator::AllocatorImpl::GetAcquired(size_t size, const TMap& chunks)
 {
     if (size && !chunks.empty()) {
         const auto exact = chunks.equal_range(size);
@@ -230,8 +250,8 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::GetAcquired(size_t size, const Chun
     return nullptr;
 }
 
-MemoryChunkPtr PoolAllocator::AllocatorImpl::GetAcquired(ChunksMap::const_iterator from,
-                                                         ChunksMap::const_iterator to)
+template<class TIterator>
+MemoryChunkPtr PoolAllocator::AllocatorImpl::GetAcquired(TIterator from, TIterator to)
 {
     for (auto it = from; it != to; ++it) {
         if (it->second->Acquire()) {
@@ -244,6 +264,23 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::GetAcquired(ChunksMap::const_iterat
 } // namespace RTC
 
 namespace {
+
+
+bool MemoryChunk::Acquire()
+{
+    if (!_acquired.exchange(true)) {
+        OnAcquired();
+        return true;
+    }
+    return false;
+}
+
+void MemoryChunk::Release()
+{
+    if (_acquired.exchange(false)) {
+        OnReleased();
+    }
+}
 
 HeapChunk::HeapChunk(std::unique_ptr<uint8_t[]> memory, size_t size)
     : _memory(std::move(memory))

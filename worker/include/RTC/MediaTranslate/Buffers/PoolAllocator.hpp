@@ -17,6 +17,7 @@ public:
     PoolAllocator& operator = (PoolAllocator&&) = delete;
     // overrides of BufferAllocator
     std::shared_ptr<Buffer> Allocate(size_t size) final;
+    void PurgeGarbage() final;
 private:
 	const std::unique_ptr<AllocatorImpl> _impl;
 };

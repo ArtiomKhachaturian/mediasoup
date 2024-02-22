@@ -1,6 +1,5 @@
 #define MS_CLASS "RTC::FileReader"
 #include "RTC/MediaTranslate/FileReader.hpp"
-#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
 #include <algorithm> // for std::min/max
