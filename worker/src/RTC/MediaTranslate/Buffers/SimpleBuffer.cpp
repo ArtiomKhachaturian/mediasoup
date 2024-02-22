@@ -46,6 +46,12 @@ void SimpleBuffer::Clear()
     _buffer.clear();
 }
 
+bool SimpleBuffer::Resize(size_t size)
+{
+    _buffer.resize(size);
+    return true;
+}
+
 size_t SimpleBuffer::CopyTo(size_t offset, size_t len, uint8_t* output) const
 {
     if (len && output && offset < _buffer.size()) {

@@ -259,11 +259,9 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
 
 std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
 {
-    auto fileEndPoint = std::make_shared<FileEndPoint>(_mockTranslationFileName, GetId(),
-                                                       _mockTranslationFileNameLenMs,
-                                                       _mockTranslationConnectionTimeoutMs);
+    auto fileEndPoint = std::make_shared<FileEndPoint>(GetId(), GetAllocator(), 300U);
     if (!fileEndPoint->IsValid()) {
-        MS_ERROR_STD("failed open %s as mock translation", _mockTranslationFileName);
+        MS_ERROR_STD("failed open [%s] as mock translation", fileEndPoint->GetName().c_str());
     }
     else {
         _nonStubEndPointRef = fileEndPoint;

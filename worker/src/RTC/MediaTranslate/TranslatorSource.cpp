@@ -8,9 +8,6 @@
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
 #endif
-#ifdef READ_PRODUCER_RECV_FROM_FILE
-#include "RTC/MediaTranslate/FileReader.hpp"
-#endif
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
 #include "RTC/Timestamp.hpp"
 #include "RTC/RtpPacket.hpp"
@@ -32,13 +29,10 @@ TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc, ui
     , _depacketizer(std::move(depacketizer))
     , _rtpPacketsPlayer(rtpPacketsPlayer)
     , _output(output)
-#ifdef READ_PRODUCER_RECV_FROM_FILE
-    , _fileReader(CreateFileReader())
-#endif
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     , _fileWriter(CreateFileWriter(GetOriginalSsrc(), producerId, _serializer.get()))
 #endif
-    , _consumersManager(endPointsFactory, GetMediaSource() , GetMediaReceiver())
+    , _consumersManager(endPointsFactory, _serializer.get(), GetMediaReceiver())
 {
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     if (_fileWriter && !_serializer->AddTestSink(_fileWriter.get())) {
@@ -51,8 +45,8 @@ TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc, ui
 
 TranslatorSource::~TranslatorSource()
 {
-    GetMediaSource()->RemoveAllSinks();
     _rtpPacketsPlayer->RemoveStream(GetOriginalSsrc());
+    _serializer->RemoveAllSinks();
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     if (_fileWriter) {
         _serializer->RemoveTestSink();
@@ -100,25 +94,13 @@ uint32_t TranslatorSource::GetClockRate() const
 bool TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     bool handled = false;
-    if (packet) {
-#ifdef READ_PRODUCER_RECV_FROM_FILE
-        if (_fileReader) {
-            handled = _serializer->HasSinks();
+    if (packet && (_serializer->HasSinks() || _serializer->HasTestSink())) {
+        if (const auto frame = _depacketizer->AddPacket(packet)) {
+            handled = _serializer->Push(frame);
             if (handled) {
                 ++_addedPacketsCount;
             }
-            return handled;
         }
-#endif
-        if (_serializer->HasSinks() || _serializer->HasTestSink()) {
-            // maybe empty packet if silence
-            if (const auto frame = _depacketizer->AddPacket(packet)) {
-                handled = _serializer->Push(frame);
-            }
-        }
-    }
-    if (handled) {
-        ++_addedPacketsCount;
     }
     return handled;
 }
@@ -182,18 +164,6 @@ void TranslatorSource::SaveProducerRtpPacketInfo(Consumer* consumer,
     }
 }
 
-#ifdef READ_PRODUCER_RECV_FROM_FILE
-std::unique_ptr<FileReader> TranslatorSource::CreateFileReader()
-{
-    auto fileReader = std::make_unique<FileReader>(_testFileName, false);
-    if (!fileReader->IsOpen()) {
-        MS_WARN_DEV_STD("Failed to open producer file input %s", _testFileName);
-        fileReader.reset();
-    }
-    return fileReader;
-}
-#endif
-
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 std::unique_ptr<FileWriter> TranslatorSource::CreateFileWriter(uint32_t ssrc,
                                                                const std::string& producerId,
@@ -204,8 +174,8 @@ std::unique_ptr<FileWriter> TranslatorSource::CreateFileWriter(uint32_t ssrc,
         if (depacketizerPath && std::strlen(depacketizerPath)) {
             std::string fileName = producerId + "_" + std::to_string(ssrc) + "." + std::string(fileExtension);
             fileName = std::string(depacketizerPath) + "/" + fileName;
-            auto fileWriter = std::make_unique<FileWriter>(fileName);
-            if (!fileWriter->IsOpen()) {
+            auto fileWriter = std::make_unique<FileWriter>();
+            if (!fileWriter->Open(fileName)) {
                 fileWriter.reset();
                 MS_WARN_DEV_STD("Failed to open producer file output %s", fileName.c_str());
             }
@@ -225,16 +195,6 @@ std::unique_ptr<FileWriter> TranslatorSource::CreateFileWriter(uint32_t ssrc,
     return nullptr;
 }
 #endif
-
-MediaSource* TranslatorSource::GetMediaSource() const
-{
-#ifdef READ_PRODUCER_RECV_FROM_FILE
-    if (_fileReader) {
-        return _fileReader.get();
-    }
-#endif
-    return _serializer.get();
-}
 
 void TranslatorSource::OnPlayStarted(uint32_t ssrc, uint64_t mediaId,
                                      uint64_t mediaSourceId)

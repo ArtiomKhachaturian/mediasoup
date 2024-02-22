@@ -1,5 +1,5 @@
 #pragma once
-#include "RTC/MediaTranslate/InheritanceSelector.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
 #include <atomic>
 #include <memory>
 #include <string>
@@ -17,7 +17,7 @@ namespace RTC
 {
 
 template<class TBase>
-class FileDevice : public InheritanceSelector<TBase>
+class FileDevice : public BufferAllocations<TBase>
 {
 public:
     FileDevice(const FileDevice&) = delete;
@@ -28,28 +28,47 @@ public:
     // Returns true if a file has been opened. If the file is not open, no methods
     // but IsOpen and Close may be called.
     virtual bool IsOpen() const { return nullptr != GetHandle(); }
+protected:
+    FileDevice();
+    FileDevice(const std::weak_ptr<BufferAllocator>& allocator);
+    FileDevice(const std::weak_ptr<BufferAllocator>& allocator, std::shared_ptr<FILE> handle);
+    bool Open(const std::string_view& fileNameUtf8, bool readOnly, int* error = nullptr);
     // Closes the file, and implies Flush
     void Close();
-protected:
-    FileDevice() = default;
-    explicit FileDevice(std::shared_ptr<FILE> handle);
-    FileDevice(const std::string_view& fileNameUtf8, bool readOnly, int* error = nullptr);
     std::shared_ptr<FILE> GetHandle() const { return std::atomic_load(&_handle); }
-    static std::shared_ptr<FILE> Open(const std::string_view& fileNameUtf8, bool readOnly, int* error = nullptr);
+    static std::shared_ptr<FILE> OpenFile(const std::string_view& fileNameUtf8,
+                                          bool readOnly, int* error = nullptr);
 private:
     std::shared_ptr<FILE> _handle = nullptr;
 };
 
 template<class TBase>
-FileDevice<TBase>::FileDevice(std::shared_ptr<FILE> handle)
-    : _handle(std::move(handle))
+FileDevice<TBase>::FileDevice()
+    : FileDevice<TBase>(std::weak_ptr<BufferAllocator>())
 {
 }
 
 template<class TBase>
-FileDevice<TBase>::FileDevice(const std::string_view& fileNameUtf8, bool readOnly, int* error)
-    : FileDevice(Open(fileNameUtf8, readOnly, error))
+FileDevice<TBase>::FileDevice(const std::weak_ptr<BufferAllocator>& allocator)
+    : FileDevice<TBase>(allocator, nullptr)
 {
+}
+
+template<class TBase>
+FileDevice<TBase>::FileDevice(const std::weak_ptr<BufferAllocator>& allocator, std::shared_ptr<FILE> handle)
+    : BufferAllocations<TBase>(allocator)
+    , _handle(std::move(handle))
+{
+}
+
+template<class TBase>
+bool FileDevice<TBase>::Open(const std::string_view& fileNameUtf8, bool readOnly, int* error)
+{
+    if (auto handle = OpenFile(fileNameUtf8, readOnly, error)) {
+        std::atomic_store(&_handle, std::move(handle));
+        return true;
+    }
+    return false;
 }
 
 template<class TBase>
@@ -59,7 +78,8 @@ void FileDevice<TBase>::Close()
 }
 
 template<class TBase>
-std::shared_ptr<FILE> FileDevice<TBase>::Open(const std::string_view& fileNameUtf8, bool readOnly, int* error)
+std::shared_ptr<FILE> FileDevice<TBase>::OpenFile(const std::string_view& fileNameUtf8,
+                                                  bool readOnly, int* error)
 {
 #if defined(_WIN32)
     std::string fileName(fileNameUtf8);

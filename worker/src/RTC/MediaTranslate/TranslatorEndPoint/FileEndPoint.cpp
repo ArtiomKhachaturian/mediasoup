@@ -3,8 +3,9 @@
 #include "RTC/MediaTranslate/Websocket/WebsocketState.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
-#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
 #include "RTC/MediaTranslate/FileReader.hpp"
+#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #include "Logger.hpp"
 
 namespace {
@@ -19,10 +20,10 @@ enum class StartMode {
 namespace RTC
 {
 
-class FileEndPoint::TimerCallback : public MediaTimerCallback
+class FileEndPoint::TimerCallback : public BufferAllocations<MediaTimerCallback>
 {
 public:
-    TimerCallback(FileEndPoint* owner);
+    TimerCallback(const std::weak_ptr<BufferAllocator>& allocator, FileEndPoint* owner);
     bool IsConnected() const { return WebsocketState::Connected == GetState(); }
     void SetHasWrittenInputMedia(bool has);
     bool HasWrittenInputMedia() const { return _hasWrittenInputMedia.load(); }
@@ -46,17 +47,16 @@ private:
     std::atomic_bool _hasWrittenInputMedia = false;
 };
 
-FileEndPoint::FileEndPoint(std::string fileName,
-                           std::string ownerId,
-                           uint32_t intervalBetweenTranslationsMs,
+FileEndPoint::FileEndPoint(std::string ownerId,
+                           const std::weak_ptr<BufferAllocator>& allocator,
                            uint32_t connectionDelaylMs,
                            const std::optional<uint32_t>& disconnectAfterMs)
-    : TranslatorEndPoint(std::move(ownerId), std::move(fileName))
+    : TranslatorEndPoint(std::move(ownerId), MOCK_WEBM_INPUT_FILE)
     , _fileIsValid(FileReader::IsValidForRead(GetName()))
-    , _callback(_fileIsValid ? std::make_shared<TimerCallback>(this) : nullptr)
+    , _callback(_fileIsValid ? std::make_shared<TimerCallback>(allocator, this) : nullptr)
     , _timer(_fileIsValid ? std::make_shared<MediaTimer>(GetName()) : nullptr)
     , _timerId(_timer ? _timer->Register(_callback) : 0UL)
-    , _intervalBetweenTranslationsMs(intervalBetweenTranslationsMs)
+    , _intervalBetweenTranslationsMs(1000U + (MOCK_WEBM_INPUT_FILE_LEN_SECS * 1000U))
     , _connectionDelaylMs(connectionDelaylMs)
 {
     _instances.fetch_add(1U);
@@ -117,8 +117,10 @@ bool FileEndPoint::SendText(const std::string& text) const
     return IsConnected() && !text.empty();
 }
 
-FileEndPoint::TimerCallback::TimerCallback(FileEndPoint* owner)
-    : _owner(owner)
+FileEndPoint::TimerCallback::TimerCallback(const std::weak_ptr<BufferAllocator>& allocator,
+                                           FileEndPoint* owner)
+    : BufferAllocations<MediaTimerCallback>(allocator)
+    , _owner(owner)
 {
 }
 
@@ -145,7 +147,7 @@ void FileEndPoint::TimerCallback::OnEvent(uint64_t /*timerId*/)
             }
             else {
                 StopTimer();
-                MS_ERROR_STD("unable to read of %s media file", _owner->GetName().c_str());
+                MS_ERROR_STD("unable to read of [%s] media file", _owner->GetName().c_str());
             }
         }
     }
@@ -163,7 +165,7 @@ bool FileEndPoint::TimerCallback::SetStrongState(WebsocketState actual, Websocke
 
 std::shared_ptr<Buffer> FileEndPoint::TimerCallback::ReadMediaFromFile() const
 {
-    return FileReader::ReadAllAsBuffer(_owner->GetName());
+    return FileReader::ReadAll(_owner->GetName(), GetAllocator());
 }
 
 void FileEndPoint::TimerCallback::NotifyAboutReceivedMedia(const std::shared_ptr<Buffer>& media)

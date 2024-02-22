@@ -19,12 +19,13 @@ public:
     virtual size_t GetSize() const = 0;
     virtual uint8_t* GetData() = 0;
     virtual const uint8_t* GetData() const = 0;
-    bool Acquire() { return !_busy.exchange(true); }
-    bool Release() { return _busy.exchange(false); }
+    bool IsAcquired() const { return _acquired.load(); }
+    bool Acquire() { return !_acquired.exchange(true); }
+    bool Release() { return _acquired.exchange(false); }
 protected:
     MemoryChunk() = default;
 private:
-    std::atomic_bool _busy = false;
+    std::atomic_bool _acquired = false;
 };
 
 template<size_t size>
@@ -79,12 +80,13 @@ public:
     BufferImpl(MemoryChunkPtr chunk, size_t size);
     ~BufferImpl() final;
     // impl. of Buffer
-    size_t GetSize() const final { return _size; }
-    const uint8_t* GetData() const final { return _chunk->GetData(); }
-    uint8_t* GetData() final { return _chunk->GetData(); }
+    size_t GetSize() const final { return _size.load(); }
+    const uint8_t* GetData() const final;
+    uint8_t* GetData() final;
+    bool Resize(size_t size) final;
 private:
     const MemoryChunkPtr _chunk;
-    const size_t _size;
+    std::atomic<size_t> _size;
 };
 
 
@@ -132,6 +134,25 @@ PoolAllocator::BufferImpl::BufferImpl(MemoryChunkPtr chunk, size_t size)
 PoolAllocator::BufferImpl::~BufferImpl()
 {
     _chunk->Release();
+}
+
+const uint8_t* PoolAllocator::BufferImpl::GetData() const
+{
+    return IsEmpty() ? nullptr : _chunk->GetData();
+}
+
+uint8_t* PoolAllocator::BufferImpl::GetData()
+{
+    return IsEmpty() ? nullptr : _chunk->GetData();
+}
+
+bool PoolAllocator::BufferImpl::Resize(size_t size)
+{
+    if (_chunk->IsAcquired() && size <= _chunk->GetSize()) {
+        _size = size;
+        return true;
+    }
+    return false;
 }
 
 PoolAllocator::AllocatorImpl::AllocatorImpl()

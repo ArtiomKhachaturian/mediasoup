@@ -13,6 +13,7 @@ public:
     std::shared_ptr<Buffer> AllocateBuffer(size_t size) const;
     std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data) const;
     std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data, size_t dataSize) const;
+    std::shared_ptr<Buffer> ReallocateBuffer(size_t size, const std::shared_ptr<Buffer>& buffer) const;
 protected:
     template <class... Args>
     BufferAllocations(const std::weak_ptr<BufferAllocator>& allocator, Args&&... args);
@@ -48,6 +49,13 @@ inline std::shared_ptr<Buffer> BufferAllocations<TBase>::AllocateBuffer(size_t s
                                                                         size_t dataSize) const
 {
     return RTC::AllocateBuffer(size, data, dataSize, GetAllocator());
+}
+
+template<class TBase>
+std::shared_ptr<Buffer> BufferAllocations<TBase>::ReallocateBuffer(size_t size,
+                                                                   const std::shared_ptr<Buffer>& buffer) const
+{
+    return RTC::ReallocateBuffer(size, buffer, GetAllocator());
 }
 
 } // namespace RTC

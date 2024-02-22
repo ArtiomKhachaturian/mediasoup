@@ -22,6 +22,8 @@ public:
     void SetInputLanguageId(const std::string& languageId);
     void SetOutputLanguageId(const std::string& languageId);
     void SetOutputVoiceId(const std::string& voiceId);
+    const std::string& GetOwnerId() const { return _ownerId; }
+    const std::string& GetName() const { return _name; }
     virtual bool IsConnected() const = 0;
 protected:
     TranslatorEndPoint(std::string ownerId = std::string(),
@@ -31,8 +33,6 @@ protected:
     bool HasValidTranslationSettings() const;
     void NotifyThatConnectionEstablished(bool connected);
     uint64_t NotifyThatTranslationReceived(const std::shared_ptr<Buffer>& media);
-    const std::string& GetOwnerId() const { return _ownerId; }
-    const std::string& GetName() const { return _name; }
     std::string GetDescription() const;
     virtual void Connect() = 0;
     virtual void Disconnect() = 0;

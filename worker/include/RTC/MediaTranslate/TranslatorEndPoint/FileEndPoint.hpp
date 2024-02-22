@@ -8,14 +8,14 @@ namespace RTC
 {
 
 class MediaTimer;
+class BufferAllocator;
 
 class FileEndPoint : public TranslatorEndPoint
 {
     class TimerCallback;
 public:
-    FileEndPoint(std::string fileName,
-                 std::string ownerId = std::string(),
-                 uint32_t intervalBetweenTranslationsMs = 1000, // 1sec
+    FileEndPoint(std::string ownerId,
+                 const std::weak_ptr<BufferAllocator>& allocator,
                  uint32_t connectionDelaylMs = 500U, // 0.5 sec
                  const std::optional<uint32_t>& disconnectAfterMs = std::nullopt);
     ~FileEndPoint() final;

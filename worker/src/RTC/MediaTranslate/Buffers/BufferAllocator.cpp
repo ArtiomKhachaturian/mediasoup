@@ -9,12 +9,9 @@ using namespace RTC;
 
 inline std::shared_ptr<Buffer> AllocateSimple(size_t size)
 {
-    if (size) {
-        const auto buffer = std::make_shared<SimpleBuffer>(size);
-        buffer->Resize(size);
-        return buffer;
-    }
-    return nullptr;
+    const auto buffer = std::make_shared<SimpleBuffer>(size);
+    buffer->Resize(size);
+    return buffer;
 }
 
 inline void Copy(const std::shared_ptr<Buffer>& dst, const void* source, size_t size)
@@ -72,6 +69,21 @@ std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data, size_t dat
     else {
         buffer = AllocateSimple(size);
         Copy(buffer, data, dataSize);
+    }
+    return buffer;
+}
+
+std::shared_ptr<Buffer> ReallocateBuffer(size_t size, const std::shared_ptr<Buffer>& buffer,
+                                         const std::weak_ptr<BufferAllocator>& allocatorRef)
+{
+    if (buffer) {
+        const auto bufferSize = buffer->GetSize();
+        if (bufferSize != size) {
+            if (!buffer->Resize(size)) {
+                const auto dataSize = std::min(size, bufferSize);
+                return AllocateBuffer(size, buffer->GetData(), dataSize);
+            }
+        }
     }
     return buffer;
 }

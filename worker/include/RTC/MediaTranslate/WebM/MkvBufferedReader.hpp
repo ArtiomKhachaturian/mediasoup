@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/MediaFrameDeserializeResult.hpp"
 #include "RTC/MediaTranslate/Buffers/SegmentsBuffer.hpp"
 #include "RTC/MediaTranslate/WebM/MkvReadResult.hpp"
+#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #include <mkvparser/mkvreader.h>
 
 namespace RTC
@@ -27,7 +28,11 @@ private:
     int Read(long long pos, long len, unsigned char* buf) final;
     int Length(long long* total, long long* available) final;
 private:
+#ifdef MEDIA_TRANSLATIONS_TEST
+    static inline constexpr uint64_t _maxBufferSize = 5U * 1024UL * 1024UL; // 5 Mb
+#else
     static inline constexpr uint64_t _maxBufferSize = 1024UL * 1024UL; // 1 Mb
+#endif
     std::unique_ptr<mkvparser::EBMLHeader> _ebmlHeader;
     std::unique_ptr<mkvparser::Segment> _segment;
     SegmentsBuffer _buffers;

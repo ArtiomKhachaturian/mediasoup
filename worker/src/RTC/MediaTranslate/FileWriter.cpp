@@ -35,29 +35,16 @@ private:
 namespace RTC
 {
 
-FileWriter::FileWriter(const std::string_view& fileNameUtf8, int* error)
-    : Base(fileNameUtf8, false, error)
-{
-}
-
 FileWriter::~FileWriter()
 {
     Flush();
-}
-
-bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const std::vector<uint8_t>& buffer)
-{
-    if (!fileNameUtf8.empty() && !buffer.empty()) {
-        return WriteAll(fileNameUtf8, std::make_shared<BufferView>(buffer));
-    }
-    return false;
 }
 
 bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const std::shared_ptr<Buffer>& buffer)
 {
     bool written = false;
     if (buffer && !buffer->IsEmpty()) {
-        if (const auto handle = Base::Open(fileNameUtf8, false)) {
+        if (const auto handle = Base::OpenFile(fileNameUtf8, false)) {
             written = FileWrite(handle, buffer) == buffer->GetSize();
         }
     }
@@ -84,6 +71,11 @@ bool FileWriter::DeleteFromStorage()
         }
     }
     return ok;
+}
+
+bool FileWriter::Open(const std::string_view& fileNameUtf8, int* error)
+{
+    return Base::Open(fileNameUtf8, false, error);
 }
 
 bool FileWriter::Flush()

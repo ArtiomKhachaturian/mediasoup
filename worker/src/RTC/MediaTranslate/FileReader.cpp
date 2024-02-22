@@ -1,6 +1,7 @@
 #define MS_CLASS "RTC::FileReader"
 #include "RTC/MediaTranslate/FileReader.hpp"
 #include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
 #include <algorithm> // for std::min/max
 
@@ -16,12 +17,11 @@ private:
     FileReader* const _source;
 };
 
-FileReader::FileReader(const std::string_view& fileNameUtf8,
-                       bool loop, size_t chunkSize, int* error)
-    : Base(fileNameUtf8, true, error)
+FileReader::FileReader(const std::weak_ptr<BufferAllocator>& allocator,
+                       bool loop, size_t chunkSize)
+    : Base(allocator)
     , _loop(loop)
-    , _fileSize(GetFileSize(GetHandle()))
-    , _chunkSize(std::min<size_t>(_fileSize, std::max<size_t>(chunkSize, 1024UL)))
+    , _chunkSize(chunkSize)
 {
 }
 
@@ -30,9 +30,53 @@ FileReader::~FileReader()
     Stop();
 }
 
+bool FileReader::Open(const std::string_view& fileNameUtf8, int* error)
+{
+    if (Base::Open(fileNameUtf8, true, error)) {
+        //std::min<size_t>(_fileSize, std::max<size_t>(chunkSize, 1024UL))
+        const auto fileSize = GetFileSize(GetHandle());
+        _fileSize = fileSize;
+        _actualChunkSize = std::min<size_t>(fileSize, std::max<size_t>(_chunkSize, 1024U));
+        return true;
+    }
+    return false;
+}
+
 bool FileReader::IsOpen() const
 {
     return Base::IsOpen() && _fileSize > 0LL;
+}
+
+std::shared_ptr<Buffer> FileReader::ReadAll(const std::string_view& fileNameUtf8,
+                                            const std::weak_ptr<BufferAllocator>& allocator)
+{
+    if (const auto handle = Base::OpenFile(fileNameUtf8, true)) {
+        auto size = GetFileSize(handle);
+        if (size > 0) {
+            try {
+                if (const auto buffer = RTC::AllocateBuffer(size, allocator)) {
+                    return RTC::ReallocateBuffer(FileRead(handle, buffer), buffer, allocator);
+                }
+            }
+            catch (const std::bad_alloc& e) {
+                MS_ERROR_STD("unable to allocate %lld bytes for file data", size);
+            }
+        }
+        else {
+            MS_WARN_DEV_STD("no data for read because file %s is empty", fileNameUtf8.c_str());
+        }
+    }
+    return nullptr;
+}
+
+bool FileReader::IsValidForRead(const std::string_view& fileNameUtf8)
+{
+    bool valid = false;
+    if (const auto handle = Base::OpenFile(fileNameUtf8, true)) {
+        auto size = GetFileSize(handle);
+        valid = size > 0;
+    }
+    return valid;
 }
 
 void FileReader::OnSinkWasAdded(MediaSink* sink, bool first)
@@ -49,46 +93,6 @@ void FileReader::OnSinkWasRemoved(MediaSink* sink, bool last)
         Stop();
     }
     Base::OnSinkWasRemoved(sink, last);
-}
-
-std::vector<uint8_t> FileReader::ReadAllAsBinary(const std::string_view& fileNameUtf8)
-{
-    std::vector<uint8_t> data;
-    if (const auto handle = Base::Open(fileNameUtf8, true)) {
-        auto size = GetFileSize(handle);
-        if (size > 0) {
-            try {
-                data.resize(size);
-                size = FileRead(handle, data);
-                if (size != data.size()) {
-                    data.resize(size);
-                }
-            }
-            catch (const std::bad_alloc& e) {
-                MS_ERROR_STD("unable to allocate %lld bytes for file data", size);
-                data.clear();
-            }
-        }
-        else {
-            MS_WARN_DEV_STD("no data for read because file %s is empty", fileNameUtf8.c_str());
-        }
-    }
-    return data;
-}
-
-bool FileReader::IsValidForRead(const std::string_view& fileNameUtf8)
-{
-    bool valid = false;
-    if (const auto handle = Base::Open(fileNameUtf8, true)) {
-        auto size = GetFileSize(handle);
-        valid = size > 0;
-    }
-    return valid;
-}
-
-std::shared_ptr<Buffer> FileReader::ReadAllAsBuffer(const std::string_view& fileNameUtf8)
-{
-    return SimpleBuffer::Create(ReadAllAsBinary(fileNameUtf8));
 }
 
 void FileReader::Run()
@@ -147,22 +151,23 @@ bool FileReader::SeekToStart()
 std::shared_ptr<Buffer> FileReader::ReadBuffer(bool& eof, bool& ok) const
 {
     std::shared_ptr<Buffer> buffer;
-    if (const auto handle = GetHandle()) {
-        std::vector<uint8_t> chunk;
-        chunk.resize(_chunkSize, 0);
-        const auto size = FileRead(handle, chunk);
+    const auto handle = GetHandle();
+    const auto chunkSize = _actualChunkSize.load();
+    const auto fileSize = _fileSize.load();
+    if (handle && chunkSize && fileSize) {
+        auto buffer = AllocateBuffer(chunkSize);
+        const auto size = FileRead(handle, buffer);
         if (size) {
-            chunk.resize(size);
-            buffer = SimpleBuffer::Create(std::move(chunk));
+            buffer = ReallocateBuffer(size, buffer);
         }
         else {
             ok = 0 == errno;
             if (!ok) {
-                MS_WARN_DEV_STD("Unable to read file chunk, size %ul, error code %d", chunk.size(), errno);
+                MS_WARN_DEV_STD("Unable to read file chunk, size %ul, error code %d", chunkSize, errno);
             }
         }
         if (ok) {
-            eof = _fileSize == FileTell(handle);
+            eof = fileSize == FileTell(handle);
         }
     }
     else {
@@ -211,10 +216,10 @@ bool FileReader::FileSeek(const std::shared_ptr<FILE>& handle, int command, long
     return false;
 }
 
-size_t FileReader::FileRead(const std::shared_ptr<FILE>& handle, std::vector<uint8_t>& to)
+size_t FileReader::FileRead(const std::shared_ptr<FILE>& handle, const std::shared_ptr<Buffer>& to)
 {
-    if (handle && !to.empty()) {
-        return ::fread(to.data(), 1UL, to.size(), handle.get());
+    if (handle && to && !to->IsEmpty()) {
+        return ::fread(to->GetData(), 1UL, to->GetSize(), handle.get());
     }
     return 0UL;
 }

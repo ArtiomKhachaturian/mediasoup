@@ -18,7 +18,7 @@ public:
     bool Prepend(const std::shared_ptr<Buffer>& buffer);
     void Clear();
     void Reserve(size_t size) { _buffer.reserve(size); }
-    void Resize(size_t size) { _buffer.resize(size); }
+    bool Resize(size_t size);
     std::vector<uint8_t> TakeData() { return std::move(_buffer); }
     size_t GetCapacity() const { return _buffer.capacity(); }
     size_t CopyTo(size_t offset, size_t len, uint8_t* output) const;

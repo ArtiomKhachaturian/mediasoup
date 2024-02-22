@@ -7,6 +7,7 @@
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTppUtils.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
 #include "Logger.hpp"
 #include "ProtectedObj.hpp"
 #include <websocketpp/config/asio.hpp>
@@ -22,22 +23,24 @@ namespace {
 using Server = websocketpp::server<websocketpp::config::asio_tls>;
 using MessagePtr = websocketpp::config::asio::message_type::ptr;
 
-class Client : public RTC::MediaTimerCallback
+using namespace RTC;
+
+class Client : public BufferAllocations<MediaTimerCallback>
 {
 public:
-    Client(const websocketpp::connection_hdl& hdl, std::string_view filename,
-           std::weak_ptr<Server> serverRef);
+    Client(const websocketpp::connection_hdl& hdl,
+           std::weak_ptr<Server> serverRef,
+           const std::weak_ptr<BufferAllocator>& allocator);
     void SetReceivedTextMessage(const std::string& text);
     void AddReceivedBinarySize(size_t size) { _receivedBinarySize.fetch_add(size); }
     bool HasReceivedTextMessage() const { return _receivedTextMessage.load(); }
     bool HasEnoughReceivedBinary() const { return _receivedBinarySize.load() >= _translationThreshold; }
     bool IsReadyForSendTranslation() const;
     // impl. of MediaTimerCallback
-    void OnEvent() final;
+    void OnEvent(uint64_t timerId) final;
 private:
-    static inline constexpr uint64_t _translationThreshold = 4U * 1024U; // 4kb
+    static inline constexpr uint64_t _translationThreshold = 1024U; // 1kb
     const websocketpp::connection_hdl _hdl;
-    const std::string_view _filename;
     const std::weak_ptr<Server> _serverRef;
     std::atomic_bool _receivedTextMessage;
     std::atomic<uint64_t> _receivedBinarySize = 0UL;
@@ -104,25 +107,23 @@ class WebsocketTppTestFactory : public WebsocketTppFactory
 {
     class MockServer;
 public:
-    WebsocketTppTestFactory();
+    WebsocketTppTestFactory(const std::weak_ptr<BufferAllocator>& allocator);
     ~WebsocketTppTestFactory() final;
     bool IsValid() const;
     // overrides of WebsocketTppFactory
     std::string GetUri() const final;
 private:
-    static inline const char*  _filename = "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_long.webm";
-    static inline constexpr uint32_t _repeatIntervalMs = 15000;
     static inline constexpr uint16_t _port = 8080U;
     static inline const std::string _localUri = "wss://localhost";
     const std::unique_ptr<MockServer> _server;
 };
 #endif
 
-std::unique_ptr<WebsocketFactory> WebsocketTppFactory::CreateFactory()
+std::unique_ptr<WebsocketFactory> WebsocketTppFactory::CreateFactory(const std::weak_ptr<BufferAllocator>& allocator)
 {
 #ifndef NO_TRANSLATION_SERVICE
 #ifdef LOCAL_WEBSOCKET_TEST_SERVER
-    auto testFactory = std::make_unique<WebsocketTppTestFactory>();
+    auto testFactory = std::make_unique<WebsocketTppTestFactory>(allocator);
     if (testFactory->IsValid()) {
         return testFactory;
     }
@@ -143,13 +144,15 @@ using lib::placeholders::_1;
 using lib::placeholders::_2;
 using lib::bind;
 
-class WebsocketTppTestFactory::MockServer
+class WebsocketTppTestFactory::MockServer : private BufferAllocations<void>
 {
     using IncomingConnection = std::pair<volatile uint64_t, std::shared_ptr<Client>>;
     using IncomingConnections = std::map<connection_hdl, IncomingConnection, std::owner_less<connection_hdl>>;
 public:
-    MockServer(const std::string& uri, WebsocketTls tls);
-    MockServer(const std::string& uri, WebsocketOptions options);
+    MockServer(const std::string& uri, WebsocketTls tls,
+               const std::weak_ptr<BufferAllocator>& allocator);
+    MockServer(const std::string& uri, WebsocketOptions options,
+               const std::weak_ptr<BufferAllocator>& allocator);
     ~MockServer();
     bool IsValid() const { return _fileIsAccessible && _thread.joinable(); }
 private:
@@ -167,8 +170,8 @@ private:
     ProtectedObj<IncomingConnections> _connections;
 };
 
-WebsocketTppTestFactory::WebsocketTppTestFactory()
-    : _server(std::make_unique<MockServer>(GetUri(), CreateOptions()))
+WebsocketTppTestFactory::WebsocketTppTestFactory(const std::weak_ptr<BufferAllocator>& allocator)
+    : _server(std::make_unique<MockServer>(GetUri(), CreateOptions(), allocator))
 {
 }
 
@@ -186,8 +189,10 @@ std::string WebsocketTppTestFactory::GetUri() const
     return _localUri + ":" + std::to_string(_port);
 }
 
-WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri, WebsocketTls tls)
-    : _fileIsAccessible(FileReader::IsValidForRead(WebsocketTppTestFactory::_filename))
+WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri, WebsocketTls tls,
+                                                const std::weak_ptr<BufferAllocator>& allocator)
+    : BufferAllocations<void>(allocator)
+    , _fileIsAccessible(FileReader::IsValidForRead(MOCK_WEBM_INPUT_FILE))
     , _tls(std::move(tls))
 {
     if (_fileIsAccessible) {
@@ -213,12 +218,14 @@ WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri, Websocke
         }
     }
     else {
-        MS_ERROR_STD("unable to read %s", WebsocketTppTestFactory::_filename);
+        MS_ERROR_STD("unable to read %s", MOCK_WEBM_INPUT_FILE);
     }
 }
 
-WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri, WebsocketOptions options)
-    : MockServer(uri, std::move(options._tls))
+WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri,
+                                                WebsocketOptions options,
+                                                const std::weak_ptr<BufferAllocator>& allocator)
+    : MockServer(uri, std::move(options._tls), allocator)
 {
 }
 
@@ -273,7 +280,9 @@ void WebsocketTppTestFactory::MockServer::OnMessage(connection_hdl hdl, MessageP
                     break;
             }
             if (!skip && !it->second.first && it->second.second->IsReadyForSendTranslation()) {
-                it->second.first = _timer->RegisterAndStart(it->second.second, _repeatIntervalMs);
+                // file len + 1 sec delay
+                const auto interval = 1000U + (MOCK_WEBM_INPUT_FILE_LEN_SECS * 1000U);
+                it->second.first = _timer->RegisterAndStart(it->second.second, interval);
             }
         }
     }
@@ -284,7 +293,7 @@ void WebsocketTppTestFactory::MockServer::OnOpen(connection_hdl hdl)
     if (_fileIsAccessible) {
         LOCK_WRITE_PROTECTED_OBJ(_connections);
         if (!_connections->count(hdl)) {
-            auto client = std::make_shared<Client>(hdl, WebsocketTppTestFactory::_filename, _server);
+            auto client = std::make_shared<Client>(hdl, _server, GetAllocator());
             _connections->insert(std::make_pair(hdl, std::make_pair(0U, std::move(client))));
         }
     }
@@ -313,10 +322,11 @@ std::shared_ptr<asio::ssl::context> WebsocketTppTestFactory::MockServer::
 #ifdef LOCAL_WEBSOCKET_TEST_SERVER
 namespace {
 
-Client::Client(const websocketpp::connection_hdl& hdl, std::string_view filename,
-               std::weak_ptr<Server> serverRef)
-    : _hdl(hdl)
-    , _filename(std::move(filename))
+Client::Client(const websocketpp::connection_hdl& hdl,
+               std::weak_ptr<Server> serverRef,
+               const std::weak_ptr<BufferAllocator>& allocator)
+    : BufferAllocations<MediaTimerCallback>(allocator)
+    , _hdl(hdl)
     , _serverRef(std::move(serverRef))
 {
 }
@@ -333,14 +343,14 @@ bool Client::IsReadyForSendTranslation() const
     return HasReceivedTextMessage() && HasEnoughReceivedBinary();
 }
 
-void Client::OnEvent()
+void Client::OnEvent(uint64_t /*timerId*/)
 {
     if (!_hdl.expired()) {
         if (const auto server = _serverRef.lock()) {
-            const auto content = RTC::FileReader::ReadAllAsBinary(_filename);
-            if (!content.empty()) {
+            const auto content = FileReader::ReadAll(MOCK_WEBM_INPUT_FILE, GetAllocator());
+            if (content && !content->IsEmpty()) {
                 websocketpp::lib::error_code ec;
-                server->send(_hdl, content.data(), content.size(),
+                server->send(_hdl, content->GetData(), content->GetSize(),
                              websocketpp::frame::opcode::binary, ec);
                 if (ec) {
                     MS_ERROR_STD("broadcast audio failed: %s", ec.message().c_str());

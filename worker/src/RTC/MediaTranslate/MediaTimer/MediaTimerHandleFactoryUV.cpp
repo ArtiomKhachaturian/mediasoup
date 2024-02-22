@@ -157,7 +157,7 @@ void MediaTimerHandleUV::Start(bool singleshot)
 void MediaTimerHandleUV::Stop()
 {
     if (const auto manager = _managerRef.lock()) {
-        manager->Add(TimerCommand(GetTimerId(), false));
+        manager->Add(TimerCommand(GetTimerId(), false, false));
     }
 }
 

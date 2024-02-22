@@ -3,23 +3,24 @@
 #include "RTC/MediaTranslate/MediaSourceImpl.hpp"
 #include <atomic>
 #include <thread>
-#include <vector>
 
 namespace RTC
 {
+
 
 class FileReader : public FileDevice<MediaSourceImpl>
 {
     class StartEndNotifier;
     using Base = FileDevice<MediaSourceImpl>;
 public:
-	FileReader(const std::string_view& fileNameUtf8,
-               bool loop = true, size_t chunkSize = 1024U * 1024U, // 1mb
-               int* error = nullptr);
+	FileReader(const std::weak_ptr<BufferAllocator>& allocator,
+               bool loop = true,
+               size_t chunkSize = 1024U * 1024U /* 1mb */);
     ~FileReader() final;
-    static std::vector<uint8_t> ReadAllAsBinary(const std::string_view& fileNameUtf8);
-    static std::shared_ptr<Buffer> ReadAllAsBuffer(const std::string_view& fileNameUtf8);
+    static std::shared_ptr<Buffer> ReadAll(const std::string_view& fileNameUtf8,
+                                           const std::weak_ptr<BufferAllocator>& allocator = std::weak_ptr<BufferAllocator>());
     static bool IsValidForRead(const std::string_view& fileNameUtf8);
+    bool Open(const std::string_view& fileNameUtf8, int* error = nullptr);
     // overrides of FileDevice<>
     bool IsOpen() const final;
 protected:
@@ -36,11 +37,12 @@ private:
     static int64_t GetFileSize(const std::shared_ptr<FILE>& handle);
     static int64_t FileTell(const std::shared_ptr<FILE>& handle);
     static bool FileSeek(const std::shared_ptr<FILE>& handle, int command, long offset = 0L);
-    static size_t FileRead(const std::shared_ptr<FILE>& handle, std::vector<uint8_t>& to);
+    static size_t FileRead(const std::shared_ptr<FILE>& handle, const std::shared_ptr<Buffer>& to);
 private:
 	const bool _loop;
-    const int64_t _fileSize;
     const size_t _chunkSize;
+    std::atomic<int64_t> _fileSize = 0ULL;
+    std::atomic<size_t> _actualChunkSize = 0U;
     std::atomic_bool _stopRequested = false;
     std::thread _thread;
 };

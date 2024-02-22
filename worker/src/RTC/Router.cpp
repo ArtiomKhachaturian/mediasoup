@@ -22,11 +22,11 @@ namespace RTC
 
     Router::Router(RTC::Shared* shared, const std::string& id, Listener* listener)
       : id(id), shared(shared), listener(listener)
-      , buffersAllocator(std::make_shared</*PoolAllocator*/BufferAllocator>())
+      , buffersAllocator(std::make_shared<PoolAllocator>())
       , translatedPacketsPlayer(buffersAllocator)
     {
         MS_TRACE();
-        websocketFactory = WebsocketTppFactory::CreateFactory();
+        websocketFactory = WebsocketTppFactory::CreateFactory(buffersAllocator);
         // NOTE: This may throw.
         this->shared->channelMessageRegistrator->RegisterHandler(
           this->id,
