@@ -30,7 +30,7 @@ void MediaFrame::AddPayload(const std::shared_ptr<Buffer>& payload)
 void MediaFrame::AddPayload(const uint8_t* data, size_t len)
 {
     if (data && len) {
-        AddPayload(AllocateBuffer(len, data, _payload->GetAllocator()));
+        AddPayload(_payload->AllocateBuffer(len, data));
     }
 }
 

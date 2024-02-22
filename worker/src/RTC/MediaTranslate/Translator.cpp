@@ -23,13 +23,13 @@ Translator::Translator(const Producer* producer,
                        RtpPacketsPlayer* rtpPacketsPlayer,
                        RtpPacketsCollector* output,
                        const std::weak_ptr<BufferAllocator>& allocator)
-    : _producer(producer)
+    : BufferAllocations<TranslatorEndPointFactory>(allocator)
+    , _producer(producer)
 #ifndef NO_TRANSLATION_SERVICE
     , _websocketFactory(websocketFactory)
 #endif
     , _rtpPacketsPlayer(rtpPacketsPlayer)
     , _output(output)
-    , _allocator(allocator)
 {
 }
 
@@ -80,7 +80,7 @@ bool Translator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
             if (it == _mappedSsrcToStreams->end()) {
                 auto source = TranslatorSource::Create(mime, clockRate, originalSsrc,
                                                        payloadType, this, _rtpPacketsPlayer,
-                                                       _output, _producer->id, _allocator);
+                                                       _output, _producer->id, GetAllocator());
                 if (source) {
                     source->SetInputLanguage(_producer->GetLanguageId());
                     AddConsumersToSource(source);

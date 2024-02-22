@@ -12,13 +12,13 @@ RtpPacketsPlayerSimpleStream::RtpPacketsPlayerSimpleStream(const std::shared_ptr
                                                            const RtpCodecMimeType& mime,
                                                            RtpPacketsPlayerCallback* callback,
                                                            const std::weak_ptr<BufferAllocator>& allocator)
-    : _timer(timer)
+    : BufferAllocations<RtpPacketsPlayerStream>(allocator)
+    , _timer(timer)
     , _ssrc(ssrc)
     , _clockRate(clockRate)
     , _payloadType(payloadType)
     , _mime(mime)
     , _callback(callback)
-    , _allocator(allocator)
 {
 }
 
@@ -51,7 +51,7 @@ void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId, const std::share
                                                                      _ssrc, _clockRate,
                                                                      _payloadType, mediaId,
                                                                      mediaSourceId, this,
-                                                                     _allocator)) {
+                                                                     GetAllocator())) {
                 playingMedias[mediaSourceId][mediaId] = fragment;
                 _timer->Singleshot(0U, fragment);
             }

@@ -52,8 +52,8 @@ private:
 
 MkvBufferedWriter::MkvBufferedWriter(MediaSink* sink, const char* app,
                                      const std::weak_ptr<BufferAllocator>& allocator)
-    : _sink(sink)
-    , _allocator(allocator)
+    : BufferAllocations<MediaObject>(allocator)
+    , _sink(sink)
     , _initialized(_segment.Init(this))
 {
     if (IsInitialized()) {
@@ -334,12 +334,12 @@ mkvmuxer::int32 MkvBufferedWriter::Write(const void* buf, mkvmuxer::uint32 len)
     if (buf && len) {
         if (!_buffer) {
             const auto allocSize = std::max<size_t>(len, _bufferInitialCapacity);
-            _buffer = AllocateBuffer(allocSize, buf, len, _allocator);
+            _buffer = AllocateBuffer(allocSize, buf, len);
         }
         else {
             if (_bufferOffset + len > _buffer->GetSize()) {
                 _buffer = AllocateBuffer(_bufferOffset + len, _buffer->GetData(),
-                                         _buffer->GetSize(), _allocator);
+                                         _buffer->GetSize());
             }
             if (_buffer) {
                 std::memcpy(_buffer->GetData() + _bufferOffset, buf, len);

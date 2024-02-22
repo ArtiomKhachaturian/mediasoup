@@ -17,7 +17,7 @@ SegmentsBuffer::SegmentsBuffer(const std::weak_ptr<BufferAllocator>& allocator)
 }
 
 SegmentsBuffer::SegmentsBuffer(const std::weak_ptr<BufferAllocator>& allocator, size_t capacity)
-    : _allocator(allocator)
+    : BufferAllocations<Buffer>(allocator)
     , _capacity(capacity)
 {
     MS_ASSERT(_capacity, "capacity should be greater than zero");
@@ -100,7 +100,7 @@ uint8_t* SegmentsBuffer::Merge() const
 {
     if (const auto count = _buffers.size()) {
         if (count > 1U) {
-            auto merged = AllocateBuffer(_size, _allocator);
+            auto merged = AllocateBuffer(_size);
             MS_ASSERT(merged, "failed to create merged buffer");
             MS_ASSERT(_size == merged->GetSize(), "merged size is incorrect");
             size_t offset = 0U;

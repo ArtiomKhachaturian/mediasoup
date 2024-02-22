@@ -1,14 +1,14 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaFrameDeserializer.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
 
 namespace RTC
 {
 
-class BufferAllocator;
 class MkvBufferedReader;
 enum class MkvReadResult;
 
-class WebMDeserializer : public MediaFrameDeserializer
+class WebMDeserializer : public BufferAllocations<MediaFrameDeserializer>
 {
     class TrackInfo;
 public:
@@ -25,7 +25,6 @@ public:
 private:
     static MediaFrameDeserializeResult FromMkvReadResult(MkvReadResult result);
 private:
-    const std::weak_ptr<BufferAllocator> _allocator;
     const std::unique_ptr<MkvBufferedReader> _reader;
     absl::flat_hash_map<size_t, std::unique_ptr<TrackInfo>> _tracks;
 };

@@ -20,8 +20,8 @@ RtpPacketsPlayer::RtpPacketsPlayer(const std::weak_ptr<BufferAllocator>& allocat
 
 RtpPacketsPlayer::RtpPacketsPlayer(const std::shared_ptr<MediaTimer>& timer,
                                    const std::weak_ptr<BufferAllocator>& allocator)
-    : _timer(timer)
-    , _allocator(allocator)
+    : BufferAllocations<void>(allocator)
+    , _timer(timer)
 {
     MS_ASSERT(_timer, "media timer must not be null");
 }
@@ -42,7 +42,7 @@ void RtpPacketsPlayer::AddStream(uint32_t ssrc, uint32_t clockRate, uint8_t payl
 #ifdef USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
             auto stream = RtpPacketsPlayerMainLoopStream::Create(_timer, ssrc, clockRate,
                                                                  payloadType, mime,
-                                                                 callback, _allocator);
+                                                                 callback, GetAllocator());
 #else
             auto stream = RtpPacketsPlayerSimpleStream::Create(_timer, ssrc, clockRate,
                                                                payloadType, mime,

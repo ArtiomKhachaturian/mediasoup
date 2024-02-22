@@ -27,15 +27,14 @@ private:
 };
 
 WebMSerializer::WebMSerializer(const RtpCodecMimeType& mime, const std::weak_ptr<BufferAllocator>& allocator)
-    : MediaFrameSerializer(mime)
-    , _allocator(allocator)
+    : BufferAllocations<MediaFrameSerializer>(allocator, mime)
 {
     MS_ASSERT(WebMCodecs::IsSupported(mime), "WebM not available for this MIME %s", mime.ToString().c_str());
 }
 std::unique_ptr<MediaFrameWriter> WebMSerializer::CreateWriter(MediaSink* sink)
 {
     if (sink) {
-        auto writer = std::make_unique<Writer>(GetMimeType(), sink, _allocator);
+        auto writer = std::make_unique<Writer>(GetMimeType(), sink, GetAllocator());
         if (writer->IsInitialized()) {
             return writer;
         }

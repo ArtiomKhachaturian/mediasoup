@@ -1,5 +1,5 @@
 #pragma once
-
+#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include <memory>
 
@@ -10,9 +10,8 @@ class MediaFrame;
 class RtpMediaFrame;
 class RtpMediaFrameSerializer;
 class RtpPacket;
-class BufferAllocator;
 
-class RtpDepacketizer
+class RtpDepacketizer : public BufferAllocations<void>
 {
 public:
     virtual ~RtpDepacketizer() = default;
@@ -30,7 +29,6 @@ protected:
 private:
     const RtpCodecMimeType _mimeType;
     const uint32_t _clockRate;
-    const std::weak_ptr<BufferAllocator> _allocator;
 };
 
 } // namespace RTC

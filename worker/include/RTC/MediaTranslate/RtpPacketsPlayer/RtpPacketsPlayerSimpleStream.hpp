@@ -1,6 +1,7 @@
 #pragma once
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerStream.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "ProtectedObj.hpp"
 #include "absl/container/flat_hash_map.h"
@@ -9,11 +10,10 @@
 namespace RTC
 {
 
-class BufferAllocator;
 class MediaTimer;
 class RtpPacketsPlayerMediaFragment;
 
-class RtpPacketsPlayerSimpleStream : public RtpPacketsPlayerStream,
+class RtpPacketsPlayerSimpleStream : public BufferAllocations<RtpPacketsPlayerStream>,
                                      private RtpPacketsPlayerCallback
 {
     template<typename V>
@@ -53,7 +53,6 @@ private:
     const uint8_t _payloadType;
     const RtpCodecMimeType _mime;
     RtpPacketsPlayerCallback* const _callback;
-    const std::weak_ptr<BufferAllocator> _allocator;
     // key is media source ID
     ProtectedObj<MediaSourcesMap> _playingMedias;
 };

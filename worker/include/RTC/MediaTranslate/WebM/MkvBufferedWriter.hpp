@@ -1,5 +1,6 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaObject.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <mkvmuxer/mkvmuxer.h>
 
@@ -7,7 +8,6 @@ namespace RTC
 {
 
 class Buffer;
-class BufferAllocator;
 class MediaSink;
 class MediaFrame;
 class RtpCodecMimeType;
@@ -15,7 +15,8 @@ class AudioFrameConfig;
 class VideoFrameConfig;
 
 // https://www.webmproject.org/docs/container/#muxer-guidelines
-class MkvBufferedWriter : public MediaObject, private mkvmuxer::IMkvWriter
+class MkvBufferedWriter : public BufferAllocations<MediaObject>,
+                          private mkvmuxer::IMkvWriter
 {
     enum class EnqueueResult;
     class MkvFrameMemory;
@@ -58,7 +59,6 @@ private:
 private:
     static inline constexpr size_t _bufferInitialCapacity = 1024U; // 1kb chunk reserved
     MediaSink* const _sink;
-    const std::weak_ptr<BufferAllocator> _allocator;
     mkvmuxer::Segment _segment;
     const bool _initialized;
     bool _hadWroteMedia = false;

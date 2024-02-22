@@ -1,16 +1,15 @@
 #pragma once
-
-#include "RTC/RtpDictionaries.hpp"
-#include "RTC/RtpPacketsCollector.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointFactory.hpp"
 #include "RTC/MediaTranslate/TranslatorDefines.hpp"
+#include "RTC/RtpDictionaries.hpp"
+#include "RTC/RtpPacketsCollector.hpp"
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
 
 namespace RTC
 {
 
-class BufferAllocator;
 class RtpStream;
 class RtpPacketsPlayer;
 class Producer;
@@ -20,7 +19,7 @@ class RtpPacket;
 class RtpPacketsCollector;
 class WebsocketFactory;
 
-class Translator : private TranslatorEndPointFactory
+class Translator : private BufferAllocations<TranslatorEndPointFactory>
 {
     template <typename K, typename V> using Map = absl::flat_hash_map<K, V>;
     template <typename V> using StreamMap = Map<uint32_t, V>;
@@ -74,7 +73,6 @@ private:
 #endif
     RtpPacketsPlayer* const _rtpPacketsPlayer;
     RtpPacketsCollector* const _output;
-    const std::weak_ptr<BufferAllocator> _allocator;
 #if defined(SINGLE_TRANSLATION_POINT_CONNECTION) || defined(NO_TRANSLATION_SERVICE)
     // websocket or file end-point, valid for 1st created instance, just for debug
     mutable std::weak_ptr<TranslatorEndPoint> _nonStubEndPointRef;

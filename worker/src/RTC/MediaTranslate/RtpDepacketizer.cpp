@@ -10,9 +10,9 @@ namespace RTC
 
 RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& mimeType, uint32_t clockRate,
                                  const std::weak_ptr<BufferAllocator>& allocator)
-    : _mimeType(mimeType)
+    : BufferAllocations<void>(allocator)
+    , _mimeType(mimeType)
     , _clockRate(clockRate)
-    , _allocator(allocator)
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
 }
@@ -48,12 +48,12 @@ std::unique_ptr<RtpDepacketizer> RtpDepacketizer::Create(const RtpCodecMimeType&
 
 std::shared_ptr<RtpMediaFrame> RtpDepacketizer::CreateMediaFrame() const
 {
-    return std::make_shared<RtpMediaFrame>(GetMimeType(), GetClockRate(), _allocator);
+    return std::make_shared<RtpMediaFrame>(GetMimeType(), GetClockRate(), GetAllocator());
 }
 
 std::shared_ptr<RtpMediaFrame> RtpDepacketizer::CreateMediaFrame(const RtpPacket* packet) const
 {
-    return RtpMediaFrame::Create(packet, GetMimeType(), GetClockRate(), _allocator);
+    return RtpMediaFrame::Create(packet, GetMimeType(), GetClockRate(), GetAllocator());
 }
 
 } // namespace RTC

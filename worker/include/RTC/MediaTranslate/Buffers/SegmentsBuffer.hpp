@@ -1,5 +1,5 @@
 #pragma once
-#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
+#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
 #include <list>
 #include <limits>
 #include <memory>
@@ -9,7 +9,7 @@ namespace RTC
 
 class BufferAllocator;
 
-class SegmentsBuffer : public Buffer
+class SegmentsBuffer : public BufferAllocations<Buffer>
 {
     using BuffersList = std::list<std::shared_ptr<Buffer>>;
 public:
@@ -27,7 +27,6 @@ public:
     void Clear();
     size_t CopyTo(size_t offset, size_t len, uint8_t* output) const;
     size_t GetCapacity() const { return _capacity; }
-    const std::weak_ptr<BufferAllocator>& GetAllocator() const { return _allocator; }
     // impl. of Buffer
     size_t GetSize() const final { return _size; }
     uint8_t* GetData() final;
@@ -37,7 +36,6 @@ private:
     // expensive operation
     uint8_t* Merge() const;
 private:
-    const std::weak_ptr<BufferAllocator> _allocator;
     const size_t _capacity;
     mutable BuffersList _buffers;
     size_t _size = 0UL;
