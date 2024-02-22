@@ -283,6 +283,7 @@ void WebsocketTppTestFactory::MockServer::OnMessage(connection_hdl hdl, MessageP
                 // file len + 1 sec delay
                 const auto interval = 1000U + (MOCK_WEBM_INPUT_FILE_LEN_SECS * 1000U);
                 it->second.first = _timer->RegisterAndStart(it->second.second, interval);
+                it->second.second->OnEvent(it->second.first); // play immediately
             }
         }
     }
