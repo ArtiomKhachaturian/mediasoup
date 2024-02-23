@@ -19,6 +19,7 @@ public:
     std::shared_ptr<Buffer> Allocate(size_t size) final;
     void PurgeGarbage() final;
 private:
+    static inline constexpr size_t _countOfStackBlocks = 32U;
 	const std::unique_ptr<AllocatorImpl> _impl;
 };
 

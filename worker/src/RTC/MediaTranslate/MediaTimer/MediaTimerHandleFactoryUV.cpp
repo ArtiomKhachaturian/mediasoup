@@ -54,7 +54,7 @@ public:
     TimerCommand() = delete;
     TimerCommand(uint64_t timerId, const std::weak_ptr<MediaTimerCallback>& callbackRef); // add
     TimerCommand(uint64_t timerId, bool start, bool singleshot); // start/stop
-    TimerCommand(uint64_t timerId, uint32_t timeoutMs); // timeout
+    explicit TimerCommand(uint64_t timerId, uint32_t timeoutMs); // timeout
     TimerCommand(uint64_t timerId); // remove
     TimerCommand(TimerCommand&&) = default;
     TimerCommand(const TimerCommand&) = default;
@@ -413,6 +413,8 @@ TimerWrapper::~TimerWrapper()
 void TimerWrapper::SetTimeout(uint32_t timeoutMs)
 {
     if (_timeoutMs != timeoutMs) {
+        //_timeoutMs = timeoutMs;
+        //uv_timer_set_repeat(_timer.GetHandle(), std::max<uint64_t>(1U, _timeoutMs));
         const auto wasActive = IsActive();
         if (wasActive) {
             Stop();

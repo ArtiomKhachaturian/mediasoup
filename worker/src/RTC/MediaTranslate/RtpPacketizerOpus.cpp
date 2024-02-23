@@ -6,6 +6,11 @@
 namespace RTC
 {
 
+RtpCodecMimeType RtpPacketizerOpus::GetType() const
+{
+    return RtpCodecMimeType(RtpCodecMimeType::Type::AUDIO, RtpCodecMimeType::Subtype::OPUS);
+}
+
 RtpPacket* RtpPacketizerOpus::AddFrame(const std::shared_ptr<const MediaFrame>& frame,
                                        bool setPacketTimestamp)
 {

@@ -47,6 +47,7 @@ public:
     void SetTimeout(uint64_t timerId, uint32_t timeoutMs);
     void Start(uint64_t timerId, bool singleshot);
     bool IsStarted(uint64_t timerId) const;
+    std::optional<uint32_t> GetTimeout(uint64_t timerId) const;
     void Stop(uint64_t timerId);
     uint64_t Register(const std::shared_ptr<MediaTimerCallback>& callback,
                       const std::optional<std::pair<uint32_t, bool>>& start = std::nullopt);
@@ -131,6 +132,11 @@ bool MediaTimer::IsStarted(uint64_t timerId) const
     return _impl && _impl->IsStarted(timerId);
 }
 
+std::optional<uint32_t> MediaTimer::GetTimeout(uint64_t timerId) const
+{
+    return _impl ? _impl->GetTimeout(timerId) : std::nullopt;
+}
+
 uint64_t MediaTimer::Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback)
 {
     if (_impl && callback) {
@@ -200,6 +206,18 @@ bool MediaTimer::Impl::IsStarted(uint64_t timerId) const
         }
     }
     return false;
+}
+
+std::optional<uint32_t> MediaTimer::Impl::GetTimeout(uint64_t timerId) const
+{
+    if (timerId) {
+        LOCK_READ_PROTECTED_OBJ(_handles);
+        const auto it = _handles->find(timerId);
+        if (it != _handles->end()) {
+            return it->second->GetTimeout();
+        }
+    }
+    return std::nullopt;
 }
 
 void MediaTimer::Impl::Stop(uint64_t timerId)

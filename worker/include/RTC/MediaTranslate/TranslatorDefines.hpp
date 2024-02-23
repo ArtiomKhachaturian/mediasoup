@@ -1,6 +1,10 @@
 #pragma once // RTC/MediaTranslate/TranslatorDefines.hpp
 
-#define MEDIA_TRANSLATIONS_TEST // TODO: remove it for production
+// TODO: remove it for production
+#define MEDIA_TRANSLATIONS_TEST
+
+// TODO: add timer-based garbage collector for cleanup of unused heap chunks
+//#define ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
 
 #ifdef MEDIA_TRANSLATIONS_TEST
 #define USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
