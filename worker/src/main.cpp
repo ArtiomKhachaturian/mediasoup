@@ -44,7 +44,10 @@ public:
     }
     virtual void OnPlayFinished(uint32_t /*ssrc*/, uint64_t /*mediaId*/,
                                 uint64_t /*mediaSourceId*/) {
-        MS_ERROR_STD("OnPlayFinished at %s", GetCurrentTime().c_str());
+        const auto now = GetCurrentTs();
+        MS_ERROR_STD("OnPlayFinished at %s, delta is %lld ms",
+                     GetCurrentTime().c_str(),
+                     (now - _current).count());
     }
 private:
     static std::chrono::milliseconds GetCurrentTs() {
