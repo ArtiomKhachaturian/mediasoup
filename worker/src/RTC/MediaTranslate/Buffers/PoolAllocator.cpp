@@ -1,12 +1,12 @@
 #define MS_CLASS "RTC::PoolAllocator"
 #include "RTC/MediaTranslate/Buffers/PoolAllocator.hpp"
 #include "RTC/MediaTranslate/TranslatorDefines.hpp"
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-#include "ProtectedObj.hpp"
-#include "DepLibUV.hpp"
-#endif
 #include "Logger.hpp"
 #include "handles/TimerHandle.hpp"
+#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
+#include "DepLibUV.hpp"
+#include <shared_mutex>
+#endif
 #include <array>
 #include <atomic>
 #include <list>
@@ -132,6 +132,7 @@ class PoolAllocator::AllocatorImpl : public TimerHandle::Listener
 {
 public:
     AllocatorImpl();
+    ~AllocatorImpl();
     MemoryChunkPtr Allocate(size_t alignedSize);
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
     void PurgeGarbage(uint32_t maxBufferAgeMs);
@@ -160,7 +161,8 @@ private:
     const StackChunksMap _stackChunks;
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
     std::unique_ptr<TimerHandle> _garbageCollectorTimer;
-    ProtectedObj<HeapChunksMap> _heapChunks;
+    std::shared_mutex _heapChunksMtx;
+    HeapChunksMap _heapChunks;
 #endif
 };
 
@@ -233,10 +235,17 @@ PoolAllocator::AllocatorImpl::AllocatorImpl()
         _garbageCollectorTimer->Start(interval, interval);
     }
     else {
-        MS_ERROR_STD("Automatic garbage collector "
-                     "is not available, don't forget to "
-                     "call 'PurgeGarbage' method from time to time");
+        MS_WARN_DEV_STD("Automatic garbage collector "
+                        "is not available, don't forget to "
+                        "call 'PurgeGarbage' method from time to time");
     }
+#endif
+}
+
+PoolAllocator::AllocatorImpl::~AllocatorImpl()
+{
+#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
+    PurgeGarbage(0U);
 #endif
 }
 
@@ -246,7 +255,6 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::Allocate(size_t alignedSize)
         auto chunk = GetStackChunk(alignedSize);
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
         if (!chunk) {
-            alignedSize = GetAlignedBufferSize(alignedSize, _maxStackChunkSize);
             chunk = AcquireHeapChunk(alignedSize);
         }
 #endif
@@ -258,11 +266,12 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::Allocate(size_t alignedSize)
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
 void PoolAllocator::AllocatorImpl::PurgeGarbage(uint32_t maxBufferAgeMs)
 {
-    LOCK_WRITE_PROTECTED_OBJ(_heapChunks);
+    const std::unique_lock<decltype(_heapChunksMtx)> lock(_heapChunksMtx);
     if (maxBufferAgeMs) {
-        for (auto it = _heapChunks->begin(); it != _heapChunks->end();) {
+        // TODO: change to https://en.cppreference.com/w/cpp/container/multimap/erase_if on C++20
+        for (auto it = _heapChunks.begin(); it != _heapChunks.end();) {
             if (it->second->GetAge() >= maxBufferAgeMs) {
-                it = _heapChunks->erase(it);
+                it = _heapChunks.erase(it);
             }
             else {
                 ++it;
@@ -270,7 +279,7 @@ void PoolAllocator::AllocatorImpl::PurgeGarbage(uint32_t maxBufferAgeMs)
         }
     }
     else {
-        _heapChunks->clear();
+        _heapChunks.clear();
     }
 }
 #endif
@@ -297,16 +306,25 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::GetStackChunk(size_t alignedSize) c
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
 MemoryChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t alignedSize)
 {
-    LOCK_WRITE_PROTECTED_OBJ(_heapChunks);
-    auto chunk = GetAcquiredExactSize(alignedSize, _heapChunks.ConstRef());
+    MemoryChunkPtr chunk;
+    {
+        const std::shared_lock<decltype(_heapChunksMtx)> lock(_heapChunksMtx);
+        auto chunk = GetAcquiredExactSize(alignedSize, _heapChunks);
+        if (!chunk) {
+            chunk = GetAcquired(_heapChunks.upper_bound(alignedSize), _heapChunks.end());
+        }
+    }
     if (!chunk) {
-        chunk = GetAcquired(_heapChunks->upper_bound(alignedSize), _heapChunks->end());
-        if (!chunk) { // allocate new
-            auto heapChunk = CreateHeapChunk(alignedSize);
-            if (heapChunk) {
-                _heapChunks->insert({alignedSize, heapChunk});
-                chunk = std::move(heapChunk);
+        auto heapChunk = CreateHeapChunk(alignedSize);
+        if (heapChunk) {
+            {
+                const std::unique_lock<decltype(_heapChunksMtx)> lock(_heapChunksMtx);
+                _heapChunks.insert({alignedSize, heapChunk});
+                if (alignedSize != heapChunk->GetSize()) {
+                    _heapChunks.insert({heapChunk->GetSize(), heapChunk});
+                }
             }
+            chunk = std::move(heapChunk);
         }
     }
     return chunk;

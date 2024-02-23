@@ -16,7 +16,7 @@ public:
     PoolAllocator& operator = (const PoolAllocator&) = delete;
     PoolAllocator& operator = (PoolAllocator&&) = delete;
     // overrides of BufferAllocator
-    void PurgeGarbage(uint32_t maxBufferAgeMs) final;
+    void PurgeGarbage(uint32_t maxBufferAgeMs = 0U) final;
 protected:
     std::shared_ptr<Buffer> AllocateAligned(size_t size, size_t alignedSize) final;
 private:
