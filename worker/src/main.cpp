@@ -63,14 +63,14 @@ static constexpr int ProducerChannelFd{ 4 };
 
 int main(int argc, char* argv[])
 {
-    if (const auto buffer = FileReader::ReadAll(MOCK_WEBM_INPUT_FILE)) {
+    /*if (const auto buffer = FileReader::ReadAll(MOCK_WEBM_INPUT_FILE)) {
         auto timer = std::make_shared<MediaTimer>();
         TestMediaSink sink;
         if (auto fragment = RtpPacketsPlayerMediaFragment::Parse(buffer, timer, &sink)) {
             fragment->Start(0, 0, 48000, 100, 0, 0);
             sleep(1100);
         }
-    }
+    }*/
 	// Ensure we are called by our Node library.
 	if (!std::getenv("MEDIASOUP_VERSION"))
 	{

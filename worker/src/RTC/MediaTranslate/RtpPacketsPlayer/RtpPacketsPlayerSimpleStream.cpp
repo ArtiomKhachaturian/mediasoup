@@ -1,10 +1,7 @@
-#define MS_CLASS "RTC::RtpPacketsPlayerSimpleStream"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerSimpleStream.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMediaFragment.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
-#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/Buffers/Buffer.hpp"
-#include "Logger.hpp"
 
 namespace RTC
 {
@@ -87,7 +84,6 @@ bool RtpPacketsPlayerSimpleStream::IsPlaying(uint64_t mediaSourceId, uint64_t me
 void RtpPacketsPlayerSimpleStream::OnPlayStarted(uint32_t ssrc, uint64_t mediaId,
                                                  uint64_t mediaSourceId)
 {
-    MS_ERROR_STD("Play started at %s, media source ID %llu", GetCurrentTime().c_str(), mediaSourceId);
     _callback->OnPlayStarted(ssrc, mediaId, mediaSourceId);
 }
 
@@ -114,7 +110,6 @@ void RtpPacketsPlayerSimpleStream::OnPlayFinished(uint32_t ssrc, uint64_t mediaI
         }
     }
     _callback->OnPlayFinished(ssrc, mediaId, mediaSourceId);
-    MS_ERROR_STD("Play finished at %s, media source ID %llu", GetCurrentTime().c_str(), mediaSourceId);
 }
 
 } // namespace RTC
