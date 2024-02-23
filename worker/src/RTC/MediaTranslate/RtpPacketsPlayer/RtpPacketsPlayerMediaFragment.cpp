@@ -95,10 +95,12 @@ public:
     void OnEvent(uint64_t timerId) final;
 private:
     uint64_t GetTimerId() const { return _timerId.load(); }
+    void SetClockRate(size_t trackIndex, uint32_t clockRate);
     void Enque(std::unique_ptr<Task> task);
     void Process(std::unique_ptr<Task> task);
     void Process(const std::shared_ptr<MediaFrame>& frame);
     bool ReadNextFrame(const StartTask* startTask);
+    void ClearTasks();
 private:
     const std::weak_ptr<MediaTimer> _timerRef;
     const ProtectedUniquePtr<MediaFrameDeserializer> _deserializer;
@@ -221,10 +223,6 @@ RtpPacketsPlayerMediaFragment::TasksQueue::TasksQueue(const std::weak_ptr<MediaT
 RtpPacketsPlayerMediaFragment::TasksQueue::~TasksQueue()
 {
     SetTimerId(0UL);
-    LOCK_WRITE_PROTECTED_OBJ(_tasks);
-    while (!_tasks->empty()) {
-        _tasks->pop();
-    }
 }
 
 void RtpPacketsPlayerMediaFragment::TasksQueue::SetTimerId(uint64_t timerId)
@@ -234,6 +232,8 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::SetTimerId(uint64_t timerId)
         if (const auto timer = _timerRef.lock()) {
             timer->Unregister(oldTimerId);
         }
+        LOCK_WRITE_PROTECTED_OBJ(_tasks);
+        ClearTasks();
     }
 }
 
@@ -242,7 +242,8 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::Start(size_t trackIndex, uint32_
                                                       uint64_t mediaId, uint64_t mediaSourceId,
                                                       const std::shared_ptr<RTC::RtpPacketizer>& packetizer)
 {
-    if (packetizer) {
+    if (packetizer && GetTimerId()) {
+        SetClockRate(trackIndex, clockRate);
         auto startTask = std::make_unique<StartTask>(trackIndex, ssrc, clockRate,
                                                      payloadType, mediaId,
                                                      mediaSourceId, packetizer);
@@ -263,6 +264,12 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::OnEvent(uint64_t /*timerId*/)
     Process(std::move(task));
 }
 
+void RtpPacketsPlayerMediaFragment::TasksQueue::SetClockRate(size_t trackIndex, uint32_t clockRate)
+{
+    LOCK_WRITE_PROTECTED_OBJ(_deserializer);
+    _deserializer->get()->SetClockRate(trackIndex, clockRate);
+}
+
 void RtpPacketsPlayerMediaFragment::TasksQueue::Enque(std::unique_ptr<Task> task)
 {
     if (task) {
@@ -270,9 +277,7 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::Enque(std::unique_ptr<Task> task
         {
             LOCK_WRITE_PROTECTED_OBJ(_tasks);
             if (TaskType::Start == type) {
-                while (!_tasks->empty()) {
-                    _tasks->pop();
-                }
+                ClearTasks();
                 LOCK_WRITE_PROTECTED_OBJ(_startTask);
                 _startTask->reset();
             }
@@ -378,6 +383,13 @@ bool RtpPacketsPlayerMediaFragment::TasksQueue::ReadNextFrame(const StartTask* s
         }
     }
     return ok;
+}
+
+void RtpPacketsPlayerMediaFragment::TasksQueue::ClearTasks()
+{
+    while (!_tasks->empty()) {
+        _tasks->pop();
+    }
 }
 
 } // namespace RTC
