@@ -377,6 +377,8 @@ bool RtpPacketsPlayerMediaFragment::TasksQueue::ReadNextFrame(const StartTask* s
             _callback->OnPlayFinished(startTask->GetSsrc(),
                                       startTask->GetMediaId(),
                                       startTask->GetMediaSourceId());
+            LOCK_WRITE_PROTECTED_OBJ(_deserializer);
+            _deserializer->get()->Clear();
         }
         if (!MaybeOk(result)) {
             MS_ERROR_STD("read of deserialized frames was failed: %s", ToString(result));
