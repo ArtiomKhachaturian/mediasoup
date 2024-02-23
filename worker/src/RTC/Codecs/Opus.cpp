@@ -141,9 +141,9 @@ namespace RTC
 		{
 			MS_TRACE();
 
-			MS_DUMP("<PayloadDescriptor>");
-			MS_DUMP("  isDtx : %s", this->isDtx ? "true" : "false");
-			MS_DUMP("</PayloadDescriptor>");
+			MS_DUMP("<Opus::PayloadDescriptor>");
+			MS_DUMP("  isDtx: %s", this->isDtx ? "true" : "false");
+			MS_DUMP("</Opus::PayloadDescriptor>");
 		}
 
 		Opus::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor)
