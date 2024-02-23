@@ -18,7 +18,7 @@ class RtpPacketsPlayerSimpleStream : public BufferAllocations<RtpPacketsPlayerSt
     template<typename V>
     using UInt64Map = absl::flat_hash_map<uint64_t, V>;
     // key is media ID
-    using MediaFragmentsMap = UInt64Map<std::shared_ptr<RtpPacketsPlayerMediaFragment>>;
+    using MediaFragmentsMap = UInt64Map<std::unique_ptr<RtpPacketsPlayerMediaFragment>>;
     using MediaSourcesMap = UInt64Map<MediaFragmentsMap>;
 public:
     ~RtpPacketsPlayerSimpleStream() final;
