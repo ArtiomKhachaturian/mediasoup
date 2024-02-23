@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <memory>
+#include <optional>
 #include <functional>
 
 namespace RTC
@@ -30,6 +31,7 @@ public:
     void Start(uint64_t timerId, bool singleshot = false);
     void Stop(uint64_t timerId);
     bool IsStarted(uint64_t timerId) const;
+    std::optional<uint32_t> GetTimeout(uint64_t timerId) const;
     // returns timer ID
     uint64_t Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback);
     uint64_t Singleshot(uint32_t afterMs, std::function<void(uint64_t)> onEvent);

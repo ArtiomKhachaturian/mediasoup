@@ -72,7 +72,7 @@ private:
     ProtectedString _inputLanguageId;
     ProtectedString _outputLanguageId;
     ProtectedString _outputVoiceId;
-    ProtectedObj<MediaSource*> _inputMediaSource;
+    ProtectedObj<MediaSource*> _inputMediaSource = nullptr;
     std::atomic_bool _notifyedThatConnected = false; // for logs
     std::atomic<uint64_t> _translationsCount = 0ULL;
 };
