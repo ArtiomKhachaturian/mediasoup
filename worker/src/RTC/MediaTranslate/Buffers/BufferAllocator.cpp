@@ -7,9 +7,9 @@ namespace {
 
 using namespace RTC;
 
-inline std::shared_ptr<Buffer> AllocateSimple(size_t size)
+inline std::shared_ptr<Buffer> AllocateSimple(size_t size, size_t alignedSize)
 {
-    const auto buffer = std::make_shared<SimpleBuffer>(size);
+    const auto buffer = std::make_shared<SimpleBuffer>(alignedSize);
     buffer->Resize(size);
     return buffer;
 }
@@ -29,7 +29,7 @@ namespace RTC
 
 std::shared_ptr<Buffer> BufferAllocator::Allocate(size_t size)
 {
-    return AllocateSimple(size);
+    return AllocateAligned(size, GetAlignedBufferSize(size));
 }
 
 std::shared_ptr<Buffer> BufferAllocator::Allocate(size_t size, const void* data)
@@ -45,12 +45,28 @@ std::shared_ptr<Buffer> BufferAllocator::Allocate(size_t size, const void* data,
     return buffer;
 }
 
+std::shared_ptr<Buffer> BufferAllocator::AllocateAligned(size_t size, size_t alignedSize)
+{
+    return AllocateSimple(size, alignedSize);
+}
+
+size_t GetAlignedBufferSize(size_t size, size_t alignment)
+{
+    // even alignment expected
+    if (size && size > 1U && alignment < size && 0 == (alignment & (alignment - 1))) {
+        if (const auto rest = size % alignment) {
+            size = size + (alignment - rest);
+        }
+    }
+    return size;
+}
+
 std::shared_ptr<Buffer> AllocateBuffer(size_t size, const std::weak_ptr<BufferAllocator>& allocatorRef)
 {
     if (const auto allocator = allocatorRef.lock()) {
         return allocator->Allocate(size);
     }
-    return AllocateSimple(size);
+    return AllocateSimple(size, GetAlignedBufferSize(size));
 }
 
 std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data,
@@ -67,7 +83,7 @@ std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data, size_t dat
         buffer = allocator->Allocate(size, data, dataSize);
     }
     else {
-        buffer = AllocateSimple(size);
+        buffer = AllocateSimple(size, GetAlignedBufferSize(size));
         Copy(buffer, data, dataSize);
     }
     return buffer;

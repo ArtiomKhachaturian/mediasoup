@@ -5,6 +5,7 @@
 #endif
 #include <array>
 #include <atomic>
+#include <list>
 #include <map>
 
 namespace {
@@ -42,7 +43,7 @@ public:
     uint8_t* GetData() final { return _memory.data(); }
     const uint8_t* GetData() const final { return _memory.data(); }
 private:
-    std::array<uint8_t, size> _memory;
+    alignas(size) std::array<uint8_t, size> _memory;
 };
 
 template<>
@@ -77,7 +78,8 @@ using HeapChunksMap = ChunksMap<HeapChunkPtr>;
 #endif
 
 using MemoryChunkPtr = std::shared_ptr<MemoryChunk>;
-using StackChunksMap = ChunksMap<MemoryChunkPtr>;
+using MemoryChunks = std::list<MemoryChunkPtr>;
+using StackChunksMap = std::map<size_t, MemoryChunks>;
 
 }
 
@@ -103,20 +105,18 @@ class PoolAllocator::AllocatorImpl
 {
 public:
     AllocatorImpl();
-    std::shared_ptr<Buffer> Allocate(size_t size);
+    std::shared_ptr<Buffer> Allocate(size_t size, size_t alignedSize);
     void PurgeGarbage();
 private:
+    MemoryChunkPtr GetStackChunk(size_t alignedSize) const;
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-    HeapChunkPtr AcquireHeapChunk(size_t size);
+    HeapChunkPtr AcquireHeapChunk(size_t alignedSize);
 #endif
-    template<size_t count, size_t chunkSize>
+    template<size_t count, size_t size>
     static void FillStackChunks(StackChunksMap& chunks);
     static StackChunksMap CreateStackChunks();
-    template<class TMap>
-    static MemoryChunkPtr GetAcquired(size_t size, const TMap& chunks);
-    template<class TIterator>
-    static MemoryChunkPtr GetAcquired(TIterator from, TIterator to);
 private:
+    static inline constexpr size_t _maxStackChunkSize = 4096U;
     const StackChunksMap _stackChunks;
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
     ProtectedObj<HeapChunksMap> _heapChunks;
@@ -132,18 +132,18 @@ PoolAllocator::~PoolAllocator()
 {
 }
 
-std::shared_ptr<Buffer> PoolAllocator::Allocate(size_t size)
-{
-    if (const auto buffer = _impl->Allocate(size)) {
-        return buffer;
-    }
-    return BufferAllocator::Allocate(size);
-}
-
 void PoolAllocator::PurgeGarbage()
 {
     BufferAllocator::PurgeGarbage();
     _impl->PurgeGarbage();
+}
+
+std::shared_ptr<Buffer> PoolAllocator::AllocateAligned(size_t size, size_t alignedSize)
+{
+    if (const auto buffer = _impl->Allocate(size, alignedSize)) {
+        return buffer;
+    }
+    return BufferAllocator::AllocateAligned(size, alignedSize);
 }
 
 PoolAllocator::BufferImpl::BufferImpl(MemoryChunkPtr chunk, size_t size)
@@ -181,13 +181,14 @@ PoolAllocator::AllocatorImpl::AllocatorImpl()
 {
 }
 
-std::shared_ptr<Buffer> PoolAllocator::AllocatorImpl::Allocate(size_t size)
+std::shared_ptr<Buffer> PoolAllocator::AllocatorImpl::Allocate(size_t size,
+                                                               size_t alignedSize)
 {
     if (size) {
-        auto chunk = GetAcquired(size, _stackChunks);
+        auto chunk = GetStackChunk(alignedSize);
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
         if (!chunk) {
-            chunk = AcquireHeapChunk(size);
+            chunk = AcquireHeapChunk(alignedSize);
         }
 #endif
         if (chunk) {
@@ -202,16 +203,43 @@ void PoolAllocator::AllocatorImpl::PurgeGarbage()
     // TODO:
 }
 
+MemoryChunkPtr PoolAllocator::AllocatorImpl::GetStackChunk(size_t alignedSize) const
+{
+    if (alignedSize && alignedSize <= _maxStackChunkSize) {
+        // only exact shooting to cached stack chunks
+        if (alignedSize > 1U) {
+            // for avoiding of cache miss
+            size_t target = _maxStackChunkSize;
+            while (target) {
+                if (1U == target / alignedSize) {
+                    alignedSize = target;
+                    break;
+                }
+                target = target >> 1;
+            }
+        }
+        const auto itc = _stackChunks.find(alignedSize);
+        if (itc != _stackChunks.end()) {
+            for (auto it = itc->second.begin(); it != itc->second.end(); ++it) {
+                if (it->get()->Acquire()) {
+                    return *it;
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-HeapChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t size)
+HeapChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t alignedSize)
 {
     LOCK_WRITE_PROTECTED_OBJ(_heapChunks);
-    auto chunk = GetAcquired(size, _heapChunks.ConstRef());
+    auto chunk = GetAcquired(alignedSize, _heapChunks.ConstRef());
     if (!chunk) { // allocate new
-        if (auto memory = new (std::nothrow) uint8_t[size]) {
-            auto newChunk = std::make_shared<HeapChunk>(std::unique_ptr<uint8_t[]>(memory), size);
+        if (auto memory = new (std::nothrow) uint8_t[alignedSize]) {
+            auto newChunk = std::make_shared<HeapChunk>(std::unique_ptr<uint8_t[]>(memory), alignedSize);
             if (newChunk->Acquire()) {
-                _heapChunks->insert({size, newChunk});
+                _heapChunks->insert({alignedSize, newChunk});
                 return newChunk;
             }
         }
@@ -220,17 +248,20 @@ HeapChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t size)
 }
 #endif
 
-template<size_t count, size_t chunkSize>
-void PoolAllocator::AllocatorImpl::FillStackChunks(StackChunksMap& chunks)
+template<size_t count, size_t size>
+void PoolAllocator::AllocatorImpl::FillStackChunks(StackChunksMap& map)
 {
+    MemoryChunks chunks;
     for (size_t i = 0U; i < count; ++i) {
-        chunks.insert({chunkSize, std::make_shared<StackChunk<chunkSize>>()});
+        chunks.push_back(std::make_shared<StackChunk<size>>());
     }
+    map[size] = std::move(chunks);
 }
 
 StackChunksMap PoolAllocator::AllocatorImpl::CreateStackChunks()
 {
     StackChunksMap stackChunks;
+    //stackChunks.reserve(13U);
     FillStackChunks<PoolAllocator::_countOfStackBlocks, 1U>(stackChunks);
     FillStackChunks<PoolAllocator::_countOfStackBlocks, 2U>(stackChunks);
     FillStackChunks<PoolAllocator::_countOfStackBlocks, 4U>(stackChunks);
@@ -245,31 +276,6 @@ StackChunksMap PoolAllocator::AllocatorImpl::CreateStackChunks()
     FillStackChunks<PoolAllocator::_countOfStackBlocks, 2048U>(stackChunks);
     FillStackChunks<PoolAllocator::_countOfStackBlocks, 4096U>(stackChunks);
     return stackChunks;
-}
-
-template<class TMap>
-MemoryChunkPtr PoolAllocator::AllocatorImpl::GetAcquired(size_t size, const TMap& chunks)
-{
-    if (size && !chunks.empty()) {
-        const auto exact = chunks.equal_range(size);
-        MemoryChunkPtr chunk = GetAcquired(exact.first, exact.second);
-        if (!chunk) {
-            chunk = GetAcquired(chunks.upper_bound(size), chunks.end());
-        }
-        return chunk;
-    }
-    return nullptr;
-}
-
-template<class TIterator>
-MemoryChunkPtr PoolAllocator::AllocatorImpl::GetAcquired(TIterator from, TIterator to)
-{
-    for (auto it = from; it != to; ++it) {
-        if (it->second->Acquire()) {
-            return it->second;
-        }
-    }
-    return nullptr;
 }
 
 } // namespace RTC

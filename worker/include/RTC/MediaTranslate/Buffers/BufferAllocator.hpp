@@ -9,13 +9,16 @@ class BufferAllocator
 {
 public:
 	virtual ~BufferAllocator() = default;
-    virtual std::shared_ptr<Buffer> Allocate(size_t size);
+    std::shared_ptr<Buffer> Allocate(size_t size);
+    virtual void PurgeGarbage() {}
     std::shared_ptr<Buffer> Allocate(size_t size, const void* data);
     std::shared_ptr<Buffer> Allocate(size_t size, const void* data, size_t dataSize);
-    virtual void PurgeGarbage() {}
+protected:
+    virtual std::shared_ptr<Buffer> AllocateAligned(size_t size, size_t alignedSize);
 };
 
 // helper routines
+size_t GetAlignedBufferSize(size_t size, size_t alignment = 2U);
 std::shared_ptr<Buffer> AllocateBuffer(size_t size,
                                        const std::weak_ptr<BufferAllocator>& allocator = std::weak_ptr<BufferAllocator>());
 std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data,

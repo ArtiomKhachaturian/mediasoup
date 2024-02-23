@@ -16,8 +16,9 @@ public:
     PoolAllocator& operator = (const PoolAllocator&) = delete;
     PoolAllocator& operator = (PoolAllocator&&) = delete;
     // overrides of BufferAllocator
-    std::shared_ptr<Buffer> Allocate(size_t size) final;
     void PurgeGarbage() final;
+protected:
+    std::shared_ptr<Buffer> AllocateAligned(size_t size, size_t alignedSize) final;
 private:
     static inline constexpr size_t _countOfStackBlocks = 32U;
 	const std::unique_ptr<AllocatorImpl> _impl;
