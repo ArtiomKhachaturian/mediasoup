@@ -12,6 +12,7 @@ public:
     std::shared_ptr<Buffer> Allocate(size_t size);
     std::shared_ptr<Buffer> Allocate(size_t size, const void* data);
     std::shared_ptr<Buffer> Allocate(size_t size, const void* data, size_t dataSize);
+    virtual void PurgeGarbage(uint32_t /*maxBufferAgeMs*/) {}
 protected:
     virtual std::shared_ptr<Buffer> AllocateAligned(size_t size, size_t alignedSize);
 };
