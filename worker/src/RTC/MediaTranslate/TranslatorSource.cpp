@@ -13,6 +13,8 @@
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 
+#include <chrono>
+
 namespace RTC
 {
 
@@ -196,12 +198,21 @@ std::unique_ptr<FileWriter> TranslatorSource::CreateFileWriter(uint32_t ssrc,
 }
 #endif
 
+static std::chrono::milliseconds _current;
+
+static std::chrono::milliseconds GetCurrentTs() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(system_clock::now().time_since_epoch());
+}
+
 void TranslatorSource::OnPlayStarted(uint32_t ssrc, uint64_t mediaId,
                                      uint64_t mediaSourceId)
 {
     RtpPacketsPlayerCallback::OnPlayStarted(ssrc, mediaId, mediaSourceId);
     LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
     _consumersManager->BeginPacketsSending(mediaId, mediaSourceId);
+    MS_ERROR_STD("OnPlayStarted at %s", GetCurrentTime().c_str());
+    _current = GetCurrentTs();
 }
 
 void TranslatorSource::OnPlay(const Timestamp& timestampOffset, RtpPacket* packet,
@@ -209,8 +220,14 @@ void TranslatorSource::OnPlay(const Timestamp& timestampOffset, RtpPacket* packe
 {
     if (packet) {
         const auto rtpOffset = timestampOffset.GetRtpTime();
+        const auto now = GetCurrentTs();
         LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
         _consumersManager->SendPacket(rtpOffset, mediaId, mediaSourceId, packet, _output);
+        MS_ERROR_STD("OnPlay %u - %u, delta is %lld ms",
+                           timestampOffset.GetRtpTime(),
+                           timestampOffset.GetTime().ms<uint32_t>(),
+                           (now - _current).count());
+        _current = now;
     }
 }
 
@@ -220,6 +237,11 @@ void TranslatorSource::OnPlayFinished(uint32_t ssrc, uint64_t mediaId,
     RtpPacketsPlayerCallback::OnPlayFinished(ssrc, mediaId, mediaSourceId);
     LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
     _consumersManager->EndPacketsSending(mediaId, mediaSourceId);
+    const auto now = GetCurrentTs();
+    MS_ERROR_STD("OnPlayFinished at %s, delta is %lld ms",
+                         GetCurrentTime().c_str(),
+                         (now - _current).count());
+    _current = std::chrono::milliseconds();
 }
 
 void TranslatorSource::WriteMediaPayload(const MediaObject& sender,
