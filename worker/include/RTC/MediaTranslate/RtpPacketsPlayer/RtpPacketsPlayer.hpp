@@ -22,7 +22,7 @@ public:
     void RemoveStream(uint32_t ssrc);
     bool IsPlaying(uint32_t ssrc) const;
     void Play(uint32_t ssrc, uint64_t mediaSourceId, const std::shared_ptr<Buffer>& media);
-    //const std::shared_ptr<MediaTimer>& GetTimer() const { return _timer; }
+    void Stop(uint32_t ssrc, uint64_t mediaSourceId, uint64_t mediaId = 0ULL);
 private:
     const std::shared_ptr<MediaTimer> _timer;
     ProtectedObj<absl::flat_hash_map<uint32_t, std::unique_ptr<RtpPacketsPlayerStream>>> _streams;

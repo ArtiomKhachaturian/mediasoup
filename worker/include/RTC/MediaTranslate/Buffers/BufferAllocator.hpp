@@ -10,7 +10,6 @@ class BufferAllocator
 public:
 	virtual ~BufferAllocator() = default;
     std::shared_ptr<Buffer> Allocate(size_t size);
-    virtual void PurgeGarbage() {}
     std::shared_ptr<Buffer> Allocate(size_t size, const void* data);
     std::shared_ptr<Buffer> Allocate(size_t size, const void* data, size_t dataSize);
 protected:

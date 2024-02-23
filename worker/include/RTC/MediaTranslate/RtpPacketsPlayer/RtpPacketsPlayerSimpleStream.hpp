@@ -19,6 +19,7 @@ class RtpPacketsPlayerSimpleStream : public BufferAllocations<RtpPacketsPlayerSt
     using UInt64Map = absl::flat_hash_map<uint64_t, V>;
     // key is media ID
     using MediaFragmentsMap = UInt64Map<std::unique_ptr<RtpPacketsPlayerMediaFragment>>;
+    // key is media source ID
     using MediaSourcesMap = UInt64Map<MediaFragmentsMap>;
 public:
     ~RtpPacketsPlayerSimpleStream() final;
@@ -30,6 +31,7 @@ public:
     // impl. of RtpPacketsPlayerStream
     void Play(uint64_t mediaSourceId, const std::shared_ptr<Buffer>& media,
               const std::shared_ptr<MediaTimer> timer) final;
+    void Stop(uint64_t mediaSourceId, uint64_t mediaId) final;
     bool IsPlaying() const final;
 private:
     RtpPacketsPlayerSimpleStream(uint32_t ssrc, uint32_t clockRate,

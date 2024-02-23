@@ -84,4 +84,13 @@ void RtpPacketsPlayer::Play(uint32_t ssrc, uint64_t mediaSourceId,
     }
 }
 
+void RtpPacketsPlayer::Stop(uint32_t ssrc, uint64_t mediaSourceId, uint64_t mediaId)
+{
+    LOCK_READ_PROTECTED_OBJ(_streams);
+    const auto it = _streams->find(ssrc);
+    if (it != _streams->end()) {
+        it->second->Stop(mediaSourceId, mediaId);
+    }
+}
+
 } // namespace RTC

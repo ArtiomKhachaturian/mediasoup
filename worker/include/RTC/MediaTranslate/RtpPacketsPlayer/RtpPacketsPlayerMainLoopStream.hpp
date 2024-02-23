@@ -22,6 +22,7 @@ public:
     // impl. of RtpPacketsPlayerStream
     void Play(uint64_t mediaSourceId, const std::shared_ptr<Buffer>& media,
               const std::shared_ptr<MediaTimer> timer) final;
+    void Stop(uint64_t mediaSourceId, uint64_t mediaId) final;
     bool IsPlaying() const final;
 private:
     RtpPacketsPlayerMainLoopStream(std::unique_ptr<Impl> impl,

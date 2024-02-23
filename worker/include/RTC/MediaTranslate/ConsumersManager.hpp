@@ -9,7 +9,7 @@ namespace RTC
 class Consumer;
 class ConsumerInfo;
 class MediaSource;
-class MediaSink;
+class TranslatorEndPointSink;
 class TranslatorEndPoint;
 class TranslatorEndPointFactory;
 class RtpPacket;
@@ -23,7 +23,7 @@ class ConsumersManager
 public:
     ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                      MediaSource* translationsInput,
-                     MediaSink* translationsOutput);
+                     TranslatorEndPointSink* translationsOutput);
     ~ConsumersManager();
     void SetInputLanguage(const std::string& languageId);
     std::shared_ptr<ConsumerInfo> AddConsumer(Consumer* consumer);
@@ -44,7 +44,7 @@ private:
 private:
     TranslatorEndPointFactory* const _endPointsFactory;
     MediaSource* const _translationsInput;
-    MediaSink* const _translationsOutput;
+    TranslatorEndPointSink* const _translationsOutput;
     std::string _inputLanguageId;
     // consumer info contains combined hash of output language & voice for consumers
     absl::flat_hash_map<Consumer*, std::shared_ptr<ConsumerInfoImpl>> _consumersInfo;

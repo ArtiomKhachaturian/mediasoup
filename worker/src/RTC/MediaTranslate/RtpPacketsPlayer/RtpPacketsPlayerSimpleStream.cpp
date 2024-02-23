@@ -63,6 +63,23 @@ void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId,
     }
 }
 
+void RtpPacketsPlayerSimpleStream::Stop(uint64_t mediaSourceId, uint64_t mediaId)
+{
+    LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
+    const auto it = _playingMedias->find(mediaSourceId);
+    if (it != _playingMedias->end()) {
+        if (mediaId) {
+            it->second.erase(mediaId);
+        }
+        else {
+            it->second.clear();
+        }
+        if (it->second.empty()) {
+            _playingMedias->erase(it);
+        }
+    }
+}
+
 bool RtpPacketsPlayerSimpleStream::IsPlaying() const
 {
     LOCK_READ_PROTECTED_OBJ(_playingMedias);

@@ -38,7 +38,7 @@ private:
 
 ConsumersManager::ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                                    MediaSource* translationsInput,
-                                   MediaSink* translationsOutput)
+                                   TranslatorEndPointSink* translationsOutput)
     : _endPointsFactory(endPointsFactory)
     , _translationsInput(translationsInput)
     , _translationsOutput(translationsOutput)
@@ -49,7 +49,7 @@ ConsumersManager::~ConsumersManager()
 {
     for (auto ite = _endpoints.begin(); ite != _endpoints.end(); ++ite) {
         ite->second.first->SetInputMediaSource(nullptr);
-        ite->second.first->RemoveSink(_translationsOutput);
+        ite->second.first->RemoveOutputMediaSink(_translationsOutput);
     }
 }
 
@@ -119,7 +119,7 @@ bool ConsumersManager::RemoveConsumer(Consumer* consumer)
             const auto ite = _endpoints.find(it->second->GetLanguageVoiceKey());
             if (ite != _endpoints.end() && 0ULL == --ite->second.second) { // decrease counter
                 ite->second.first->SetInputMediaSource(nullptr);
-                ite->second.first->RemoveSink(_translationsOutput);
+                ite->second.first->RemoveOutputMediaSink(_translationsOutput);
                 _endpoints.erase(ite);
             }
             it->second->ResetEndPointRef();
@@ -199,7 +199,7 @@ std::shared_ptr<TranslatorEndPoint> ConsumersManager::AddNewEndPoint(const Consu
 std::shared_ptr<TranslatorEndPoint> ConsumersManager::CreateEndPoint() const
 {
     if (auto endPoint = _endPointsFactory->CreateEndPoint()) {
-        if (!endPoint->AddSink(_translationsOutput)) {
+        if (!endPoint->AddOutputMediaSink(_translationsOutput)) {
             // TODO: log error
         }
         else {

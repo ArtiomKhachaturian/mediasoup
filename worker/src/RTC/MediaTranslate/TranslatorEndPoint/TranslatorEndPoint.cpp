@@ -1,5 +1,6 @@
 #define MS_CLASS "RTC::TranslatorEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointSink.hpp"
 #include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
@@ -37,7 +38,6 @@ TranslatorEndPoint::~TranslatorEndPoint()
 void TranslatorEndPoint::SetInputMediaSource(MediaSource* inputMediaSource)
 {
     bool changed = false;
-    MS_ASSERT(inputMediaSource != this, "input media source will referenced to itself");
     {
         LOCK_WRITE_PROTECTED_OBJ(_inputMediaSource);
         if (inputMediaSource != _inputMediaSource.ConstRef()) {
@@ -61,6 +61,28 @@ void TranslatorEndPoint::SetInputMediaSource(MediaSource* inputMediaSource)
     }
 }
 
+bool TranslatorEndPoint::AddOutputMediaSink(TranslatorEndPointSink* sink)
+{
+    if (_outputMediaSinks.Add(sink)) {
+        if (1U == _outputMediaSinks.GetSize() && CanConnect()) {
+            Connect();
+        }
+        return true;
+    }
+    return false;
+}
+
+bool TranslatorEndPoint::RemoveOutputMediaSink(TranslatorEndPointSink* sink)
+{
+    if (_outputMediaSinks.Remove(sink)) {
+        if (_outputMediaSinks.IsEmpty()) {
+            Disconnect();
+        }
+        return true;
+    }
+    return false;
+}
+
 void TranslatorEndPoint::SetInputLanguageId(const std::string& languageId)
 {
     ChangeTranslationSettings(languageId, _inputLanguageId);
@@ -74,6 +96,24 @@ void TranslatorEndPoint::SetOutputLanguageId(const std::string& languageId)
 void TranslatorEndPoint::SetOutputVoiceId(const std::string& voiceId)
 {
     ChangeTranslationSettings(voiceId, _outputVoiceId);
+}
+
+std::string TranslatorEndPoint::GetInputLanguageId() const
+{
+    LOCK_READ_PROTECTED_OBJ(_inputLanguageId);
+    return _inputLanguageId.ConstRef();
+}
+
+std::string TranslatorEndPoint::GetOutputLanguageId() const
+{
+    LOCK_READ_PROTECTED_OBJ(_outputLanguageId);
+    return _outputLanguageId.ConstRef();
+}
+
+std::string TranslatorEndPoint::GetOutputVoiceId() const
+{
+    LOCK_READ_PROTECTED_OBJ(_outputVoiceId);
+    return _outputVoiceId.ConstRef();
 }
 
 bool TranslatorEndPoint::HasInput() const
@@ -91,19 +131,16 @@ void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
 {
     if (connected != _notifyedThatConnected.exchange(connected)) {
         if (connected) {
+            if (SendTranslationChanges()) {
+                ConnectToMediaInput(true);
+            }
             MS_ERROR_STD("Connected to %s", GetDescription().c_str());
         }
         else {
+            ConnectToMediaInput(false);
             MS_ERROR_STD("Disconnected from %s", GetDescription().c_str());
         }
-    }
-    if (connected) {
-        if (SendTranslationChanges()) {
-            ConnectToMediaInput(true);
-        }
-    }
-    else {
-        ConnectToMediaInput(false);
+        InvokeOutputMediaSinks(&TranslatorEndPointSink::NotifyThatConnectionEstablished, connected);
     }
 }
 
@@ -114,7 +151,9 @@ uint64_t TranslatorEndPoint::NotifyThatTranslationReceived(const std::shared_ptr
         MS_ERROR_STD("Received translation #%llu at %s from %s", number,
                      GetCurrentTime().c_str(),
                      GetDescription().c_str());
-        Commit(media);
+        InvokeOutputMediaSinks(&MediaSink::StartMediaWriting);
+        InvokeOutputMediaSinks(&MediaSink::WriteMediaPayload, media);
+        InvokeOutputMediaSinks(&MediaSink::EndMediaWriting);
         return number;
     }
     return 0UL;
@@ -131,22 +170,6 @@ std::string TranslatorEndPoint::GetDescription() const
         return name;
     }
     return "<anonymous end-point>";
-}
-
-void TranslatorEndPoint::OnSinkWasAdded(MediaSink* sink, bool first)
-{
-    MediaSourceImpl::OnSinkWasAdded(sink, first);
-    if (first && CanConnect()) {
-        Connect();
-    }
-}
-
-void TranslatorEndPoint::OnSinkWasRemoved(MediaSink* sink, bool last)
-{
-    MediaSourceImpl::OnSinkWasRemoved(sink, last);
-    if (last) {
-        Disconnect();
-    }
 }
 
 nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLanguageId,
@@ -181,28 +204,15 @@ void TranslatorEndPoint::ChangeTranslationSettings(const std::string& to,
     }
 }
 
-std::string TranslatorEndPoint::GetInputLanguageId() const
-{
-    LOCK_READ_PROTECTED_OBJ(_inputLanguageId);
-    return _inputLanguageId.ConstRef();
-}
-
-std::string TranslatorEndPoint::GetOutputLanguageId() const
-{
-    LOCK_READ_PROTECTED_OBJ(_outputLanguageId);
-    return _outputLanguageId.ConstRef();
-}
-
-std::string TranslatorEndPoint::GetOutputVoiceId() const
-{
-    LOCK_READ_PROTECTED_OBJ(_outputVoiceId);
-    return _outputVoiceId.ConstRef();
-}
-
 bool TranslatorEndPoint::HasInputLanguageId() const
 {
     LOCK_READ_PROTECTED_OBJ(_inputLanguageId);
     return !_inputLanguageId->empty();
+}
+
+bool TranslatorEndPoint::CanConnect() const
+{
+    return HasInput() && HasOutputMediaSinks() && HasValidTranslationSettings();
 }
 
 bool TranslatorEndPoint::HasOutputLanguageId() const
@@ -303,6 +313,12 @@ bool TranslatorEndPoint::WriteBinary(const std::shared_ptr<Buffer>& buffer) cons
         }
     }
     return ok;
+}
+
+template <class Method, typename... Args>
+void TranslatorEndPoint::InvokeOutputMediaSinks(const Method& method, Args&&... args) const
+{
+    _outputMediaSinks.InvokeMethod(method, *this, std::forward<Args>(args)...);
 }
 
 void TranslatorEndPoint::StartMediaWriting(const MediaObject& sender)

@@ -1,5 +1,5 @@
 #pragma once
-#include "RTC/MediaTranslate/MediaSink.hpp"
+#include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointSink.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
 #include "RTC/MediaTranslate/ConsumersManager.hpp"
 #include "RTC/MediaTranslate/TranslatorDefines.hpp"
@@ -24,7 +24,7 @@ class RtpPacketsCollector;
 class TranslatorEndPointFactory;
 
 class TranslatorSource : private RtpPacketsPlayerCallback, // receiver of translated audio (RTP) packets
-                         private MediaSink // receiver of translated audio frames from end-point
+                         private TranslatorEndPointSink // receiver of translated audio frames from end-point
 {
 public:
 	~TranslatorSource() final;
@@ -63,14 +63,15 @@ private:
     static std::unique_ptr<FileWriter> CreateFileWriter(uint32_t ssrc, const std::string& producerId,
                                                         const MediaFrameSerializer* serializer);
 #endif
-    MediaSink* GetMediaReceiver() { return this; }
+    TranslatorEndPointSink* GetMediaReceiver() { return this; }
     // impl. of RtpPacketsPlayerCallback
     void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId);
     void OnPlay(const Timestamp& timestampOffset, RtpPacket* packet,
                 uint64_t mediaId, uint64_t mediaSourceId) final;
     void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
-    // impl. of MediaSink
-    void WriteMediaPayload(const MediaObject& sender, const std::shared_ptr<Buffer>& buffer) final;
+    // impl. of TranslatorEndPointSink
+    void NotifyThatConnectionEstablished(const MediaObject& endPoint, bool connected) final;
+    void WriteMediaPayload(const MediaObject& endPoint, const std::shared_ptr<Buffer>& buffer) final;
 private:
     const uint32_t _originalSsrc;
     const uint8_t _payloadType;

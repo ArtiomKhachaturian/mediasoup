@@ -142,6 +142,11 @@ void RtpPacketsPlayerMainLoopStream::Play(uint64_t mediaSourceId,
     _simpleStream->Play(mediaSourceId, media, timer);
 }
 
+void RtpPacketsPlayerMainLoopStream::Stop(uint64_t mediaSourceId, uint64_t mediaId)
+{
+    _simpleStream->Stop(mediaSourceId, mediaId);
+}
+
 bool RtpPacketsPlayerMainLoopStream::IsPlaying() const
 {
     return _simpleStream->IsPlaying();

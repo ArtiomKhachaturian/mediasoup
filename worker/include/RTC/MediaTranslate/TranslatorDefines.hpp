@@ -4,7 +4,12 @@
 #define MEDIA_TRANSLATIONS_TEST
 
 // TODO: add timer-based garbage collector for cleanup of unused heap chunks
-//#define ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
+#define ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
+
+#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
+// 10 sec max
+#define POOL_MEMORY_ALLOCATOR_HEAP_CHUNKS_LIFETIME_SECS 10
+#endif
 
 #ifdef MEDIA_TRANSLATIONS_TEST
 #define USE_MAIN_THREAD_FOR_CALLBACKS_RETRANSMISSION
@@ -18,8 +23,8 @@
 //#define LOCAL_WEBSOCKET_TEST_SERVER
 #endif
 
-#define MOCK_WEBM_INPUT_FILE "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_mono_example.webm"
+#define MOCK_WEBM_INPUT_FILE "/Users/user/Documents/Sources/mediasoup_rtp_packets/speakshift_test2_3-59.webm"
 // in seconds
-#define MOCK_WEBM_INPUT_FILE_LEN_SECS 3U
+#define MOCK_WEBM_INPUT_FILE_LEN_SECS 240U
 
 #endif // MEDIA_TRANSLATIONS_TEST

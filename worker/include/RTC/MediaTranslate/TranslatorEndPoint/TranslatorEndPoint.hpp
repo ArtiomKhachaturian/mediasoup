@@ -1,7 +1,8 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaSink.hpp"
-#include "RTC/MediaTranslate/MediaSourceImpl.hpp"
+#include "RTC/MediaTranslate/MediaObject.hpp"
 #include "ProtectedObj.hpp"
+#include "RTC/Listeners.hpp"
 #include <nlohmann/json.hpp>
 #include <memory>
 #include <optional>
@@ -10,18 +11,28 @@
 namespace RTC
 {
 
+class TranslatorEndPointSink;
 class MediaSource;
 
-class TranslatorEndPoint : public MediaSourceImpl, private MediaSink
+class TranslatorEndPoint : public MediaObject, private MediaSink
 {
     class InputSliceBuffer;
     using ProtectedString = ProtectedObj<std::string>;
 public:
     ~TranslatorEndPoint() override;
+    // in/out media connections
     void SetInputMediaSource(MediaSource* inputMediaSource);
+    bool AddOutputMediaSink(TranslatorEndPointSink* sink);
+    bool RemoveOutputMediaSink(TranslatorEndPointSink* sink);
+    bool HasOutputMediaSinks() const { return !_outputMediaSinks.IsEmpty(); }
+    // language settings
     void SetInputLanguageId(const std::string& languageId);
-    void SetOutputLanguageId(const std::string& languageId);
     void SetOutputVoiceId(const std::string& voiceId);
+    void SetOutputLanguageId(const std::string& languageId);
+    std::string GetInputLanguageId() const;
+    std::string GetOutputLanguageId() const;
+    std::string GetOutputVoiceId() const;
+    // other properties
     const std::string& GetOwnerId() const { return _ownerId; }
     const std::string& GetName() const { return _name; }
     virtual bool IsConnected() const = 0;
@@ -38,19 +49,12 @@ protected:
     virtual void Disconnect() = 0;
     virtual bool SendBinary(const std::shared_ptr<Buffer>& buffer) const = 0;
     virtual bool SendText(const std::string& text) const = 0;
-    // override of MediaSourceImpl
-    bool IsSinkValid(const MediaSink* sink) const final { return this != sink; }
-    void OnSinkWasAdded(MediaSink* sink, bool first) final;
-    void OnSinkWasRemoved(MediaSink* sink, bool last) final;
 private:
     static nlohmann::json TargetLanguageCmd(const std::string& inputLanguageId,
                                             const std::string& outputLanguageId,
                                             const std::string& outputVoiceId);
     void ChangeTranslationSettings(const std::string& to, ProtectedObj<std::string>& object);
-    bool CanConnect() const { return HasInput() && HasSinks() && HasValidTranslationSettings(); }
-    std::string GetInputLanguageId() const;
-    std::string GetOutputLanguageId() const;
-    std::string GetOutputVoiceId() const;
+    bool CanConnect() const;
     bool HasInputLanguageId() const;
     bool HasOutputLanguageId() const;
     bool HasOutputVoiceId() const;
@@ -61,6 +65,8 @@ private:
     bool SendTranslationChanges();
     bool WriteJson(const nlohmann::json& data) const;
     bool WriteBinary(const std::shared_ptr<Buffer>& buffer) const;
+    template <class Method, typename... Args>
+    void InvokeOutputMediaSinks(const Method& method, Args&&... args) const;
     // impl. of MediaSink
     void StartMediaWriting(const MediaObject& sender) final;
     void WriteMediaPayload(const MediaObject& sender, const std::shared_ptr<Buffer>& buffer) final;
@@ -73,6 +79,7 @@ private:
     ProtectedString _outputLanguageId;
     ProtectedString _outputVoiceId;
     ProtectedObj<MediaSource*> _inputMediaSource = nullptr;
+    Listeners<TranslatorEndPointSink*> _outputMediaSinks;
     std::atomic_bool _notifyedThatConnected = false; // for logs
     std::atomic<uint64_t> _translationsCount = 0ULL;
 };
