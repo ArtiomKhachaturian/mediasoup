@@ -3,9 +3,9 @@
 #include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
-#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
 #include "RTC/Codecs/Opus.hpp"
 #include "RTC/Codecs/Tools.hpp"
+#include "RTC/Buffer.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 #include <absl/container/flat_hash_map.h>

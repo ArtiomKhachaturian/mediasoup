@@ -1,7 +1,7 @@
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerSimpleStream.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerMediaFragment.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
-#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
+#include "RTC/Buffer.hpp"
 
 namespace RTC
 {

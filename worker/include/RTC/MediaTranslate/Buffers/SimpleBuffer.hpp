@@ -1,5 +1,5 @@
 #pragma once
-#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
+#include "RTC/Buffer.hpp"
 #include <vector>
 #include <memory>
 

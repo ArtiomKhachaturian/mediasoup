@@ -1,5 +1,5 @@
 #include "RTC/MediaTranslate/TranslatorEndPoint/StubEndPoint.hpp"
-#include "RTC/MediaTranslate/Buffers/Buffer.hpp"
+#include "RTC/Buffer.hpp"
 
 namespace RTC
 {

@@ -337,7 +337,8 @@ mkvmuxer::int32 MkvBufferedWriter::Write(const void* buf, mkvmuxer::uint32 len)
             _buffer = AllocateBuffer(allocSize, buf, len);
         }
         else {
-            if (_bufferOffset + len > _buffer->GetSize()) {
+            if (_bufferOffset + len > _buffer->GetSize() &&
+                !_buffer->Resize(_bufferOffset + len)) {
                 _buffer = AllocateBuffer(_bufferOffset + len, _buffer->GetData(),
                                          _buffer->GetSize());
             }
