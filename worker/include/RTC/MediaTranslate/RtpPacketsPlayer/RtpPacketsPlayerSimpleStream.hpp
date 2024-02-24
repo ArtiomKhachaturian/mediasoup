@@ -1,7 +1,7 @@
 #pragma once
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerStream.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
-#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
+#include "RTC/Buffers/BufferAllocations.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "ProtectedObj.hpp"
 #include "absl/container/flat_hash_map.h"

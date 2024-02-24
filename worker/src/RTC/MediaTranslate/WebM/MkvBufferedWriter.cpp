@@ -5,7 +5,7 @@
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
-#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
+#include "RTC/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
 #include <algorithm> // for stable_sort
 
@@ -52,7 +52,7 @@ private:
 
 MkvBufferedWriter::MkvBufferedWriter(MediaSink* sink, const char* app,
                                      const std::weak_ptr<BufferAllocator>& allocator)
-    : BufferAllocations<MediaObject>(allocator)
+    : BufferAllocations<ObjectId>(allocator)
     , _sink(sink)
     , _initialized(_segment.Init(this))
 {

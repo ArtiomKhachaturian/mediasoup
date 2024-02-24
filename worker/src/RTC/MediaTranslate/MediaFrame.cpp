@@ -1,9 +1,9 @@
 #define MS_CLASS "RTC::MediaFrame"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
-#include "RTC/MediaTranslate/Buffers/SegmentsBuffer.hpp"
-#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
+#include "RTC/Buffers/SegmentsBuffer.hpp"
+#include "RTC/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
 
 namespace RTC

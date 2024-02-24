@@ -2,8 +2,8 @@
 #include "RTC/MediaTranslate/TranslatorEndPoint/WebsocketEndPoint.hpp"
 #include "RTC/MediaTranslate/Websocket/Websocket.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketFactory.hpp"
-#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "RTC/MediaTranslate/TranslatorDefines.hpp"
+#include "RTC/Buffers/SimpleBuffer.hpp"
 #ifdef WRITE_TRANSLATION_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
 #include "DepLibUV.hpp"

@@ -1,5 +1,5 @@
 #define MS_CLASS "RTC::PoolAllocator"
-#include "RTC/MediaTranslate/Buffers/PoolAllocator.hpp"
+#include "RTC/Buffers/PoolAllocator.hpp"
 #include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #include "Logger.hpp"
 #include "handles/TimerHandle.hpp"

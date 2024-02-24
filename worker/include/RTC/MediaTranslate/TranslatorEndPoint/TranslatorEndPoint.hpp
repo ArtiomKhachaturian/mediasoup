@@ -1,7 +1,7 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaSink.hpp"
-#include "RTC/MediaTranslate/MediaObject.hpp"
 #include "ProtectedObj.hpp"
+#include "RTC/ObjectId.hpp"
 #include "RTC/Listeners.hpp"
 #include <nlohmann/json.hpp>
 #include <memory>
@@ -14,12 +14,12 @@ namespace RTC
 class TranslatorEndPointSink;
 class MediaSource;
 
-class TranslatorEndPoint : public MediaObject, private MediaSink
+class TranslatorEndPoint : public ObjectId, private MediaSink
 {
     class InputSliceBuffer;
     using ProtectedString = ProtectedObj<std::string>;
 public:
-    ~TranslatorEndPoint() override;
+    virtual ~TranslatorEndPoint() override;
     // in/out media connections
     void SetInputMediaSource(MediaSource* inputMediaSource);
     bool AddOutputMediaSink(TranslatorEndPointSink* sink);
@@ -68,9 +68,9 @@ private:
     template <class Method, typename... Args>
     void InvokeOutputMediaSinks(const Method& method, Args&&... args) const;
     // impl. of MediaSink
-    void StartMediaWriting(const MediaObject& sender) final;
-    void WriteMediaPayload(const MediaObject& sender, const std::shared_ptr<Buffer>& buffer) final;
-    void EndMediaWriting(const MediaObject& sender) final;
+    void StartMediaWriting(const ObjectId& sender) final;
+    void WriteMediaPayload(const ObjectId& sender, const std::shared_ptr<Buffer>& buffer) final;
+    void EndMediaWriting(const ObjectId& sender) final;
 private:
     const std::unique_ptr<InputSliceBuffer> _inputSlice;
     const std::string _ownerId;

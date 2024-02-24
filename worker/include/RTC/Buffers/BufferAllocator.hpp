@@ -1,5 +1,6 @@
 #pragma once
-#include "RTC/Buffer.hpp"
+
+#include "RTC/Buffers/Buffer.hpp"
 #include <memory>
 
 namespace RTC

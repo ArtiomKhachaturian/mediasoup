@@ -1,6 +1,7 @@
 #pragma once
-#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
-#include "RTC/MediaTranslate/InheritanceSelector.hpp"
+
+#include "RTC/InheritanceSelector.hpp"
+#include "RTC/Buffers/BufferAllocator.hpp"
 
 namespace RTC
 {

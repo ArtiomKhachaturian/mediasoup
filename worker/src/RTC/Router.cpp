@@ -14,7 +14,7 @@
 #include "RTC/PlainTransport.hpp"
 #include "RTC/WebRtcTransport.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTppFactory.hpp"
-#include "RTC/MediaTranslate/Buffers/PoolAllocator.hpp"
+#include "RTC/Buffers/PoolAllocator.hpp"
 
 namespace RTC
 {

@@ -222,7 +222,7 @@ void TranslatorSource::OnPlayFinished(uint32_t ssrc, uint64_t mediaId,
     _consumersManager->EndPacketsSending(mediaId, mediaSourceId);
 }
 
-void TranslatorSource::NotifyThatConnectionEstablished(const MediaObject& endPoint,
+void TranslatorSource::NotifyThatConnectionEstablished(const ObjectId& endPoint,
                                                        bool connected)
 {
     TranslatorEndPointSink::NotifyThatConnectionEstablished(endPoint, connected);
@@ -231,7 +231,7 @@ void TranslatorSource::NotifyThatConnectionEstablished(const MediaObject& endPoi
     }
 }
 
-void TranslatorSource::WriteMediaPayload(const MediaObject& endPoint,
+void TranslatorSource::WriteMediaPayload(const ObjectId& endPoint,
                                          const std::shared_ptr<Buffer>& buffer)
 {
     if (buffer) {

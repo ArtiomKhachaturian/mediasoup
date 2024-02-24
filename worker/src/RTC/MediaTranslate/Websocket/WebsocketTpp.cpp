@@ -4,7 +4,7 @@
 #include "RTC/MediaTranslate/Websocket/WebsocketFailure.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTppUtils.hpp"
 #include "RTC/MediaTranslate/ThreadUtils.hpp"
-#include "RTC/Buffer.hpp"
+#include "RTC/Buffers/Buffer.hpp"
 #include "Logger.hpp"
 #include <websocketpp/config/asio_client.hpp>
 #include <websocketpp/client.hpp>

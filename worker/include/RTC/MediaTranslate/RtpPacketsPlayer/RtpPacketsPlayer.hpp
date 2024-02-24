@@ -1,5 +1,5 @@
 #pragma once
-#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
+#include "RTC/Buffers/BufferAllocations.hpp"
 #include "ProtectedObj.hpp"
 #include "absl/container/flat_hash_map.h"
 

@@ -1,9 +1,9 @@
 #define MS_CLASS "RTC::TranslatorEndPoint"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointSink.hpp"
-#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
+#include "RTC/Buffers/SimpleBuffer.hpp"
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
 
@@ -321,7 +321,7 @@ void TranslatorEndPoint::InvokeOutputMediaSinks(const Method& method, Args&&... 
     _outputMediaSinks.InvokeMethod(method, *this, std::forward<Args>(args)...);
 }
 
-void TranslatorEndPoint::StartMediaWriting(const MediaObject& sender)
+void TranslatorEndPoint::StartMediaWriting(const ObjectId& sender)
 {
     MediaSink::StartMediaWriting(sender);
     if (_inputSlice) {
@@ -329,7 +329,7 @@ void TranslatorEndPoint::StartMediaWriting(const MediaObject& sender)
     }
 }
 
-void TranslatorEndPoint::WriteMediaPayload(const MediaObject& sender,
+void TranslatorEndPoint::WriteMediaPayload(const ObjectId& /*sender*/,
                                            const std::shared_ptr<Buffer>& buffer)
 {
     if (buffer && !buffer->IsEmpty() && IsConnected()) {
@@ -342,7 +342,7 @@ void TranslatorEndPoint::WriteMediaPayload(const MediaObject& sender,
     }
 }
 
-void TranslatorEndPoint::EndMediaWriting(const MediaObject& sender)
+void TranslatorEndPoint::EndMediaWriting(const ObjectId& sender)
 {
     MediaSink::EndMediaWriting(sender);
     if (_inputSlice) {

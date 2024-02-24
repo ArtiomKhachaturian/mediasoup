@@ -1,6 +1,6 @@
 #define MS_CLASS "RTC::BufferAllocator"
-#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
-#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
+#include "RTC/Buffers/BufferAllocator.hpp"
+#include "RTC/Buffers/SimpleBuffer.hpp"
 #include "Logger.hpp"
 
 namespace {

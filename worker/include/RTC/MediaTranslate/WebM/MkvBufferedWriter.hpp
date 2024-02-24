@@ -1,6 +1,6 @@
 #pragma once
-#include "RTC/MediaTranslate/MediaObject.hpp"
-#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
+#include "RTC/ObjectId.hpp"
+#include "RTC/Buffers/BufferAllocations.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <mkvmuxer/mkvmuxer.h>
 
@@ -15,7 +15,7 @@ class AudioFrameConfig;
 class VideoFrameConfig;
 
 // https://www.webmproject.org/docs/container/#muxer-guidelines
-class MkvBufferedWriter : public BufferAllocations<MediaObject>,
+class MkvBufferedWriter : public BufferAllocations<ObjectId>,
                           private mkvmuxer::IMkvWriter
 {
     enum class EnqueueResult;

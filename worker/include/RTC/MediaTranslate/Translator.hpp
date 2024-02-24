@@ -1,7 +1,7 @@
 #pragma once
-#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointFactory.hpp"
 #include "RTC/MediaTranslate/TranslatorDefines.hpp"
+#include "RTC/Buffers/BufferAllocations.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "ProtectedObj.hpp"

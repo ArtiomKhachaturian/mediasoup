@@ -7,7 +7,8 @@ namespace RTC
 class TranslatorEndPointSink : public MediaSink
 {
 public:
-	virtual void NotifyThatConnectionEstablished(const MediaObject& /*endPoint*/, bool /*connected*/) {}
+	virtual void NotifyThatConnectionEstablished(const ObjectId& /*endPoint*/,
+                                                 bool /*connected*/) {}
 };
 
 } // namespace RTC

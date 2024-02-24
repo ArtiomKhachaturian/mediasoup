@@ -1,6 +1,5 @@
 #define MS_CLASS "RTC::SegmentsBuffer"
-#include "RTC/MediaTranslate/Buffers/SegmentsBuffer.hpp"
-#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
+#include "RTC/Buffers/SegmentsBuffer.hpp"
 #include "Logger.hpp"
 
 namespace RTC

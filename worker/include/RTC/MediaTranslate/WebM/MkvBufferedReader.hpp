@@ -1,8 +1,8 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaFrameDeserializeResult.hpp"
-#include "RTC/MediaTranslate/Buffers/SegmentsBuffer.hpp"
 #include "RTC/MediaTranslate/WebM/MkvReadResult.hpp"
 #include "RTC/MediaTranslate/TranslatorDefines.hpp"
+#include "RTC/Buffers/SegmentsBuffer.hpp"
 #include <mkvparser/mkvreader.h>
 
 namespace RTC

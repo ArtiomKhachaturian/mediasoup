@@ -1,4 +1,4 @@
-#include "RTC/MediaTranslate/Buffers/SimpleBuffer.hpp"
+#include "RTC/Buffers/SimpleBuffer.hpp"
 #include <cstring>
 
 namespace RTC

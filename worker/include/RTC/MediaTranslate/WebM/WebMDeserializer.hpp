@@ -1,6 +1,6 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaFrameDeserializer.hpp"
-#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
+#include "RTC/Buffers/BufferAllocations.hpp"
 
 namespace RTC
 {

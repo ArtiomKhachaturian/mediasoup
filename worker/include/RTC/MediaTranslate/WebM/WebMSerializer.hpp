@@ -1,8 +1,6 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaFrameSerializer.hpp"
-#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
-#include "absl/container/flat_hash_map.h"
-
+#include "RTC/Buffers/BufferAllocations.hpp"
 
 namespace RTC
 {

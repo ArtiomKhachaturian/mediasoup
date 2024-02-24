@@ -3,9 +3,9 @@
 #include "RTC/MediaTranslate/Websocket/WebsocketState.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
-#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
 #include "RTC/MediaTranslate/FileReader.hpp"
 #include "RTC/MediaTranslate/TranslatorDefines.hpp"
+#include "RTC/Buffers/BufferAllocations.hpp"
 #include "Logger.hpp"
 
 namespace {

@@ -1,5 +1,5 @@
 #pragma once
-#include "RTC/MediaTranslate/MediaObject.hpp"
+#include "RTC/ObjectId.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketState.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketOptions.hpp"
 #include "RTC/Listeners.hpp"
@@ -12,11 +12,12 @@ namespace RTC
 class WebsocketListener;
 class Buffer;
 
-class Websocket : public MediaObject
+class Websocket : public ObjectId
 {
 protected:
     using SocketListeners = Listeners<WebsocketListener*>;
 public:
+    virtual ~Websocket() = default;
     virtual bool Open() = 0;
     virtual void Close() = 0;
     virtual WebsocketState GetState() const = 0;

@@ -5,7 +5,7 @@
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
-#include "RTC/MediaTranslate/Buffers/BufferAllocator.hpp"
+#include "RTC/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
 
 namespace {

@@ -70,8 +70,8 @@ private:
                 uint64_t mediaId, uint64_t mediaSourceId) final;
     void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
     // impl. of TranslatorEndPointSink
-    void NotifyThatConnectionEstablished(const MediaObject& endPoint, bool connected) final;
-    void WriteMediaPayload(const MediaObject& endPoint, const std::shared_ptr<Buffer>& buffer) final;
+    void NotifyThatConnectionEstablished(const ObjectId& endPoint, bool connected) final;
+    void WriteMediaPayload(const ObjectId& endPoint, const std::shared_ptr<Buffer>& buffer) final;
 private:
     const uint32_t _originalSsrc;
     const uint8_t _payloadType;

@@ -18,9 +18,9 @@ public:
     // false on write error. Note: Flushing when closing, is not required.
     bool Flush();
     // impl. of MediaSink
-    void StartMediaWriting(const MediaObject& sender) final;
-    void WriteMediaPayload(const MediaObject&, const std::shared_ptr<Buffer>& buffer) final;
-    void EndMediaWriting(const MediaObject& sender) final;
+    void StartMediaWriting(const ObjectId& sender) final;
+    void WriteMediaPayload(const ObjectId&, const std::shared_ptr<Buffer>& buffer) final;
+    void EndMediaWriting(const ObjectId& sender) final;
 private:
     static size_t FileWrite(const std::shared_ptr<FILE>& handle, const std::shared_ptr<Buffer>& buffer);
 };
