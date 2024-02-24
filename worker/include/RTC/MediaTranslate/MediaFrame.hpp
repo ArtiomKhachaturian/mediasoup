@@ -17,12 +17,13 @@ class SegmentsBuffer;
 
 class MediaFrame
 {
+    class PayloadBufferView;
 public:
     MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
                const std::weak_ptr<BufferAllocator>& allocator);
     virtual ~MediaFrame();
     void AddPayload(const std::shared_ptr<Buffer>& payload);
-    void AddPayload(const uint8_t* data, size_t len);
+    void AddPayload(uint8_t* data, size_t len, bool makeDeepCopyOfPayload = true);
     std::shared_ptr<const Buffer> GetPayload() const;
     // common properties
     const RtpCodecMimeType& GetMimeType() const { return _mimeType; }

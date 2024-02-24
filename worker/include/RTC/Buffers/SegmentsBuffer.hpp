@@ -28,14 +28,16 @@ public:
     void Clear();
     size_t CopyTo(size_t offset, size_t len, uint8_t* output) const;
     size_t GetCapacity() const { return _capacity; }
+    // expensive operation
+    void Merge();
     // impl. of Buffer
     size_t GetSize() const final { return _size; }
-    uint8_t* GetData() final;
-    const uint8_t* GetData() const final;
+    uint8_t* GetData() final { return Merged(); }
+    const uint8_t* GetData() const final { return Merged(); }
 private:
     auto GetBuffer(size_t& offset) const;
     // expensive operation
-    uint8_t* Merge() const;
+    uint8_t* Merged() const;
 private:
     const size_t _capacity;
     mutable BuffersList _buffers;

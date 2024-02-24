@@ -95,7 +95,8 @@ bool TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     bool handled = false;
     if (packet && (_serializer->HasSinks() || _serializer->HasTestSink())) {
-        if (const auto frame = _depacketizer->AddPacket(packet)) {
+        const auto makeDeepCopyOfPayload = _serializer->IsAsyncSerialization();
+        if (const auto frame = _depacketizer->AddPacket(packet, makeDeepCopyOfPayload)) {
             handled = _serializer->Push(frame);
             if (handled) {
                 ++_addedPacketsCount;

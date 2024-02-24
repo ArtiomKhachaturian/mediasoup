@@ -14,15 +14,17 @@ RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRat
 {
 }
 
-bool RtpMediaFrame::AddPacket(const RtpPacket* packet)
+bool RtpMediaFrame::AddPacket(const RtpPacket* packet, bool makeDeepCopyOfPayload)
 {
-    return packet && AddPacket(packet, packet->GetPayload(), packet->GetPayloadLength());
+    return packet && AddPacket(packet, packet->GetPayload(),
+                               packet->GetPayloadLength(), makeDeepCopyOfPayload);
 }
 
-bool RtpMediaFrame::AddPacket(const RtpPacket* packet, const uint8_t* data, size_t len)
+bool RtpMediaFrame::AddPacket(const RtpPacket* packet, uint8_t* data, size_t len,
+                              bool makeDeepCopyOfPayload)
 {
     if (packet) {
-        AddPayload(data, len);
+        AddPayload(data, len, makeDeepCopyOfPayload);
         if (GetRtpTimestamp() > packet->GetTimestamp()) {
             MS_WARN_TAG(rtp, "time stamp of new packet is less than previous, SSRC = %du", packet->GetSsrc());
         }
@@ -38,12 +40,13 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet, const uint8_t* data, size
 }
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpPacket* packet,
-                                                     const RtpCodecMimeType& mimeType, uint32_t clockRate,
+                                                     const RtpCodecMimeType& mimeType,
+                                                     uint32_t clockRate, bool makeDeepCopyOfPayload,
                                                      const std::weak_ptr<BufferAllocator>& allocator)
 {
     if (packet) {
         auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate, allocator);
-        if (frame->AddPacket(packet)) {
+        if (frame->AddPacket(packet, makeDeepCopyOfPayload)) {
             return frame;
         }
     }

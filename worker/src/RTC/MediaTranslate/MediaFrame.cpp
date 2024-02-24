@@ -9,6 +9,20 @@
 namespace RTC
 {
 
+class MediaFrame::PayloadBufferView : public Buffer
+{
+public:
+    PayloadBufferView(uint8_t* data, size_t len);
+    // impl. of Buffer
+    size_t GetSize() const final { return _len; }
+    uint8_t* GetData() final { return _data; }
+    const uint8_t* GetData() const final { return _data; }
+private:
+    uint8_t* const _data;
+    const size_t _len;
+};
+
+
 MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
                        const std::weak_ptr<BufferAllocator>& allocator)
     : _mimeType(mimeType)
@@ -27,10 +41,15 @@ void MediaFrame::AddPayload(const std::shared_ptr<Buffer>& payload)
     _payload->Push(payload);
 }
 
-void MediaFrame::AddPayload(const uint8_t* data, size_t len)
+void MediaFrame::AddPayload(uint8_t* data, size_t len, bool makeDeepCopyOfPayload)
 {
     if (data && len) {
-        AddPayload(_payload->AllocateBuffer(len, data));
+        if (makeDeepCopyOfPayload) {
+            AddPayload(_payload->AllocateBuffer(len, data));
+        }
+        else {
+            AddPayload(std::make_shared<PayloadBufferView>(data, len));
+        }
     }
 }
 
@@ -79,6 +98,12 @@ void MediaFrame::SetVideoConfig(const std::shared_ptr<const VideoFrameConfig>& c
 std::shared_ptr<const VideoFrameConfig> MediaFrame::GetVideoConfig() const
 {
     return std::dynamic_pointer_cast<const VideoFrameConfig>(_config);
+}
+
+MediaFrame::PayloadBufferView::PayloadBufferView(uint8_t* data, size_t len)
+    : _data(data)
+    , _len(len)
+{
 }
 
 MediaFrameConfig::~MediaFrameConfig()

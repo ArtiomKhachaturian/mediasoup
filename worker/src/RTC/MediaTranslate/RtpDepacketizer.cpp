@@ -51,9 +51,11 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizer::CreateMediaFrame() const
     return std::make_shared<RtpMediaFrame>(GetMimeType(), GetClockRate(), GetAllocator());
 }
 
-std::shared_ptr<RtpMediaFrame> RtpDepacketizer::CreateMediaFrame(const RtpPacket* packet) const
+std::shared_ptr<RtpMediaFrame> RtpDepacketizer::CreateMediaFrame(const RtpPacket* packet,
+                                                                 bool makeDeepCopyOfPayload) const
 {
-    return RtpMediaFrame::Create(packet, GetMimeType(), GetClockRate(), GetAllocator());
+    return RtpMediaFrame::Create(packet, GetMimeType(), GetClockRate(),
+                                 makeDeepCopyOfPayload, GetAllocator());
 }
 
 } // namespace RTC

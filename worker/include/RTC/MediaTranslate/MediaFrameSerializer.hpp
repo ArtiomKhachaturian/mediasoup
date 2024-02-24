@@ -34,6 +34,7 @@ public:
     void RemoveAllSinks() final;
     bool HasSinks() const final;
     virtual std::string_view GetFileExtension() const;
+    virtual bool IsAsyncSerialization() const { return false; }
 protected:
     MediaFrameSerializer(const RtpCodecMimeType& mime);
     virtual std::unique_ptr<MediaFrameWriter> CreateWriter(MediaSink* sink) = 0;

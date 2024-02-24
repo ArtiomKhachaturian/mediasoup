@@ -15,11 +15,11 @@ class RtpDepacketizerVpx::RtpAssembly
 {
 public:
     RtpAssembly(const RtpDepacketizerVpx* depacketizer);
-    std::shared_ptr<const RtpMediaFrame> AddPacket(const RtpPacket* packet);
+    std::shared_ptr<RtpMediaFrame> AddPacket(const RtpPacket* packet);
 private:
     bool AddPayload(const RtpPacket* packet);
     bool ParseVideoConfig(const RtpPacket* packet);
-    std::shared_ptr<const RtpMediaFrame> ResetFrame();
+    std::shared_ptr<RtpMediaFrame> ResetFrame();
     void SetLastTimeStamp(uint32_t lastTimeStamp);
 private:
     const RtpDepacketizerVpx* const _depacketizer;
@@ -39,7 +39,8 @@ RtpDepacketizerVpx::~RtpDepacketizerVpx()
 {
 }
 
-std::shared_ptr<const MediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* packet)
+std::shared_ptr<MediaFrame> RtpDepacketizerVpx::AddPacket(const RtpPacket* packet,
+                                                          bool /*makeDeepCopyOfPayload*/)
 {
     if (packet && packet->GetPayload() && packet->GetPayloadLength()) {
         auto it = _assemblies.find(packet->GetSsrc());
@@ -57,8 +58,7 @@ RtpDepacketizerVpx::RtpAssembly::RtpAssembly(const RtpDepacketizerVpx* depacketi
 {
 }
 
-std::shared_ptr<const RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::
-    AddPacket(const RtpPacket* packet)
+std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(const RtpPacket* packet)
 {
     if (packet && packet->GetPayload() && packet->GetPayloadLength()) {
         SetLastTimeStamp(packet->GetTimestamp());
@@ -123,7 +123,7 @@ bool RtpDepacketizerVpx::RtpAssembly::ParseVideoConfig(const RtpPacket* packet)
     return ok;
 }
 
-std::shared_ptr<const RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::ResetFrame()
+std::shared_ptr<RtpMediaFrame> RtpDepacketizerVpx::RtpAssembly::ResetFrame()
 {
     std::shared_ptr<RtpMediaFrame> frame(std::move(_frame));
     if (frame) {

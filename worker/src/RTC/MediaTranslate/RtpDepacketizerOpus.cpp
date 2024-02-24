@@ -40,9 +40,10 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 {
 }
 
-std::shared_ptr<const MediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet)
+std::shared_ptr<MediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet,
+                                                           bool makeDeepCopyOfPayload)
 {
-    if (const auto frame = CreateMediaFrame(packet)) {
+    if (const auto frame = CreateMediaFrame(packet, makeDeepCopyOfPayload)) {
         if (const auto payload = packet->GetPayload()) {
             bool stereo = false;
             Codecs::Opus::ParseTOC(payload, nullptr, nullptr, nullptr, &stereo);

@@ -14,7 +14,8 @@ public:
                        const std::weak_ptr<BufferAllocator>& allocator);
     ~RtpDepacketizerVpx() final;
     // impl. of RtpDepacketizer
-    std::shared_ptr<const MediaFrame> AddPacket(const RtpPacket* packet) final;
+    std::shared_ptr<MediaFrame> AddPacket(const RtpPacket* packet,
+                                          bool makeDeepCopyOfPayload) final;
 private:
     absl::flat_hash_map<uint32_t, std::unique_ptr<RtpAssembly>> _assemblies;
 };

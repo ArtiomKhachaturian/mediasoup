@@ -16,7 +16,7 @@ public:
                         const std::weak_ptr<BufferAllocator>& allocator);
     ~RtpDepacketizerOpus() final;
     // impl. of RtpDepacketizer
-    std::shared_ptr<const MediaFrame> AddPacket(const RtpPacket* packet) final;
+    std::shared_ptr<MediaFrame> AddPacket(const RtpPacket* packet, bool makeDeepCopyOfPayload) final;
 private:
     std::shared_ptr<AudioFrameConfig> EnsureAudioConfig(uint8_t channelCount);
     std::shared_ptr<AudioFrameConfig> EnsureStereoAudioConfig(bool stereo);

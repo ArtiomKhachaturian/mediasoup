@@ -85,17 +85,7 @@ size_t SegmentsBuffer::CopyTo(size_t offset, size_t len, uint8_t* output) const
     return actual;
 }
 
-uint8_t* SegmentsBuffer::GetData()
-{
-    return Merge();
-}
-
-const uint8_t* SegmentsBuffer::GetData() const
-{
-    return Merge();
-}
-
-uint8_t* SegmentsBuffer::Merge() const
+void SegmentsBuffer::Merge()
 {
     if (const auto count = _buffers.size()) {
         if (count > 1U) {
@@ -111,6 +101,13 @@ uint8_t* SegmentsBuffer::Merge() const
             _buffers.clear();
             _buffers.push_back(std::move(merged));
         }
+    }
+}
+
+uint8_t* SegmentsBuffer::Merged() const
+{
+    if (!_buffers.empty()) {
+        const_cast<SegmentsBuffer*>(this)->Merge();
         return _buffers.front()->GetData();
     }
     return nullptr;
