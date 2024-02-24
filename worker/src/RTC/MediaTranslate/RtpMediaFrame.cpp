@@ -41,8 +41,9 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet, uint8_t* data, size_t len
 
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpPacket* packet,
                                                      const RtpCodecMimeType& mimeType,
-                                                     uint32_t clockRate, bool makeDeepCopyOfPayload,
-                                                     const std::weak_ptr<BufferAllocator>& allocator)
+                                                     uint32_t clockRate,
+                                                     const std::weak_ptr<BufferAllocator>& allocator,
+                                                     bool makeDeepCopyOfPayload)
 {
     if (packet) {
         auto frame = std::make_shared<RtpMediaFrame>(mimeType, clockRate, allocator);

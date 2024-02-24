@@ -55,7 +55,7 @@ std::shared_ptr<RtpMediaFrame> RtpDepacketizer::CreateMediaFrame(const RtpPacket
                                                                  bool makeDeepCopyOfPayload) const
 {
     return RtpMediaFrame::Create(packet, GetMimeType(), GetClockRate(),
-                                 makeDeepCopyOfPayload, GetAllocator());
+                                 GetAllocator(), makeDeepCopyOfPayload);
 }
 
 } // namespace RTC

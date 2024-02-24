@@ -25,8 +25,9 @@ public:
     // factory methods (for single-packet frames)
     static std::shared_ptr<RtpMediaFrame> Create(const RtpPacket* packet,
                                                  const RtpCodecMimeType& mimeType,
-                                                 uint32_t clockRate, bool makeDeepCopyOfPayload,
-                                                 const std::weak_ptr<BufferAllocator>& allocator);
+                                                 uint32_t clockRate,
+                                                 const std::weak_ptr<BufferAllocator>& allocator,
+                                                 bool makeDeepCopyOfPayload = true);
     // null_opt if no descriptor for the packet
     static std::optional<size_t> GetPayloadDescriptorSize(const RtpPacket* packet);
     static bool ParseVp8VideoConfig(const RtpPacket* packet, const std::shared_ptr<VideoFrameConfig>& applyTo);
