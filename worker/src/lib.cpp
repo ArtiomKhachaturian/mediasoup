@@ -120,7 +120,10 @@ extern "C" int mediasoup_worker_run(
 	Settings::PrintConfiguration();
 	DepLibUV::PrintVersion();
 
-	try
+    int code = 0;
+    std::shared_ptr<RTC::BufferAllocator> buffersAllocator;
+
+    try
 	{
 		// Initialize static stuff.
 		DepOpenSSL::ClassInit();
@@ -137,7 +140,7 @@ extern "C" int mediasoup_worker_run(
 		// Ignore some signals.
 		IgnoreSignals();
 #endif
-        const auto buffersAllocator = std::make_shared<RTC::PoolAllocator>();
+        buffersAllocator = std::make_shared<RTC::PoolAllocator>();
 		// Run the Worker.
 		const Worker worker(buffersAllocator, channel.get());
 
@@ -158,16 +161,19 @@ extern "C" int mediasoup_worker_run(
 		// process.
 		uv_sleep(200);
 #endif
-        buffersAllocator->PurgeGarbage();
-		return 0;
 	}
 	catch (const MediaSoupError& error)
 	{
 		MS_ERROR_STD("failure exit: %s", error.what());
 
 		// 40 is a custom exit code to notify "unknown error" to the Node library.
-		return 40;
+        code = 40;
 	}
+    
+    if (buffersAllocator) {
+        buffersAllocator->PurgeGarbage();
+    }
+    return code;
 }
 
 void IgnoreSignals()
