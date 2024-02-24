@@ -3,13 +3,15 @@
 
 #include "ChannelMessageRegistrator.hpp"
 #include "Channel/ChannelNotifier.hpp"
+#include "RTC/Buffers/BufferAllocations.hpp"
 
 namespace RTC
 {
-	class Shared
+	class Shared : public BufferAllocations<void>
 	{
 	public:
 		explicit Shared(
+          const std::weak_ptr<BufferAllocator>& allocator,
 		  ChannelMessageRegistrator* channelMessageRegistrator,
 		  Channel::ChannelNotifier* channelNotifier);
 		~Shared();

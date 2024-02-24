@@ -17,7 +17,9 @@
 
 /* Instance methods. */
 
-Worker::Worker(::Channel::ChannelSocket* channel) : channel(channel)
+Worker::Worker(const std::shared_ptr<RTC::BufferAllocator> buffersAllocator,
+               ::Channel::ChannelSocket* channel)
+    : channel(channel)
 {
 	MS_TRACE();
 
@@ -28,7 +30,7 @@ Worker::Worker(::Channel::ChannelSocket* channel) : channel(channel)
 	this->signalHandle = new SignalHandle(this);
 
 	// Set up the RTC::Shared singleton.
-	this->shared = new RTC::Shared(
+	this->shared = new RTC::Shared(buffersAllocator,
 	  /*channelMessageRegistrator*/ new ChannelMessageRegistrator(),
 	  /*channelNotifier*/ new Channel::ChannelNotifier(this->channel));
 

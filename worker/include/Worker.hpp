@@ -12,13 +12,21 @@
 #include <flatbuffers/flatbuffer_builder.h>
 #include <absl/container/flat_hash_map.h>
 #include <string>
+#include <memory>
+
+namespace RTC {
+
+class BufferAllocator;
+
+}
 
 class Worker : public Channel::ChannelSocket::Listener,
                public SignalHandle::Listener,
                public RTC::Router::Listener
 {
 public:
-	explicit Worker(Channel::ChannelSocket* channel);
+	explicit Worker(const std::shared_ptr<RTC::BufferAllocator> buffersAllocator,
+                    Channel::ChannelSocket* channel);
 	~Worker();
 
 private:

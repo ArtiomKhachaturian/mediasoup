@@ -24,7 +24,6 @@
 namespace RTC
 {
     class WebsocketFactory;
-    class BufferAllocator;
 
     class Router : public RTC::Transport::Listener,
                    public RTC::RtpObserver::Listener,
@@ -136,7 +135,6 @@ namespace RTC
         RTC::Shared* shared{ nullptr };
         Listener* listener{ nullptr };
         // Allocated by this.
-        std::shared_ptr<BufferAllocator> buffersAllocator;
         RtpPacketsPlayer translatedPacketsPlayer;
         std::unique_ptr<WebsocketFactory> websocketFactory;
         absl::flat_hash_map<std::string, RTC::Transport*> mapTransports;

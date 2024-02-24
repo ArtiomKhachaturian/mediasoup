@@ -18,6 +18,7 @@
 #include "Channel/ChannelSocket.hpp"
 #include "RTC/DtlsTransport.hpp"
 #include "RTC/SrtpSession.hpp"
+#include "RTC/Buffers/PoolAllocator.hpp"
 #include <uv.h>
 #include <absl/container/flat_hash_map.h>
 #include <csignal> // sigaction()
@@ -136,9 +137,9 @@ extern "C" int mediasoup_worker_run(
 		// Ignore some signals.
 		IgnoreSignals();
 #endif
-
+        const auto buffersAllocator = std::make_shared<RTC::PoolAllocator>();
 		// Run the Worker.
-		const Worker worker(channel.get());
+		const Worker worker(buffersAllocator, channel.get());
 
 		// Free static stuff.
 		DepLibSRTP::ClassDestroy();
@@ -157,7 +158,7 @@ extern "C" int mediasoup_worker_run(
 		// process.
 		uv_sleep(200);
 #endif
-
+        buffersAllocator->PurgeGarbage();
 		return 0;
 	}
 	catch (const MediaSoupError& error)

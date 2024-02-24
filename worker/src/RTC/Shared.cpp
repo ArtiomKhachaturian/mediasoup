@@ -6,9 +6,12 @@
 
 namespace RTC
 {
-	Shared::Shared(
-	  ChannelMessageRegistrator* channelMessageRegistrator, Channel::ChannelNotifier* channelNotifier)
-	  : channelMessageRegistrator(channelMessageRegistrator), channelNotifier(channelNotifier)
+	Shared::Shared(const std::weak_ptr<BufferAllocator>& allocator,
+                   ChannelMessageRegistrator* channelMessageRegistrator,
+                   Channel::ChannelNotifier* channelNotifier)
+        : BufferAllocations<void>(allocator)
+        , channelMessageRegistrator(channelMessageRegistrator)
+        , channelNotifier(channelNotifier)
 	{
 		MS_TRACE();
 	}

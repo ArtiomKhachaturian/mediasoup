@@ -14,7 +14,6 @@
 #include "RTC/PlainTransport.hpp"
 #include "RTC/WebRtcTransport.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTppFactory.hpp"
-#include "RTC/Buffers/PoolAllocator.hpp"
 
 namespace RTC
 {
@@ -22,11 +21,10 @@ namespace RTC
 
     Router::Router(RTC::Shared* shared, const std::string& id, Listener* listener)
       : id(id), shared(shared), listener(listener)
-      , buffersAllocator(std::make_shared<PoolAllocator>())
-      , translatedPacketsPlayer(buffersAllocator)
+      , translatedPacketsPlayer(shared->GetAllocator())
     {
         MS_TRACE();
-        websocketFactory = WebsocketTppFactory::CreateFactory(buffersAllocator);
+        websocketFactory = WebsocketTppFactory::CreateFactory(shared->GetAllocator());
         // NOTE: This may throw.
         this->shared->channelMessageRegistrator->RegisterHandler(
           this->id,
@@ -526,7 +524,7 @@ namespace RTC
         }
         if (auto translator = Translator::Create(producer, websocketFactory.get(),
                                                  &translatedPacketsPlayer,
-                                                 transport, buffersAllocator)) {
+                                                 transport, this->shared->GetAllocator())) {
             itt->second[producer] = std::move(translator);
         }
 
