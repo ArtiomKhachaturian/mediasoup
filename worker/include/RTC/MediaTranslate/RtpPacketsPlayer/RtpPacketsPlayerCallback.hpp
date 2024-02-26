@@ -1,24 +1,22 @@
 #pragma once
+#include "RTC/MediaTranslate/RtpTranslatedPacket.hpp"
 #include <cstdint>
-#include <set>
 
 namespace RTC
 {
 
-class RtpPacket;
-class Timestamp;
+class RtpTranslatedPacket;
 
 class RtpPacketsPlayerCallback
 {
 public:
-    virtual void OnPlayStarted(uint32_t /*ssrc*/, uint64_t /*mediaId*/,
-                               uint64_t /*mediaSourceId*/) {}
-    // timestampOffset is relative value from beginning of the media play,
-    // 1st packet has zero time
-	virtual void OnPlay(const Timestamp& timestampOffset, RtpPacket* packet,
-                        uint64_t mediaId, uint64_t mediaSourceId) = 0;
-    virtual void OnPlayFinished(uint32_t /*ssrc*/, uint64_t /*mediaId*/,
-                                uint64_t /*mediaSourceId*/) {}
+    virtual void OnPlayStarted(uint64_t /*mediaId*/, uint64_t /*mediaSourceId*/,
+                               uint32_t /*ssrc*/) {}
+    // 1st packet has zero timestamp offset
+	virtual void OnPlay(uint64_t mediaId, uint64_t mediaSourceId,
+                        RtpTranslatedPacket packet) = 0;
+    virtual void OnPlayFinished(uint64_t /*mediaId*/, uint64_t /*mediaSourceId*/,
+                                uint32_t /*ssrc*/) {}
 protected:
 	virtual ~RtpPacketsPlayerCallback() = default;
 };

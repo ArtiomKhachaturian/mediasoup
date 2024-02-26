@@ -49,12 +49,11 @@ private:
 class RtpPacketTask : public Task
 {
 public:
-    RtpPacketTask(const Timestamp& timestampOffset, RtpPacket* packet);
+    RtpPacketTask(RtpTranslatedPacket packet);
     // impl. of QueuedTask
     void Run(uint64_t mediaId, uint64_t mediaSourceId, RtpPacketsPlayerCallback* callback) final;
 private:
-    const Timestamp _timestampOffset;
-    std::unique_ptr<RtpPacket> _packet;
+    RtpTranslatedPacket _packet;
 };
 
 class QueuedMediaTasks
@@ -90,10 +89,9 @@ class RtpPacketsPlayerMainLoopStream::Impl : public RtpPacketsPlayerCallback
 public:
     Impl(RtpPacketsPlayerCallback* callback);
     // impl. of RtpPacketsPlayerCallback
-    void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
-    void OnPlay(const Timestamp& timestampOffset, RtpPacket* packet, uint64_t mediaId,
-                uint64_t mediaSourceId) final;
-    void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
+    void OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc) final;
+    void OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet) final;
+    void OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc) final;
 private:
     static void OnInvoke(uv_async_t* handle);
     void OnInvoke();
@@ -158,21 +156,22 @@ RtpPacketsPlayerMainLoopStream::Impl::Impl(RtpPacketsPlayerCallback* callback)
 {
 }
 
-void RtpPacketsPlayerMainLoopStream::Impl::OnPlayStarted(uint32_t ssrc, uint64_t mediaId,
-                                                         uint64_t mediaSourceId)
+void RtpPacketsPlayerMainLoopStream::Impl::OnPlayStarted(uint64_t mediaId,
+                                                         uint64_t mediaSourceId,
+                                                         uint32_t ssrc)
 {
     EnqueTask(mediaId, mediaSourceId, std::make_unique<StartFinishTask>(ssrc, true));
 }
 
-void RtpPacketsPlayerMainLoopStream::Impl::OnPlay(const Timestamp& timestampOffset,
-                                                  RtpPacket* packet, uint64_t mediaId,
-                                                  uint64_t mediaSourceId)
+void RtpPacketsPlayerMainLoopStream::Impl::OnPlay(uint64_t mediaId, uint64_t mediaSourceId,
+                                                  RtpTranslatedPacket packet)
 {
-    EnqueTask(mediaId, mediaSourceId,  std::make_unique<RtpPacketTask>(timestampOffset, packet));
+    EnqueTask(mediaId, mediaSourceId,  std::make_unique<RtpPacketTask>(std::move(packet)));
 }
 
-void RtpPacketsPlayerMainLoopStream::Impl::OnPlayFinished(uint32_t ssrc, uint64_t mediaId,
-                                                          uint64_t mediaSourceId)
+void RtpPacketsPlayerMainLoopStream::Impl::OnPlayFinished(uint64_t mediaId,
+                                                          uint64_t mediaSourceId,
+                                                          uint32_t ssrc)
 {
     EnqueTask(mediaId, mediaSourceId, std::make_unique<StartFinishTask>(ssrc, false));
 }
@@ -232,25 +231,24 @@ void StartFinishTask::Run(uint64_t mediaId, uint64_t mediaSourceId, RtpPacketsPl
 {
     if (callback) {
         if (TaskType::Start == GetType()) {
-            callback->OnPlayStarted(_ssrc, mediaId, mediaSourceId);
+            callback->OnPlayStarted(mediaId, mediaSourceId, _ssrc);
         }
         else {
-            callback->OnPlayFinished(_ssrc, mediaId, mediaSourceId);
+            callback->OnPlayFinished(mediaId, mediaSourceId, _ssrc);
         }
     }
 }
 
-RtpPacketTask::RtpPacketTask(const Timestamp& timestampOffset, RtpPacket* packet)
+RtpPacketTask::RtpPacketTask(RtpTranslatedPacket packet)
     : Task(TaskType::Packet)
-    , _timestampOffset(timestampOffset)
-    , _packet(packet)
+    , _packet(std::move(packet))
 {
 }
 
 void RtpPacketTask::Run(uint64_t mediaId, uint64_t mediaSourceId, RtpPacketsPlayerCallback* callback)
 {
-    if (callback && _packet) {
-        callback->OnPlay(_timestampOffset, _packet.release(), mediaId, mediaSourceId);
+    if (callback) {
+        callback->OnPlay(mediaId, mediaSourceId, std::move(_packet));
     }
 }
 

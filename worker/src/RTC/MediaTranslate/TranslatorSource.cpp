@@ -197,28 +197,25 @@ std::unique_ptr<FileWriter> TranslatorSource::CreateFileWriter(uint32_t ssrc,
 }
 #endif
 
-void TranslatorSource::OnPlayStarted(uint32_t ssrc, uint64_t mediaId,
-                                     uint64_t mediaSourceId)
+void TranslatorSource::OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc)
 {
-    RtpPacketsPlayerCallback::OnPlayStarted(ssrc, mediaId, mediaSourceId);
+    RtpPacketsPlayerCallback::OnPlayStarted(mediaId, mediaSourceId, ssrc);
     LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
     _consumersManager->BeginPacketsSending(mediaId, mediaSourceId);
 }
 
-void TranslatorSource::OnPlay(const Timestamp& timestampOffset, RtpPacket* packet,
-                              uint64_t mediaId, uint64_t mediaSourceId)
+void TranslatorSource::OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet)
 {
-    if (packet) {
+    /*if (packet) {
         const auto rtpOffset = timestampOffset.GetRtpTime();
         LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
         _consumersManager->SendPacket(rtpOffset, mediaId, mediaSourceId, packet, _output);
-    }
+    }*/
 }
 
-void TranslatorSource::OnPlayFinished(uint32_t ssrc, uint64_t mediaId,
-                                      uint64_t mediaSourceId)
+void TranslatorSource::OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc)
 {
-    RtpPacketsPlayerCallback::OnPlayFinished(ssrc, mediaId, mediaSourceId);
+    RtpPacketsPlayerCallback::OnPlayFinished(mediaId, mediaSourceId, ssrc);
     LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
     _consumersManager->EndPacketsSending(mediaId, mediaSourceId);
 }

@@ -1,33 +1,27 @@
 #include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
-#include "RTC/MediaTranslate/RtpMemoryBufferPacket.hpp"
-#include "RTC/Codecs/Opus.hpp"
 
 namespace RTC
 {
 
-RtpCodecMimeType RtpPacketizerOpus::GetType() const
+RtpPacketizerOpus::RtpPacketizerOpus()
+    : RtpPacketizer(RtpCodecMimeType::Type::AUDIO, RtpCodecMimeType::Subtype::OPUS)
 {
-    return RtpCodecMimeType(RtpCodecMimeType::Type::AUDIO, RtpCodecMimeType::Subtype::OPUS);
 }
 
-RtpPacket* RtpPacketizerOpus::AddFrame(const std::shared_ptr<const MediaFrame>& frame,
-                                       bool setPacketTimestamp)
+std::optional<RtpTranslatedPacket> RtpPacketizerOpus::Add(size_t payloadOffset,
+                                                          size_t payloadLength,
+                                                          std::shared_ptr<MediaFrame>&& frame)
 {
     if (frame) {
-        if (const auto payload = frame->GetPayload()) {
-            if (const auto packet = RtpMemoryBufferPacket::Create(payload)) {
-                if (setPacketTimestamp) {
-                    packet->SetTimestamp(frame->GetTimestamp());
-                }
-                packet->SetMarker(_firstFrame);
-                Codecs::Opus::ProcessRtpPacket(packet);
-                _firstFrame = false;
-                return packet;
-            }
+        if (auto packet = Create(frame->GetTimestamp(), frame->TakePayload(),
+                                 payloadOffset, payloadLength)) {
+            packet->SetMarker(_firstFrame);
+            _firstFrame = false;
+            return packet;
         }
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 } // namespace RTC

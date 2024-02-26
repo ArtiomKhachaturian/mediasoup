@@ -32,7 +32,7 @@ public:
     size_t GetTracksCount() const;
     std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const;
     void Start(size_t trackIndex, uint32_t ssrc, uint32_t clockRate,
-               uint8_t payloadType, uint64_t mediaId, uint64_t mediaSourceId);
+               uint64_t mediaId, uint64_t mediaSourceId);
 private:
     const Packetizers _packetizers;
     const std::shared_ptr<TasksQueue> _queue;

@@ -52,8 +52,7 @@ void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId,
                 for (size_t i = 0U; i < fragment->GetTracksCount(); ++i) {
                     const auto mime = fragment->GetTrackMimeType(i);
                     if (mime.has_value() && mime.value() == _mime) {
-                        fragment->Start(i, _ssrc, _clockRate, _payloadType,
-                                        mediaId, mediaSourceId);
+                        fragment->Start(i, _ssrc, _clockRate, mediaId, mediaSourceId);
                         playingMedias[mediaSourceId][mediaId] = std::move(fragment);
                         break;
                     }
@@ -98,20 +97,21 @@ bool RtpPacketsPlayerSimpleStream::IsPlaying(uint64_t mediaSourceId, uint64_t me
     return false;
 }
 
-void RtpPacketsPlayerSimpleStream::OnPlayStarted(uint32_t ssrc, uint64_t mediaId,
-                                                 uint64_t mediaSourceId)
+void RtpPacketsPlayerSimpleStream::OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId,
+                                                 uint32_t ssrc)
 {
-    _callback->OnPlayStarted(ssrc, mediaId, mediaSourceId);
+    _callback->OnPlayStarted(mediaId, mediaSourceId, ssrc);
 }
 
-void RtpPacketsPlayerSimpleStream::OnPlay(const Timestamp& timestampOffset, RtpPacket* packet,
-                                          uint64_t mediaId, uint64_t mediaSourceId)
+void RtpPacketsPlayerSimpleStream::OnPlay(uint64_t mediaId, uint64_t mediaSourceId,
+                                          RtpTranslatedPacket packet)
 {
-    _callback->OnPlay(timestampOffset, packet, mediaId, mediaSourceId);
+    packet.SetPayloadType(_payloadType);
+    _callback->OnPlay(mediaId, mediaSourceId, std::move(packet));
 }
 
-void RtpPacketsPlayerSimpleStream::OnPlayFinished(uint32_t ssrc, uint64_t mediaId,
-                                                  uint64_t mediaSourceId)
+void RtpPacketsPlayerSimpleStream::OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId,
+                                                  uint32_t ssrc)
 {
     {
         LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
@@ -126,7 +126,7 @@ void RtpPacketsPlayerSimpleStream::OnPlayFinished(uint32_t ssrc, uint64_t mediaI
             }
         }
     }
-    _callback->OnPlayFinished(ssrc, mediaId, mediaSourceId);
+    _callback->OnPlayFinished(mediaId, mediaSourceId, ssrc);
 }
 
 } // namespace RTC

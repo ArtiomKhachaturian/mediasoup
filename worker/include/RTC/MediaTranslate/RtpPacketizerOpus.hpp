@@ -7,11 +7,11 @@ namespace RTC
 class RtpPacketizerOpus : public RtpPacketizer
 {
 public:
-    RtpPacketizerOpus() = default;
+    RtpPacketizerOpus();
     // impl. of RtpPacketizer
-    RtpCodecMimeType GetType() const final;
-    RtpPacket* AddFrame(const std::shared_ptr<const MediaFrame>& frame,
-                        bool setPacketTimestamp) final;
+    std::optional<RtpTranslatedPacket> Add(size_t payloadOffset,
+                                           size_t payloadLength,
+                                           std::shared_ptr<MediaFrame>&& frame) final;
 private:
     bool _firstFrame = true;
 };

@@ -42,10 +42,9 @@ private:
     static bool IsPlaying(uint64_t mediaSourceId, uint64_t mediaId,
                           const MediaSourcesMap& playingMedias);
     // impl. of RtpPacketsPlayerCallback
-    void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
-    void OnPlay(const Timestamp& timestampOffset, RtpPacket* packet, uint64_t mediaId,
-                uint64_t mediaSourceId) final;
-    void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
+    void OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc) final;
+    void OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet) final;
+    void OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc) final;
 private:
     const uint32_t _ssrc;
     const uint32_t _clockRate;

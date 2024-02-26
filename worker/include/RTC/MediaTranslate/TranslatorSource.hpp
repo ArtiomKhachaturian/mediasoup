@@ -65,10 +65,9 @@ private:
 #endif
     TranslatorEndPointSink* GetMediaReceiver() { return this; }
     // impl. of RtpPacketsPlayerCallback
-    void OnPlayStarted(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId);
-    void OnPlay(const Timestamp& timestampOffset, RtpPacket* packet,
-                uint64_t mediaId, uint64_t mediaSourceId) final;
-    void OnPlayFinished(uint32_t ssrc, uint64_t mediaId, uint64_t mediaSourceId) final;
+    void OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc) final;
+    void OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet) final;
+    void OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc) final;
     // impl. of TranslatorEndPointSink
     void NotifyThatConnectionEstablished(const ObjectId& endPoint, bool connected) final;
     void WriteMediaPayload(const ObjectId& endPoint, const std::shared_ptr<Buffer>& buffer) final;
