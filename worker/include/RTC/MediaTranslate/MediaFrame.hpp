@@ -25,6 +25,7 @@ public:
     void AddPayload(const std::shared_ptr<Buffer>& payload);
     void AddPayload(uint8_t* data, size_t len, bool makeDeepCopyOfPayload = true);
     std::shared_ptr<const Buffer> GetPayload() const;
+    std::shared_ptr<Buffer> TakePayload();
     // common properties
     const RtpCodecMimeType& GetMimeType() const { return _mimeType; }
     bool IsAudio() const { return GetMimeType().IsAudioCodec(); }
@@ -43,7 +44,7 @@ public:
     std::shared_ptr<const VideoFrameConfig> GetVideoConfig() const;
 private:
 	const RtpCodecMimeType _mimeType;
-    const std::shared_ptr<SegmentsBuffer> _payload;
+    std::shared_ptr<SegmentsBuffer> _payload;
     bool _keyFrame = false;
     Timestamp _timestamp;
     std::shared_ptr<const MediaFrameConfig> _config;

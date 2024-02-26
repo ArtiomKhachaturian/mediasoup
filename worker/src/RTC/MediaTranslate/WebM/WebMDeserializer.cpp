@@ -129,42 +129,6 @@ std::shared_ptr<MediaFrame> WebMDeserializer::ReadNextFrame(size_t trackIndex,
     return frame;
 }
 
-/*std::vector<std::shared_ptr<const MediaFrame>> WebMDeserializer::ReadNextFrames(size_t trackIndex,
-                                                                                MediaFrameDeserializeResult* outResult)
-{
-    std::vector<std::shared_ptr<const MediaFrame>> output;
-    if (_reader->GetSegment()) {
-        const auto it = _tracks.find(trackIndex);
-        if (it != _tracks.end()) {
-            const auto& track = it->second;
-            MediaFrameDeserializeResult result = MediaFrameDeserializeResult::NeedMoreData;
-            if (StreamState::End != track->GetState()) {
-                result = track->ReadFrames(output);
-            }
-            // lookup the next blocks if any
-            if (MediaFrameDeserializeResult::NeedMoreData == result) {
-                if (!MkvBufferedReader::IsLive()) { // check if not live stream
-                    track->Reset();
-                }
-                if (StreamState::End == track->GetState()) {
-                    // reading of all frames was completed
-                    result = MediaFrameDeserializeResult::Success;
-                }
-            }
-            if (outResult) {
-                *outResult = result;
-            }
-        }
-        else if (outResult) {
-            *outResult = MediaFrameDeserializeResult::InvalidArg;
-        }
-    }
-    else if (outResult) {
-        *outResult = MediaFrameDeserializeResult::ParseError;
-    }
-    return output;
-}*/
-
 size_t WebMDeserializer::GetTracksCount() const
 {
     return _tracks.size();

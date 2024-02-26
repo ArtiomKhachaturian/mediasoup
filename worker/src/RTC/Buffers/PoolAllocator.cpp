@@ -5,6 +5,7 @@
 #include "handles/TimerHandle.hpp"
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
 #include "DepLibUV.hpp"
+#include <mutex>
 #include <shared_mutex>
 #endif
 #include <array>
