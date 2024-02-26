@@ -6,6 +6,7 @@
 #include "RTC/Buffers/SimpleBuffer.hpp"
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
+#include <inttypes.h>
 
 namespace RTC
 {
@@ -134,11 +135,11 @@ void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
             if (SendTranslationChanges()) {
                 ConnectToMediaInput(true);
             }
-            MS_ERROR_STD("Connected to %s", GetDescription().c_str());
+            MS_DEBUG_DEV_STD("Connected to %s", GetDescription().c_str());
         }
         else {
             ConnectToMediaInput(false);
-            MS_ERROR_STD("Disconnected from %s", GetDescription().c_str());
+            MS_DEBUG_DEV_STD("Disconnected from %s", GetDescription().c_str());
         }
         InvokeOutputMediaSinks(&TranslatorEndPointSink::NotifyThatConnectionEstablished, connected);
     }
@@ -148,9 +149,9 @@ uint64_t TranslatorEndPoint::NotifyThatTranslationReceived(const std::shared_ptr
 {
     if (media) {
         const auto number = _translationsCount.fetch_add(1U) + 1U;
-        MS_ERROR_STD("Received translation #%llu at %s from %s", number,
-                     GetCurrentTime().c_str(),
-                     GetDescription().c_str());
+        MS_DEBUG_DEV_STD("Received translation #%" PRIu64 "at %s from %s", number,
+                         GetCurrentTime().c_str(),
+                         GetDescription().c_str());
         InvokeOutputMediaSinks(&MediaSink::StartMediaWriting);
         InvokeOutputMediaSinks(&MediaSink::WriteMediaPayload, media);
         InvokeOutputMediaSinks(&MediaSink::EndMediaWriting);

@@ -8,6 +8,7 @@
 #include "RTC/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
 #include <algorithm> // for stable_sort
+#include <inttypes.h>
 
 namespace {
 
@@ -181,8 +182,8 @@ void MkvBufferedWriter::SetTrackSettings(uint64_t trackNumber,
             track->set_channels(config->GetChannelCount());
             track->set_bit_depth(config->GetBitsPerSample());
             if (!SetCodecSpecific(track, config->GetCodecSpecificData())) {
-                MS_ERROR_STD("failed to setup of MKV writer audio codec data for track #%llu",
-                             trackNumber);
+                MS_ERROR_STD("failed to setup of MKV writer audio codec "
+                             "data for track #%" PRIu64, trackNumber);
             }
         }
     }
@@ -201,12 +202,12 @@ void MkvBufferedWriter::SetTrackSettings(uint64_t trackNumber,
                 track->set_display_height(config->GetHeight());
             }
             else {
-                MS_WARN_DEV_STD("video resolution is not available or wrong for track #%llu",
-                                trackNumber);
+                MS_WARN_DEV_STD("video resolution is not available or wrong "
+                                "for track #%" PRIu64, trackNumber);
             }
             if (!SetCodecSpecific(track, config->GetCodecSpecificData())) {
-                MS_ERROR_STD("failed to setup of MKV writer video codec data for track #%llu",
-                             trackNumber);
+                MS_ERROR_STD("failed to setup of MKV writer video codec "
+                             "data for track #%" PRIu64, trackNumber);
             }
         }
     }

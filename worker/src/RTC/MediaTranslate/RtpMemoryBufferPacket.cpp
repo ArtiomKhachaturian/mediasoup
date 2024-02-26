@@ -28,7 +28,7 @@ RtpPacket* RtpMemoryBufferPacket::Create(const std::shared_ptr<const Buffer>& pa
     if (payload && !payload->IsEmpty()) {
         const auto payloadSize = payload->GetSize();
         if (payloadSize + HeaderSize > MtuSize) {
-            MS_WARN_DEV_STD("size of memory buffer (%ld bytes) is greater than max MTU size", payloadSize);
+            MS_WARN_DEV_STD("size of memory buffer (%zu bytes) is greater than max MTU size", payloadSize);
         }
         std::unique_ptr<uint8_t[]> headerBuffer(new uint8_t[HeaderSize]);
         packet = new RtpMemoryBufferPacket(std::move(headerBuffer), payload);

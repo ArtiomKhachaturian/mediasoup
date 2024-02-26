@@ -199,7 +199,7 @@ void WebMDeserializer::TrackInfo::Reset()
 {
     _cluster = _segment->GetFirst();
     _currentBlockEntry = nullptr;
-    _blockEntryIndex = _blockEntryIndex = 0L;
+    _blockEntryIndex = 0L;
     _currentBlockFrameIndex = 0;
 }
 

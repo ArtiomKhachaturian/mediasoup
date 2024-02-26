@@ -72,10 +72,16 @@ void FileWriter::StartMediaWriting(const ObjectId& sender)
     MediaSink::StartMediaWriting(sender);
     if (const auto handle = GetHandle()) { // truncate file
 #ifdef _WIN32
-        ::_chsize_s(_fileno(handle.get()), 0LL);
+        const auto result = ::_chsize_s(_fileno(handle.get()), 0LL);
 #else
-        ::ftruncate(fileno(handle.get()), 0);
+        auto result = ::ftruncate(fileno(handle.get()), 0);
 #endif
+        if (0 != result) {
+#ifndef _WIN32
+            result = errno;
+#endif
+            MS_WARN_DEV_STD("failed truncated file, error code %d", int(result));
+        }
     }
 }
 
@@ -86,8 +92,8 @@ void FileWriter::WriteMediaPayload(const ObjectId&, const std::shared_ptr<Buffer
             const auto expected = buffer->GetSize();
             const auto actual = FileWrite(handle, buffer);
             if (expected != actual) {
-                MS_ERROR_STD("file write error, expected %lu but "
-                             "written only %lu bytes, error code: %d",
+                MS_ERROR_STD("file write error, expected %zu but "
+                             "written only %zu bytes, error code: %d",
                              expected, actual, errno);
             }
         }

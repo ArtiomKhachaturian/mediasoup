@@ -27,20 +27,26 @@ SegmentsBuffer::Result SegmentsBuffer::Push(const std::shared_ptr<Buffer>& buffe
     Result result = Result::Failed;
     if (buffer && !buffer->IsEmpty()) {
         MS_ASSERT(buffer.get() != this, "passed buffer is this instance");
-        MS_ASSERT(buffer->GetSize() <= GetCapacity(), "buffer is too huge");
-        if (buffer->GetSize() + _size > GetCapacity()) {
-            while(buffer->GetSize() + _size > GetCapacity()) {
-                _size -= _buffers.front()->GetSize();
-                _buffers.pop_front();
+        const auto bufferSize = buffer->GetSize();
+        if (bufferSize <= GetCapacity()) {
+            if (bufferSize + _size > GetCapacity()) {
+                while(bufferSize + _size > GetCapacity()) {
+                    _size -= _buffers.front()->GetSize();
+                    _buffers.pop_front();
+                }
+                _buffers.push_front(buffer);
+                result = Result::Front;
             }
-            _buffers.push_front(buffer);
-            result = Result::Front;
+            else {
+                _buffers.push_back(buffer);
+                result = Result::Back;
+            }
+            _size += bufferSize;
         }
         else {
-            _buffers.push_back(buffer);
-            result = Result::Back;
+            MS_ERROR_STD("pushed buffer size [%zu bytes] is greater capacity [%zu bytes]",
+                         bufferSize, GetCapacity());
         }
-        _size += buffer->GetSize();
     }
     return result;
 }

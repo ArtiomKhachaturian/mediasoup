@@ -17,7 +17,10 @@ inline std::shared_ptr<Buffer> AllocateSimple(size_t size, size_t alignedSize)
 inline void Copy(const std::shared_ptr<Buffer>& dst, const void* source, size_t size)
 {
     if (dst && source && size) {
-        MS_ASSERT(size <= dst->GetSize(), "size of source memory chunk is greater than buffer");
+        MS_ASSERT(size <= dst->GetSize(),
+                  "source data size [%zu bytes] is greater than "
+                  "target buffer size [%zu bytes]",
+                  size, dst->GetSize());
         std::memcpy(dst->GetData(), source, size);
     }
 }

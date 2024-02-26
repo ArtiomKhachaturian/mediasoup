@@ -3,6 +3,7 @@
 #include "RTC/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
 #include <algorithm> // for std::min/max
+#include <inttypes.h>
 
 namespace RTC
 {
@@ -58,7 +59,7 @@ std::shared_ptr<Buffer> FileReader::ReadAll(const std::string_view& fileNameUtf8
                 }
             }
             catch (const std::bad_alloc& e) {
-                MS_ERROR_STD("unable to allocate %lld bytes for file data", size);
+                MS_ERROR_STD("unable to allocate %" PRId64 " bytes for file data", size);
             }
         }
         else {
@@ -162,7 +163,7 @@ std::shared_ptr<Buffer> FileReader::ReadBuffer(bool& eof, bool& ok) const
         else {
             ok = 0 == errno;
             if (!ok) {
-                MS_WARN_DEV_STD("Unable to read file chunk, size %ul, error code %d", chunkSize, errno);
+                MS_WARN_DEV_STD("Unable to read file chunk, size %zu, error code %d", chunkSize, errno);
             }
         }
         if (ok) {
