@@ -168,8 +168,6 @@ private:
 #endif
 };
 
-#include <chrono>
-
 PoolAllocator::PoolAllocator()
     : _impl(std::make_unique<AllocatorImpl>())
 {
