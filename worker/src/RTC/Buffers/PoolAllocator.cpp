@@ -77,13 +77,14 @@ private:
 class RegularHeapChunk : public HeapChunk
 {
 public:
-    RegularHeapChunk(std::unique_ptr<uint8_t[]> memory, size_t size);
+    RegularHeapChunk(uint8_t* memory, size_t size);
+    ~RegularHeapChunk() final;
     // impl. of MemoryChunk
     size_t GetSize() const final { return _size; }
-    uint8_t* GetData() final { return _memory.get(); }
-    const uint8_t* GetData() const final { return _memory.get(); }
+    uint8_t* GetData() final { return _memory; }
+    const uint8_t* GetData() const final { return _memory; }
 private:
-    const std::unique_ptr<uint8_t[]> _memory;
+    uint8_t* const _memory;
     const size_t _size;
 };
 
@@ -317,7 +318,7 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t alignedSize
     }
     if (!chunk) {
         auto heapChunk = CreateHeapChunk(alignedSize);
-        if (heapChunk) {
+        if (heapChunk && heapChunk->Acquire()) {
             {
                 const std::unique_lock<decltype(_heapChunksMtx)> lock(_heapChunksMtx);
                 _heapChunks.insert({alignedSize, heapChunk});
@@ -356,8 +357,7 @@ HeapChunkPtr PoolAllocator::AllocatorImpl::CreateHeapChunk(size_t alignedSize)
         }
         if (!chunk) {
             if (auto memory = new (std::nothrow) uint8_t[alignedSize]) {
-                chunk = std::make_shared<RegularHeapChunk>(std::unique_ptr<uint8_t[]>(memory),
-                                                           alignedSize);
+                chunk = std::make_shared<RegularHeapChunk>(memory, alignedSize);
             }
         }
     }
@@ -490,11 +490,17 @@ void HeapChunk::OnReleased()
     _lastReleaseTime = DepLibUV::GetTimeMs();
 }
 
-RegularHeapChunk::RegularHeapChunk(std::unique_ptr<uint8_t[]> memory, size_t size)
-    : _memory(std::move(memory))
+RegularHeapChunk::RegularHeapChunk(uint8_t* memory, size_t size)
+    : _memory(memory)
     , _size(size)
 {
 }
+
+RegularHeapChunk::~RegularHeapChunk()
+{
+    delete [] _memory;
+}
+
 #endif
 
 }

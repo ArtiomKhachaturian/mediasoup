@@ -64,6 +64,7 @@ WebMDeserializer::WebMDeserializer(const std::weak_ptr<BufferAllocator>& allocat
 
 WebMDeserializer::~WebMDeserializer()
 {
+    WebMDeserializer::Clear();
 }
 
 void WebMDeserializer::Clear()

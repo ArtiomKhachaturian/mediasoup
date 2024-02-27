@@ -4,9 +4,6 @@
 #include "RTC/MediaTranslate/MediaTimer/FunctorCallback.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandle.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUV.hpp"
-#ifdef __APPLE__
-#include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryApple.hpp"
-#endif
 #include "ProtectedObj.hpp"
 #include "Logger.hpp"
 #include "absl/container/flat_hash_map.h"
@@ -276,14 +273,7 @@ void MediaTimer::Impl::Unregister(uint64_t timerId)
 std::unique_ptr<MediaTimerHandleFactory> MediaTimer::Impl::
     CreateFactory(const std::string& timerName)
 {
-    std::unique_ptr<MediaTimerHandleFactory> factory;
-#ifdef __APPLE__
-    factory = MediaTimerHandleFactoryApple::Create(timerName);
-#endif
-    if (!factory) {
-        factory = MediaTimerHandleFactoryUV::Create(timerName);
-    }
-    return factory;
+    return MediaTimerHandleFactoryUV::Create(timerName);
 }
 
 void MediaTimer::Impl::SetTimeout(uint64_t timerId, uint32_t timeoutMs)

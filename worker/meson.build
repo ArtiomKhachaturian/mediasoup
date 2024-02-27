@@ -13,8 +13,6 @@ cpp_args = [
   host_machine.endian() == 'little' ? '-DMS_LITTLE_ENDIAN' : '-DMS_BIG_ENDIAN', '-DASIO_STANDALONE'
 ]
 
-macosx_dep = []
-
 if host_machine.system() == 'windows'
   cpp_args += [
     '-DNOMINMAX', # Don't define min and max macros (windows.h)
@@ -26,10 +24,6 @@ if host_machine.system() == 'windows'
     # Introduced in VS 2017 15.8, allow overaligned types in aligned_storage.
     '-D_ENABLE_EXTENDED_ALIGNED_STORAGE',
   ]
-elif host_machine.system() == 'darwin'
-  add_languages('objcpp', required: true)
-  add_project_arguments('-fobjc-arc', language: 'objcpp',)
-  # macosx_dep = dependency('appleframeworks', modules: 'Appkit')
 endif
 
 if get_option('ms_log_trace')
@@ -230,12 +224,6 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/Websocket/WebsocketTppUtils.cpp',
 ]
 
-if host_machine.system() == 'darwin'
-  media_translate_sources += [
-    'src/RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryApple.mm',
-]
-endif
-
 libwebm_sources = [
   'external/libwebm/common/file_util.cc',
   'external/libwebm/common/hdr_util.cc',
@@ -394,8 +382,7 @@ dependencies = [
   asio_proj.get_variable('asio_dep'),
   flatbuffers_generator_dep,
   libwebrtc_dep,
-  libwebm_dep,
-  macosx_dep,
+  libwebm_dep
 ]
 
 link_whole = [
