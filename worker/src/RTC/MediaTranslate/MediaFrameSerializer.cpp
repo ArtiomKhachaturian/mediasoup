@@ -1,8 +1,8 @@
 #define MS_CLASS "RTC::MediaFrameSerializer"
 #include "RTC/MediaTranslate/MediaFrameSerializer.hpp"
-#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/MediaFrameWriter.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -16,7 +16,9 @@ class MediaFrameSerializer::SinkWriter
 {
 public:
     SinkWriter(std::unique_ptr<MediaFrameWriter> impl);
-    bool Write(const std::shared_ptr<const MediaFrame>& mediaFrame);
+    bool Write(const MediaFrame& mediaFrame);
+    void SetConfig(const AudioFrameConfig& config);
+    void SetConfig(const VideoFrameConfig& config);
 private:
     const webrtc::TimeDelta& Update(const Timestamp& timestamp);
     bool IsAccepted(const Timestamp& timestamp) const;
@@ -37,10 +39,10 @@ MediaFrameSerializer::~MediaFrameSerializer()
     MediaFrameSerializer::RemoveAllSinks();
 }
 
-bool MediaFrameSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFrame)
+bool MediaFrameSerializer::Write(const MediaFrame& mediaFrame)
 {
     bool ok = false;
-    if (mediaFrame && mediaFrame->GetMimeType() == GetMimeType()) {
+    if (mediaFrame.GetMimeType() == GetMimeType()) {
         WriteToTestSink(mediaFrame);
         LOCK_READ_PROTECTED_OBJ(_writers);
         if (!_writers->empty()) {
@@ -50,12 +52,23 @@ bool MediaFrameSerializer::Push(const std::shared_ptr<const MediaFrame>& mediaFr
                 }
             }
             if (!ok) {
-                const auto frameInfo = GetMediaFrameInfoString(mediaFrame);
-                MS_ERROR_STD("unable to write media frame [%s]", frameInfo.c_str());
+                MS_ERROR_STD("unable to write media frame [%s]", GetMimeType().ToString().c_str());
             }
         }
     }
     return ok;
+}
+
+void MediaFrameSerializer::SetConfig(const AudioFrameConfig& config)
+{
+    MS_ASSERT(GetMimeType().IsAudioCodec(), "audio config is not suitable");
+    SetMediaConfig(config);
+}
+
+void MediaFrameSerializer::SetConfig(const VideoFrameConfig& config)
+{
+    MS_ASSERT(GetMimeType().IsVideoCodec(), "video config is not suitable");
+    SetMediaConfig(config);
 }
 
 bool MediaFrameSerializer::AddTestSink(MediaSink* sink)
@@ -132,15 +145,28 @@ std::unique_ptr<MediaFrameSerializer::SinkWriter> MediaFrameSerializer::CreateSi
     return nullptr;
 }
 
-void MediaFrameSerializer::WriteToTestSink(const std::shared_ptr<const MediaFrame>& mediaFrame) const
+void MediaFrameSerializer::WriteToTestSink(const MediaFrame& mediaFrame) const
 {
-    if (mediaFrame) {
-        LOCK_READ_PROTECTED_OBJ(_testWriter);
-        if (const auto& testWriter = _testWriter.ConstRef()) {
-            if (!testWriter->Write(mediaFrame)) {
-                // TODO: log warning, maybe at debug level
-            }
+    LOCK_READ_PROTECTED_OBJ(_testWriter);
+    if (const auto& testWriter = _testWriter.ConstRef()) {
+        if (!testWriter->Write(mediaFrame)) {
+            // TODO: log warning, maybe at debug level
         }
+    }
+}
+
+template<class TConfig>
+void MediaFrameSerializer::SetMediaConfig(const TConfig& config)
+{
+    {
+        LOCK_READ_PROTECTED_OBJ(_writers);
+        for (auto it = _writers->begin(); it != _writers->end(); ++it) {
+            it->second->SetConfig(config);
+        }
+    }
+    LOCK_READ_PROTECTED_OBJ(_testWriter);
+    if (const auto& testWriter = _testWriter.ConstRef()) {
+        testWriter->SetConfig(config);
     }
 }
 
@@ -149,23 +175,23 @@ MediaFrameSerializer::SinkWriter::SinkWriter(std::unique_ptr<MediaFrameWriter> i
 {
 }
 
-bool MediaFrameSerializer::SinkWriter::Write(const std::shared_ptr<const MediaFrame>& mediaFrame)
+bool MediaFrameSerializer::SinkWriter::Write(const MediaFrame& mediaFrame)
 {
-    if (mediaFrame) {
-        const auto& timestamp = mediaFrame->GetTimestamp();
-        if (IsAccepted(timestamp)) {
-            switch (mediaFrame->GetMimeType().GetType()) {
-                case RtpCodecMimeType::Type::AUDIO:
-                    _impl->SetConfig(mediaFrame->GetAudioConfig());
-                    break;
-                case RtpCodecMimeType::Type::VIDEO:
-                    _impl->SetConfig(mediaFrame->GetVideoConfig());
-                    break;
-            }
-            return _impl->Write(mediaFrame, Update(timestamp));
-        }
+    const auto& timestamp = mediaFrame.GetTimestamp();
+    if (IsAccepted(timestamp)) {
+        return _impl->Write(mediaFrame, Update(timestamp));
     }
     return false;
+}
+
+void MediaFrameSerializer::SinkWriter::SetConfig(const AudioFrameConfig& config)
+{
+    _impl->SetConfig(config);
+}
+
+void MediaFrameSerializer::SinkWriter::SetConfig(const VideoFrameConfig& config)
+{
+    _impl->SetConfig(config);
 }
 
 const webrtc::TimeDelta& MediaFrameSerializer::SinkWriter::Update(const Timestamp& timestamp)

@@ -21,28 +21,6 @@ const std::string g_emptyString;
 namespace RTC
 {
 
-std::string GetMediaFrameInfoString(const std::shared_ptr<const MediaFrame>& mediaFrame,
-                                    uint32_t ssrc)
-{
-    if (mediaFrame) {
-        auto streamInfo = GetStreamInfoString(mediaFrame->GetMimeType(), ssrc);
-        if (!streamInfo.empty()) {
-            std::string configInfo;
-            if (const auto config = mediaFrame->GetAudioConfig()) {
-                configInfo = config->ToString();
-            }
-            else if (const auto config = mediaFrame->GetVideoConfig()) {
-                configInfo = config->ToString();
-            }
-            if (!configInfo.empty()) {
-                return streamInfo + ", " + configInfo;
-            }
-            return streamInfo;
-        }
-    }
-    return std::string();
-}
-
 std::string GetCurrentTime()
 {
     auto t = std::time(nullptr);

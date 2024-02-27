@@ -17,10 +17,9 @@ public:
            const std::shared_ptr<BufferAllocator>& allocator);
     bool IsInitialized() const { return 0U != _trackNumber; }
     // impl. of MediaFrameWriter
-    bool Write(const std::shared_ptr<const MediaFrame>& mediaFrame,
-               const webrtc::TimeDelta& offset) final;
-    void SetConfig(const std::shared_ptr<const AudioFrameConfig>& config) final;
-    void SetConfig(const std::shared_ptr<const VideoFrameConfig>& config) final;
+    bool Write(const MediaFrame& mediaFrame, const webrtc::TimeDelta& offset) final;
+    void SetConfig(const AudioFrameConfig& config) final;
+    void SetConfig(const VideoFrameConfig& config) final;
 private:
     MkvBufferedWriter _impl;
     uint64_t _trackNumber = 0U;
@@ -76,18 +75,17 @@ WebMSerializer::Writer::Writer(const RtpCodecMimeType& mime, MediaSink* sink,
     }
 }
 
-bool WebMSerializer::Writer::Write(const std::shared_ptr<const MediaFrame>& mediaFrame,
-                                   const webrtc::TimeDelta& offset)
+bool WebMSerializer::Writer::Write(const MediaFrame& mediaFrame, const webrtc::TimeDelta& offset)
 {
     return _impl.AddFrame(_trackNumber, mediaFrame, offset.ns<uint64_t>());
 }
 
-void WebMSerializer::Writer::SetConfig(const std::shared_ptr<const AudioFrameConfig>& config)
+void WebMSerializer::Writer::SetConfig(const AudioFrameConfig& config)
 {
     _impl.SetTrackSettings(_trackNumber, config);
 }
 
-void WebMSerializer::Writer::SetConfig(const std::shared_ptr<const VideoFrameConfig>& config)
+void WebMSerializer::Writer::SetConfig(const VideoFrameConfig& config)
 {
     _impl.SetTrackSettings(_trackNumber, config);
 }

@@ -11,7 +11,7 @@ public:
     // impl. of RtpPacketizer
     std::optional<RtpTranslatedPacket> Add(size_t payloadOffset,
                                            size_t payloadLength,
-                                           std::shared_ptr<MediaFrame>&& frame) final;
+                                           MediaFrame&& frame) final;
 private:
     bool _firstFrame = true;
 };

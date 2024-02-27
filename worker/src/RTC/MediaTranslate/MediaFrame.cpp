@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/MediaTranslate/VideoFrameConfig.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/Buffers/SegmentsBuffer.hpp"
 #include "RTC/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
@@ -30,6 +31,13 @@ MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
     , _timestamp(clockRate)
 {
     MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
+}
+
+MediaFrame::MediaFrame(const MediaFrame& other)
+    : _mimeType(other.GetMimeType())
+    , _payload(std::make_shared<SegmentsBuffer>(*other._payload))
+    , _timestamp(other._timestamp)
+{
 }
 
 MediaFrame::~MediaFrame()
@@ -80,33 +88,6 @@ void MediaFrame::SetTimestamp(uint32_t rtpTime)
     _timestamp.SetRtpTime(rtpTime);
 }
 
-void MediaFrame::SetMediaConfig(const std::shared_ptr<const MediaFrameConfig>& config)
-{
-    _config = config;
-}
-
-void MediaFrame::SetAudioConfig(const std::shared_ptr<const AudioFrameConfig>& config)
-{
-    MS_ASSERT(IsAudio(), "set incorrect config for audio track");
-    SetMediaConfig(config);
-}
-
-std::shared_ptr<const AudioFrameConfig> MediaFrame::GetAudioConfig() const
-{
-    return std::dynamic_pointer_cast<const AudioFrameConfig>(_config);
-}
-
-void MediaFrame::SetVideoConfig(const std::shared_ptr<const VideoFrameConfig>& config)
-{
-    MS_ASSERT(!IsAudio(), "set incorrect config for video track");
-    SetMediaConfig(config);
-}
-
-std::shared_ptr<const VideoFrameConfig> MediaFrame::GetVideoConfig() const
-{
-    return std::dynamic_pointer_cast<const VideoFrameConfig>(_config);
-}
-
 MediaFrame::PayloadBufferView::PayloadBufferView(uint8_t* data, size_t len)
     : _data(data)
     , _len(len)
@@ -133,6 +114,15 @@ void MediaFrameConfig::SetCodecSpecificData(const uint8_t* data, size_t len,
     SetCodecSpecificData(AllocateBuffer(len, data, allocator));
 }
 
+bool MediaFrameConfig::IsCodecSpecificDataEqual(const MediaFrameConfig& config) const
+{
+    bool equal = this == &config;
+    if (!equal && GetCodecSpecificData()) {
+        equal = GetCodecSpecificData()->IsEqual(config.GetCodecSpecificData());
+    }
+    return false;
+}
+
 void AudioFrameConfig::SetChannelCount(uint8_t channelCount)
 {
     MS_ASSERT(channelCount, "channels count must be greater than zero");
@@ -144,6 +134,23 @@ void AudioFrameConfig::SetBitsPerSample(uint8_t bitsPerSample)
     MS_ASSERT(bitsPerSample, "bits per sample must be greater than zero");
     MS_ASSERT(0U == bitsPerSample % 8, "bits per sample must be a multiple of 8");
     _bitsPerSample = bitsPerSample;
+}
+
+bool AudioFrameConfig::operator == (const AudioFrameConfig& other) const
+{
+    return &other == this || (GetChannelCount() == other.GetChannelCount() &&
+                              GetBitsPerSample() == other.GetBitsPerSample() &&
+                              IsCodecSpecificDataEqual(other));
+}
+
+bool AudioFrameConfig::operator != (const AudioFrameConfig& other) const
+{
+    if (&other != this) {
+        return GetChannelCount() != other.GetChannelCount() ||
+               GetBitsPerSample() != other.GetBitsPerSample() ||
+               !IsCodecSpecificDataEqual(other);
+    }
+    return false;
 }
 
 std::string AudioFrameConfig::ToString() const
@@ -165,6 +172,25 @@ void VideoFrameConfig::SetHeight(int32_t height)
 void VideoFrameConfig::SetFrameRate(double frameRate)
 {
     _frameRate = frameRate;
+}
+
+bool VideoFrameConfig::operator == (const VideoFrameConfig& other) const
+{
+    return &other == this || (GetWidth() == other.GetWidth() &&
+                              GetHeight() == other.GetHeight() &&
+                              IsFloatsEqual(GetFrameRate(), other.GetFrameRate()) &&
+                              IsCodecSpecificDataEqual(other));
+}
+
+bool VideoFrameConfig::operator != (const VideoFrameConfig& other) const
+{
+    if (&other != this) {
+        return GetWidth() != other.GetWidth() ||
+               GetHeight() != other.GetHeight() ||
+               !IsFloatsEqual(GetFrameRate(), other.GetFrameRate()) ||
+               !IsCodecSpecificDataEqual(other);
+    }
+    return false;
 }
 
 std::string VideoFrameConfig::ToString() const

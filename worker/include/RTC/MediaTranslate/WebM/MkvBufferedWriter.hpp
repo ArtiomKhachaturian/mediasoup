@@ -31,20 +31,18 @@ public:
     // AddAudioTrack/AddVideoTrack returns the track number or zero if failed
     uint64_t AddAudioTrack(int32_t channels = 0);
     uint64_t AddVideoTrack(int32_t width = 0, int32_t height = 0);
-    bool AddFrame(uint64_t trackNumber,
-                  const std::shared_ptr<const MediaFrame>& mediaFrame,
-                  uint64_t mkvTimestamp);
+    bool AddFrame(uint64_t trackNumber, const MediaFrame& mediaFrame, uint64_t mkvTimestamp);
     bool SetTrackCodec(uint64_t trackNumber, const char* codec);
     bool SetTrackCodec(uint64_t trackNumber, const RtpCodecMimeType& mime);
-    void SetTrackSettings(uint64_t trackNumber, const std::shared_ptr<const AudioFrameConfig>& config);
-    void SetTrackSettings(uint64_t trackNumber, const std::shared_ptr<const VideoFrameConfig>& config);
+    void SetTrackSettings(uint64_t trackNumber, const AudioFrameConfig& config);
+    void SetTrackSettings(uint64_t trackNumber, const VideoFrameConfig& config);
 private:
     static bool SetCodecSpecific(mkvmuxer::Track* track,
                                  const std::shared_ptr<const Buffer>& specific);
     bool SetAudioSampleRate(uint64_t trackNumber, uint32_t sampleRate);
     bool HadWroteMedia() const { return _hadWroteMedia; }
     bool IsValidForTracksAdding() const;
-    EnqueueResult EnqueueFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
+    EnqueueResult EnqueueFrame(const MediaFrame& mediaFrame,
                                uint64_t mkvTimestamp, uint64_t trackNumber);
     bool WriteFrames(uint64_t mkvTimestamp);
     mkvmuxer::AudioTrack* GetAudioTrack(uint64_t trackNumber) const;

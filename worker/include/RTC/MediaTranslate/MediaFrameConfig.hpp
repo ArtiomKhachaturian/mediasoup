@@ -19,6 +19,9 @@ public:
     // makes a deep copy of input data
     void SetCodecSpecificData(const uint8_t* data, size_t len,
                               const std::shared_ptr<BufferAllocator>& allocator = nullptr);
+protected:
+    MediaFrameConfig() = default;
+    bool IsCodecSpecificDataEqual(const MediaFrameConfig& config) const;
 private:
 	std::shared_ptr<const Buffer> _codecSpecificData;
 };

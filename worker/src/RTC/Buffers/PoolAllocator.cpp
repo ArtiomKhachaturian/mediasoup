@@ -339,7 +339,7 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t alignedSize
     MemoryChunkPtr chunk;
     {
         const ReadMutexLock lock(_heapChunksMtx);
-        auto chunk = GetAcquiredExactSize(alignedSize, _heapChunks);
+        chunk = GetAcquiredExactSize(alignedSize, _heapChunks);
         if (!chunk) {
             chunk = GetAcquired(_heapChunks.upper_bound(alignedSize), _heapChunks.end());
         }

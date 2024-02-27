@@ -16,6 +16,8 @@ public:
     void SetFrameRate(double frameRate); // optional
     double GetFrameRate() const { return _frameRate; }
     bool HasResolution() const { return GetWidth() > 0 && GetHeight() > 0; }
+    bool operator == (const VideoFrameConfig& other) const;
+    bool operator != (const VideoFrameConfig& other) const;
     // impl. of RtpMediaFrameConfig
     std::string ToString() const;
 private:

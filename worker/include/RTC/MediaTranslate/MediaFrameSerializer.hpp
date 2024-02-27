@@ -13,6 +13,8 @@ class TimeDelta;
 namespace RTC
 {
 
+class AudioFrameConfig;
+class VideoFrameConfig;
 class MediaFrame;
 class MediaFrameWriter;
 
@@ -23,7 +25,9 @@ public:
     MediaFrameSerializer(const MediaFrameSerializer&) = delete;
     MediaFrameSerializer(MediaFrameSerializer&&) = delete;
     ~MediaFrameSerializer() override;
-    bool Push(const std::shared_ptr<const MediaFrame>& mediaFrame);
+    bool Write(const MediaFrame& mediaFrame);
+    void SetConfig(const AudioFrameConfig& config);
+    void SetConfig(const VideoFrameConfig& config);
     bool AddTestSink(MediaSink* sink);
     void RemoveTestSink();
     bool HasTestSink() const;
@@ -40,7 +44,9 @@ protected:
     virtual std::unique_ptr<MediaFrameWriter> CreateWriter(MediaSink* sink) = 0;
 private:
     std::unique_ptr<SinkWriter> CreateSinkWriter(MediaSink* sink);
-    void WriteToTestSink(const std::shared_ptr<const MediaFrame>& mediaFrame) const;
+    void WriteToTestSink(const MediaFrame& mediaFrame) const;
+    template<class TConfig>
+    void SetMediaConfig(const TConfig& config);
 private:
     const RtpCodecMimeType _mime;
     ProtectedObj<absl::flat_hash_map<MediaSink*, std::unique_ptr<SinkWriter>>> _writers;

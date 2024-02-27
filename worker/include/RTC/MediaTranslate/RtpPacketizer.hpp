@@ -2,7 +2,6 @@
 #include "RTC/MediaTranslate/RtpTranslatedPacket.hpp"
 #include "RTC/Buffers/BufferAllocations.hpp"
 #include "RTC/RtpDictionaries.hpp"
-#include <memory>
 #include <optional>
 
 namespace RTC
@@ -20,7 +19,7 @@ public:
     const RtpCodecMimeType& GetType() const { return _mime; }
     virtual std::optional<RtpTranslatedPacket> Add(size_t payloadOffset,
                                                    size_t payloadLength,
-                                                   std::shared_ptr<MediaFrame>&& frame) = 0;
+                                                   MediaFrame&& frame) = 0;
     virtual size_t GetPayloadOffset() const;
 protected:
     RtpPacketizer(const RtpCodecMimeType& mime,

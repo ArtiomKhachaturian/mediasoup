@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/MediaFrameDeserializer.hpp"
 #include "RTC/MediaTranslate/MediaFrameDeserializedTrack.hpp"
 #include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
+#include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 
@@ -38,7 +39,7 @@ std::optional<RtpTranslatedPacket> MediaFrameDeserializer::NextPacket(size_t tra
         const auto payloadOffset = ti.first->GetPayloadOffset();
         if (auto frame = ti.second->NextFrame(payloadOffset)) {
             const auto payloadSize = ti.second->GetLastPayloadSize();
-            return ti.first->Add(payloadOffset, payloadSize, std::move(frame));
+            return ti.first->Add(payloadOffset, payloadSize, std::move(frame.value()));
         }
     }
     return std::nullopt;

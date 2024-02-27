@@ -1,6 +1,5 @@
 #define MS_CLASS "RTC::RtpDepacketizerOpus"
 #include "RTC/MediaTranslate/RtpDepacketizerOpus.hpp"
-#include "RTC/MediaTranslate/RtpMediaFrame.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/AudioFrameConfig.hpp"
 #include "RTC/Codecs/Opus.hpp"
@@ -20,6 +19,7 @@ public:
     OpusHeadBuffer(uint32_t sampleRate);
     OpusHeadBuffer(uint8_t channelCount, uint32_t sampleRate);
     uint8_t GetChannelCount() const { return _head._channelCount; }
+    static uint8_t GetChannelCount(const uint8_t* payload);
     // impl. of Buffer
     size_t GetSize() const final { return sizeof(_head); }
     uint8_t* GetData() final { return reinterpret_cast<uint8_t*>(&_head); }
@@ -31,46 +31,33 @@ private:
 RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t clockRate,
                                          const std::shared_ptr<BufferAllocator>& allocator)
     : RtpDepacketizer(mimeType, clockRate, allocator)
-    , _opusCodecData(std::make_shared<OpusHeadBuffer>(clockRate))
 {
-    EnsureStereoAudioConfig(true);
+    _config.SetBitsPerSample(_bitsPerSample);
 }
 
 RtpDepacketizerOpus::~RtpDepacketizerOpus()
 {
 }
 
-std::shared_ptr<MediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet,
-                                                           bool makeDeepCopyOfPayload)
+std::optional<MediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet,
+                                                         bool makeDeepCopyOfPayload,
+                                                         bool* configWasChanged)
 {
-    if (const auto frame = CreateMediaFrame(packet, makeDeepCopyOfPayload)) {
+    if (auto frame = CreateMediaFrame(packet, makeDeepCopyOfPayload)) {
         if (const auto payload = packet->GetPayload()) {
-            bool stereo = false;
-            Codecs::Opus::ParseTOC(payload, nullptr, nullptr, nullptr, &stereo);
-            frame->SetAudioConfig(EnsureStereoAudioConfig(stereo));
+            const auto channelsCount = OpusHeadBuffer::GetChannelCount(payload);
+            if (!_opusCodecData || channelsCount != _opusCodecData->GetChannelCount()) {
+                _opusCodecData = std::make_shared<OpusHeadBuffer>(channelsCount, GetClockRate());
+                _config.SetChannelCount(channelsCount);
+                _config.SetCodecSpecificData(_opusCodecData);
+                if (configWasChanged) {
+                    *configWasChanged = true;
+                }
+            }
         }
         return frame;
     }
-    return nullptr;
-}
-
-std::shared_ptr<AudioFrameConfig> RtpDepacketizerOpus::EnsureAudioConfig(uint8_t channelCount)
-{
-    if (!_audioConfig || _audioConfig->GetChannelCount() != channelCount) {
-        _audioConfig = std::make_shared<AudioFrameConfig>();
-        _audioConfig->SetChannelCount(channelCount);
-        _audioConfig->SetBitsPerSample(_bitsPerSample);
-    }
-    if (_opusCodecData->GetChannelCount() != channelCount) {
-        _opusCodecData = std::make_shared<OpusHeadBuffer>(channelCount, GetClockRate());
-    }
-    _audioConfig->SetCodecSpecificData(_opusCodecData);
-    return _audioConfig;
-}
-
-std::shared_ptr<AudioFrameConfig> RtpDepacketizerOpus::EnsureStereoAudioConfig(bool stereo)
-{
-    return EnsureAudioConfig(stereo ? 2U : 1U);
+    return std::nullopt;
 }
 
 RtpDepacketizerOpus::OpusHeadBuffer::OpusHeadBuffer(uint32_t sampleRate)
@@ -81,6 +68,13 @@ RtpDepacketizerOpus::OpusHeadBuffer::OpusHeadBuffer(uint32_t sampleRate)
 RtpDepacketizerOpus::OpusHeadBuffer::OpusHeadBuffer(uint8_t channelCount, uint32_t sampleRate)
     : _head(channelCount, sampleRate)
 {
+}
+
+uint8_t RtpDepacketizerOpus::OpusHeadBuffer::GetChannelCount(const uint8_t* payload)
+{
+    bool stereo = false;
+    Codecs::Opus::ParseTOC(payload, nullptr, nullptr, nullptr, &stereo);
+    return stereo ? 2U : 1U;
 }
 
 } // namespace RTC

@@ -13,6 +13,8 @@ public:
     uint8_t GetChannelCount() const { return _channelCount; }
     void SetBitsPerSample(uint8_t bitsPerSample);
     uint8_t GetBitsPerSample() const { return _bitsPerSample; }
+    bool operator == (const AudioFrameConfig& other) const;
+    bool operator != (const AudioFrameConfig& other) const;
     // impl. of RtpMediaFrameConfig
     std::string ToString() const;
 private:

@@ -8,20 +8,22 @@
 namespace RTC
 {
 
-class MediaFrameConfig;
-class AudioFrameConfig;
-class VideoFrameConfig;
 class Buffer;
 class BufferAllocator;
 class SegmentsBuffer;
 
-class MediaFrame
+class MediaFrame final
 {
     class PayloadBufferView;
 public:
+    MediaFrame() = delete;
     MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
                const std::shared_ptr<BufferAllocator>& allocator = nullptr);
-    virtual ~MediaFrame();
+    MediaFrame(const MediaFrame& other);
+    MediaFrame(MediaFrame&&) = default;
+    ~MediaFrame();
+    MediaFrame& operator = (const MediaFrame&) = default;
+    MediaFrame& operator = (MediaFrame&&) = default;
     void AddPayload(const std::shared_ptr<Buffer>& payload);
     void AddPayload(uint8_t* data, size_t len, bool makeDeepCopyOfPayload = true);
     std::shared_ptr<const Buffer> GetPayload() const;
@@ -35,19 +37,11 @@ public:
     const Timestamp& GetTimestamp() const { return _timestamp; }
     void SetTimestamp(const webrtc::Timestamp& time);
     void SetTimestamp(uint32_t rtpTime);
-    void SetMediaConfig(const std::shared_ptr<const MediaFrameConfig>& config);
-    // audio configuration
-    void SetAudioConfig(const std::shared_ptr<const AudioFrameConfig>& config);
-    std::shared_ptr<const AudioFrameConfig> GetAudioConfig() const;
-    // video configuration
-    void SetVideoConfig(const std::shared_ptr<const VideoFrameConfig>& config);
-    std::shared_ptr<const VideoFrameConfig> GetVideoConfig() const;
 private:
-	const RtpCodecMimeType _mimeType;
+    RtpCodecMimeType _mimeType;
     std::shared_ptr<SegmentsBuffer> _payload;
     bool _keyFrame = false;
     Timestamp _timestamp;
-    std::shared_ptr<const MediaFrameConfig> _config;
 };
 
 } // namespace RTC	

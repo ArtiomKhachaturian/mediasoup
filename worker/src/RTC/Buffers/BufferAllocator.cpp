@@ -53,6 +53,20 @@ std::shared_ptr<Buffer> BufferAllocator::AllocateAligned(size_t size, size_t ali
     return AllocateSimple(size, alignedSize);
 }
 
+bool Buffer::IsEqual(const Buffer& other) const
+{
+    bool equal = &other == this;
+    if (!equal && GetSize() == other.GetSize()) {
+        equal = 0 == std::memcmp(GetData(), other.GetData(), GetSize());
+    }
+    return equal;
+}
+
+bool Buffer::IsEqual(const std::shared_ptr<const Buffer>& other) const
+{
+    return other && IsEqual(*other);
+}
+
 size_t GetAlignedBufferSize(size_t size, size_t alignment)
 {
     // even alignment expected

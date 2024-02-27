@@ -22,6 +22,23 @@ SegmentsBuffer::SegmentsBuffer(const std::shared_ptr<BufferAllocator>& allocator
     MS_ASSERT(_capacity, "capacity should be greater than zero");
 }
 
+SegmentsBuffer::SegmentsBuffer(const SegmentsBuffer& other)
+    : BufferAllocations<Buffer>(other.GetAllocator())
+    , _capacity(other.GetCapacity())
+    , _buffers(other._buffers)
+    , _size(other._size)
+{
+}
+
+SegmentsBuffer::SegmentsBuffer(SegmentsBuffer&& tmp)
+    : BufferAllocations<Buffer>(tmp.GetAllocator())
+    , _capacity(tmp.GetCapacity())
+    , _buffers(std::move(tmp._buffers))
+    , _size(tmp._size)
+{
+    tmp._size = 0U;
+}
+
 SegmentsBuffer::Result SegmentsBuffer::Push(const std::shared_ptr<Buffer>& buffer)
 {
     Result result = Result::Failed;

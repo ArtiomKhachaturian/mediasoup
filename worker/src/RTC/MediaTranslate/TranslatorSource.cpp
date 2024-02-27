@@ -96,8 +96,18 @@ bool TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
     bool handled = false;
     if (packet && (_serializer->HasSinks() || _serializer->HasTestSink())) {
         const auto makeDeepCopyOfPayload = _serializer->IsAsyncSerialization();
-        if (const auto frame = _depacketizer->AddPacket(packet, makeDeepCopyOfPayload)) {
-            handled = _serializer->Push(frame);
+        bool configWasChanged = false;
+        if (auto frame = _depacketizer->AddPacket(packet, makeDeepCopyOfPayload,
+                                                  &configWasChanged)) {
+            if (configWasChanged) {
+                if (_depacketizer->GetMimeType().IsAudioCodec()) {
+                    _serializer->SetConfig(_depacketizer->GetAudioConfig(packet));
+                }
+                else if (_depacketizer->GetMimeType().IsVideoCodec()) {
+                    _serializer->SetConfig(_depacketizer->GetVideoConfig(packet));
+                }
+            }
+            handled = _serializer->Write(frame.value());
             if (handled) {
                 ++_addedPacketsCount;
             }

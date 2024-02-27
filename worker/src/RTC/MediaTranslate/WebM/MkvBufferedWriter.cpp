@@ -120,12 +120,12 @@ uint64_t MkvBufferedWriter::AddVideoTrack(int32_t width, int32_t height)
 }
 
 bool MkvBufferedWriter::AddFrame(uint64_t trackNumber,
-                                 const std::shared_ptr<const MediaFrame>& mediaFrame,
+                                 const MediaFrame& mediaFrame,
                                  uint64_t mkvTimestamp)
 {
     bool ok = EnqueueResult::Failure != EnqueueFrame(mediaFrame, mkvTimestamp, trackNumber);
     if (ok) {
-        if (mediaFrame->IsAudio()) {
+        if (mediaFrame.IsAudio()) {
             if (!HasVideoTracks()) {
                 ok = WriteFrames(_mkvAudioLastTimestamp);
             }
@@ -175,40 +175,36 @@ bool MkvBufferedWriter::SetAudioSampleRate(uint64_t trackNumber, uint32_t sample
 }
 
 void MkvBufferedWriter::SetTrackSettings(uint64_t trackNumber,
-                                         const std::shared_ptr<const AudioFrameConfig>& config)
+                                         const AudioFrameConfig& config)
 {
-    if (config) {
-        if (const auto track = GetAudioTrack(trackNumber)) {
-            track->set_channels(config->GetChannelCount());
-            track->set_bit_depth(config->GetBitsPerSample());
-            if (!SetCodecSpecific(track, config->GetCodecSpecificData())) {
-                MS_ERROR_STD("failed to setup of MKV writer audio codec "
-                             "data for track #%" PRIu64, trackNumber);
-            }
+    if (const auto track = GetAudioTrack(trackNumber)) {
+        track->set_channels(config.GetChannelCount());
+        track->set_bit_depth(config.GetBitsPerSample());
+        if (!SetCodecSpecific(track, config.GetCodecSpecificData())) {
+            MS_ERROR_STD("failed to setup of MKV writer audio codec "
+                         "data for track #%" PRIu64, trackNumber);
         }
     }
 }
 
 void MkvBufferedWriter::SetTrackSettings(uint64_t trackNumber,
-                                         const std::shared_ptr<const VideoFrameConfig>& config)
+                                         const VideoFrameConfig& config)
 {
-    if (config) {
-        if (const auto track = GetVideoTrack(trackNumber)) {
-            track->set_frame_rate(config->GetFrameRate());
-            if (config->HasResolution()) {
-                track->set_width(config->GetWidth());
-                track->set_height(config->GetHeight());
-                track->set_display_width(config->GetWidth());
-                track->set_display_height(config->GetHeight());
-            }
-            else {
-                MS_WARN_DEV_STD("video resolution is not available or wrong "
-                                "for track #%" PRIu64, trackNumber);
-            }
-            if (!SetCodecSpecific(track, config->GetCodecSpecificData())) {
-                MS_ERROR_STD("failed to setup of MKV writer video codec "
-                             "data for track #%" PRIu64, trackNumber);
-            }
+    if (const auto track = GetVideoTrack(trackNumber)) {
+        track->set_frame_rate(config.GetFrameRate());
+        if (config.HasResolution()) {
+            track->set_width(config.GetWidth());
+            track->set_height(config.GetHeight());
+            track->set_display_width(config.GetWidth());
+            track->set_display_height(config.GetHeight());
+        }
+        else {
+            MS_WARN_DEV_STD("video resolution is not available or wrong "
+                            "for track #%" PRIu64, trackNumber);
+        }
+        if (!SetCodecSpecific(track, config.GetCodecSpecificData())) {
+            MS_ERROR_STD("failed to setup of MKV writer video codec "
+                         "data for track #%" PRIu64, trackNumber);
         }
     }
 }
@@ -231,28 +227,28 @@ bool MkvBufferedWriter::IsValidForTracksAdding() const
     return false;
 }
 
-MkvBufferedWriter::EnqueueResult MkvBufferedWriter::EnqueueFrame(const std::shared_ptr<const MediaFrame>& mediaFrame,
+MkvBufferedWriter::EnqueueResult MkvBufferedWriter::EnqueueFrame(const MediaFrame& mediaFrame,
                                                                  uint64_t mkvTimestamp, uint64_t trackNumber)
 {
     EnqueueResult result = EnqueueResult::Failure;
-    if (mediaFrame && IsInitialized()) {
+    if (IsInitialized()) {
         bool hasTrack = false;
-        if (mediaFrame->IsAudio()) {
+        if (mediaFrame.IsAudio()) {
             hasTrack = _audioTracks.count(trackNumber) > 0UL;
         }
         else {
             hasTrack = _videoTracks.count(trackNumber) > 0UL;
         }
         if (hasTrack) {
-            auto& mkvLastTimestamp = mediaFrame->IsAudio() ? _mkvAudioLastTimestamp : _mkvVideoLastTimestamp;
+            auto& mkvLastTimestamp = mediaFrame.IsAudio() ? _mkvAudioLastTimestamp : _mkvVideoLastTimestamp;
             if (mkvTimestamp >= mkvLastTimestamp) {
-                if (!mediaFrame->IsAudio() || SetAudioSampleRate(trackNumber, mediaFrame->GetClockRate())) {
+                if (!mediaFrame.IsAudio() || SetAudioSampleRate(trackNumber, mediaFrame.GetClockRate())) {
                     mkvmuxer::Frame frame;
-                    if (frame.Init(std::make_shared<MkvFrameMemory>(mediaFrame->GetPayload()))) {
+                    if (frame.Init(std::make_shared<MkvFrameMemory>(mediaFrame.GetPayload()))) {
                         frame.set_track_number(trackNumber);
                         frame.set_timestamp(mkvTimestamp);
                         // is_key: -- always true for audio
-                        frame.set_is_key(mediaFrame->IsKeyFrame() || mediaFrame->IsAudio());
+                        frame.set_is_key(mediaFrame.IsKeyFrame() || mediaFrame.IsAudio());
                         _mkvFrames.push_back(std::move(frame));
                         result = EnqueueResult::Added;
                     }
