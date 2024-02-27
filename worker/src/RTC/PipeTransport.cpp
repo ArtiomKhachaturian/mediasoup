@@ -657,7 +657,7 @@ namespace RTC
             return;
         }
 
-        RTC::RtpPacket* packet = RTC::RtpPacket::Parse(data, len, this->shared->GetAllocator());
+        RTC::RtpPacket* packet = RTC::RtpPacket::Parse(data, len);
 
         if (!packet)
         {

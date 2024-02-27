@@ -280,9 +280,9 @@ bool PoolAllocator::AllocatorImpl::RunGarbageCollector()
     const WriteMutexLock lock(_heapChunksMtx);
     if (!_garbageCollectorTimer) {
         if (DepLibUV::GetLoop()) {
-            const auto interval = POOL_MEMORY_ALLOCATOR_HEAP_CHUNKS_LIFETIME_SECS * 1000;
+            const auto intervalMs = POOL_MEMORY_ALLOCATOR_HEAP_CHUNKS_LIFETIME_MS;
             _garbageCollectorTimer = std::make_unique<TimerHandle>(this);
-            _garbageCollectorTimer->Start(interval, interval);
+            _garbageCollectorTimer->Start(intervalMs, intervalMs);
         }
     }
     return nullptr != _garbageCollectorTimer;
@@ -290,20 +290,33 @@ bool PoolAllocator::AllocatorImpl::RunGarbageCollector()
 
 void PoolAllocator::AllocatorImpl::PurgeGarbage(uint32_t maxBufferAgeMs)
 {
-    const WriteMutexLock lock(_heapChunksMtx);
-    if (maxBufferAgeMs) {
-        // TODO: change to https://en.cppreference.com/w/cpp/container/multimap/erase_if on C++20
-        for (auto it = _heapChunks.begin(); it != _heapChunks.end();) {
-            if (it->second->GetAge() >= maxBufferAgeMs) {
-                it = _heapChunks.erase(it);
-            }
-            else {
-                ++it;
+    size_t deallocated = 0U, still = 0U;
+    {
+        const WriteMutexLock lock(_heapChunksMtx);
+        if (maxBufferAgeMs) {
+            // TODO: change to https://en.cppreference.com/w/cpp/container/multimap/erase_if on C++20
+            for (auto it = _heapChunks.begin(); it != _heapChunks.end();) {
+                if (it->second->GetAge() >= maxBufferAgeMs) {
+                    it = _heapChunks.erase(it);
+                    ++deallocated;
+                }
+                else {
+                    ++it;
+                    ++still;
+                }
             }
         }
+        else {
+            _heapChunks.clear();
+        }
     }
-    else {
-        _heapChunks.clear();
+    if (deallocated || still) {
+        float usage = 100.f;
+        if (deallocated) {
+            usage = std::floor(100 * (float(still) / float(still + deallocated)));
+        }
+        MS_DUMP_STD("Purge stats: deallocated chunks %zu, still %zu, usage %d %%",
+                     deallocated, still, static_cast<int>(usage));
     }
 }
 

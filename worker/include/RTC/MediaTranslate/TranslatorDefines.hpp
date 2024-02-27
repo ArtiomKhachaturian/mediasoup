@@ -8,7 +8,7 @@
 
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
 // 10 sec max
-#define POOL_MEMORY_ALLOCATOR_HEAP_CHUNKS_LIFETIME_SECS 10
+#define POOL_MEMORY_ALLOCATOR_HEAP_CHUNKS_LIFETIME_MS 200
 #endif
 
 #ifdef MEDIA_TRANSLATIONS_TEST
@@ -20,7 +20,7 @@
 //#define WRITE_PRODUCER_RECV_TO_FILE // add MEDIASOUP_DEPACKETIZER_PATH env variable for reference to output folder
 
 #ifndef NO_TRANSLATION_SERVICE
-//#define LOCAL_WEBSOCKET_TEST_SERVER
+#define LOCAL_WEBSOCKET_TEST_SERVER
 #endif
 
 #define MOCK_WEBM_INPUT_FILE "/Users/user/Documents/Sources/mediasoup_rtp_packets/speakshift_test2_3-59.webm"

@@ -535,8 +535,7 @@ namespace RTC
 				// Copy the received packet into this buffer so it can be expanded later.
 				std::memcpy(Producer::buffer, body->data()->data(), static_cast<size_t>(len));
 
-				RTC::RtpPacket* packet = RTC::RtpPacket::Parse(Producer::buffer, len,
-                                                               shared->GetAllocator());
+				RTC::RtpPacket* packet = RTC::RtpPacket::Parse(Producer::buffer, len);
 
 				if (!packet)
 				{
