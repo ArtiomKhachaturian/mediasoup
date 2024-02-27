@@ -6,8 +6,6 @@
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/WebM/WebMDeserializer.hpp"
 #include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
-#include "RTC/MediaTranslate/RtpPacketizerOpus.hpp"
-#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/Buffers/Buffer.hpp"
 #include "RTC/RtpDictionaries.hpp"
@@ -32,7 +30,7 @@ class Task
 public:
     virtual ~Task() = default;
     TaskType GetType() const { return _type; }
-    virtual std::shared_ptr<MediaFrame> TakeFrame() { return nullptr; }
+    virtual std::optional<RtpTranslatedPacket> TakePacket() { return std::nullopt; }
 protected:
     Task(TaskType type);
 private:
@@ -42,33 +40,33 @@ private:
 class StartTask : public Task
 {
 public:
-    StartTask(size_t trackIndex, uint32_t ssrc, uint32_t clockRate,
-              uint64_t mediaId, uint64_t mediaSourceId,
-              const std::shared_ptr<RtpPacketizer>& packetizer);
+    StartTask(size_t trackIndex, const RtpCodecMimeType& mime,
+              uint32_t ssrc, uint32_t clockRate,
+              uint64_t mediaId, uint64_t mediaSourceId);
     size_t GetTrackIndex() const { return _trackIndex; }
+    const RtpCodecMimeType& GetMime() const { return _mime; }
     uint32_t GetSsrc() const { return _ssrc; }
     uint64_t GetMediaId() const { return _mediaId; }
     uint64_t GetMediaSourceId() const { return _mediaSourceId; }
-    const std::shared_ptr<RtpPacketizer>& GetPacketizer() const { return _packetizer; }
     const Timestamp& GeTimestamp() const { return _timestamp; }
     void SetTimestamp(Timestamp timestamp) { _timestamp = std::move(timestamp); }
 private:
     const size_t _trackIndex;
+    const RtpCodecMimeType _mime;
     const uint32_t _ssrc;
     const uint64_t _mediaId;
     const uint64_t _mediaSourceId;
-    const std::shared_ptr<RtpPacketizer> _packetizer;
     Timestamp _timestamp;
 };
 
 class MediaFrameTask : public Task
 {
 public:
-    MediaFrameTask(std::shared_ptr<MediaFrame> frame);
+    MediaFrameTask(std::optional<RtpTranslatedPacket> packet);
     // override of Task
-    std::shared_ptr<MediaFrame> TakeFrame() final { return std::move(_frame); }
+    std::optional<RtpTranslatedPacket> TakePacket() final { return std::move(_packet); }
 private:
-    std::shared_ptr<MediaFrame> _frame;
+    std::optional<RtpTranslatedPacket> _packet;
 };
 
 }
@@ -85,8 +83,9 @@ public:
     ~TasksQueue() final;
     void SetTimerId(uint64_t timerId);
     void Start(size_t trackIndex, uint32_t ssrc, uint32_t clockRate,
-               uint64_t mediaId, uint64_t mediaSourceId,
-               const std::shared_ptr<RtpPacketizer>& packetizer);
+               uint64_t mediaId, uint64_t mediaSourceId);
+    size_t GetTracksCount() const;
+    std::optional<RtpCodecMimeType> GetTrackType(size_t trackIndex) const;
     // impl. of MediaTimerCallback
     void OnEvent(uint64_t timerId) final;
 private:
@@ -94,8 +93,7 @@ private:
     void SetClockRate(size_t trackIndex, uint32_t clockRate);
     void Enque(std::unique_ptr<Task> task);
     void Process(std::unique_ptr<Task> task);
-    void Process(StartTask* startTask, size_t payloadOffset,
-                 size_t payloadLength, std::shared_ptr<MediaFrame>&& frame);
+    void Process(StartTask* startTask, std::optional<RtpTranslatedPacket> packet);
     bool ReadNextFrame(StartTask* startTask, bool enque);
     void ClearTasks();
 private:
@@ -108,10 +106,8 @@ private:
     ProtectedObj<std::queue<std::unique_ptr<Task>>> _tasks;
 };
 
-RtpPacketsPlayerMediaFragment::RtpPacketsPlayerMediaFragment(Packetizers packetizers,
-                                                             std::shared_ptr<TasksQueue> queue)
-    : _packetizers(std::move(packetizers))
-    , _queue(queue)
+RtpPacketsPlayerMediaFragment::RtpPacketsPlayerMediaFragment(std::shared_ptr<TasksQueue> queue)
+    : _queue(queue)
 {
 }
 
@@ -123,26 +119,17 @@ RtpPacketsPlayerMediaFragment::~RtpPacketsPlayerMediaFragment()
 void RtpPacketsPlayerMediaFragment::Start(size_t trackIndex, uint32_t ssrc, uint32_t clockRate,
                                           uint64_t mediaId, uint64_t mediaSourceId)
 {
-    if (trackIndex < _packetizers.size()) {
-        auto it = _packetizers.begin();
-        std::advance(it, trackIndex);
-        _queue->Start(it->first, ssrc, clockRate, mediaId, mediaSourceId, it->second);
-    }
+    _queue->Start(trackIndex, ssrc, clockRate, mediaId, mediaSourceId);
 }
 
 size_t RtpPacketsPlayerMediaFragment::GetTracksCount() const
 {
-    return _packetizers.size();
+    return _queue->GetTracksCount();
 }
 
 std::optional<RtpCodecMimeType> RtpPacketsPlayerMediaFragment::GetTrackMimeType(size_t trackIndex) const
 {
-    if (trackIndex < _packetizers.size()) {
-        auto it = _packetizers.begin();
-        std::advance(it, trackIndex);
-        return it->second->GetType();
-    }
-    return std::nullopt;
+    return _queue->GetTrackType(trackIndex);
 }
 
 std::unique_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
@@ -156,48 +143,15 @@ std::unique_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
         auto deserializer = std::make_unique<WebMDeserializer>(allocator);
         const auto result = deserializer->Add(buffer);
         if (MaybeOk(result)) {
-            if (const auto tracksCount = deserializer->GetTracksCount()) {
-                size_t acceptedTracksCount = 0UL;
-                Packetizers packetizers;
-                for (size_t trackIndex = 0UL; trackIndex < tracksCount; ++trackIndex) {
-                    const auto mime = deserializer->GetTrackMimeType(trackIndex);
-                    if (mime.has_value()) {
-                        if (WebMCodecs::IsSupported(mime.value())) {
-                            std::shared_ptr<RtpPacketizer> packetizer;
-                            switch (mime->GetSubtype()) {
-                                case RtpCodecMimeType::Subtype::OPUS:
-                                    packetizer = std::make_shared<RtpPacketizerOpus>();
-                                    break;
-                                default:
-                                    break;
-                            }
-                            if (packetizer) {
-                                packetizers[trackIndex] = std::move(packetizer);
-                                ++acceptedTracksCount;
-                            }
-                            else {
-                                MS_ERROR_STD("packetizer for [%s] not yet implemented", mime->ToString().c_str());
-                            }
-                        }
-                        else {
-                            MS_WARN_DEV_STD("WebM unsupported MIME type %s", mime->ToString().c_str());
-                        }
-                    }
-                }
-                if (acceptedTracksCount > 0U) {
-                    auto queue = std::make_shared<TasksQueue>(playerTimer,
-                                                              std::move(deserializer),
-                                                              callback);
-                    queue->SetTimerId(playerTimer->Register(queue));
-                    fragment.reset(new RtpPacketsPlayerMediaFragment(std::move(packetizers),
-                                                                     std::move(queue)));
-                }
-                else {
-                    // TODO: log error
-                }
+            if (deserializer->GetTracksCount()) {
+                auto queue = std::make_shared<TasksQueue>(playerTimer,
+                                                          std::move(deserializer),
+                                                          callback);
+                queue->SetTimerId(playerTimer->Register(queue));
+                fragment.reset(new RtpPacketsPlayerMediaFragment(std::move(queue)));
             }
             else {
-                MS_ERROR_STD("deserialized media buffer has no media tracks");
+                MS_ERROR_STD("deserialized media buffer has no supported media tracks");
             }
         }
         else {
@@ -236,16 +190,30 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::SetTimerId(uint64_t timerId)
 void RtpPacketsPlayerMediaFragment::TasksQueue::Start(size_t trackIndex, uint32_t ssrc,
                                                       uint32_t clockRate,
                                                       uint64_t mediaId,
-                                                      uint64_t mediaSourceId,
-                                                      const std::shared_ptr<RtpPacketizer>& packetizer)
+                                                      uint64_t mediaSourceId)
 {
-    if (packetizer && GetTimerId()) {
-        SetClockRate(trackIndex, clockRate);
-        auto startTask = std::make_unique<StartTask>(trackIndex, ssrc,
-                                                     clockRate, mediaId,
-                                                     mediaSourceId, packetizer);
-        Enque(std::move(startTask));
+    if (GetTimerId()) {
+        if (const auto mime = GetTrackType(trackIndex)) {
+            SetClockRate(trackIndex, clockRate);
+            auto startTask = std::make_unique<StartTask>(trackIndex, mime.value(),
+                                                         ssrc, clockRate,
+                                                         mediaId, mediaSourceId);
+            Enque(std::move(startTask));
+        }
     }
+}
+
+size_t RtpPacketsPlayerMediaFragment::TasksQueue::GetTracksCount() const
+{
+    LOCK_READ_PROTECTED_OBJ(_deserializer);
+    return _deserializer->get()->GetTracksCount();
+}
+
+std::optional<RtpCodecMimeType> RtpPacketsPlayerMediaFragment::TasksQueue::
+    GetTrackType(size_t trackIndex) const
+{
+    LOCK_READ_PROTECTED_OBJ(_deserializer);
+    return _deserializer->get()->GetTrackType(trackIndex);
 }
 
 void RtpPacketsPlayerMediaFragment::TasksQueue::OnEvent(uint64_t /*timerId*/)
@@ -309,7 +277,7 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::Process(std::unique_ptr<Task> ta
         else { // frame task
             LOCK_READ_PROTECTED_OBJ(_startTask);
             if (const auto& startTask = _startTask.ConstRef()) {
-                //Process(startTask.get(), task->TakeFrame());
+                Process(startTask.get(), task->TakePacket());
                 ok = ReadNextFrame(startTask.get(), true);
             }
         }
@@ -324,39 +292,33 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::Process(std::unique_ptr<Task> ta
 }
 
 void RtpPacketsPlayerMediaFragment::TasksQueue::Process(StartTask* startTask,
-                                                        size_t payloadOffset,
-                                                        size_t payloadLength,
-                                                        std::shared_ptr<MediaFrame>&& frame)
+                                                        std::optional<RtpTranslatedPacket> packet)
 {
-    if (startTask && frame) {
-        Timestamp timestamp = frame->GetTimestamp();
-        if (auto packet = startTask->GetPacketizer()->Add(payloadOffset,
-                                                          payloadLength,
-                                                          std::move(frame))) {
-            packet->SetSsrc(startTask->GetSsrc());
-            _callback->OnPlay(startTask->GetMediaId(), startTask->GetMediaSourceId(),
-                              std::move(packet.value()));
-            std::optional<uint32_t> timeout;
-            if (!startTask->GeTimestamp().IsZero()) {
-                const auto diff = timestamp - startTask->GeTimestamp();
-                timeout = diff.ms<uint32_t>();
-            }
-            else {
-                switch (frame->GetMimeType().GetSubtype()) {
-                    case RtpCodecMimeType::Subtype::OPUS:
-                        timeout = 20U; // 20 ms
-                        break;
-                    default:
-                        break;
-                }
-            }
-            if (timeout.has_value()) {
-                if (const auto timer = _timerRef.lock()) {
-                    timer->SetTimeout(GetTimerId(), timeout.value());
-                }
-            }
-            startTask->SetTimestamp(std::move(timestamp));
+    if (startTask && packet) {
+        Timestamp timestamp = packet->GetTimestampOffset();
+        packet->SetSsrc(startTask->GetSsrc());
+        _callback->OnPlay(startTask->GetMediaId(), startTask->GetMediaSourceId(),
+                          std::move(packet.value()));
+        std::optional<uint32_t> timeout;
+        if (!startTask->GeTimestamp().IsZero()) {
+            const auto diff = timestamp - startTask->GeTimestamp();
+            timeout = diff.ms<uint32_t>();
         }
+        else {
+            switch (startTask->GetMime().GetSubtype()) {
+                case RtpCodecMimeType::Subtype::OPUS:
+                    timeout = 20U; // 20 ms
+                    break;
+                default:
+                    break;
+            }
+        }
+        if (timeout.has_value()) {
+            if (const auto timer = _timerRef.lock()) {
+                timer->SetTimeout(GetTimerId(), timeout.value());
+            }
+        }
+        startTask->SetTimestamp(std::move(timestamp));
     }
 }
 
@@ -364,22 +326,22 @@ bool RtpPacketsPlayerMediaFragment::TasksQueue::ReadNextFrame(StartTask* startTa
 {
     bool ok = false;
     if (startTask) {
-        MediaFrameDeserializeResult result = MediaFrameDeserializeResult::  Success;
+        const auto trackIndex = startTask->GetTrackIndex();
+        MediaFrameDeserializeResult result = MediaFrameDeserializeResult::Success;
         LOCK_WRITE_PROTECTED_OBJ(_deserializer);
-        if (auto frame = _deserializer->get()->ReadNextFrame(startTask->GetTrackIndex(),
-                                                             &result)) {
+        if (auto packet = _deserializer->get()->NextPacket(trackIndex)) {
             if (enque) {
-                Enque(std::make_unique<MediaFrameTask>(std::move(frame)));
+                Enque(std::make_unique<MediaFrameTask>(std::move(packet)));
             }
             else {
-                //Process(startTask, std::move(frame));
+                Process(startTask, std::move(packet));
             }
             ok = true;
         }
         else {
+            result = _deserializer->get()->GetTrackLastResult(trackIndex);
             _callback->OnPlayFinished(startTask->GetMediaId(), startTask->GetMediaSourceId(),
                                       startTask->GetSsrc());
-            LOCK_WRITE_PROTECTED_OBJ(_deserializer);
             _deserializer->get()->Clear();
         }
         if (!MaybeOk(result)) {
@@ -405,22 +367,22 @@ Task::Task(TaskType type)
 {
 }
 
-StartTask::StartTask(size_t trackIndex, uint32_t ssrc,
-                     uint32_t clockRate, uint64_t mediaId, uint64_t mediaSourceId,
-                     const std::shared_ptr<RtpPacketizer>& packetizer)
+StartTask::StartTask(size_t trackIndex, const RtpCodecMimeType& mime,
+                     uint32_t ssrc, uint32_t clockRate,
+                     uint64_t mediaId, uint64_t mediaSourceId)
     : Task(TaskType::Start)
     , _trackIndex(trackIndex)
+    , _mime(mime)
     , _ssrc(ssrc)
     , _mediaId(mediaId)
     , _mediaSourceId(mediaSourceId)
-    , _packetizer(packetizer)
     , _timestamp(clockRate)
 {
 }
 
-MediaFrameTask::MediaFrameTask(std::shared_ptr<MediaFrame> frame)
+MediaFrameTask::MediaFrameTask(std::optional<RtpTranslatedPacket> packet)
     : Task(TaskType::Frame)
-    , _frame(std::move(frame))
+    , _packet(std::move(packet))
 {
 }
 

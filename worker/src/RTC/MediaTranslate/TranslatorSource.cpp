@@ -206,11 +206,10 @@ void TranslatorSource::OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId, u
 
 void TranslatorSource::OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet)
 {
-    /*if (packet) {
-        const auto rtpOffset = timestampOffset.GetRtpTime();
+    if (packet) {
         LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-        _consumersManager->SendPacket(rtpOffset, mediaId, mediaSourceId, packet, _output);
-    }*/
+        _consumersManager->SendPacket(mediaId, mediaSourceId, std::move(packet), _output);
+    }
 }
 
 void TranslatorSource::OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc)

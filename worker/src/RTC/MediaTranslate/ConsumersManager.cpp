@@ -139,35 +139,31 @@ void ConsumersManager::BeginPacketsSending(uint64_t mediaId, uint64_t endPointId
     }
 }
 
-void ConsumersManager::SendPacket(uint32_t rtpTimestampOffset, uint64_t mediaId,
-                                  uint64_t endPointId, RtpPacket* packet,
+void ConsumersManager::SendPacket(uint64_t mediaId, uint64_t endPointId,
+                                  RtpTranslatedPacket packet,
                                   RtpPacketsCollector* output)
 {
-    if (packet) {
-        if (output) {
+    if (output) {
+        if (auto rtp = packet.Take()) {
             std::list<std::shared_ptr<ConsumerInfoImpl>> accepted;
             for (auto it = _consumersInfo.begin(); it != _consumersInfo.end(); ++it) {
                 if (it->second->GetEndPointId() == endPointId) {
                     accepted.push_back(it->second);
                 }
                 else {
-                    packet->AddRejectedConsumer(it->first);
+                    rtp->AddRejectedConsumer(it->first);
                 }
             }
             if (!accepted.empty()) {
                 const auto needsCopy = accepted.size() > 1U;
                 for (const auto& consumerInfo : accepted) {
-                    const auto consumerPacket = needsCopy ? packet->Clone() : packet;
+                    const auto consumerPacket = needsCopy ? rtp->Clone() : rtp.release();
                     consumerPacket->SetTranslated(true);
-                    consumerInfo->SendPacket(rtpTimestampOffset, mediaId, consumerPacket, output);
+                    consumerInfo->SendPacket(packet.GetTimestampOffset().GetRtpTime(),
+                                             mediaId, consumerPacket, output);
                 }
-                if (needsCopy) {
-                    delete packet;
-                }
-                packet = nullptr;
             }
         }
-        delete packet;
     }
 }
 

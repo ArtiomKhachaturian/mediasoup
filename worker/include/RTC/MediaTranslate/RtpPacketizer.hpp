@@ -7,8 +7,8 @@
 namespace RTC
 {
 
-class RtpPacket;
 class Buffer;
+class BufferAllocator;
 class MediaFrame;
 class RtpTranslatedPacket;
 
@@ -19,16 +19,17 @@ public:
     const RtpCodecMimeType& GetType() const { return _mime; }
     virtual std::optional<RtpTranslatedPacket> Add(size_t payloadOffset,
                                                    size_t payloadLength,
+                                                   const std::weak_ptr<BufferAllocator>& allocator,
                                                    std::shared_ptr<MediaFrame>&& frame) = 0;
-    virtual size_t GetRtpPayloadOffset() const { return 0U; }
-    virtual size_t GetMinimumBufferSize() const { return 0U; }
+    virtual size_t GetPayloadOffset() const;
 protected:
     RtpPacketizer(const RtpCodecMimeType& mime);
     RtpPacketizer(RtpCodecMimeType::Type type, RtpCodecMimeType::Subtype subtype);
     std::optional<RtpTranslatedPacket> Create(Timestamp timestampOffset,
                                               std::shared_ptr<Buffer> buffer,
                                               size_t payloadOffset,
-                                              size_t payloadLength) const;
+                                              size_t payloadLength,
+                                              const std::weak_ptr<BufferAllocator>& allocator) const;
 private:
     const RtpCodecMimeType _mime;
 };

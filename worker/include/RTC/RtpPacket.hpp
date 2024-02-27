@@ -12,11 +12,14 @@
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <array>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace RTC
 {
+    class Buffer;
+    class BufferAllocator;
     class Consumer;
 	// Max MTU size.
 	constexpr size_t MtuSize{ 1500u };
@@ -136,19 +139,18 @@ namespace RTC
 			// clang-format on
 		}
 
-		static RtpPacket* Parse(const uint8_t* data, size_t len);
-
-	protected:
-		RtpPacket(
-		  Header* header,
-		  HeaderExtension* headerExtension,
-		  const uint8_t* payload,
-		  size_t payloadLength,
-		  uint8_t payloadPadding,
-		  size_t size);
-
+		static RtpPacket* Parse(const uint8_t* data, size_t len,
+                                const std::weak_ptr<BufferAllocator>& allocator = std::weak_ptr<BufferAllocator>());
 	public:
-		virtual ~RtpPacket();
+        RtpPacket(
+          Header* header,
+          HeaderExtension* headerExtension,
+          const uint8_t* payload,
+          size_t payloadLength,
+          uint8_t payloadPadding,
+          size_t size,
+          const std::weak_ptr<BufferAllocator>& allocator = std::weak_ptr<BufferAllocator>());
+        ~RtpPacket();
 
         void AddRejectedConsumer(Consumer* consumer);
         void RemoveRejectedConsumer(Consumer* consumer);
@@ -666,6 +668,9 @@ namespace RTC
         static size_t GetHeaderExtensionLength(HeaderExtension* headerExtension);
 
 	private:
+        // Buffer where this packet is allocated, can be `nullptr` if packet was
+        // parsed from externally provided buffer.
+        std::shared_ptr<Buffer> buffer;
 		// Passed by argument.
 		Header* header{ nullptr };
 		uint8_t* csrcList{ nullptr };
@@ -687,11 +692,9 @@ namespace RTC
 		size_t payloadLength{ 0u };
 		uint8_t payloadPadding{ 0u };
 		size_t size{ 0u }; // Full size of the packet in bytes.
+        std::weak_ptr<BufferAllocator> allocator;
 		// Codecs
 		std::shared_ptr<Codecs::PayloadDescriptorHandler> payloadDescriptorHandler;
-		// Buffer where this packet is allocated, can be `nullptr` if packet was
-		// parsed from externally provided buffer.
-		uint8_t* buffer{ nullptr };
         absl::flat_hash_set<Consumer*> rejectedConsumers;
         bool translated = false;
 	};

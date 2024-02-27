@@ -11,11 +11,14 @@ RtpPacketizerOpus::RtpPacketizerOpus()
 
 std::optional<RtpTranslatedPacket> RtpPacketizerOpus::Add(size_t payloadOffset,
                                                           size_t payloadLength,
+                                                          const std::weak_ptr<BufferAllocator>& allocator,
                                                           std::shared_ptr<MediaFrame>&& frame)
 {
     if (frame) {
-        if (auto packet = Create(frame->GetTimestamp(), frame->TakePayload(),
-                                 payloadOffset, payloadLength)) {
+        if (auto packet = Create(frame->GetTimestamp(),
+                                 frame->TakePayload(),
+                                 payloadOffset, payloadLength,
+                                 allocator)) {
             packet->SetMarker(_firstFrame);
             _firstFrame = false;
             return packet;

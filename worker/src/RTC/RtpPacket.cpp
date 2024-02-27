@@ -2,6 +2,7 @@
 // #define MS_LOG_DEV_LEVEL 3
 
 #include "RTC/RtpPacket.hpp"
+#include "RTC/Buffers/BufferAllocator.hpp"
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
 #include <cstring>  // std::memcpy(), std::memmove(), std::memset()
@@ -12,7 +13,8 @@ namespace RTC
 {
 	/* Class methods. */
 
-	RtpPacket* RtpPacket::Parse(const uint8_t* data, size_t len)
+	RtpPacket* RtpPacket::Parse(const uint8_t* data, size_t len,
+                                const std::weak_ptr<BufferAllocator>& allocator)
 	{
 		MS_TRACE();
 
@@ -120,7 +122,8 @@ namespace RTC
 		           payloadLength + size_t{ payloadPadding },
 		  "packet's computed size does not match received size");
 
-		return new RtpPacket(header, headerExtension, payload, payloadLength, payloadPadding, len);
+		return new RtpPacket(header, headerExtension, payload, payloadLength,
+                             payloadPadding, len, allocator);
 	}
 
 	/* Instance methods. */
@@ -131,9 +134,11 @@ namespace RTC
 	  const uint8_t* payload,
 	  size_t payloadLength,
 	  uint8_t payloadPadding,
-	  size_t size)
+	  size_t size,
+      const std::weak_ptr<BufferAllocator>& allocator)
 	  : header(header), headerExtension(headerExtension), payload(const_cast<uint8_t*>(payload)),
-	    payloadLength(payloadLength), payloadPadding(payloadPadding), size(size)
+	    payloadLength(payloadLength), payloadPadding(payloadPadding), size(size),
+        allocator(allocator)
 	{
 		MS_TRACE();
 
@@ -157,8 +162,6 @@ namespace RTC
 	RtpPacket::~RtpPacket()
 	{
 		MS_TRACE();
-
-		delete[] this->buffer;
 	}
 
     void RtpPacket::AddRejectedConsumer(Consumer* consumer)
@@ -689,8 +692,10 @@ namespace RTC
 	{
 		MS_TRACE();
 
-		auto* buffer = new uint8_t[MtuSize + 100];
-		auto* ptr    = const_cast<uint8_t*>(buffer);
+        auto buffer  = AllocateBuffer(MtuSize + 100, this->allocator);
+        MS_ASSERT(buffer, "buffer allocation failed");
+        
+		auto* ptr    = const_cast<uint8_t*>(buffer->GetData());
 
 		size_t numBytes{ 0 };
 
@@ -744,7 +749,7 @@ namespace RTC
 			ptr += size_t{ this->payloadPadding };
 		}
 
-		MS_ASSERT(static_cast<size_t>(ptr - buffer) == this->size, "ptr - buffer == this->size");
+		MS_ASSERT(static_cast<size_t>(ptr - buffer->GetData()) == this->size, "ptr - buffer == this->size");
 
 		// Create the new RtpPacket instance and return it.
 		auto* packet = new RtpPacket(
@@ -763,7 +768,7 @@ namespace RTC
 		// Assign the payload descriptor handler.
 		packet->payloadDescriptorHandler = this->payloadDescriptorHandler;
 		// Store allocated buffer.
-		packet->buffer = buffer;
+		packet->buffer = std::move(buffer);
         
         packet->rejectedConsumers = this->rejectedConsumers;
 

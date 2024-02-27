@@ -8,7 +8,7 @@ enum class MediaFrameDeserializeResult {
    ParseError = -3,
    // Cannot allocate memory.
    OutOfMemory = -2,
-   // Invalid argument passed to 'AddBuffer'.
+   // Invalid argument passed.
    InvalidArg = -1,
    // OK
    Success = 0,

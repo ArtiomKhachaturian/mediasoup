@@ -4,47 +4,30 @@
 #include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 
-namespace {
-
-using namespace RTC;
-
-inline RtpPacket::Header* GetRtpHeader(uint8_t* buffer) {
-    return reinterpret_cast<RtpPacket::Header*>(buffer);
-}
-
-inline const uint8_t* GetRtpPayload(const uint8_t* buffer, size_t offset) {
-    return buffer + offset;
-}
-
-inline const uint8_t* GetRtpPayload(const std::shared_ptr<Buffer>& buffer, size_t offset) {
-    return buffer ? GetRtpPayload(buffer->GetData(), offset) : nullptr;
-}
-
-inline RtpPacket::Header* GetRtpHeader(const std::shared_ptr<Buffer>& buffer) {
-    return buffer ? GetRtpHeader(buffer->GetData()) : nullptr;
-}
-
-}
-
 namespace RTC
 {
-
-class RtpTranslatedPacket::BufferedRtpPacket : public RtpPacket
-{
-public:
-    BufferedRtpPacket(std::shared_ptr<Buffer> buffer, size_t payloadOffset,
-                      size_t payloadLength);
-private:
-    const std::shared_ptr<Buffer> _buffer;
-};
 
 RtpTranslatedPacket::RtpTranslatedPacket(const RtpCodecMimeType& mime,
                                          Timestamp timestampOffset,
                                          std::shared_ptr<Buffer> buffer,
-                                         size_t payloadOffset, size_t payloadLength)
+                                         size_t payloadOffset,
+                                         size_t payloadLength,
+                                         const std::weak_ptr<BufferAllocator>& allocator)
     : _timestampOffset(std::move(timestampOffset))
-    , _impl(std::make_unique<BufferedRtpPacket>(std::move(buffer), payloadOffset, payloadLength))
 {
+    MS_ASSERT(buffer, "buffer must not be null");
+    MS_ASSERT(payloadOffset >= RtpPacket::HeaderSize, "payload offset is too small");
+    const auto data = buffer->GetData();
+    std::memset(data, 0, payloadOffset);
+    const auto header = reinterpret_cast<RtpPacket::Header*>(data);
+    header->version = RtpPacket::Version; // default
+    // workaround for fix issue with memory corruption in direct usage of RtpMemoryBufferPacket
+    // TODO: solve this problem for production, maybe problem inside of RtpPacket::SetExtensions
+    // because synthetic packet has no extensions and preallocated memory for that
+    RtpPacket packet(header, nullptr, data + payloadOffset, payloadLength, 0U,
+                     payloadOffset + payloadLength, allocator);
+    _impl.reset(packet.Clone());
+    _impl->SetTranslated(true);
     Codecs::Tools::ProcessRtpPacket(_impl.get(), mime);
 }
 
@@ -69,31 +52,23 @@ RtpTranslatedPacket& RtpTranslatedPacket::operator = (RtpTranslatedPacket&& tmp)
 
 void RtpTranslatedPacket::SetMarker(bool set)
 {
-    _impl->SetMarker(set);
+    if (_impl) {
+        _impl->SetMarker(set);
+    }
 }
 
 void RtpTranslatedPacket::SetSsrc(uint32_t ssrc)
 {
-    _impl->SetSsrc(ssrc);
+    if (_impl) {
+        _impl->SetSsrc(ssrc);
+    }
 }
 
 void RtpTranslatedPacket::SetPayloadType(uint8_t type)
 {
-    _impl->SetPayloadType(type);
-}
-
-RtpTranslatedPacket::BufferedRtpPacket::BufferedRtpPacket(std::shared_ptr<Buffer> buffer,
-                                                          size_t payloadOffset,
-                                                          size_t payloadLength)
-    : RtpPacket(GetRtpHeader(buffer), nullptr, GetRtpPayload(buffer, payloadOffset),
-                payloadLength, 0U, buffer ? buffer->GetSize() : 0U)
-    , _buffer(std::move(buffer))
-{
-    MS_ASSERT(_buffer, "buffer must not be null");
-    MS_ASSERT(payloadOffset >= RtpPacket::HeaderSize, "payload offset is too small");
-    MS_ASSERT(payloadOffset + payloadLength <= _buffer->GetSize(),
-              "payload data is out of buffer's range");
-    SetTranslated(true);
+    if (_impl) {
+        _impl->SetPayloadType(type);
+    }
 }
 
 } // namespace RTC

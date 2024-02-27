@@ -1,4 +1,5 @@
 #pragma once
+#include "RTC/MediaTranslate/RtpTranslatedPacket.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <memory>
 #include <string>
@@ -32,8 +33,8 @@ public:
     bool RemoveConsumer(Consumer* consumer);
     size_t GetSize() const { return _consumersInfo.size(); }
     void BeginPacketsSending(uint64_t mediaId, uint64_t endPointId);
-    void SendPacket(uint32_t rtpTimestampOffset, uint64_t mediaId, uint64_t endPointId,
-                    RtpPacket* packet, RtpPacketsCollector* output);
+    void SendPacket(uint64_t mediaId, uint64_t endPointId, RtpTranslatedPacket packet,
+                    RtpPacketsCollector* output);
     void EndPacketsSending(uint64_t mediaId, uint64_t endPointId);
 private:
     std::shared_ptr<TranslatorEndPoint> AddNewEndPoint(const Consumer* consumer, size_t key);

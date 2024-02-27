@@ -6,12 +6,12 @@
 namespace RTC
 {
 
+class BufferAllocator;
 class RtpCodecMimeType;
 class RtpPacket;
 
 class RtpTranslatedPacket
 {
-    class BufferedRtpPacket;
 public:
     RtpTranslatedPacket() = delete;
     RtpTranslatedPacket(const RtpTranslatedPacket&) = delete;
@@ -21,14 +21,18 @@ public:
     RtpTranslatedPacket(const RtpCodecMimeType& mime,
                         Timestamp timestampOffset,
                         std::shared_ptr<Buffer> buffer,
-                        size_t payloadOffset, size_t payloadLength);
+                        size_t payloadOffset,
+                        size_t payloadLength,
+                        const std::weak_ptr<BufferAllocator>& allocator);
     ~RtpTranslatedPacket();
     RtpTranslatedPacket& operator = (const RtpTranslatedPacket&) = delete;
     RtpTranslatedPacket& operator = (RtpTranslatedPacket&& tmp);
+    std::unique_ptr<RtpPacket> Take() { return std::move(_impl); }
     const Timestamp& GetTimestampOffset() const { return _timestampOffset; }
     void SetMarker(bool set);
     void SetSsrc(uint32_t ssrc);
     void SetPayloadType(uint8_t type);
+    explicit operator bool () const { return nullptr != _impl.get(); }
 private:
     Timestamp _timestampOffset;
     std::unique_ptr<RtpPacket> _impl;
