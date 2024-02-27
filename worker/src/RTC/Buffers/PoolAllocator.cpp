@@ -528,7 +528,6 @@ RegularHeapChunk::~RegularHeapChunk()
 {
     delete [] _memory;
 }
-
 #endif
 
 }
