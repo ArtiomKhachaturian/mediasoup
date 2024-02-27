@@ -28,7 +28,7 @@ class TranslatorSource : private RtpPacketsPlayerCallback, // receiver of transl
 {
 public:
 	~TranslatorSource() final;
-	static std::shared_ptr<TranslatorSource> Create(const RtpCodecMimeType& mime,
+	static std::unique_ptr<TranslatorSource> Create(const RtpCodecMimeType& mime,
                                                 	uint32_t clockRate,
                                                 	uint32_t originalSsrc,
                                                 	uint8_t payloadType,

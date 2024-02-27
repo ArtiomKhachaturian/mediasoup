@@ -639,7 +639,7 @@ namespace RTC
         MS_TRACE();
         
         if (const auto translator = GetTranslator(producer)) {
-            translator->AddStream(mappedSsrc, rtpStream);
+            translator->AddStream(rtpStream, mappedSsrc);
         }
 
         auto& consumers = this->mapProducerConsumers.at(producer);

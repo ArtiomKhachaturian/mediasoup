@@ -5,7 +5,8 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "ProtectedObj.hpp"
-#include <absl/container/flat_hash_map.h>
+#include <shared_mutex>
+#include <unordered_map>
 
 namespace RTC
 {
@@ -21,7 +22,8 @@ class WebsocketFactory;
 
 class Translator : private BufferAllocations<TranslatorEndPointFactory>
 {
-    template <typename K, typename V> using Map = absl::flat_hash_map<K, V>;
+    template <typename T> using Protected = ProtectedObj<T, std::shared_mutex>;
+    template <typename K, typename V> using Map = std::unordered_map<K, V>;
     template <typename V> using StreamMap = Map<uint32_t, V>;
 public:
     ~Translator() final;
@@ -30,14 +32,12 @@ public:
                                               RtpPacketsPlayer* rtpPacketsPlayer,
                                               RtpPacketsCollector* output,
                                               const std::shared_ptr<BufferAllocator>& allocator = nullptr);
-    bool AddStream(uint32_t mappedSsrc, const RtpStream* stream);
-    bool RemoveStream(uint32_t mappedSsrc);
+    bool AddStream(const RtpStream* stream, uint32_t mappedSsrc);
+    bool RemoveStream(uint32_t ssrc);
     // returns true if packet was sent to translation service
     // and further processing by other SFU components no longer needed
     bool AddOriginalRtpPacketForTranslation(RtpPacket* packet);
     const std::string& GetId() const;
-    // list of mapped or original ssrcs for added streams
-    std::list<uint32_t> GetSsrcs(bool mapped) const;
     void AddConsumer(Consumer* consumer);
     void RemoveConsumer(Consumer* consumer);
     void UpdateProducerLanguage();
@@ -48,11 +48,8 @@ private:
                RtpPacketsPlayer* rtpPacketsPlayer,
                RtpPacketsCollector* output,
                const std::shared_ptr<BufferAllocator>& allocator);
-    // SSRC maybe mapped or original
-    std::shared_ptr<TranslatorSource> GetSource(uint32_t ssrc) const;
-    void AddConsumersToSource(const std::shared_ptr<TranslatorSource>& source) const;
-    void PostProcessAfterAdding(RtpPacket* packet, bool added,
-                                const std::shared_ptr<TranslatorSource>& source);
+    void AddConsumersToSource(TranslatorSource* source) const;
+    void PostProcessAfterAdding(RtpPacket* packet, bool added, TranslatorSource* source);
 #ifdef NO_TRANSLATION_SERVICE
     std::shared_ptr<TranslatorEndPoint> CreateStubEndPoint() const;
     std::shared_ptr<TranslatorEndPoint> CreateMaybeFileEndPoint() const;
@@ -72,11 +69,11 @@ private:
     // websocket or file end-point, valid for 1st created instance, just for debug
     mutable std::weak_ptr<TranslatorEndPoint> _nonStubEndPointRef;
 #endif
-    // key is mapped media SSRC
-    ProtectedObj<StreamMap<std::shared_ptr<TranslatorSource>>> _mappedSsrcToStreams;
-    // key is original media SSRC, under protection of [_mappedSsrcToStreams]
-    StreamMap<std::weak_ptr<TranslatorSource>> _originalSsrcToStreams;
-    ProtectedObj<std::list<Consumer*>> _consumers;
+    // key is original SSRC
+    Protected<StreamMap<std::unique_ptr<TranslatorSource>>> _originalSsrcToStreams;
+    // key is mapped SSRC
+    StreamMap<uint32_t> _mappedSsrcToOriginal;
+    Protected<std::list<Consumer*>> _consumers;
 };
 
 } // namespace RTC

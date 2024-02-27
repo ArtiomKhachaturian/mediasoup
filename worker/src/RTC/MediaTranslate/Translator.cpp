@@ -39,9 +39,9 @@ Translator::~Translator()
         LOCK_WRITE_PROTECTED_OBJ(_consumers);
         _consumers->clear();
     }
-    for (const auto mappedSsrc : GetSsrcs(true)) {
-        RemoveStream(mappedSsrc);
-    }
+    LOCK_WRITE_PROTECTED_OBJ(_originalSsrcToStreams);
+    _originalSsrcToStreams->clear();
+    _mappedSsrcToOriginal.clear();
 }
 
 std::unique_ptr<Translator> Translator::Create(const Producer* producer,
@@ -56,14 +56,14 @@ std::unique_ptr<Translator> Translator::Create(const Producer* producer,
         // add streams
         const auto& streams = producer->GetRtpStreams();
         for (auto it = streams.begin(); it != streams.end(); ++it) {
-            translator->AddStream(it->second, it->first);
+            translator->AddStream(it->first, it->second);
         }
         return std::unique_ptr<Translator>(translator);
     }
     return nullptr;
 }
 
-bool Translator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
+bool Translator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
 {
     bool ok = false;
     if (stream && mappedSsrc) {
@@ -75,44 +75,53 @@ bool Translator::AddStream(uint32_t mappedSsrc, const RtpStream* stream)
             MS_ASSERT(clockRate, "clock rate must be greater than zero");
             MS_ASSERT(originalSsrc, "original SSRC must be greater than zero");
             MS_ASSERT(payloadType, "payload type must be greater than zero");
-            LOCK_WRITE_PROTECTED_OBJ(_mappedSsrcToStreams);
-            const auto it = _mappedSsrcToStreams->find(mappedSsrc);
-            if (it == _mappedSsrcToStreams->end()) {
+            LOCK_WRITE_PROTECTED_OBJ(_originalSsrcToStreams);
+            const auto it = _originalSsrcToStreams->find(stream->GetSsrc());
+            if (it == _originalSsrcToStreams->end()) {
                 auto source = TranslatorSource::Create(mime, clockRate, originalSsrc,
                                                        payloadType, this, _rtpPacketsPlayer,
                                                        _output, _producer->id, GetAllocator());
                 if (source) {
                     source->SetInputLanguage(_producer->GetLanguageId());
-                    AddConsumersToSource(source);
-                    _originalSsrcToStreams[originalSsrc] = source;
-                    _mappedSsrcToStreams->insert({mappedSsrc, std::move(source)});
+                    AddConsumersToSource(source.get());
+                    _originalSsrcToStreams->insert({stream->GetSsrc(), std::move(source)});
                     ok = true;
                 }
                 else {
-                    const auto desc = GetStreamInfoString(mime, mappedSsrc);
+                    const auto desc = GetStreamInfoString(mime, stream->GetSsrc());
                     MS_ERROR_STD("depacketizer or serializer is not available for stream [%s]", desc.c_str());
                 }
             }
             else {
                 MS_ASSERT(it->second->GetMime() == mime, "MIME type mistmatch");
                 MS_ASSERT(it->second->GetClockRate() == clockRate, "clock rate mistmatch");
-                MS_ASSERT(it->second->GetOriginalSsrc() == originalSsrc, "original SSRC mistmatch");
                 MS_ASSERT(it->second->GetPayloadType() == payloadType, "payload type mistmatch");
                 ok = true; // already registered
+            }
+            if (ok) {
+                _mappedSsrcToOriginal[stream->GetSsrc()] = mappedSsrc;
             }
         }
     }
     return ok;
 }
 
-bool Translator::RemoveStream(uint32_t mappedSsrc)
+bool Translator::RemoveStream(uint32_t ssrc)
 {
-    if (mappedSsrc) {
-        LOCK_WRITE_PROTECTED_OBJ(_mappedSsrcToStreams);
-        const auto it = _mappedSsrcToStreams->find(mappedSsrc);
-        if (it != _mappedSsrcToStreams->end()) {
-            _originalSsrcToStreams.erase(it->second->GetOriginalSsrc());
-            _mappedSsrcToStreams->erase(it);
+    if (ssrc) {
+        LOCK_WRITE_PROTECTED_OBJ(_originalSsrcToStreams);
+        auto it = _originalSsrcToStreams->find(ssrc);
+        if (it == _originalSsrcToStreams->end()) {
+            // maybe SSRC is mangled
+            const auto itm = _mappedSsrcToOriginal.find(ssrc);
+            if (itm != _mappedSsrcToOriginal.end()) {
+                ssrc = itm->second;
+                _mappedSsrcToOriginal.erase(itm);
+                it = _originalSsrcToStreams->find(ssrc);
+            }
+        }
+        if (it != _originalSsrcToStreams->end()) {
+            _originalSsrcToStreams->erase(ssrc);
             return true;
         }
     }
@@ -122,10 +131,21 @@ bool Translator::RemoveStream(uint32_t mappedSsrc)
 bool Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     if (packet && !_producer->IsPaused()) {
-        if (const auto source = GetSource(packet->GetSsrc())) {
-            const auto added = source->AddOriginalRtpPacketForTranslation(packet);
-            PostProcessAfterAdding(packet, added, source);
-            return added;
+        if (const auto ssrc = packet->GetSsrc()) {
+            LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
+            auto it = _originalSsrcToStreams->find(ssrc);
+            if (it == _originalSsrcToStreams->end()) {
+                // maybe SSRC is mangled
+                const auto itm = _mappedSsrcToOriginal.find(ssrc);
+                if (itm != _mappedSsrcToOriginal.end()) {
+                    it = _originalSsrcToStreams->find(itm->second);
+                }
+            }
+            if (it != _originalSsrcToStreams->end()) {
+                const auto added = it->second->AddOriginalRtpPacketForTranslation(packet);
+                PostProcessAfterAdding(packet, added, it->second.get());
+                return added;
+            }
         }
     }
     return false;
@@ -136,24 +156,14 @@ const std::string& Translator::GetId() const
     return _producer->id;
 }
 
-std::list<uint32_t> Translator::GetSsrcs(bool mapped) const
-{
-    std::list<uint32_t> ssrcs;
-    LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
-    for (auto it = _mappedSsrcToStreams->begin(); it != _mappedSsrcToStreams->end(); ++it) {
-        ssrcs.push_back(mapped ? it->first : it->second->GetOriginalSsrc());
-    }
-    return ssrcs;
-}
-
 void Translator::AddConsumer(Consumer* consumer)
 {
     if (consumer && Media::Kind::AUDIO == consumer->GetKind()) {
         MS_ASSERT(consumer->producerId == GetId(), "wrong producer ID");
         LOCK_WRITE_PROTECTED_OBJ(_consumers);
         if (_consumers->end() == std::find(_consumers->begin(), _consumers->end(), consumer)) {
-            LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
-            for (auto it = _mappedSsrcToStreams->begin(); it != _mappedSsrcToStreams->end(); ++it) {
+            LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
+            for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
                 it->second->AddConsumer(consumer);
             }
             _consumers->push_back(consumer);
@@ -168,8 +178,8 @@ void Translator::RemoveConsumer(Consumer* consumer)
         LOCK_WRITE_PROTECTED_OBJ(_consumers);
         const auto it = std::find(_consumers->begin(), _consumers->end(), consumer);
         if (it != _consumers->end()) {
-            LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
-            for (auto it = _mappedSsrcToStreams->begin(); it != _mappedSsrcToStreams->end(); ++it) {
+            LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
+            for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
                 it->second->RemoveConsumer(consumer);
             }
             _consumers->erase(it);
@@ -179,8 +189,8 @@ void Translator::RemoveConsumer(Consumer* consumer)
 
 void Translator::UpdateProducerLanguage()
 {
-    LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
-    for (auto it = _mappedSsrcToStreams->begin(); it != _mappedSsrcToStreams->end(); ++it) {
+    LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
+    for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
         it->second->SetInputLanguage(_producer->GetLanguageId());
     }
 }
@@ -188,31 +198,14 @@ void Translator::UpdateProducerLanguage()
 void Translator::UpdateConsumerLanguageOrVoice(Consumer* consumer)
 {
     if (consumer && Media::Kind::AUDIO == consumer->GetKind()) {
-        LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
-        for (auto it = _mappedSsrcToStreams->begin(); it != _mappedSsrcToStreams->end(); ++it) {
+        LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
+        for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
             it->second->UpdateConsumer(consumer);
         }
     }
 }
 
-std::shared_ptr<TranslatorSource> Translator::GetSource(uint32_t ssrc) const
-{
-    if (ssrc) {
-        LOCK_READ_PROTECTED_OBJ(_mappedSsrcToStreams);
-        const auto itm = _mappedSsrcToStreams->find(ssrc);
-        if (itm != _mappedSsrcToStreams->end()) {
-            return itm->second;
-        }
-        const auto ito = _originalSsrcToStreams.find(ssrc);
-        if (ito != _originalSsrcToStreams.end()) {
-            MS_ASSERT(!ito->second.expired(), "something went wrong with streams management");
-            return ito->second.lock();
-        }
-    }
-    return nullptr;
-}
-
-void Translator::AddConsumersToSource(const std::shared_ptr<TranslatorSource>& source) const
+void Translator::AddConsumersToSource(TranslatorSource* source) const
 {
     if (source) {
         LOCK_READ_PROTECTED_OBJ(_consumers);
@@ -222,8 +215,7 @@ void Translator::AddConsumersToSource(const std::shared_ptr<TranslatorSource>& s
     }
 }
 
-void Translator::PostProcessAfterAdding(RtpPacket* packet, bool added,
-                                        const std::shared_ptr<TranslatorSource>& source)
+void Translator::PostProcessAfterAdding(RtpPacket* packet, bool added, TranslatorSource* source)
 {
     if (packet && source) {
         LOCK_READ_PROTECTED_OBJ(_consumers);

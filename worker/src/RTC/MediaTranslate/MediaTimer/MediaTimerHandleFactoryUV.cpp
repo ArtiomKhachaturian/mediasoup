@@ -212,11 +212,10 @@ std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactoryUV::
     return factory;
 }
 
-std::unique_ptr<MediaTimerHandle> MediaTimerHandleFactoryUV::
-    CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback)
+MediaTimerHandle* MediaTimerHandleFactoryUV::CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback)
 {
     if (!IsCancelled()) {
-        return std::make_unique<MediaTimerHandleUV>(callback, _impl);
+        return new MediaTimerHandleUV(callback, _impl);
     }
     return nullptr;
 }

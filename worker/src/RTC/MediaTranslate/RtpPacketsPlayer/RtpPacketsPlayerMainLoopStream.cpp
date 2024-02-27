@@ -8,7 +8,7 @@
 #include "ProtectedObj.hpp"
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
-#include "absl/container/flat_hash_map.h"
+#include <unordered_map>
 #include <queue>
 
 namespace {
@@ -76,7 +76,7 @@ public:
     bool IsEmpty() const { return _mediaTasks.empty(); }
 private:
     // key is media ID
-    absl::flat_hash_map<uint64_t, QueuedMediaTasks> _mediaTasks;
+    std::unordered_map<uint64_t, QueuedMediaTasks> _mediaTasks;
 };
 
 }
@@ -100,7 +100,7 @@ private:
     const UVAsyncHandle _handle;
     RtpPacketsPlayerCallback* const _callback;
     // key is media source ID
-    ProtectedObj<absl::flat_hash_map<uint64_t, QueuedMediaSouceTasks>> _tasks;
+    ProtectedObj<std::unordered_map<uint64_t, QueuedMediaSouceTasks>> _tasks;
 };
 
 RtpPacketsPlayerMainLoopStream::RtpPacketsPlayerMainLoopStream(std::unique_ptr<Impl> impl,
@@ -154,6 +154,7 @@ RtpPacketsPlayerMainLoopStream::Impl::Impl(RtpPacketsPlayerCallback* callback)
     : _handle(DepLibUV::GetLoop(), OnInvoke, this)
     , _callback(callback)
 {
+    _tasks->reserve(1U);
 }
 
 void RtpPacketsPlayerMainLoopStream::Impl::OnPlayStarted(uint64_t mediaId,

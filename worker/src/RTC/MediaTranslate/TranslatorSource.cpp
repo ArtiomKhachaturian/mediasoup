@@ -54,7 +54,7 @@ TranslatorSource::~TranslatorSource()
 #endif
 }
 
-std::shared_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeType& mime,
+std::unique_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeType& mime,
                                                            uint32_t clockRate,
                                                            uint32_t originalSsrc,
                                                            uint8_t payloadType,
@@ -64,7 +64,7 @@ std::shared_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeTyp
                                                            const std::string& producerId,
                                                            const std::shared_ptr<BufferAllocator>& allocator)
 {
-    std::shared_ptr<TranslatorSource> source;
+    std::unique_ptr<TranslatorSource> source;
     if (endPointsFactory && rtpPacketsPlayer && output) {
         if (auto depacketizer = RtpDepacketizer::Create(mime, clockRate, allocator)) {
             auto serializer = std::make_unique<WebMSerializer>(mime, allocator);

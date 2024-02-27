@@ -13,7 +13,7 @@ public:
     ~MediaTimerHandleFactoryUV() final;
     static std::unique_ptr<MediaTimerHandleFactory> Create(const std::string& timerName);
     // impl. of MediaTimerHandleFactory
-    std::unique_ptr<MediaTimerHandle> CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback) final;
+    MediaTimerHandle* CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback) final;
 private:
 	MediaTimerHandleFactoryUV(const std::string& timerName, std::shared_ptr<Impl> impl);
     void Run();
