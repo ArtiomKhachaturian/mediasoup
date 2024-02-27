@@ -52,7 +52,7 @@ private:
 };
 
 MkvBufferedWriter::MkvBufferedWriter(MediaSink* sink, const char* app,
-                                     const std::weak_ptr<BufferAllocator>& allocator)
+                                     const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<ObjectId>(allocator)
     , _sink(sink)
     , _initialized(_segment.Init(this))

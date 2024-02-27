@@ -9,7 +9,7 @@ class BufferAllocator;
 class WebsocketTppFactory : public WebsocketFactory
 {
 public:
-    static std::unique_ptr<WebsocketFactory> CreateFactory(const std::weak_ptr<BufferAllocator>& allocator);
+    static std::unique_ptr<WebsocketFactory> CreateFactory(const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     // impl. of WebsocketFactory
     std::unique_ptr<Websocket> Create() const final;
 protected:

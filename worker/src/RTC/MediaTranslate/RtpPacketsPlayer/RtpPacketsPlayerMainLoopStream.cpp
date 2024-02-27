@@ -119,7 +119,7 @@ std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerMainLoopStream::
            uint8_t payloadType,
            const RtpCodecMimeType& mime,
            RtpPacketsPlayerCallback* callback,
-           const std::weak_ptr<BufferAllocator>& allocator)
+           const std::shared_ptr<BufferAllocator>& allocator)
 {
     std::unique_ptr<RtpPacketsPlayerStream> stream;
     if (callback) {

@@ -30,9 +30,10 @@ Worker::Worker(const std::shared_ptr<RTC::BufferAllocator> buffersAllocator,
 	this->signalHandle = new SignalHandle(this);
 
 	// Set up the RTC::Shared singleton.
-	this->shared = new RTC::Shared(buffersAllocator,
+	this->shared = new RTC::Shared(
 	  /*channelMessageRegistrator*/ new ChannelMessageRegistrator(),
-	  /*channelNotifier*/ new Channel::ChannelNotifier(this->channel));
+	  /*channelNotifier*/ new Channel::ChannelNotifier(this->channel),
+      /*allocator*/buffersAllocator);
 
 #ifdef MS_EXECUTABLE
 	{

@@ -36,7 +36,7 @@ public:
                                                 	RtpPacketsPlayer* rtpPacketsPlayer,
                                                 	RtpPacketsCollector* output,
                                                 	const std::string& producerId,
-                                                    const std::weak_ptr<BufferAllocator>& allocator);
+                                                    const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     const RtpCodecMimeType& GetMime() const;
     uint32_t GetClockRate() const;
     uint8_t GetPayloadType() const { return _payloadType; }

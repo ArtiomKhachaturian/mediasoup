@@ -17,8 +17,8 @@ private:
     FileReader* const _source;
 };
 
-FileReader::FileReader(const std::weak_ptr<BufferAllocator>& allocator,
-                       bool loop, size_t chunkSize)
+FileReader::FileReader(bool loop, size_t chunkSize,
+                       const std::shared_ptr<BufferAllocator>& allocator)
     : Base(allocator)
     , _loop(loop)
     , _chunkSize(chunkSize)
@@ -48,7 +48,7 @@ bool FileReader::IsOpen() const
 }
 
 std::shared_ptr<Buffer> FileReader::ReadAll(const std::string_view& fileNameUtf8,
-                                            const std::weak_ptr<BufferAllocator>& allocator)
+                                            const std::shared_ptr<BufferAllocator>& allocator)
 {
     if (const auto handle = Base::OpenFile(fileNameUtf8, true)) {
         auto size = GetFileSize(handle);

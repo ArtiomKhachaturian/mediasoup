@@ -15,9 +15,9 @@ class FileEndPoint : public TranslatorEndPoint
     class TimerCallback;
 public:
     FileEndPoint(std::string ownerId,
-                 const std::weak_ptr<BufferAllocator>& allocator,
                  uint32_t connectionDelaylMs = 500U, // 0.5 sec
-                 const std::optional<uint32_t>& disconnectAfterMs = std::nullopt);
+                 const std::optional<uint32_t>& disconnectAfterMs = std::nullopt,
+                 const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~FileEndPoint() final;
     static uint64_t GetInstancesCount() { return _instances.load(); }
     bool IsValid() const { return 0UL != _timerId; }

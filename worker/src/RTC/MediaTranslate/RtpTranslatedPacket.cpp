@@ -12,7 +12,7 @@ RtpTranslatedPacket::RtpTranslatedPacket(const RtpCodecMimeType& mime,
                                          std::shared_ptr<Buffer> buffer,
                                          size_t payloadOffset,
                                          size_t payloadLength,
-                                         const std::weak_ptr<BufferAllocator>& allocator)
+                                         const std::shared_ptr<BufferAllocator>& allocator)
     : _timestampOffset(std::move(timestampOffset))
 {
     MS_ASSERT(buffer, "buffer must not be null");

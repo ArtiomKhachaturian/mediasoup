@@ -62,7 +62,7 @@ std::shared_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeTyp
                                                            RtpPacketsPlayer* rtpPacketsPlayer,
                                                            RtpPacketsCollector* output,
                                                            const std::string& producerId,
-                                                           const std::weak_ptr<BufferAllocator>& allocator)
+                                                           const std::shared_ptr<BufferAllocator>& allocator)
 {
     std::shared_ptr<TranslatorSource> source;
     if (endPointsFactory && rtpPacketsPlayer && output) {

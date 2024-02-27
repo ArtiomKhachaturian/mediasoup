@@ -29,7 +29,7 @@ private:
 };
 
 RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t clockRate,
-                                         const std::weak_ptr<BufferAllocator>& allocator)
+                                         const std::shared_ptr<BufferAllocator>& allocator)
     : RtpDepacketizer(mimeType, clockRate, allocator)
     , _opusCodecData(std::make_shared<OpusHeadBuffer>(clockRate))
 {

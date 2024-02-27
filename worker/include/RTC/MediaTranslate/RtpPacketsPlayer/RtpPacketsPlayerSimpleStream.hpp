@@ -27,7 +27,7 @@ public:
                                                           uint8_t payloadType,
                                                           const RtpCodecMimeType& mime,
                                                           RtpPacketsPlayerCallback* callback,
-                                                          const std::weak_ptr<BufferAllocator>& allocator);
+                                                          const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     // impl. of RtpPacketsPlayerStream
     void Play(uint64_t mediaSourceId, const std::shared_ptr<Buffer>& media,
               const std::shared_ptr<MediaTimer> timer) final;
@@ -38,7 +38,7 @@ private:
                                  uint8_t payloadType,
                                  const RtpCodecMimeType& mime,
                                  RtpPacketsPlayerCallback* callback,
-                                 const std::weak_ptr<BufferAllocator>& allocator);
+                                 const std::shared_ptr<BufferAllocator>& allocator);
     static bool IsPlaying(uint64_t mediaSourceId, uint64_t mediaId,
                           const MediaSourcesMap& playingMedias);
     // impl. of RtpPacketsPlayerCallback

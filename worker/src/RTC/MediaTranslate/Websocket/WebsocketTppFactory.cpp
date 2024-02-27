@@ -7,7 +7,7 @@
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTppUtils.hpp"
-#include "RTC/MediaTranslate/Buffers/BufferAllocations.hpp"
+#include "RTC/Buffers/BufferAllocations.hpp"
 #include "Logger.hpp"
 #include "ProtectedObj.hpp"
 #include <websocketpp/config/asio.hpp>
@@ -30,7 +30,7 @@ class Client : public BufferAllocations<MediaTimerCallback>
 public:
     Client(const websocketpp::connection_hdl& hdl,
            std::weak_ptr<Server> serverRef,
-           const std::weak_ptr<BufferAllocator>& allocator);
+           const std::shared_ptr<BufferAllocator>& allocator);
     void SetReceivedTextMessage(const std::string& text);
     void AddReceivedBinarySize(size_t size) { _receivedBinarySize.fetch_add(size); }
     bool HasReceivedTextMessage() const { return _receivedTextMessage.load(); }
@@ -107,7 +107,7 @@ class WebsocketTppTestFactory : public WebsocketTppFactory
 {
     class MockServer;
 public:
-    WebsocketTppTestFactory(const std::weak_ptr<BufferAllocator>& allocator);
+    WebsocketTppTestFactory(const std::shared_ptr<BufferAllocator>& allocator);
     ~WebsocketTppTestFactory() final;
     bool IsValid() const;
     // overrides of WebsocketTppFactory
@@ -119,7 +119,8 @@ private:
 };
 #endif
 
-std::unique_ptr<WebsocketFactory> WebsocketTppFactory::CreateFactory(const std::weak_ptr<BufferAllocator>& allocator)
+std::unique_ptr<WebsocketFactory> WebsocketTppFactory::
+    CreateFactory(const std::shared_ptr<BufferAllocator>& allocator)
 {
 #ifndef NO_TRANSLATION_SERVICE
 #ifdef LOCAL_WEBSOCKET_TEST_SERVER
@@ -150,9 +151,9 @@ class WebsocketTppTestFactory::MockServer : private BufferAllocations<void>
     using IncomingConnections = std::map<connection_hdl, IncomingConnection, std::owner_less<connection_hdl>>;
 public:
     MockServer(const std::string& uri, WebsocketTls tls,
-               const std::weak_ptr<BufferAllocator>& allocator);
+               const std::shared_ptr<BufferAllocator>& allocator);
     MockServer(const std::string& uri, WebsocketOptions options,
-               const std::weak_ptr<BufferAllocator>& allocator);
+               const std::shared_ptr<BufferAllocator>& allocator);
     ~MockServer();
     bool IsValid() const { return _fileIsAccessible && _thread.joinable(); }
 private:
@@ -170,7 +171,7 @@ private:
     ProtectedObj<IncomingConnections> _connections;
 };
 
-WebsocketTppTestFactory::WebsocketTppTestFactory(const std::weak_ptr<BufferAllocator>& allocator)
+WebsocketTppTestFactory::WebsocketTppTestFactory(const std::shared_ptr<BufferAllocator>& allocator)
     : _server(std::make_unique<MockServer>(GetUri(), CreateOptions(), allocator))
 {
 }
@@ -190,7 +191,7 @@ std::string WebsocketTppTestFactory::GetUri() const
 }
 
 WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri, WebsocketTls tls,
-                                                const std::weak_ptr<BufferAllocator>& allocator)
+                                                const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<void>(allocator)
     , _fileIsAccessible(FileReader::IsValidForRead(MOCK_WEBM_INPUT_FILE))
     , _tls(std::move(tls))
@@ -224,7 +225,7 @@ WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri, Websocke
 
 WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri,
                                                 WebsocketOptions options,
-                                                const std::weak_ptr<BufferAllocator>& allocator)
+                                                const std::shared_ptr<BufferAllocator>& allocator)
     : MockServer(uri, std::move(options._tls), allocator)
 {
 }
@@ -325,7 +326,7 @@ namespace {
 
 Client::Client(const websocketpp::connection_hdl& hdl,
                std::weak_ptr<Server> serverRef,
-               const std::weak_ptr<BufferAllocator>& allocator)
+               const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<MediaTimerCallback>(allocator)
     , _hdl(hdl)
     , _serverRef(std::move(serverRef))

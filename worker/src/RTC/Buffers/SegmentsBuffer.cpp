@@ -6,16 +6,16 @@ namespace RTC
 {
 
 SegmentsBuffer::SegmentsBuffer(size_t capacity)
-    : SegmentsBuffer(std::weak_ptr<BufferAllocator>(), capacity)
+    : SegmentsBuffer(nullptr, capacity)
 {
 }
 
-SegmentsBuffer::SegmentsBuffer(const std::weak_ptr<BufferAllocator>& allocator)
+SegmentsBuffer::SegmentsBuffer(const std::shared_ptr<BufferAllocator>& allocator)
     : SegmentsBuffer(allocator, std::numeric_limits<size_t>::max())
 {
 }
 
-SegmentsBuffer::SegmentsBuffer(const std::weak_ptr<BufferAllocator>& allocator, size_t capacity)
+SegmentsBuffer::SegmentsBuffer(const std::shared_ptr<BufferAllocator>& allocator, size_t capacity)
     : BufferAllocations<Buffer>(allocator)
     , _capacity(capacity)
 {

@@ -140,7 +140,7 @@ namespace RTC
 		}
 
 		static RtpPacket* Parse(const uint8_t* data, size_t len,
-                                const std::weak_ptr<BufferAllocator>& allocator = std::weak_ptr<BufferAllocator>());
+                                const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 	public:
         RtpPacket(
           Header* header,
@@ -149,7 +149,7 @@ namespace RTC
           size_t payloadLength,
           uint8_t payloadPadding,
           size_t size,
-          const std::weak_ptr<BufferAllocator>& allocator = std::weak_ptr<BufferAllocator>());
+          const std::shared_ptr<BufferAllocator>& allocator = nullptr);
         ~RtpPacket();
 
         void AddRejectedConsumer(Consumer* consumer);
@@ -692,7 +692,8 @@ namespace RTC
 		size_t payloadLength{ 0u };
 		uint8_t payloadPadding{ 0u };
 		size_t size{ 0u }; // Full size of the packet in bytes.
-        std::weak_ptr<BufferAllocator> allocator;
+        // used in [Clone] method
+        std::shared_ptr<BufferAllocator> allocator;
 		// Codecs
 		std::shared_ptr<Codecs::PayloadDescriptorHandler> payloadDescriptorHandler;
         absl::flat_hash_set<Consumer*> rejectedConsumers;

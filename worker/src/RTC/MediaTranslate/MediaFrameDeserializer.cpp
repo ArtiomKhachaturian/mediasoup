@@ -8,7 +8,7 @@
 namespace RTC
 {
 
-MediaFrameDeserializer::MediaFrameDeserializer(const std::weak_ptr<BufferAllocator>& allocator)
+MediaFrameDeserializer::MediaFrameDeserializer(const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<void>(allocator)
 {
 }
@@ -36,9 +36,9 @@ std::optional<RtpTranslatedPacket> MediaFrameDeserializer::NextPacket(size_t tra
     if (trackIndex < _tracks.size()) {
         auto& ti = _tracks.at(trackIndex);
         const auto payloadOffset = ti.first->GetPayloadOffset();
-        if (auto frame = ti.second->NextFrame(payloadOffset, GetAllocator())) {
-            return ti.first->Add(payloadOffset, ti.second->GetLastPayloadSize(),
-                                 GetAllocator(), std::move(frame));
+        if (auto frame = ti.second->NextFrame(payloadOffset)) {
+            const auto payloadSize = ti.second->GetLastPayloadSize();
+            return ti.first->Add(payloadOffset, payloadSize, std::move(frame));
         }
     }
     return std::nullopt;
@@ -74,7 +74,7 @@ void MediaFrameDeserializer::AddTrack(const RtpCodecMimeType& type,
         std::unique_ptr<RtpPacketizer> packetizer;
         switch (type.GetSubtype()) {
             case RtpCodecMimeType::Subtype::OPUS:
-                packetizer = std::make_unique<RtpPacketizerOpus>();
+                packetizer = std::make_unique<RtpPacketizerOpus>(GetAllocator());
                 if (!track->GetClockRate()) {
                     track->SetClockRate(48000U);
                 }

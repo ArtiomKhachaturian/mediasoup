@@ -9,7 +9,7 @@ namespace RTC
 {
 
 RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& mimeType, uint32_t clockRate,
-                                 const std::weak_ptr<BufferAllocator>& allocator)
+                                 const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<void>(allocator)
     , _mimeType(mimeType)
     , _clockRate(clockRate)
@@ -19,7 +19,7 @@ RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& mimeType, uint32_t cloc
 
 std::unique_ptr<RtpDepacketizer> RtpDepacketizer::Create(const RtpCodecMimeType& mimeType,
                                                          uint32_t clockRate,
-                                                         const std::weak_ptr<BufferAllocator>& allocator)
+                                                         const std::shared_ptr<BufferAllocator>& allocator)
 {
     switch (mimeType.GetType()) {
         case RtpCodecMimeType::Type::AUDIO:

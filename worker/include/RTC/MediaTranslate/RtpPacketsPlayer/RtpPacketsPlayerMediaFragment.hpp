@@ -24,7 +24,7 @@ public:
     static std::unique_ptr<RtpPacketsPlayerMediaFragment> Parse(const std::shared_ptr<Buffer>& buffer,
                                                                 const std::shared_ptr<MediaTimer> playerTimer,
                                                                 RtpPacketsPlayerCallback* callback,
-                                                                const std::weak_ptr<BufferAllocator>& allocator);
+                                                                const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~RtpPacketsPlayerMediaFragment();
     size_t GetTracksCount() const;
     std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const;

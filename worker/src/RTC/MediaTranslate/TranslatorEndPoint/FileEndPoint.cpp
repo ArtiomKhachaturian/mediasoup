@@ -23,7 +23,7 @@ namespace RTC
 class FileEndPoint::TimerCallback : public BufferAllocations<MediaTimerCallback>
 {
 public:
-    TimerCallback(const std::weak_ptr<BufferAllocator>& allocator, FileEndPoint* owner);
+    TimerCallback(FileEndPoint* owner, const std::shared_ptr<BufferAllocator>& allocator);
     bool IsConnected() const { return WebsocketState::Connected == GetState(); }
     void SetHasWrittenInputMedia(bool has);
     bool HasWrittenInputMedia() const { return _hasWrittenInputMedia.load(); }
@@ -47,13 +47,12 @@ private:
     std::atomic_bool _hasWrittenInputMedia = false;
 };
 
-FileEndPoint::FileEndPoint(std::string ownerId,
-                           const std::weak_ptr<BufferAllocator>& allocator,
-                           uint32_t connectionDelaylMs,
-                           const std::optional<uint32_t>& disconnectAfterMs)
+FileEndPoint::FileEndPoint(std::string ownerId, uint32_t connectionDelaylMs,
+                           const std::optional<uint32_t>& disconnectAfterMs,
+                           const std::shared_ptr<BufferAllocator>& allocator)
     : TranslatorEndPoint(std::move(ownerId), MOCK_WEBM_INPUT_FILE)
     , _fileIsValid(FileReader::IsValidForRead(GetName()))
-    , _callback(_fileIsValid ? std::make_shared<TimerCallback>(allocator, this) : nullptr)
+    , _callback(_fileIsValid ? std::make_shared<TimerCallback>(this, allocator) : nullptr)
     , _timer(_fileIsValid ? std::make_shared<MediaTimer>(GetName()) : nullptr)
     , _timerId(_timer ? _timer->Register(_callback) : 0UL)
     , _intervalBetweenTranslationsMs(1000U + (MOCK_WEBM_INPUT_FILE_LEN_SECS * 1000U))
@@ -117,8 +116,8 @@ bool FileEndPoint::SendText(const std::string& text) const
     return IsConnected() && !text.empty();
 }
 
-FileEndPoint::TimerCallback::TimerCallback(const std::weak_ptr<BufferAllocator>& allocator,
-                                           FileEndPoint* owner)
+FileEndPoint::TimerCallback::TimerCallback(FileEndPoint* owner,
+                                           const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<MediaTimerCallback>(allocator)
     , _owner(owner)
 {

@@ -10,7 +10,7 @@ RtpPacketsPlayerSimpleStream::RtpPacketsPlayerSimpleStream(uint32_t ssrc, uint32
                                                            uint8_t payloadType,
                                                            const RtpCodecMimeType& mime,
                                                            RtpPacketsPlayerCallback* callback,
-                                                           const std::weak_ptr<BufferAllocator>& allocator)
+                                                           const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<RtpPacketsPlayerStream>(allocator)
     , _ssrc(ssrc)
     , _clockRate(clockRate)
@@ -28,7 +28,7 @@ std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerSimpleStream::
     Create(uint32_t ssrc, uint32_t clockRate,
            uint8_t payloadType, const RtpCodecMimeType& mime,
            RtpPacketsPlayerCallback* callback,
-           const std::weak_ptr<BufferAllocator>& allocator)
+           const std::shared_ptr<BufferAllocator>& allocator)
 {
     std::unique_ptr<RtpPacketsPlayerStream> stream;
     if (callback) {

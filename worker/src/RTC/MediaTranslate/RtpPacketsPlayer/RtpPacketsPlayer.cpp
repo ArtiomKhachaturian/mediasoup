@@ -14,7 +14,7 @@
 namespace RTC
 {
 
-RtpPacketsPlayer::RtpPacketsPlayer(const std::weak_ptr<BufferAllocator>& allocator)
+RtpPacketsPlayer::RtpPacketsPlayer(const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<void>(allocator)
     , _timer(std::make_shared<MediaTimer>("RtpPacketsPlayer"))
 {

@@ -30,7 +30,7 @@ private:
 
 
 RtpDepacketizerVpx::RtpDepacketizerVpx(const RtpCodecMimeType& mimeType, uint32_t clockRate,
-                                       const std::weak_ptr<BufferAllocator>& allocator)
+                                       const std::shared_ptr<BufferAllocator>& allocator)
     : RtpDepacketizer(mimeType, clockRate, allocator)
 {
 }

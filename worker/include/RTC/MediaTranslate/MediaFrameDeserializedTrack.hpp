@@ -6,15 +6,13 @@
 namespace RTC
 {
 
-class BufferAllocator;
 class MediaFrame;
 
 class MediaFrameDeserializedTrack
 {
 public:
 	virtual ~MediaFrameDeserializedTrack() = default;
-	virtual std::shared_ptr<MediaFrame> NextFrame(size_t payloadOffset,
-                                                  const std::weak_ptr<BufferAllocator>& allocator) = 0;
+	virtual std::shared_ptr<MediaFrame> NextFrame(size_t payloadOffset) = 0;
     void SetClockRate(uint32_t clockRate);
 	uint32_t GetClockRate() const { return _clockRate; }
 	MediaFrameDeserializeResult GetLastResult() const { return _lastResult; }

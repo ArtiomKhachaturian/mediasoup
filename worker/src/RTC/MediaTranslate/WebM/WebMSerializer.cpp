@@ -14,7 +14,7 @@ class WebMSerializer::Writer : public MediaFrameWriter
 {
 public:
     Writer(const RtpCodecMimeType& mime, MediaSink* sink,
-           const std::weak_ptr<BufferAllocator>& allocator);
+           const std::shared_ptr<BufferAllocator>& allocator);
     bool IsInitialized() const { return 0U != _trackNumber; }
     // impl. of MediaFrameWriter
     bool Write(const std::shared_ptr<const MediaFrame>& mediaFrame,
@@ -26,7 +26,8 @@ private:
     uint64_t _trackNumber = 0U;
 };
 
-WebMSerializer::WebMSerializer(const RtpCodecMimeType& mime, const std::weak_ptr<BufferAllocator>& allocator)
+WebMSerializer::WebMSerializer(const RtpCodecMimeType& mime,
+                               const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<MediaFrameSerializer>(allocator, mime)
 {
     MS_ASSERT(WebMCodecs::IsSupported(mime), "WebM not available for this MIME %s", mime.ToString().c_str());
@@ -43,7 +44,7 @@ std::unique_ptr<MediaFrameWriter> WebMSerializer::CreateWriter(MediaSink* sink)
 }
 
 WebMSerializer::Writer::Writer(const RtpCodecMimeType& mime, MediaSink* sink,
-                               const std::weak_ptr<BufferAllocator>& allocator)
+                               const std::shared_ptr<BufferAllocator>& allocator)
     : _impl(sink, GetAgentName(), allocator)
 {
     if (_impl.IsInitialized()) {

@@ -13,12 +13,11 @@ class FileReader : public FileDevice<MediaSourceImpl>
     class StartEndNotifier;
     using Base = FileDevice<MediaSourceImpl>;
 public:
-	FileReader(const std::weak_ptr<BufferAllocator>& allocator,
-               bool loop = true,
-               size_t chunkSize = 1024U * 1024U /* 1mb */);
+	FileReader(bool loop = true, size_t chunkSize = 1024U * 1024U /* 1mb */,
+               const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~FileReader() final;
     static std::shared_ptr<Buffer> ReadAll(const std::string_view& fileNameUtf8,
-                                           const std::weak_ptr<BufferAllocator>& allocator = std::weak_ptr<BufferAllocator>());
+                                           const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     static bool IsValidForRead(const std::string_view& fileNameUtf8);
     bool Open(const std::string_view& fileNameUtf8, int* error = nullptr);
     // overrides of FileDevice<>

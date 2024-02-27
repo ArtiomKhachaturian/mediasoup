@@ -5,7 +5,7 @@
 namespace RTC
 {
 
-MkvBufferedReader::MkvBufferedReader(const std::weak_ptr<BufferAllocator>& allocator)
+MkvBufferedReader::MkvBufferedReader(const std::shared_ptr<BufferAllocator>& allocator)
 	: _buffers(allocator, _maxBufferSize)
 {
 }

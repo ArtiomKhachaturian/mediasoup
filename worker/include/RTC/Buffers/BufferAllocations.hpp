@@ -10,21 +10,21 @@ template<class TBase>
 class BufferAllocations : public InheritanceSelector<TBase>
 {
 public:
-    const std::weak_ptr<BufferAllocator>& GetAllocator() const { return _allocator; }
+    const auto& GetAllocator() const { return _allocator; }
     std::shared_ptr<Buffer> AllocateBuffer(size_t size) const;
     std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data) const;
     std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data, size_t dataSize) const;
     std::shared_ptr<Buffer> ReallocateBuffer(size_t size, const std::shared_ptr<Buffer>& buffer) const;
 protected:
     template <class... Args>
-    BufferAllocations(const std::weak_ptr<BufferAllocator>& allocator, Args&&... args);
+    BufferAllocations(const std::shared_ptr<BufferAllocator>& allocator, Args&&... args);
 private:
-    const std::weak_ptr<BufferAllocator> _allocator;
+    const std::shared_ptr<BufferAllocator> _allocator;
 };
 
 template<class TBase>
 template <class... Args>
-inline BufferAllocations<TBase>::BufferAllocations(const std::weak_ptr<BufferAllocator>& allocator,
+inline BufferAllocations<TBase>::BufferAllocations(const std::shared_ptr<BufferAllocator>& allocator,
                                                    Args&&... args)
     : InheritanceSelector<TBase>(std::forward<Args>(args)...)
     , _allocator(allocator)

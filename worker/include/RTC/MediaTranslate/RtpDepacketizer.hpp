@@ -22,10 +22,10 @@ public:
     uint32_t GetClockRate() const { return _clockRate; }
     static std::unique_ptr<RtpDepacketizer> Create(const RtpCodecMimeType& mimeType,
                                                    uint32_t clockRate,
-                                                   const std::weak_ptr<BufferAllocator>& allocator);
+                                                   const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 protected:
     RtpDepacketizer(const RtpCodecMimeType& mimeType, uint32_t clockRate,
-                    const std::weak_ptr<BufferAllocator>& allocator);
+                    const std::shared_ptr<BufferAllocator>& allocator);
     std::shared_ptr<RtpMediaFrame> CreateMediaFrame() const;
     std::shared_ptr<RtpMediaFrame> CreateMediaFrame(const RtpPacket* packet,
                                                     bool makeDeepCopyOfPayload) const;

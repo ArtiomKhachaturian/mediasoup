@@ -136,7 +136,7 @@ std::unique_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
     Parse(const std::shared_ptr<Buffer>& buffer,
           const std::shared_ptr<MediaTimer> playerTimer,
           RtpPacketsPlayerCallback* callback,
-          const std::weak_ptr<BufferAllocator>& allocator)
+          const std::shared_ptr<BufferAllocator>& allocator)
 {
     std::unique_ptr<RtpPacketsPlayerMediaFragment> fragment;
     if (buffer && callback && playerTimer) {

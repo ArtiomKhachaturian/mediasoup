@@ -9,7 +9,7 @@ namespace RTC
 {
 
 RtpMediaFrame::RtpMediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
-                             const std::weak_ptr<BufferAllocator>& allocator)
+                             const std::shared_ptr<BufferAllocator>& allocator)
     : MediaFrame(mimeType, clockRate, allocator)
 {
 }
@@ -42,7 +42,7 @@ bool RtpMediaFrame::AddPacket(const RtpPacket* packet, uint8_t* data, size_t len
 std::shared_ptr<RtpMediaFrame> RtpMediaFrame::Create(const RtpPacket* packet,
                                                      const RtpCodecMimeType& mimeType,
                                                      uint32_t clockRate,
-                                                     const std::weak_ptr<BufferAllocator>& allocator,
+                                                     const std::shared_ptr<BufferAllocator>& allocator,
                                                      bool makeDeepCopyOfPayload)
 {
     if (packet) {

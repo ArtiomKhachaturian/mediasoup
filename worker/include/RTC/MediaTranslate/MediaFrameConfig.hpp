@@ -18,7 +18,7 @@ public:
 	void SetCodecSpecificData(const std::shared_ptr<const Buffer>& data);
     // makes a deep copy of input data
     void SetCodecSpecificData(const uint8_t* data, size_t len,
-                              const std::weak_ptr<BufferAllocator>& allocator);
+                              const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 private:
 	std::shared_ptr<const Buffer> _codecSpecificData;
 };

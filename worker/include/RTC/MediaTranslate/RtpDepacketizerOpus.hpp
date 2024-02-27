@@ -13,7 +13,7 @@ class RtpDepacketizerOpus : public RtpDepacketizer
     class OpusHeadBuffer;
 public:
     RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t clockRate,
-                        const std::weak_ptr<BufferAllocator>& allocator);
+                        const std::shared_ptr<BufferAllocator>& allocator);
     ~RtpDepacketizerOpus() final;
     // impl. of RtpDepacketizer
     std::shared_ptr<MediaFrame> AddPacket(const RtpPacket* packet, bool makeDeepCopyOfPayload) final;

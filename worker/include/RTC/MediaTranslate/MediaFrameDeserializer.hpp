@@ -30,7 +30,7 @@ public:
     MediaFrameDeserializeResult GetTrackLastResult(size_t trackIndex) const;
     void SetClockRate(size_t trackIndex, uint32_t clockRate);
 protected:
-    MediaFrameDeserializer(const std::weak_ptr<BufferAllocator>& allocator);
+    MediaFrameDeserializer(const std::shared_ptr<BufferAllocator>& allocator);
     void AddTrack(const RtpCodecMimeType& type, std::unique_ptr<MediaFrameDeserializedTrack> track);
     virtual MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<Buffer>& buffer) = 0;
     virtual void ParseTracksInfo() = 0;

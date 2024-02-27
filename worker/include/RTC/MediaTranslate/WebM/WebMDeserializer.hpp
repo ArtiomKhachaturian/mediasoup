@@ -12,7 +12,7 @@ class WebMDeserializer : public MediaFrameDeserializer
 {
     class TrackInfo;
 public:
-    WebMDeserializer(const std::weak_ptr<BufferAllocator>& allocator);
+    WebMDeserializer(const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~WebMDeserializer() final;
     void Clear() final;
 protected:

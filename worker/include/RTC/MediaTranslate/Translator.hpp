@@ -29,7 +29,7 @@ public:
                                               const WebsocketFactory* websocketFactory,
                                               RtpPacketsPlayer* rtpPacketsPlayer,
                                               RtpPacketsCollector* output,
-                                              const std::weak_ptr<BufferAllocator>& allocator);
+                                              const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     bool AddStream(uint32_t mappedSsrc, const RtpStream* stream);
     bool RemoveStream(uint32_t mappedSsrc);
     // returns true if packet was sent to translation service
@@ -47,7 +47,7 @@ private:
                const WebsocketFactory* websocketFactory,
                RtpPacketsPlayer* rtpPacketsPlayer,
                RtpPacketsCollector* output,
-               const std::weak_ptr<BufferAllocator>& allocator);
+               const std::shared_ptr<BufferAllocator>& allocator);
     // SSRC maybe mapped or original
     std::shared_ptr<TranslatorSource> GetSource(uint32_t ssrc) const;
     void AddConsumersToSource(const std::shared_ptr<TranslatorSource>& source) const;

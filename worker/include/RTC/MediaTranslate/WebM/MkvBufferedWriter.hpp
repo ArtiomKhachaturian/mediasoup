@@ -23,7 +23,7 @@ class MkvBufferedWriter : public BufferAllocations<ObjectId>,
     class MkvBufferView;
 public:
     MkvBufferedWriter(MediaSink* sink, const char* app,
-                      const std::weak_ptr<BufferAllocator>& allocator);
+                      const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~MkvBufferedWriter() final;
     bool IsInitialized() const { return _initialized; }
     bool HasAudioTracks() const { return !_audioTracks.empty(); }

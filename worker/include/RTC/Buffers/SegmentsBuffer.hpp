@@ -22,8 +22,8 @@ public:
 public:
     // capacity in bytes
     SegmentsBuffer(size_t capacity = std::numeric_limits<size_t>::max());
-    SegmentsBuffer(const std::weak_ptr<BufferAllocator>& allocator);
-    SegmentsBuffer(const std::weak_ptr<BufferAllocator>& allocator, size_t capacity);
+    SegmentsBuffer(const std::shared_ptr<BufferAllocator>& allocator);
+    SegmentsBuffer(const std::shared_ptr<BufferAllocator>& allocator, size_t capacity);
     Result Push(const std::shared_ptr<Buffer>& buffer);
     void Clear();
     size_t CopyTo(size_t offset, size_t len, uint8_t* output) const;

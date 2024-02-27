@@ -22,7 +22,7 @@ Translator::Translator(const Producer* producer,
                        const WebsocketFactory* websocketFactory,
                        RtpPacketsPlayer* rtpPacketsPlayer,
                        RtpPacketsCollector* output,
-                       const std::weak_ptr<BufferAllocator>& allocator)
+                       const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<TranslatorEndPointFactory>(allocator)
     , _producer(producer)
 #ifndef NO_TRANSLATION_SERVICE
@@ -48,7 +48,7 @@ std::unique_ptr<Translator> Translator::Create(const Producer* producer,
                                                const WebsocketFactory* websocketFactory,
                                                RtpPacketsPlayer* rtpPacketsPlayer,
                                                RtpPacketsCollector* output,
-                                               const std::weak_ptr<BufferAllocator>& allocator)
+                                               const std::shared_ptr<BufferAllocator>& allocator)
 {
     if (producer && rtpPacketsPlayer && output && Media::Kind::AUDIO == producer->GetKind()) {
         auto translator = new Translator(producer, websocketFactory, rtpPacketsPlayer,
@@ -259,7 +259,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
 
 std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
 {
-    auto fileEndPoint = std::make_shared<FileEndPoint>(GetId(), GetAllocator(), 300U);
+    auto fileEndPoint = std::make_shared<FileEndPoint>(GetId(), 300U, std::nullopt, GetAllocator());
     if (!fileEndPoint->IsValid()) {
         MS_ERROR_STD("failed open [%s] as mock translation", fileEndPoint->GetName().c_str());
     }

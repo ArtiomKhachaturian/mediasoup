@@ -21,12 +21,12 @@ protected:
 // helper routines
 size_t GetAlignedBufferSize(size_t size, size_t alignment = 2U);
 std::shared_ptr<Buffer> AllocateBuffer(size_t size,
-                                       const std::weak_ptr<BufferAllocator>& allocator = std::weak_ptr<BufferAllocator>());
+                                       const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data,
-                                       const std::weak_ptr<BufferAllocator>& allocator = std::weak_ptr<BufferAllocator>());
+                                       const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data, size_t dataSize,
-                                       const std::weak_ptr<BufferAllocator>& allocator = std::weak_ptr<BufferAllocator>());
+                                       const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 std::shared_ptr<Buffer> ReallocateBuffer(size_t size, const std::shared_ptr<Buffer>& buffer,
-                                         const std::weak_ptr<BufferAllocator>& allocator = std::weak_ptr<BufferAllocator>());
+                                         const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 
 } // namespace RTC

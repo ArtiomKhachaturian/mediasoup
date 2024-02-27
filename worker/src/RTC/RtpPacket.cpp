@@ -14,7 +14,7 @@ namespace RTC
 	/* Class methods. */
 
 	RtpPacket* RtpPacket::Parse(const uint8_t* data, size_t len,
-                                const std::weak_ptr<BufferAllocator>& allocator)
+                                const std::shared_ptr<BufferAllocator>& allocator)
 	{
 		MS_TRACE();
 
@@ -135,7 +135,7 @@ namespace RTC
 	  size_t payloadLength,
 	  uint8_t payloadPadding,
 	  size_t size,
-      const std::weak_ptr<BufferAllocator>& allocator)
+      const std::shared_ptr<BufferAllocator>& allocator)
 	  : header(header), headerExtension(headerExtension), payload(const_cast<uint8_t*>(payload)),
 	    payloadLength(payloadLength), payloadPadding(payloadPadding), size(size),
         allocator(allocator)

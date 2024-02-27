@@ -20,7 +20,7 @@ class MediaFrame
     class PayloadBufferView;
 public:
     MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
-               const std::weak_ptr<BufferAllocator>& allocator);
+               const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     virtual ~MediaFrame();
     void AddPayload(const std::shared_ptr<Buffer>& payload);
     void AddPayload(uint8_t* data, size_t len, bool makeDeepCopyOfPayload = true);

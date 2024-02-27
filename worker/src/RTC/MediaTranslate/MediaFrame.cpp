@@ -24,7 +24,7 @@ private:
 
 
 MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
-                       const std::weak_ptr<BufferAllocator>& allocator)
+                       const std::shared_ptr<BufferAllocator>& allocator)
     : _mimeType(mimeType)
     , _payload(std::make_shared<SegmentsBuffer>(allocator))
     , _timestamp(clockRate)
@@ -128,7 +128,7 @@ void MediaFrameConfig::SetCodecSpecificData(const std::shared_ptr<const Buffer>&
 }
 
 void MediaFrameConfig::SetCodecSpecificData(const uint8_t* data, size_t len,
-                                            const std::weak_ptr<BufferAllocator>& allocator)
+                                            const std::shared_ptr<BufferAllocator>& allocator)
 {
     SetCodecSpecificData(AllocateBuffer(len, data, allocator));
 }

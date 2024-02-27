@@ -29,9 +29,8 @@ public:
     // but IsOpen and Close may be called.
     virtual bool IsOpen() const { return nullptr != GetHandle(); }
 protected:
-    FileDevice();
-    FileDevice(const std::weak_ptr<BufferAllocator>& allocator);
-    FileDevice(const std::weak_ptr<BufferAllocator>& allocator, std::shared_ptr<FILE> handle);
+    FileDevice(const std::shared_ptr<BufferAllocator>& allocator = nullptr,
+               std::shared_ptr<FILE> handle = nullptr);
     bool Open(const std::string_view& fileNameUtf8, bool readOnly, int* error = nullptr);
     // Closes the file, and implies Flush
     void Close();
@@ -43,19 +42,8 @@ private:
 };
 
 template<class TBase>
-FileDevice<TBase>::FileDevice()
-    : FileDevice<TBase>(std::weak_ptr<BufferAllocator>())
-{
-}
-
-template<class TBase>
-FileDevice<TBase>::FileDevice(const std::weak_ptr<BufferAllocator>& allocator)
-    : FileDevice<TBase>(allocator, nullptr)
-{
-}
-
-template<class TBase>
-FileDevice<TBase>::FileDevice(const std::weak_ptr<BufferAllocator>& allocator, std::shared_ptr<FILE> handle)
+FileDevice<TBase>::FileDevice(const std::shared_ptr<BufferAllocator>& allocator,
+                              std::shared_ptr<FILE> handle)
     : BufferAllocations<TBase>(allocator)
     , _handle(std::move(handle))
 {

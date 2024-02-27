@@ -11,9 +11,9 @@ namespace RTC
 	{
 	public:
 		explicit Shared(
-          const std::weak_ptr<BufferAllocator>& allocator,
-		  ChannelMessageRegistrator* channelMessageRegistrator,
-		  Channel::ChannelNotifier* channelNotifier);
+          ChannelMessageRegistrator* channelMessageRegistrator,
+		  Channel::ChannelNotifier* channelNotifier,
+          const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 		~Shared();
 
 	public:
