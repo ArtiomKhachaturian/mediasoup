@@ -14,19 +14,12 @@
 #include <string>
 #include <memory>
 
-namespace RTC {
-
-class BufferAllocator;
-
-}
-
 class Worker : public Channel::ChannelSocket::Listener,
                public SignalHandle::Listener,
                public RTC::Router::Listener
 {
 public:
-	explicit Worker(const std::shared_ptr<RTC::BufferAllocator> buffersAllocator,
-                    Channel::ChannelSocket* channel);
+	explicit Worker(Channel::ChannelSocket* channel);
 	~Worker();
 
 private:
@@ -56,6 +49,15 @@ public:
 	/* Pure virtual methods inherited from RTC::Router::Listener. */
 public:
 	RTC::WebRtcServer* OnRouterNeedWebRtcServer(RTC::Router* router, std::string& webRtcServerId) override;
+
+private:
+    void AddRouter(std::string routerId);
+    void AddWebRtcServer(std::string webRtcServerId,
+                         const flatbuffers::Vector<flatbuffers::Offset<FBS::Transport::ListenInfo>>* listenInfos);
+    void RemoveRouter(const std::string& routerId);
+    void RemoveWebRtcServer(const std::string& webRtcServerId);
+    void IncreaseBuffersPoolUsers(bool increase = true);
+    void DecreaseBuffersPoolUsers() { IncreaseBuffersPoolUsers(false); }
 
 private:
 	// Passed by argument.

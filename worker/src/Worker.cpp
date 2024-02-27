@@ -11,14 +11,14 @@
 #include "Logger.hpp"
 #include "MediaSoupErrors.hpp"
 #include "Settings.hpp"
+#include "RTC/Buffers/PoolAllocator.hpp"
 #include "Channel/ChannelNotifier.hpp"
 #include "FBS/response.h"
 #include "FBS/worker.h"
 
 /* Instance methods. */
 
-Worker::Worker(const std::shared_ptr<RTC::BufferAllocator> buffersAllocator,
-               ::Channel::ChannelSocket* channel)
+Worker::Worker(::Channel::ChannelSocket* channel)
     : channel(channel)
 {
 	MS_TRACE();
@@ -33,7 +33,7 @@ Worker::Worker(const std::shared_ptr<RTC::BufferAllocator> buffersAllocator,
 	this->shared = new RTC::Shared(
 	  /*channelMessageRegistrator*/ new ChannelMessageRegistrator(),
 	  /*channelNotifier*/ new Channel::ChannelNotifier(this->channel),
-      /*allocator*/buffersAllocator);
+      /*allocator*/std::make_shared<RTC::PoolAllocator>());
 
 #ifdef MS_EXECUTABLE
 	{
@@ -113,6 +113,10 @@ void Worker::Close()
 	DepLibUring::StopPollingCQEs();
 #endif
 
+    if (const auto allocator = this->shared->GetAllocator()) {
+        allocator->StopGarbageCollector();
+    }
+    
 	// Close the Channel.
 	this->channel->Close();
 }
@@ -311,20 +315,11 @@ inline void Worker::HandleRequest(Channel::ChannelRequest* request)
 
 		case Channel::ChannelRequest::Method::WORKER_CREATE_WEBRTCSERVER:
 		{
+            const auto* const body = request->data->body_as<FBS::Worker::CreateWebRtcServerRequest>();
+            
 			try
 			{
-				const auto* const body = request->data->body_as<FBS::Worker::CreateWebRtcServerRequest>();
-
-				const std::string webRtcServerId = body->webRtcServerId()->str();
-
-				CheckNoWebRtcServer(webRtcServerId);
-
-				auto* webRtcServer = new RTC::WebRtcServer(this->shared, webRtcServerId, body->listenInfos());
-
-				this->mapWebRtcServers[webRtcServerId] = webRtcServer;
-
-				MS_DEBUG_DEV("WebRtcServer created [webRtcServerId:%s]", webRtcServerId.c_str());
-
+                AddWebRtcServer(body->webRtcServerId()->str(), body->listenInfos());
 				request->Accept();
 			}
 			catch (const MediaSoupTypeError& error)
@@ -341,29 +336,17 @@ inline void Worker::HandleRequest(Channel::ChannelRequest* request)
 
 		case Channel::ChannelRequest::Method::WORKER_WEBRTCSERVER_CLOSE:
 		{
-			RTC::WebRtcServer* webRtcServer{ nullptr };
-
 			const auto* body = request->data->body_as<FBS::Worker::CloseWebRtcServerRequest>();
-
-			auto webRtcServerId = body->webRtcServerId()->str();
-
+            
 			try
 			{
-				webRtcServer = GetWebRtcServer(webRtcServerId);
+                RemoveWebRtcServer(body->webRtcServerId()->str());
+                request->Accept();
 			}
 			catch (const MediaSoupError& error)
 			{
 				MS_THROW_ERROR("%s [method:%s]", error.what(), request->methodCStr);
 			}
-
-			// Remove it from the map and delete it.
-			this->mapWebRtcServers.erase(webRtcServer->id);
-
-			delete webRtcServer;
-
-			MS_DEBUG_DEV("WebRtcServer closed [id:%s]", webRtcServer->id.c_str());
-
-			request->Accept();
 
 			break;
 		}
@@ -372,53 +355,32 @@ inline void Worker::HandleRequest(Channel::ChannelRequest* request)
 		{
 			const auto* body = request->data->body_as<FBS::Worker::CreateRouterRequest>();
 
-			auto routerId = body->routerId()->str();
-
 			try
 			{
-				CheckNoRouter(routerId);
+                AddRouter(body->routerId()->str());
+                request->Accept();
 			}
 			catch (const MediaSoupError& error)
 			{
 				MS_THROW_ERROR("%s [method:%s]", error.what(), request->methodCStr);
 			}
-
-			auto* router = new RTC::Router(this->shared, routerId, this);
-
-			this->mapRouters[routerId] = router;
-
-			MS_DEBUG_DEV("Router created [routerId:%s]", routerId.c_str());
-
-			request->Accept();
 
 			break;
 		}
 
 		case Channel::ChannelRequest::Method::WORKER_CLOSE_ROUTER:
 		{
-			RTC::Router* router{ nullptr };
-
 			const auto* body = request->data->body_as<FBS::Worker::CloseRouterRequest>();
-
-			auto routerId = body->routerId()->str();
 
 			try
 			{
-				router = GetRouter(routerId);
+                RemoveRouter(body->routerId()->str());
+                request->Accept();
 			}
 			catch (const MediaSoupError& error)
 			{
 				MS_THROW_ERROR("%s [method:%s]", error.what(), request->methodCStr);
 			}
-
-			// Remove it from the map and delete it.
-			this->mapRouters.erase(router->id);
-
-			delete router;
-
-			MS_DEBUG_DEV("Router closed [id:%s]", router->id.c_str());
-
-			request->Accept();
 
 			break;
 		}
@@ -556,4 +518,79 @@ inline RTC::WebRtcServer* Worker::OnRouterNeedWebRtcServer(
 	}
 
 	return webRtcServer;
+}
+
+
+void Worker::AddRouter(std::string routerId)
+{
+    CheckNoRouter(routerId);
+    auto router = new RTC::Router(this->shared, routerId, this);
+    
+    MS_DEBUG_DEV("Router created [routerId:%s]", routerId.c_str());
+    
+    this->mapRouters[std::move(routerId)] = router;
+    IncreaseBuffersPoolUsers();
+}
+
+void Worker::AddWebRtcServer(std::string webRtcServerId,
+                             const flatbuffers::Vector<flatbuffers::Offset<FBS::Transport::ListenInfo>>* listenInfos)
+{
+    CheckNoWebRtcServer(webRtcServerId);
+    auto webRtcServer = new RTC::WebRtcServer(this->shared, webRtcServerId, listenInfos);
+    
+    MS_DEBUG_DEV("WebRtcServer created [webRtcServerId:%s]", webRtcServerId.c_str());
+    
+    this->mapWebRtcServers[std::move(webRtcServerId)] = webRtcServer;
+    IncreaseBuffersPoolUsers();
+}
+
+void Worker::RemoveRouter(const std::string& routerId)
+{
+    auto router = GetRouter(routerId);
+    if (router) {
+        // Remove it from the map and delete it.
+        this->mapRouters.erase(routerId);
+        delete router;
+        
+        MS_DEBUG_DEV("Router closed [id:%s]", router->id.c_str());
+        DecreaseBuffersPoolUsers();
+    }
+}
+
+void Worker::RemoveWebRtcServer(const std::string& webRtcServerId)
+{
+    auto server = GetWebRtcServer(webRtcServerId);
+    if (server) {
+        // Remove it from the map and delete it.
+        this->mapWebRtcServers.erase(webRtcServerId);
+        delete server;
+        
+        MS_DEBUG_DEV("WebRtcServer closed [id:%s]", webRtcServer->id.c_str());
+        DecreaseBuffersPoolUsers();
+    }
+}
+
+void Worker::IncreaseBuffersPoolUsers(bool increase)
+{
+    if (const auto& allocator = this->shared->GetAllocator()) {
+        const auto buffersPoolUsersCount = this->mapWebRtcServers.size() + this->mapRouters.size();
+        if (increase) {
+            // at least one WEBRTC server will created immediatelly after start
+            if (2ULL == buffersPoolUsersCount) {
+                if (allocator->RunGarbageCollector()) {
+                    MS_DEBUG_DEV("Automatic garbage collector was started");
+                }
+                else {
+                    MS_WARN_DEV("Failed to start automatic garbage collector don't forget to "
+                                "call 'PurgeGarbage' method from time to time");
+                }
+            }
+            
+        }
+        else if (1ULL == buffersPoolUsersCount) {
+            allocator->StopGarbageCollector();
+            allocator->PurgeGarbage();
+            MS_DEBUG_DEV("Automatic garbage collector was stopped");
+        }
+    }
 }

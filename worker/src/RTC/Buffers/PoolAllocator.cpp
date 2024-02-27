@@ -132,12 +132,19 @@ private:
 
 class PoolAllocator::AllocatorImpl : public TimerHandle::Listener
 {
+#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
+    using MutexType = std::shared_mutex;
+    using WriteMutexLock = std::unique_lock<MutexType>;
+    using ReadMutexLock = std::shared_lock<MutexType>;
+#endif
 public:
     AllocatorImpl();
     ~AllocatorImpl();
     MemoryChunkPtr Allocate(size_t alignedSize);
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
+    bool RunGarbageCollector();
     void PurgeGarbage(uint32_t maxBufferAgeMs);
+    void StopGarbageCollector();
 #endif
 private:
     MemoryChunkPtr GetStackChunk(size_t alignedSize) const;
@@ -162,8 +169,8 @@ private:
     // key is allocated size
     const StackChunksMap _stackChunks;
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
+    MutexType _heapChunksMtx;
     std::unique_ptr<TimerHandle> _garbageCollectorTimer;
-    std::shared_mutex _heapChunksMtx;
     HeapChunksMap _heapChunks;
 #endif
 };
@@ -177,11 +184,27 @@ PoolAllocator::~PoolAllocator()
 {
 }
 
+bool PoolAllocator::RunGarbageCollector()
+{
+#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
+    return _impl->RunGarbageCollector();
+#endif
+    return BufferAllocator::RunGarbageCollector();
+}
+
 void PoolAllocator::PurgeGarbage(uint32_t maxBufferAgeMs)
 {
     BufferAllocator::PurgeGarbage(maxBufferAgeMs);
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
     _impl->PurgeGarbage(maxBufferAgeMs);
+#endif
+}
+
+void PoolAllocator::StopGarbageCollector()
+{
+    BufferAllocator::StopGarbageCollector();
+#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
+    _impl->StopGarbageCollector();
 #endif
 }
 
@@ -228,18 +251,6 @@ bool PoolAllocator::BufferImpl::Resize(size_t size)
 PoolAllocator::AllocatorImpl::AllocatorImpl()
     : _stackChunks(CreateStackChunks())
 {
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-    if (DepLibUV::GetLoop()) {
-        const auto interval = POOL_MEMORY_ALLOCATOR_HEAP_CHUNKS_LIFETIME_SECS * 1000;
-        _garbageCollectorTimer = std::make_unique<TimerHandle>(this);
-        _garbageCollectorTimer->Start(interval, interval);
-    }
-    else {
-        MS_WARN_DEV_STD("Automatic garbage collector "
-                        "is not available, don't forget to "
-                        "call 'PurgeGarbage' method from time to time");
-    }
-#endif
 }
 
 PoolAllocator::AllocatorImpl::~AllocatorImpl()
@@ -264,9 +275,22 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::Allocate(size_t alignedSize)
 }
 
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
+bool PoolAllocator::AllocatorImpl::RunGarbageCollector()
+{
+    const WriteMutexLock lock(_heapChunksMtx);
+    if (!_garbageCollectorTimer) {
+        if (DepLibUV::GetLoop()) {
+            const auto interval = POOL_MEMORY_ALLOCATOR_HEAP_CHUNKS_LIFETIME_SECS * 1000;
+            _garbageCollectorTimer = std::make_unique<TimerHandle>(this);
+            _garbageCollectorTimer->Start(interval, interval);
+        }
+    }
+    return nullptr != _garbageCollectorTimer;
+}
+
 void PoolAllocator::AllocatorImpl::PurgeGarbage(uint32_t maxBufferAgeMs)
 {
-    const std::unique_lock<decltype(_heapChunksMtx)> lock(_heapChunksMtx);
+    const WriteMutexLock lock(_heapChunksMtx);
     if (maxBufferAgeMs) {
         // TODO: change to https://en.cppreference.com/w/cpp/container/multimap/erase_if on C++20
         for (auto it = _heapChunks.begin(); it != _heapChunks.end();) {
@@ -281,6 +305,12 @@ void PoolAllocator::AllocatorImpl::PurgeGarbage(uint32_t maxBufferAgeMs)
     else {
         _heapChunks.clear();
     }
+}
+
+void PoolAllocator::AllocatorImpl::StopGarbageCollector()
+{
+    const WriteMutexLock lock(_heapChunksMtx);
+    _garbageCollectorTimer.reset();
 }
 #endif
 
@@ -308,7 +338,7 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t alignedSize
 {
     MemoryChunkPtr chunk;
     {
-        const std::shared_lock<decltype(_heapChunksMtx)> lock(_heapChunksMtx);
+        const ReadMutexLock lock(_heapChunksMtx);
         auto chunk = GetAcquiredExactSize(alignedSize, _heapChunks);
         if (!chunk) {
             chunk = GetAcquired(_heapChunks.upper_bound(alignedSize), _heapChunks.end());
@@ -318,7 +348,7 @@ MemoryChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t alignedSize
         auto heapChunk = CreateHeapChunk(alignedSize);
         if (heapChunk && heapChunk->Acquire()) {
             {
-                const std::unique_lock<decltype(_heapChunksMtx)> lock(_heapChunksMtx);
+                const WriteMutexLock lock(_heapChunksMtx);
                 _heapChunks.insert({alignedSize, heapChunk});
                 if (alignedSize != heapChunk->GetSize()) {
                     _heapChunks.insert({heapChunk->GetSize(), heapChunk});

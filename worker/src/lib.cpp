@@ -18,7 +18,6 @@
 #include "Channel/ChannelSocket.hpp"
 #include "RTC/DtlsTransport.hpp"
 #include "RTC/SrtpSession.hpp"
-#include "RTC/Buffers/PoolAllocator.hpp"
 #include <uv.h>
 #include <absl/container/flat_hash_map.h>
 #include <csignal> // sigaction()
@@ -120,9 +119,6 @@ extern "C" int mediasoup_worker_run(
 	Settings::PrintConfiguration();
 	DepLibUV::PrintVersion();
 
-    int code = 0;
-    std::shared_ptr<RTC::BufferAllocator> buffersAllocator;
-
     try
 	{
 		// Initialize static stuff.
@@ -140,9 +136,8 @@ extern "C" int mediasoup_worker_run(
 		// Ignore some signals.
 		IgnoreSignals();
 #endif
-        buffersAllocator = std::make_shared<RTC::PoolAllocator>();
 		// Run the Worker.
-		const Worker worker(buffersAllocator, channel.get());
+		const Worker worker(channel.get());
 
 		// Free static stuff.
 		DepLibSRTP::ClassDestroy();
@@ -161,19 +156,15 @@ extern "C" int mediasoup_worker_run(
 		// process.
 		uv_sleep(200);
 #endif
+        return 0;
 	}
 	catch (const MediaSoupError& error)
 	{
 		MS_ERROR_STD("failure exit: %s", error.what());
 
 		// 40 is a custom exit code to notify "unknown error" to the Node library.
-        code = 40;
+        return 40;
 	}
-    
-    if (buffersAllocator) {
-        buffersAllocator->PurgeGarbage();
-    }
-    return code;
 }
 
 void IgnoreSignals()
