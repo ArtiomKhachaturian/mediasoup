@@ -251,7 +251,11 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
 
 std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
 {
-    auto fileEndPoint = std::make_shared<FileEndPoint>(GetId(), 300U, std::nullopt, GetAllocator());
+    std::optional<uint32_t> disconnectAfterMs;
+#ifdef MOCK_WEBM_INPUT_DISCONNECT_AFTER_SECS
+    disconnectAfterMs = MOCK_WEBM_INPUT_DISCONNECT_AFTER_SECS * 1000U;
+#endif
+    auto fileEndPoint = std::make_shared<FileEndPoint>(GetId(), 300U, disconnectAfterMs, GetAllocator());
     if (!fileEndPoint->IsValid()) {
         MS_ERROR_STD("failed open [%s] as mock translation", fileEndPoint->GetName().c_str());
     }

@@ -34,7 +34,7 @@ public:
     std::optional<uint32_t> GetTimeout(uint64_t timerId) const;
     // returns timer ID
     uint64_t Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTimerCallback>& callback);
-    uint64_t Singleshot(uint32_t afterMs, std::function<void(uint64_t)> onEvent);
+    uint64_t Singleshot(uint32_t afterMs, std::function<void(void)> onEvent);
 private:
     static std::shared_ptr<MediaTimerCallback> CreateCallback(std::function<void(uint64_t)> onEvent);
 private:

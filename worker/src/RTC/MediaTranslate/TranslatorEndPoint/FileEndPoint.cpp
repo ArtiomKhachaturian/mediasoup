@@ -62,7 +62,7 @@ FileEndPoint::FileEndPoint(std::string ownerId, uint32_t connectionDelaylMs,
     if (_timer && _timerId && disconnectAfterMs.has_value()) {
         // gap +10ms
         const auto timeout = std::max<uint32_t>(connectionDelaylMs, disconnectAfterMs.value()) + 10U;
-        _disconnectedTimerId = _timer->Singleshot(timeout, [this](uint64_t) { Disconnect(); });
+        _disconnectedTimerId = _timer->Singleshot(timeout, std::bind(&FileEndPoint::Disconnect, this));
     }
 }
 
@@ -104,7 +104,7 @@ void FileEndPoint::Disconnect()
 
 bool FileEndPoint::SendBinary(const std::shared_ptr<Buffer>& buffer) const
 {
-    if (_callback && buffer && IsConnected() && !buffer->IsEmpty()) {
+    if (_callback && buffer && !buffer->IsEmpty()) {
         _callback->SetHasWrittenInputMedia(true);
         return true;
     }

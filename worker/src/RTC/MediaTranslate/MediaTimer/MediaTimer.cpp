@@ -148,10 +148,12 @@ uint64_t MediaTimer::Singleshot(uint32_t afterMs, const std::shared_ptr<MediaTim
     return 0ULL;
 }
 
-uint64_t MediaTimer::Singleshot(uint32_t afterMs, std::function<void(uint64_t)> onEvent)
+uint64_t MediaTimer::Singleshot(uint32_t afterMs, std::function<void(void)> onEvent)
 {
     if (_impl && onEvent) {
-        return Singleshot(afterMs, CreateCallback(std::move(onEvent)));
+        return Singleshot(afterMs, CreateCallback([onEvent = std::move(onEvent)](uint64_t) {
+            onEvent();
+        }));
     }
     return 0ULL;
 }

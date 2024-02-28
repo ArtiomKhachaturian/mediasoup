@@ -289,7 +289,6 @@ void ConsumersManager::ConsumerInfoImpl::SendPacket(uint32_t rtpTimestampOffset,
             if (it != _mediaTimelines.end()) {
                 packet->SetTimestamp(_producersTimeline.GetNextTimestamp() + rtpTimestampOffset);
                 packet->SetSequenceNumber(it->second.GetNextSeqNumber());
-                it->second.SetLastSeqNumber(packet->GetSequenceNumber());
                 it->second.SetLastTimestamp(packet->GetTimestamp());
                 output->AddPacket(packet);
                 packet = nullptr;
