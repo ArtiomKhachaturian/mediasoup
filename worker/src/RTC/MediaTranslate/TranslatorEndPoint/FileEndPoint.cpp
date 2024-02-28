@@ -7,6 +7,7 @@
 #include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #include "RTC/Buffers/BufferAllocations.hpp"
 #include "Logger.hpp"
+#include <algorithm>
 
 namespace {
 
@@ -47,35 +48,38 @@ private:
     std::atomic_bool _hasWrittenInputMedia = false;
 };
 
-FileEndPoint::FileEndPoint(std::string ownerId, uint32_t connectionDelaylMs,
-                           const std::optional<uint32_t>& disconnectAfterMs,
-                           const std::shared_ptr<BufferAllocator>& allocator)
+FileEndPoint::FileEndPoint(std::string ownerId,
+                           const std::shared_ptr<BufferAllocator>& allocator,
+                           const std::shared_ptr<MediaTimer>& timer)
     : TranslatorEndPoint(std::move(ownerId), MOCK_WEBM_INPUT_FILE)
     , _fileIsValid(FileReader::IsValidForRead(GetName()))
     , _callback(_fileIsValid ? std::make_shared<TimerCallback>(this, allocator) : nullptr)
-    , _timer(_fileIsValid ? std::make_shared<MediaTimer>(GetName()) : nullptr)
+    , _timer(_fileIsValid ? (timer ? timer : std::make_shared<MediaTimer>(GetName())) : nullptr)
     , _timerId(_timer ? _timer->Register(_callback) : 0UL)
     , _intervalBetweenTranslationsMs(1000U + (MOCK_WEBM_INPUT_FILE_LEN_SECS * 1000U))
-    , _connectionDelaylMs(connectionDelaylMs)
+#ifdef MOCK_CONNECTION_DELAY_MS
+    , _connectionDelaylMs(MOCK_CONNECTION_DELAY_MS)
+#else
+    , _connectionDelaylMs(0U)
+#endif
 {
     _instances.fetch_add(1U);
-    if (_timer && _timerId && disconnectAfterMs.has_value()) {
-        // gap +10ms
-        const auto timeout = std::max<uint32_t>(connectionDelaylMs, disconnectAfterMs.value()) + 10U;
+#ifdef MOCK_DISCONNECT_AFTER_MS
+    if (_timer && _timerId) {
+        const auto timeout = std::max<uint32_t>(_connectionDelaylMs, MOCK_DISCONNECT_AFTER_MS) + 10U;
         _disconnectedTimerId = _timer->Singleshot(timeout, std::bind(&FileEndPoint::Disconnect, this));
     }
+#endif
 }
 
 FileEndPoint::~FileEndPoint()
 {
     FileEndPoint::Disconnect();
     if (_timer) {
-        if (_timerId) {
-            _timer->Unregister(_timerId);
-        }
-        if (_disconnectedTimerId) {
-            _timer->Unregister(_disconnectedTimerId);
-        }
+        _timer->Unregister(_timerId);
+#ifdef MOCK_DISCONNECT_AFTER_MS
+        _timer->Unregister(_disconnectedTimerId);
+#endif
     }
     _instances.fetch_sub(1U);
 }

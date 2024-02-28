@@ -243,7 +243,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
     if (0U == FileEndPoint::GetInstancesCount()) {
         return CreateMaybeFileEndPoint();
     }
-    return std::make_shared<StubEndPoint>(GetId());
+    return std::make_shared<StubEndPoint>(GetId(), _rtpPacketsPlayer->GetTimer());
 #else
     return CreateMaybeFileEndPoint();
 #endif
@@ -251,11 +251,10 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
 
 std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
 {
-    std::optional<uint32_t> disconnectAfterMs;
-#ifdef MOCK_WEBM_INPUT_DISCONNECT_AFTER_SECS
-    disconnectAfterMs = MOCK_WEBM_INPUT_DISCONNECT_AFTER_SECS * 1000U;
-#endif
-    auto fileEndPoint = std::make_shared<FileEndPoint>(GetId(), 300U, disconnectAfterMs, GetAllocator());
+
+    auto fileEndPoint = std::make_shared<FileEndPoint>(GetId(),
+                                                       GetAllocator(),
+                                                       _rtpPacketsPlayer->GetTimer());
     if (!fileEndPoint->IsValid()) {
         MS_ERROR_STD("failed open [%s] as mock translation", fileEndPoint->GetName().c_str());
     }
@@ -263,7 +262,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
         _nonStubEndPointRef = fileEndPoint;
         return fileEndPoint;
     }
-    return std::make_shared<StubEndPoint>(GetId());
+    return std::make_shared<StubEndPoint>(GetId(), _rtpPacketsPlayer->GetTimer());
 }
 
 #else
@@ -278,7 +277,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeStubEndPoint() const
             return socketEndPoint;
         }
     }
-    return std::make_shared<StubEndPoint>(GetId());
+    return std::make_shared<StubEndPoint>(GetId(), _rtpPacketsPlayer->GetTimer());
 #else
     return WebsocketEndPoint::Create(_websocketFactory, GetId());
 #endif

@@ -1,5 +1,6 @@
 #pragma once // 
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
+#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #include <atomic>
 #include <optional>
 #include <string>
@@ -15,9 +16,8 @@ class FileEndPoint : public TranslatorEndPoint
     class TimerCallback;
 public:
     FileEndPoint(std::string ownerId,
-                 uint32_t connectionDelaylMs = 500U, // 0.5 sec
-                 const std::optional<uint32_t>& disconnectAfterMs = std::nullopt,
-                 const std::shared_ptr<BufferAllocator>& allocator = nullptr);
+                 const std::shared_ptr<BufferAllocator>& allocator = nullptr,
+                 const std::shared_ptr<MediaTimer>& timer = nullptr);
     ~FileEndPoint() final;
     static uint64_t GetInstancesCount() { return _instances.load(); }
     bool IsValid() const { return 0UL != _timerId; }
@@ -36,7 +36,9 @@ private:
     const uint64_t _timerId;
     const uint32_t _intervalBetweenTranslationsMs;
     const uint32_t _connectionDelaylMs;
+#ifdef MOCK_DISCONNECT_AFTER_MS
     uint64_t _disconnectedTimerId = 0U;
+#endif
 };
 
 } // namespace RTC

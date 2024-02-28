@@ -297,12 +297,12 @@ void WebsocketTppTestFactory::MockServer::OnOpen(connection_hdl hdl)
         if (!_connections->count(hdl)) {
             auto client = std::make_shared<Client>(hdl, _server, GetAllocator());
             _connections->insert(std::make_pair(hdl, std::make_pair(0U, std::move(client))));
-#ifdef MOCK_WEBM_INPUT_DISCONNECT_AFTER_SECS
-            const unsigned timeout = MOCK_WEBM_INPUT_DISCONNECT_AFTER_SECS;
-            _timer->Singleshot(timeout * 1000U, [this, hdl]() {
+#ifdef MOCK_DISCONNECT_AFTER_MS
+            _timer->Singleshot(uint32_t(MOCK_DISCONNECT_AFTER_MS), [this, hdl]() {
                 OnClose(hdl);
                 lib::error_code ec;
-                const auto message = "predefined disconnection after " + std::to_string(timeout) + " seconds";
+                const auto message = "interruption after " +
+                    std::to_string(unsigned(MOCK_DISCONNECT_AFTER_MS)) + " milliseconds";
                 _server->close(hdl, close::status::going_away, message, ec);
                 if (ec) {
                     MS_WARN_DEV_STD("unable to normal close of mock server client: %s", ec.message());
