@@ -29,7 +29,7 @@ namespace RTC
 		{
 		public:
 			TransmissionCounter(uint8_t spatialLayers, uint8_t temporalLayers, size_t windowSize);
-			void Update(RTC::RtpPacket* packet);
+			void Update(uint8_t spatialLayer, uint8_t temporalLayer, size_t packetSize);
 			uint32_t GetBitrate(uint64_t nowMs);
 			uint32_t GetBitrate(uint64_t nowMs, uint8_t spatialLayer, uint8_t temporalLayer);
 			uint32_t GetSpatialLayerBitrate(uint64_t nowMs, uint8_t spatialLayer);

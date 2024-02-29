@@ -119,9 +119,6 @@ namespace RTC
         void AddRejectedConsumer(Consumer* consumer);
         void RemoveRejectedConsumer(Consumer* consumer);
         bool ConsumerIsRejected(Consumer* consumer) const;
-        // TODO: move it to 'protected' section
-        void SetTranslated(bool translated) { this->translated = translated; }
-        bool IsTranslated() const { return this->translated; }
         
 		void Dump() const;
 		flatbuffers::Offset<FBS::RtpPacket::Dump> FillBuffer(flatbuffers::FlatBufferBuilder& builder) const;
@@ -661,7 +658,6 @@ namespace RTC
 		// Codecs
 		std::shared_ptr<Codecs::PayloadDescriptorHandler> payloadDescriptorHandler;
         absl::flat_hash_set<Consumer*> rejectedConsumers;
-        bool translated = false;
 	};
 } // namespace RTC
 

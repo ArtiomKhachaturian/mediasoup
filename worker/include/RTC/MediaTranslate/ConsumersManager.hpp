@@ -34,7 +34,7 @@ public:
     size_t GetSize() const { return _consumersInfo.size(); }
     void BeginPacketsSending(uint64_t mediaId, uint64_t endPointId);
     void SendPacket(uint64_t mediaId, uint64_t endPointId, RtpTranslatedPacket packet,
-                    RtpPacketsCollector* output);
+                    uint32_t mappedSsrc, RtpPacketsCollector* output);
     void EndPacketsSending(uint64_t mediaId, uint64_t endPointId);
 private:
     std::shared_ptr<TranslatorEndPoint> AddNewEndPoint(const Consumer* consumer, size_t key);

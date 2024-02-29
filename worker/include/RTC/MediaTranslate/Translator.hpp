@@ -34,9 +34,7 @@ public:
                                               const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     bool AddStream(const RtpStream* stream, uint32_t mappedSsrc);
     bool RemoveStream(uint32_t ssrc);
-    // returns true if packet was sent to translation service
-    // and further processing by other SFU components no longer needed
-    bool AddOriginalRtpPacketForTranslation(RtpPacket* packet);
+    void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
     const std::string& GetId() const;
     void AddConsumer(Consumer* consumer);
     void RemoveConsumer(Consumer* consumer);

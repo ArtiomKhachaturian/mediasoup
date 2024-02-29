@@ -685,8 +685,6 @@ namespace RTC
 		// Post-process the packet.
 		PostProcessRtpPacket(packet);
 
-		this->listener->OnProducerRtpPacketReceived(this, packet);
-
 		return result;
 	}
 
@@ -1198,7 +1196,7 @@ namespace RTC
 		}
 	}
 
-	inline bool Producer::MangleRtpPacket(RTC::RtpPacket* packet, RTC::RtpStreamRecv* rtpStream) const
+    inline bool Producer::MangleRtpPacket(RTC::RtpPacket* packet, uint32_t mappedSsrc) const
 	{
 		MS_TRACE();
 
@@ -1220,11 +1218,8 @@ namespace RTC
 		}
 
 		// Mangle the SSRC.
-		{
-			const uint32_t mappedSsrc = this->mapRtpStreamMappedSsrc.at(rtpStream);
 
-			packet->SetSsrc(mappedSsrc);
-		}
+        packet->SetSsrc(mappedSsrc);
 
 		// Mangle RTP header extensions.
 		{
@@ -1405,7 +1400,12 @@ namespace RTC
 		return true;
 	}
 
-	inline void Producer::PostProcessRtpPacket(RTC::RtpPacket* packet)
+    bool Producer::MangleRtpPacket(RTC::RtpPacket* packet, RTC::RtpStreamRecv* rtpStream) const
+    {
+        return MangleRtpPacket(packet, this->mapRtpStreamMappedSsrc.at(rtpStream));
+    }
+
+	inline void Producer::PostProcessRtpPacket(const RTC::RtpPacket* packet)
 	{
 		MS_TRACE();
 

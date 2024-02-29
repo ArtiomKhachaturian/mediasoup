@@ -5,11 +5,12 @@ namespace RTC
 {
 
 class RtpPacket;
+class Consumer;
 
 class RtpPacketsCollector
 {
 public:
-	virtual void AddPacket(RtpPacket* packet) = 0;
+	virtual void AddPacket(RtpPacket* packet, uint32_t mappedSsrc) = 0;
 protected:
 	virtual ~RtpPacketsCollector() = default;
 };

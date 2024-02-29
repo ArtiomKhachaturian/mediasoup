@@ -26,7 +26,6 @@ RtpTranslatedPacket::RtpTranslatedPacket(const RtpCodecMimeType& mime,
     RtpPacket packet(RtpPacketHeader::Init(data), nullptr, data + payloadOffset,
                      payloadLength, 0U, payloadOffset + payloadLength, allocator);
     _impl.reset(packet.Clone());
-    _impl->SetTranslated(true);
     Codecs::Tools::ProcessRtpPacket(_impl.get(), mime);
 }
 

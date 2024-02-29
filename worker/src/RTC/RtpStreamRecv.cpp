@@ -33,12 +33,11 @@ namespace RTC
 		}
 	}
 
-	void RtpStreamRecv::TransmissionCounter::Update(RTC::RtpPacket* packet)
+	void RtpStreamRecv::TransmissionCounter::Update(uint8_t spatialLayer,
+                                                    uint8_t temporalLayer,
+                                                    size_t packetSize)
 	{
 		MS_TRACE();
-
-		auto spatialLayer  = packet->GetSpatialLayer();
-		auto temporalLayer = packet->GetTemporalLayer();
 
 		// Sanity check. Do not allow spatial layers higher than defined.
 		if (spatialLayer > this->spatialLayerCounters.size() - 1)
@@ -54,7 +53,7 @@ namespace RTC
 
 		auto& counter = this->spatialLayerCounters[spatialLayer][temporalLayer];
 
-		counter.Update(packet);
+		counter.Update(packetSize);
 	}
 
 	uint32_t RtpStreamRecv::TransmissionCounter::GetBitrate(uint64_t nowMs)
@@ -305,10 +304,12 @@ namespace RTC
 		CalculateJitter(packet->GetTimestamp());
 
 		// Increase transmission counter.
-		this->transmissionCounter.Update(packet);
+		this->transmissionCounter.Update(packet->GetSpatialLayer(),
+                                         packet->GetTemporalLayer(),
+                                         packet->GetSize());
 
 		// Increase media transmission counter.
-		this->mediaTransmissionCounter.Update(packet);
+		this->mediaTransmissionCounter.Update(packet->GetSize());
 
 		// Not inactive anymore.
 		if (this->inactive)
@@ -419,7 +420,9 @@ namespace RTC
 			RTC::RtpStream::PacketRepaired(packet);
 
 			// Increase transmission counter.
-			this->transmissionCounter.Update(packet);
+			this->transmissionCounter.Update(packet->GetSpatialLayer(),
+                                             packet->GetTemporalLayer(),
+                                             packet->GetSize());
 
 			// Not inactive anymore.
 			if (this->inactive)

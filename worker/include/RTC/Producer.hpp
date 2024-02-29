@@ -46,7 +46,6 @@ namespace RTC
 			  uint8_t previousScore) = 0;
 			virtual void OnProducerRtcpSenderReport(
 			  RTC::Producer* producer, RTC::RtpStreamRecv* rtpStream, bool first)                     = 0;
-			virtual void OnProducerRtpPacketReceived(RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
 			virtual void OnProducerSendRtcpPacket(RTC::Producer* producer, RTC::RTCP::Packet* packet) = 0;
 			virtual void OnProducerNeedWorstRemoteFractionLost(
 			  RTC::Producer* producer, uint32_t mappedSsrc, uint8_t& worstRemoteFractionLost) = 0;
@@ -142,6 +141,9 @@ namespace RTC
 		void RequestKeyFrame(uint32_t mappedSsrc);
         const std::string& GetLanguageId() const { return this->languageId; }
         void SetLanguageId(const std::string& languageId);
+        bool MangleRtpPacket(RTC::RtpPacket* packet, uint32_t mappedSsrc) const;
+        bool MangleRtpPacket(RTC::RtpPacket* packet, RTC::RtpStreamRecv* rtpStream) const;
+        void PostProcessRtpPacket(const RTC::RtpPacket* packet);
 		/* Methods inherited from Channel::ChannelSocket::RequestHandler. */
 	public:
 		void HandleRequest(Channel::ChannelRequest* request) override;
@@ -156,8 +158,6 @@ namespace RTC
 		  RTC::RtpPacket* packet, const RTC::RtpCodecParameters& mediaCodec, size_t encodingIdx);
 		void NotifyNewRtpStream(RTC::RtpStreamRecv* rtpStream);
 		void PreProcessRtpPacket(RTC::RtpPacket* packet);
-		bool MangleRtpPacket(RTC::RtpPacket* packet, RTC::RtpStreamRecv* rtpStream) const;
-		void PostProcessRtpPacket(RTC::RtpPacket* packet);
 		void EmitScore() const;
 		void EmitTraceEventRtpAndKeyFrameTypes(RTC::RtpPacket* packet, bool isRtx = false) const;
 		void EmitTraceEventKeyFrameType(RTC::RtpPacket* packet, bool isRtx = false) const;

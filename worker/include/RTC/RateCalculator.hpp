@@ -3,7 +3,6 @@
 
 #include "common.hpp"
 #include "DepLibUV.hpp"
-#include "RTC/RtpPacket.hpp"
 
 namespace RTC
 {
@@ -93,7 +92,7 @@ namespace RTC
 		}
 
 	public:
-		void Update(RTC::RtpPacket* packet);
+		void Update(size_t packetSize);
 		uint32_t GetBitrate(uint64_t nowMs)
 		{
 			return this->rate.GetRate(nowMs);

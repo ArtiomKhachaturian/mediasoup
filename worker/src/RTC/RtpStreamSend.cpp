@@ -116,7 +116,7 @@ namespace RTC
 		}
 
 		// Increase transmission counter.
-		this->transmissionCounter.Update(packet);
+		this->transmissionCounter.Update(packet->GetSize());
 
 		return true;
 	}

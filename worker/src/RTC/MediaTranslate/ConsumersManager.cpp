@@ -23,7 +23,9 @@ public:
     void ResetEndPointRef();
     void BeginPacketsSending(uint64_t mediaId);
     void SendPacket(uint32_t rtpTimestampOffset, uint64_t mediaId,
-                    RtpPacket* packet, RtpPacketsCollector* output);
+                    RtpPacket* packet, uint32_t mappedSsrc, RtpPacketsCollector* output);
+    void SendPacket(const Timestamp& offset, uint64_t mediaId,
+                    RtpPacket* packet, uint32_t mappedSsrc, RtpPacketsCollector* output);
     void EndPacketsSending(uint64_t mediaId);
     // impl. of ConsumerInfo
     void SaveProducerRtpPacketInfo(const RtpPacket* packet) final;
@@ -140,7 +142,7 @@ void ConsumersManager::BeginPacketsSending(uint64_t mediaId, uint64_t endPointId
 }
 
 void ConsumersManager::SendPacket(uint64_t mediaId, uint64_t endPointId,
-                                  RtpTranslatedPacket packet,
+                                  RtpTranslatedPacket packet, uint32_t mappedSsrc,
                                   RtpPacketsCollector* output)
 {
     if (output) {
@@ -158,9 +160,8 @@ void ConsumersManager::SendPacket(uint64_t mediaId, uint64_t endPointId,
                 const auto needsCopy = accepted.size() > 1U;
                 for (const auto& consumerInfo : accepted) {
                     const auto consumerPacket = needsCopy ? rtp->Clone() : rtp.release();
-                    consumerPacket->SetTranslated(true);
-                    consumerInfo->SendPacket(packet.GetTimestampOffset().GetRtpTime(),
-                                             mediaId, consumerPacket, output);
+                    consumerInfo->SendPacket(packet.GetTimestampOffset(), mediaId,
+                                             consumerPacket, mappedSsrc, output);
                 }
             }
         }
@@ -281,6 +282,7 @@ void ConsumersManager::ConsumerInfoImpl::BeginPacketsSending(uint64_t mediaId)
 void ConsumersManager::ConsumerInfoImpl::SendPacket(uint32_t rtpTimestampOffset,
                                                     uint64_t mediaId,
                                                     RtpPacket* packet,
+                                                    uint32_t mappedSsrc,
                                                     RtpPacketsCollector* output)
 {
     if (packet) {
@@ -290,11 +292,20 @@ void ConsumersManager::ConsumerInfoImpl::SendPacket(uint32_t rtpTimestampOffset,
                 packet->SetTimestamp(_producersTimeline.GetNextTimestamp() + rtpTimestampOffset);
                 packet->SetSequenceNumber(it->second.GetNextSeqNumber());
                 it->second.SetLastTimestamp(packet->GetTimestamp());
-                output->AddPacket(packet);
+                output->AddPacket(packet, mappedSsrc);
                 packet = nullptr;
             }
         }
         delete packet;
+    }
+}
+
+void ConsumersManager::ConsumerInfoImpl::SendPacket(const Timestamp& offset, uint64_t mediaId,
+                                                    RtpPacket* packet, uint32_t mappedSsrc,
+                                                    RtpPacketsCollector* output)
+{
+    if (packet) {
+        SendPacket(offset.GetRtpTime(), mediaId, packet, mappedSsrc, output);
     }
 }
 

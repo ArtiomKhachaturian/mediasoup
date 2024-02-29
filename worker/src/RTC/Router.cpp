@@ -1095,7 +1095,7 @@ namespace RTC
         delete transport;
     }
 
-    bool Router::OnTransportProducerRtpPacketTranslationRequired(RTC::Transport* transport,
+    void Router::OnTransportProducerRtpPacketTranslationRequired(RTC::Transport* transport,
                                                                  RTC::Producer* producer,
                                                                  RTC::RtpPacket* packet)
     {
@@ -1104,11 +1104,10 @@ namespace RTC
             if (itt != this->mapTransportTranslators.end()) {
                 const auto it = itt->second.find(producer);
                 if (it != itt->second.end()) {
-                    return it->second->AddOriginalRtpPacketForTranslation(packet);
+                    it->second->AddOriginalRtpPacketForTranslation(packet);
                 }
             }
         }
-        return false;
     }
 
     void Router::OnRtpObserverAddProducer(RTC::RtpObserver* rtpObserver, RTC::Producer* producer)

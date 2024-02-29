@@ -69,18 +69,12 @@ bool Translator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
     if (stream && mappedSsrc) {
         const auto& mime = stream->GetMimeType();
         if (mime.IsAudioCodec()) {
-            const auto clockRate = stream->GetClockRate();
-            const auto originalSsrc = stream->GetSsrc();
-            const auto payloadType = stream->GetPayloadType();
-            MS_ASSERT(clockRate, "clock rate must be greater than zero");
-            MS_ASSERT(originalSsrc, "original SSRC must be greater than zero");
-            MS_ASSERT(payloadType, "payload type must be greater than zero");
             LOCK_WRITE_PROTECTED_OBJ(_originalSsrcToStreams);
             const auto it = _originalSsrcToStreams->find(stream->GetSsrc());
             if (it == _originalSsrcToStreams->end()) {
-                auto source = TranslatorSource::Create(mime, clockRate, originalSsrc,
-                                                       payloadType, this, _rtpPacketsPlayer,
-                                                       _output, _producer->id, GetAllocator());
+                auto source = TranslatorSource::Create(stream, mappedSsrc, this,
+                                                       _rtpPacketsPlayer,  _output,
+                                                       _producer->id, GetAllocator());
                 if (source) {
                     source->SetInputLanguage(_producer->GetLanguageId());
                     AddConsumersToSource(source.get());
@@ -93,9 +87,10 @@ bool Translator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
                 }
             }
             else {
-                MS_ASSERT(it->second->GetMime() == mime, "MIME type mistmatch");
-                MS_ASSERT(it->second->GetClockRate() == clockRate, "clock rate mistmatch");
-                MS_ASSERT(it->second->GetPayloadType() == payloadType, "payload type mistmatch");
+                MS_ASSERT(it->second->GetMime() == stream->GetMimeType(), "MIME type mistmatch");
+                MS_ASSERT(it->second->GetClockRate() == stream->GetClockRate(), "clock rate mistmatch");
+                MS_ASSERT(it->second->GetPayloadType() == stream->GetPayloadType(), "payload type mistmatch");
+                MS_ASSERT(it->second->GetMappedSsrc() == mappedSsrc, "mapped SSRC mistmatch");
                 ok = true; // already registered
             }
             if (ok) {
@@ -128,7 +123,7 @@ bool Translator::RemoveStream(uint32_t ssrc)
     return false;
 }
 
-bool Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
+void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     if (packet && !_producer->IsPaused()) {
         if (const auto ssrc = packet->GetSsrc()) {
@@ -144,11 +139,9 @@ bool Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
             if (it != _originalSsrcToStreams->end()) {
                 const auto added = it->second->AddOriginalRtpPacketForTranslation(packet);
                 PostProcessAfterAdding(packet, added, it->second.get());
-                return added;
             }
         }
     }
-    return false;
 }
 
 const std::string& Translator::GetId() const

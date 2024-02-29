@@ -118,7 +118,7 @@ namespace RTC
             virtual void OnTransportDataConsumerDataProducerClosed(
               RTC::Transport* transport, RTC::DataConsumer* dataConsumer)         = 0;
             virtual void OnTransportListenServerClosed(RTC::Transport* transport) = 0;
-            virtual bool OnTransportProducerRtpPacketTranslationRequired(
+            virtual void OnTransportProducerRtpPacketTranslationRequired(
                   RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
         };
 
@@ -171,7 +171,7 @@ namespace RTC
         
         /* Methods inherited from RtpPacketsCollector. Used for translation service */
     public:
-        void AddPacket(RTC::RtpPacket* packet) override;
+        void AddPacket(RtpPacket* packet, uint32_t mappedSsrc) override;
 
     protected:
         // Must be called from the subclass.
@@ -220,6 +220,8 @@ namespace RTC
         void CheckNoProducer(const std::string& producerId) const;
         void CheckNoDataProducer(const std::string& dataProducerId) const;
         void CheckNoDataConsumer(const std::string& dataConsumerId) const;
+        void ApplyHeaderExtensions(RTC::RtpPacket* packet);
+        void DispatchReceivedRtpPacket(RTC::Producer* producer, RTC::RtpPacket* packet);
 
         /* Pure virtual methods inherited from RTC::Producer::Listener. */
     public:
@@ -242,7 +244,6 @@ namespace RTC
           uint8_t previousScore) override;
         void OnProducerRtcpSenderReport(
           RTC::Producer* producer, RTC::RtpStreamRecv* rtpStream, bool first) override;
-        void OnProducerRtpPacketReceived(RTC::Producer* producer, RTC::RtpPacket* packet) override;
         void OnProducerSendRtcpPacket(RTC::Producer* producer, RTC::RTCP::Packet* packet) override;
         void OnProducerNeedWorstRemoteFractionLost(
           RTC::Producer* producer, uint32_t mappedSsrc, uint8_t& worstRemoteFractionLost) override;

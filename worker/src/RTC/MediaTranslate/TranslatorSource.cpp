@@ -11,12 +11,14 @@
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
 #include "RTC/Timestamp.hpp"
 #include "RTC/RtpPacket.hpp"
+#include "RTC/RtpStream.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
 
-TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc, uint8_t payloadType,
+TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc,
+                                   uint32_t mappedSsrc, uint8_t payloadType,
                                    std::unique_ptr<MediaFrameSerializer> serializer,
                                    std::unique_ptr<RtpDepacketizer> depacketizer,
                                    TranslatorEndPointFactory* endPointsFactory,
@@ -24,6 +26,7 @@ TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc, ui
                                    RtpPacketsCollector* output,
                                    const std::string& producerId)
     : _originalSsrc(originalSsrc)
+    , _mappedSsrc(mappedSsrc)
     , _payloadType(payloadType)
     , _serializer(std::move(serializer))
     , _depacketizer(std::move(depacketizer))
@@ -57,6 +60,7 @@ TranslatorSource::~TranslatorSource()
 std::unique_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeType& mime,
                                                            uint32_t clockRate,
                                                            uint32_t originalSsrc,
+                                                           uint32_t mappedSsrc,
                                                            uint8_t payloadType,
                                                            TranslatorEndPointFactory* endPointsFactory,
                                                            RtpPacketsPlayer* rtpPacketsPlayer,
@@ -66,10 +70,15 @@ std::unique_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeTyp
 {
     std::unique_ptr<TranslatorSource> source;
     if (endPointsFactory && rtpPacketsPlayer && output) {
+        MS_ASSERT(clockRate, "clock rate must be greater than zero");
+        MS_ASSERT(originalSsrc, "original SSRC must be greater than zero");
+        MS_ASSERT(mappedSsrc, "mapped SSRC must be greater than zero");
+        MS_ASSERT(payloadType, "payload type must be greater than zero");
         if (auto depacketizer = RtpDepacketizer::Create(mime, clockRate, allocator)) {
             auto serializer = std::make_unique<WebMSerializer>(mime, allocator);
-            source.reset(new TranslatorSource(clockRate, originalSsrc, payloadType,
-                                             std::move(serializer), std::move(depacketizer),
+            source.reset(new TranslatorSource(clockRate, originalSsrc, mappedSsrc,
+                                              payloadType, std::move(serializer),
+                                              std::move(depacketizer),
                                               endPointsFactory, rtpPacketsPlayer,
                                               output, producerId));
         }
@@ -79,6 +88,21 @@ std::unique_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeTyp
         }
     }
     return source;
+}
+
+std::unique_ptr<TranslatorSource> TranslatorSource::Create(const RtpStream* stream, uint32_t mappedSsrc,
+                                                           TranslatorEndPointFactory* endPointsFactory,
+                                                           RtpPacketsPlayer* rtpPacketsPlayer,
+                                                           RtpPacketsCollector* output,
+                                                           const std::string& producerId,
+                                                           const std::shared_ptr<BufferAllocator>& allocator)
+{
+    if (stream && endPointsFactory && rtpPacketsPlayer && output) {
+        return Create(stream->GetMimeType(), stream->GetClockRate(),
+                      stream->GetSsrc(), mappedSsrc, stream->GetPayloadType(),
+                      endPointsFactory, rtpPacketsPlayer, output, producerId, allocator);
+    }
+    return nullptr;
 }
 
 const RtpCodecMimeType& TranslatorSource::GetMime() const
@@ -218,7 +242,8 @@ void TranslatorSource::OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTrans
 {
     if (packet) {
         LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-        _consumersManager->SendPacket(mediaId, mediaSourceId, std::move(packet), _output);
+        _consumersManager->SendPacket(mediaId, mediaSourceId, std::move(packet),
+                                      GetMappedSsrc(), _output);
     }
 }
 

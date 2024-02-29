@@ -1451,10 +1451,32 @@ namespace RTC
         }
     }
 
-    void Transport::AddPacket(RTC::RtpPacket* packet)
+    void Transport::AddPacket(RtpPacket* packet, uint32_t mappedSsrc)
     {
-        if (packet && !this->destroying) {
-            ReceiveRtpPacket(packet);
+        MS_TRACE();
+        
+        if (packet) {
+            if (!this->destroying) {
+                // Get the associated Producer.
+                if (RTC::Producer* producer = this->rtpListener.GetProducer(packet)) {
+                    ApplyHeaderExtensions(packet);
+                    if (producer->MangleRtpPacket(packet, mappedSsrc)) {
+                        producer->PostProcessRtpPacket(packet);
+                        DispatchReceivedRtpPacket(producer, packet);
+                    }
+                }
+                else {
+#ifdef MS_RTC_LOGGER_RTP
+                    packet->logger.Dropped(RtcLogger::RtpPacket::DropReason::PRODUCER_NOT_FOUND);
+#endif
+                    
+                    MS_WARN_TAG(rtp, "no suitable Producer for received RTP packet "
+                                "[ssrc:%" PRIu32 ", payloadType:%" PRIu8 "]",
+                                packet->GetSsrc(),
+                                packet->GetPayloadType());
+                }
+            }
+            delete packet;
         }
     }
 
@@ -1566,13 +1588,7 @@ namespace RTC
 #ifdef MS_RTC_LOGGER_RTP
         packet->logger.recvTransportId = this->id;
 #endif
-
-        // Apply the Transport RTP header extension ids so the RTP listener can use them.
-        packet->SetMidExtensionId(this->recvRtpHeaderExtensionIds.mid);
-        packet->SetRidExtensionId(this->recvRtpHeaderExtensionIds.rid);
-        packet->SetRepairedRidExtensionId(this->recvRtpHeaderExtensionIds.rrid);
-        packet->SetAbsSendTimeExtensionId(this->recvRtpHeaderExtensionIds.absSendTime);
-        packet->SetTransportWideCc01ExtensionId(this->recvRtpHeaderExtensionIds.transportWideCc01);
+        ApplyHeaderExtensions(packet);
 
         auto nowMs = DepLibUV::GetTimeMs();
 
@@ -1605,13 +1621,7 @@ namespace RTC
             return;
         }
         
-        if (!packet->IsTranslated()) {
-            const auto handled = this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet);
-            if (handled) {
-                delete packet;
-                return;
-            }
-        }
+        this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet);
 
         // MS_DEBUG_DEV(
         //   "RTP packet received [ssrc:%" PRIu32 ", payloadType:%" PRIu8 ", producerId:%s]",
@@ -1625,16 +1635,21 @@ namespace RTC
         switch (result)
         {
             case RTC::Producer::ReceiveRtpPacketResult::MEDIA:
-                this->recvRtpTransmission.Update(packet);
+                this->recvRtpTransmission.Update(packet->GetSize());
                 break;
             case RTC::Producer::ReceiveRtpPacketResult::RETRANSMISSION:
-                this->recvRtxTransmission.Update(packet);
+                this->recvRtxTransmission.Update(packet->GetSize());
                 break;
             case RTC::Producer::ReceiveRtpPacketResult::DISCARDED:
                 // Tell the child class to remove this SSRC.
                 RecvStreamClosed(packet->GetSsrc());
                 break;
-            default:;
+            default:
+                break;
+        }
+        
+        if (RTC::Producer::ReceiveRtpPacketResult::DISCARDED != result) {
+            DispatchReceivedRtpPacket(producer, packet);
         }
 
         delete packet;
@@ -1688,6 +1703,25 @@ namespace RTC
         {
             MS_THROW_ERROR("a DataConsumer with same dataConsumerId already exists");
         }
+    }
+
+    void Transport::ApplyHeaderExtensions(RTC::RtpPacket* packet)
+    {
+        MS_TRACE();
+        
+        // Apply the Transport RTP header extension ids so the RTP listener can use them.
+        packet->SetMidExtensionId(this->recvRtpHeaderExtensionIds.mid);
+        packet->SetRidExtensionId(this->recvRtpHeaderExtensionIds.rid);
+        packet->SetRepairedRidExtensionId(this->recvRtpHeaderExtensionIds.rrid);
+        packet->SetAbsSendTimeExtensionId(this->recvRtpHeaderExtensionIds.absSendTime);
+        packet->SetTransportWideCc01ExtensionId(this->recvRtpHeaderExtensionIds.transportWideCc01);
+    }
+
+    void Transport::DispatchReceivedRtpPacket(RTC::Producer* producer, RTC::RtpPacket* packet)
+    {
+        MS_TRACE();
+        
+        this->listener->OnTransportProducerRtpPacketReceived(this, producer, packet);
     }
 
     RTC::Producer* Transport::GetProducerById(const std::string& producerId) const
@@ -2445,13 +2479,6 @@ namespace RTC
         this->listener->OnTransportProducerRtcpSenderReport(this, producer, rtpStream, first);
     }
 
-    inline void Transport::OnProducerRtpPacketReceived(RTC::Producer* producer, RTC::RtpPacket* packet)
-    {
-        MS_TRACE();
-        
-        this->listener->OnTransportProducerRtpPacketReceived(this, producer, packet);
-    }
-
     inline void Transport::OnProducerSendRtcpPacket(RTC::Producer* /*producer*/, RTC::RTCP::Packet* packet)
     {
         MS_TRACE();
@@ -2564,7 +2591,7 @@ namespace RTC
             SendRtpPacket(consumer, packet);
         }
 
-        this->sendRtpTransmission.Update(packet);
+        this->sendRtpTransmission.Update(packet->GetSize());
     }
 
     inline void Transport::OnConsumerRetransmitRtpPacket(RTC::Consumer* consumer, RTC::RtpPacket* packet)
@@ -2653,7 +2680,7 @@ namespace RTC
             SendRtpPacket(consumer, packet);
         }
 
-        this->sendRtxTransmission.Update(packet);
+        this->sendRtxTransmission.Update(packet->GetSize());
     }
 
     inline void Transport::OnConsumerKeyFrameRequested(RTC::Consumer* consumer, uint32_t mappedSsrc)
@@ -3056,7 +3083,7 @@ namespace RTC
             SendRtpPacket(nullptr, packet);
         }
 
-        this->sendProbationTransmission.Update(packet);
+        this->sendProbationTransmission.Update(packet->GetSize());
 
         MS_DEBUG_DEV(
           "probation sent [seq:%" PRIu16 ", wideSeq:%" PRIu16 ", size:%zu, bitrate:%" PRIu32 "]",
