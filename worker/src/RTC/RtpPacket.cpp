@@ -11,13 +11,42 @@
 
 namespace RTC
 {
+
+    RtpPacketHeader* RtpPacketHeader::GetAsHeader(const uint8_t* data)
+    {
+        if (const auto raw = const_cast<uint8_t*>(data)) {
+            return reinterpret_cast<RtpPacketHeader*>(raw);
+        }
+        return nullptr;
+    }
+
+    RtpPacketHeader* RtpPacketHeader::InitAsHeader(uint8_t* data)
+    {
+        if (const auto header = GetAsHeader(data)) {
+            std::memset(header, 0, sizeof(RtpPacketHeader));
+            header->version = GetDefaultVersion();
+            return header;
+        }
+        return nullptr;
+    }
+
+    bool RtpPacketHeader::IsRtp(const uint8_t* data, size_t len)
+    {
+        // DOC: https://tools.ietf.org/html/draft-ietf-avtcore-rfc5764-mux-fixes
+        if (data && len >= sizeof(RtpPacketHeader) && data[0] > 127 && data[0] < 192) {
+            // RTP Version must be 2.
+            return GetAsHeader(data)->GetVersion() == GetDefaultVersion();
+        }
+        return false;
+    }
+
 	/* Class methods. */
 
 	RtpPacket* RtpPacket::Parse(const uint8_t* data, size_t len,
                                 const std::shared_ptr<BufferAllocator>& allocator)
 	{
 		MS_TRACE();
-
+        
 		if (!RtpPacket::IsRtp(data, len))
 		{
 			return nullptr;
@@ -26,17 +55,17 @@ namespace RTC
 		auto* ptr = const_cast<uint8_t*>(data);
 
 		// Get the header.
-		auto* header = reinterpret_cast<Header*>(ptr);
+        auto* header = RtpPacketHeader::GetAsHeader(ptr);
 
 		// Inspect data after the minimum header size.
-		ptr += HeaderSize;
+		ptr += sizeof(RtpPacketHeader);
 
 		// Check CSRC list.
 		size_t csrcListSize{ 0u };
 
-		if (header->csrcCount != 0u)
+		if (header->GetCsrcCount())
 		{
-			csrcListSize = header->csrcCount * sizeof(header->ssrc);
+			csrcListSize = header->GetCsrcListSize();
 
 			// Packet size must be >= header size + CSRC list.
 			if (len < (ptr - data) + csrcListSize)
@@ -52,7 +81,7 @@ namespace RTC
 		HeaderExtension* headerExtension{ nullptr };
 		size_t extensionValueSize{ 0u };
 
-		if (header->extension == 1u)
+		if (header->HasExtension())
 		{
 			// The header extension is at least 4 bytes.
 			if (len < static_cast<size_t>(ptr - data) + 4)
@@ -87,7 +116,7 @@ namespace RTC
 		MS_ASSERT(len >= static_cast<size_t>(ptr - data), "payload has negative size");
 
 		// Check padding field.
-		if (header->padding != 0u)
+		if (header->HasPayloadPadding())
 		{
 			// Must be at least a single payload byte.
 			if (payloadLength == 0)
@@ -118,7 +147,7 @@ namespace RTC
 		}
 
 		MS_ASSERT(
-		  len == HeaderSize + csrcListSize + (headerExtension ? 4 + extensionValueSize : 0) +
+		  len == sizeof(RtpPacketHeader) + csrcListSize + (headerExtension ? 4 + extensionValueSize : 0) +
 		           payloadLength + size_t{ payloadPadding },
 		  "packet's computed size does not match received size");
 
@@ -129,7 +158,7 @@ namespace RTC
 	/* Instance methods. */
 
 	RtpPacket::RtpPacket(
-	  Header* header,
+      RtpPacketHeader* header,
 	  HeaderExtension* headerExtension,
 	  const uint8_t* payload,
 	  size_t payloadLength,
@@ -142,9 +171,9 @@ namespace RTC
 	{
 		MS_TRACE();
 
-		if (this->header->csrcCount != 0u)
+		if (this->header->GetCsrcCount())
 		{
-			this->csrcList = reinterpret_cast<uint8_t*>(header) + HeaderSize;
+			this->csrcList = reinterpret_cast<uint8_t*>(header) + sizeof(RtpPacketHeader);
 		}
 
 		// Parse RFC 5285 header extension.
@@ -188,7 +217,7 @@ namespace RTC
 		MS_TRACE();
 
 		MS_DUMP("<RtpPacket>");
-		MS_DUMP("  padding: %s", this->header->padding ? "true" : "false");
+		MS_DUMP("  padding: %s", this->header->HasPayloadPadding() ? "true" : "false");
 		if (HasHeaderExtension())
 		{
 			MS_DUMP(
@@ -320,14 +349,14 @@ namespace RTC
 				  rotation);
 			}
 		}
-		MS_DUMP("  csrc count: %" PRIu8, this->header->csrcCount);
+		MS_DUMP("  csrc count: %" PRIu8, this->header->GetCsrcCount());
 		MS_DUMP("  marker: %s", HasMarker() ? "true" : "false");
 		MS_DUMP("  payload type: %" PRIu8, GetPayloadType());
 		MS_DUMP("  sequence number: %" PRIu16, GetSequenceNumber());
 		MS_DUMP("  timestamp: %" PRIu32, GetTimestamp());
 		MS_DUMP("  ssrc: %" PRIu32, GetSsrc());
 		MS_DUMP("  payload size: %zu bytes", GetPayloadLength());
-		if (this->header->padding != 0u)
+		if (this->header->HasPayloadPadding())
 		{
 			MS_DUMP("  padding size: %" PRIu8 " bytes", this->payloadPadding);
 		}
@@ -496,7 +525,7 @@ namespace RTC
 		else if (!this->headerExtension)
 		{
 			// Set the header extension bit.
-			this->header->extension = 1u;
+			this->header->SetExtension(true);
 
 			// Set the header extension pointing to the current payload.
 			this->headerExtension = reinterpret_cast<HeaderExtension*>(this->payload);
@@ -700,18 +729,18 @@ namespace RTC
 		size_t numBytes{ 0 };
 
 		// Copy the minimum header.
-		numBytes = HeaderSize;
+		numBytes = sizeof(RtpPacketHeader);
 		std::memcpy(ptr, GetData(), numBytes);
 
 		// Set header pointer.
-		auto* newHeader = reinterpret_cast<Header*>(ptr);
+		auto* newHeader = RtpPacketHeader::GetAsHeader(ptr);
 
 		ptr += numBytes;
 
 		// Copy CSRC list.
 		if (this->csrcList != nullptr)
 		{
-			numBytes = this->header->csrcCount * sizeof(this->header->ssrc);
+			numBytes = this->header->GetCsrcListSize();
 			std::memcpy(ptr, this->csrcList, numBytes);
 
 			ptr += numBytes;

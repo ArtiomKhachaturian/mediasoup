@@ -5,6 +5,7 @@
 #include "Utils.hpp"
 #include "FBS/rtpPacket.h"
 #include "RTC/Codecs/PayloadDescriptorHandler.hpp"
+#include "RTC/RtpPacketHeader.hpp"
 #ifdef MS_RTC_LOGGER_RTP
 #include "RTC/RtcLogger.hpp"
 #endif
@@ -29,30 +30,6 @@ namespace RTC
 
 	class RtpPacket
 	{
-	public:
-		/* Struct for RTP header. */
-		struct Header
-		{
-#if defined(MS_LITTLE_ENDIAN)
-			uint8_t csrcCount : 4;
-			uint8_t extension : 1;
-			uint8_t padding : 1;
-			uint8_t version : 2;
-			uint8_t payloadType : 7;
-			uint8_t marker : 1;
-#elif defined(MS_BIG_ENDIAN)
-			uint8_t version : 2;
-			uint8_t padding : 1;
-			uint8_t extension : 1;
-			uint8_t csrcCount : 4;
-			uint8_t marker : 1;
-			uint8_t payloadType : 7;
-#endif
-			uint16_t sequenceNumber;
-			uint32_t timestamp;
-			uint32_t ssrc;
-		};
-
 	protected:
 		/* Struct for RTP header extension. */
 		struct HeaderExtension
@@ -120,30 +97,17 @@ namespace RTC
 		};
 
 	public:
-        static inline const uint8_t Version = 2;
-		static inline const size_t HeaderSize{ 12 };
+        // NOTE: RtcpPacket::IsRtcp() must always be called before this method.
 		static bool IsRtp(const uint8_t* data, size_t len)
 		{
-			// NOTE: RtcpPacket::IsRtcp() must always be called before this method.
-
-			auto* header = const_cast<Header*>(reinterpret_cast<const Header*>(data));
-
-			// clang-format off
-			return (
-				(len >= HeaderSize) &&
-				// DOC: https://tools.ietf.org/html/draft-ietf-avtcore-rfc5764-mux-fixes
-				(data[0] > 127 && data[0] < 192) &&
-				// RTP Version must be 2.
-				(header->version == Version)
-			);
-			// clang-format on
+            return RtpPacketHeader::IsRtp(data, len);
 		}
 
 		static RtpPacket* Parse(const uint8_t* data, size_t len,
                                 const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 	public:
         RtpPacket(
-          Header* header,
+          RtpPacketHeader* header,
           HeaderExtension* headerExtension,
           const uint8_t* payload,
           size_t payloadLength,
@@ -174,57 +138,57 @@ namespace RTC
 
 		uint8_t GetPayloadType() const
 		{
-			return this->header->payloadType;
+			return this->header->GetPayloadType();
 		}
 
 		void SetPayloadType(uint8_t payloadType)
 		{
-			this->header->payloadType = payloadType;
+			this->header->SetPayloadType(payloadType);
 		}
 
 		bool HasMarker() const
 		{
-			return this->header->marker;
+			return this->header->HasMarker();
 		}
 
 		void SetMarker(bool marker)
 		{
-			this->header->marker = marker;
+			this->header->SetMarker(marker);
 		}
 
 		void SetPayloadPaddingFlag(bool flag)
 		{
-			this->header->padding = flag;
+            this->header->SetPayloadPadding(flag);
 		}
 
 		uint16_t GetSequenceNumber() const
 		{
-			return uint16_t{ ntohs(this->header->sequenceNumber) };
+            return this->header->GetSequenceNumber();
 		}
 
 		void SetSequenceNumber(uint16_t seq)
 		{
-			this->header->sequenceNumber = uint16_t{ htons(seq) };
+            this->header->SetSequenceNumber(seq);
 		}
 
 		uint32_t GetTimestamp() const
 		{
-			return uint32_t{ ntohl(this->header->timestamp) };
+            return this->header->GetTimestamp();
 		}
 
 		void SetTimestamp(uint32_t timestamp)
 		{
-			this->header->timestamp = uint32_t{ htonl(timestamp) };
+            this->header->SetTimestamp(timestamp);
 		}
 
 		uint32_t GetSsrc() const
 		{
-			return uint32_t{ ntohl(this->header->ssrc) };
+            return this->header->GetSsrc();
 		}
 
 		void SetSsrc(uint32_t ssrc)
 		{
-			this->header->ssrc = uint32_t{ htonl(ssrc) };
+            this->header->SetSsrc(ssrc);
 		}
 
 		bool HasHeaderExtension() const
@@ -672,7 +636,7 @@ namespace RTC
         // parsed from externally provided buffer.
         std::shared_ptr<Buffer> buffer;
 		// Passed by argument.
-		Header* header{ nullptr };
+        RtpPacketHeader* header{ nullptr };
 		uint8_t* csrcList{ nullptr };
 		HeaderExtension* headerExtension{ nullptr };
 		// There might be up to 14 one-byte header extensions

@@ -20,9 +20,11 @@ uint32_t RtpPacketsTimeline::GetNextTimestamp() const
 
 uint16_t RtpPacketsTimeline::GetNextSeqNumber()
 {
-    const auto number = _lastSeqNumber;
+    //const auto number = _lastSeqNumber;
+    //_lastSeqNumber = (_lastSeqNumber + 1U) & 0xffff;
+    //return number;
     _lastSeqNumber = (_lastSeqNumber + 1U) & 0xffff;
-    return number;
+    return _lastSeqNumber;
 }
 
 void RtpPacketsTimeline::SetLastTimestamp(uint32_t lastTimestamp)

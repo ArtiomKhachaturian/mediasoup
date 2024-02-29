@@ -16,11 +16,11 @@ RtpTranslatedPacket::RtpTranslatedPacket(const RtpCodecMimeType& mime,
     : _timestampOffset(std::move(timestampOffset))
 {
     MS_ASSERT(buffer, "buffer must not be null");
-    MS_ASSERT(payloadOffset >= RtpPacket::HeaderSize, "payload offset is too small");
+    MS_ASSERT(buffer->GetData(), "buffer data must not be null");
+    MS_ASSERT(buffer->GetSize() > sizeof(RtpPacketHeader), "buffer size is too small");
+    MS_ASSERT(payloadOffset >= sizeof(RtpPacketHeader), "payload offset is too small");
     const auto data = buffer->GetData();
-    std::memset(data, 0, payloadOffset);
-    const auto header = reinterpret_cast<RtpPacket::Header*>(data);
-    header->version = RtpPacket::Version; // default
+    const auto header = RtpPacketHeader::InitAsHeader(data);
     // workaround for fix issue with memory corruption in direct usage of RtpMemoryBufferPacket
     // TODO: solve this problem for production, maybe problem inside of RtpPacket::SetExtensions
     // because synthetic packet has no extensions and preallocated memory for that

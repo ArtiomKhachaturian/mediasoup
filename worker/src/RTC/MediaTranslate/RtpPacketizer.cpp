@@ -1,5 +1,5 @@
 #include "RTC/MediaTranslate/RtpPacketizer.hpp"
-#include "RTC/RtpPacket.hpp"
+#include "RTC/RtpPacketHeader.hpp"
 
 namespace RTC
 {
@@ -37,7 +37,7 @@ std::optional<RtpTranslatedPacket> RtpPacketizer::Create(Timestamp timestampOffs
 
 size_t RtpPacketizer::GetPayloadOffset() const
 {
-    return RtpPacket::HeaderSize;
+    return sizeof(RtpPacketHeader);
 }
 
 } // namespace RTC
