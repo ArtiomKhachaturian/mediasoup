@@ -12,7 +12,7 @@
 namespace RTC
 {
 
-    RtpPacketHeader* RtpPacketHeader::GetAsHeader(const uint8_t* data)
+    RtpPacketHeader* RtpPacketHeader::From(const uint8_t* data)
     {
         if (const auto raw = const_cast<uint8_t*>(data)) {
             return reinterpret_cast<RtpPacketHeader*>(raw);
@@ -20,10 +20,10 @@ namespace RTC
         return nullptr;
     }
 
-    RtpPacketHeader* RtpPacketHeader::InitAsHeader(uint8_t* data)
+    RtpPacketHeader* RtpPacketHeader::Init(uint8_t* data)
     {
-        if (const auto header = GetAsHeader(data)) {
-            std::memset(header, 0, sizeof(RtpPacketHeader));
+        if (const auto header = From(data)) {
+            std::memset(data, 0, sizeof(RtpPacketHeader));
             header->version = GetDefaultVersion();
             return header;
         }
@@ -34,8 +34,7 @@ namespace RTC
     {
         // DOC: https://tools.ietf.org/html/draft-ietf-avtcore-rfc5764-mux-fixes
         if (data && len >= sizeof(RtpPacketHeader) && data[0] > 127 && data[0] < 192) {
-            // RTP Version must be 2.
-            return GetAsHeader(data)->GetVersion() == GetDefaultVersion();
+            return From(data)->GetVersion() == GetDefaultVersion();
         }
         return false;
     }
@@ -51,11 +50,11 @@ namespace RTC
 		{
 			return nullptr;
 		}
+        
+        // Get the header.
+        auto* header = RtpPacketHeader::From(data);
 
 		auto* ptr = const_cast<uint8_t*>(data);
-
-		// Get the header.
-        auto* header = RtpPacketHeader::GetAsHeader(ptr);
 
 		// Inspect data after the minimum header size.
 		ptr += sizeof(RtpPacketHeader);
@@ -733,7 +732,7 @@ namespace RTC
 		std::memcpy(ptr, GetData(), numBytes);
 
 		// Set header pointer.
-		auto* newHeader = RtpPacketHeader::GetAsHeader(ptr);
+		auto* newHeader = RtpPacketHeader::From(ptr);
 
 		ptr += numBytes;
 

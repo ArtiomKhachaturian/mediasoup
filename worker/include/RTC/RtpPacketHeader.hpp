@@ -27,17 +27,23 @@ public:
     bool HasExtension() const { return this->extension; }
     void SetExtension(bool extension) { this->extension = extension; }
     // getters only
+    uint8_t GetVersion() const { return this->version; }
     uint8_t GetCsrcCount() const { return this->csrcCount; }
     size_t GetCsrcListSize() const { return GetCsrcCount() * sizeof(this->ssrc); }
-    uint8_t GetVersion() const { return this->version; }
     // helper routines
-    static constexpr uint8_t GetDefaultVersion() { return 2; }
-    static RtpPacketHeader* GetAsHeader(const uint8_t* data);
-    static RtpPacketHeader* InitAsHeader(uint8_t* data);
+    static RtpPacketHeader* From(const uint8_t* data);
+    static RtpPacketHeader* Init(uint8_t* data);
     static bool IsRtp(const uint8_t* data, size_t len);
 private:
     RtpPacketHeader() = default;
+    // RTP Version must be 2.
+    static constexpr uint8_t GetDefaultVersion() { return 2; }
 private:
+    // csrcCount + extension + padding + version -> +1  byte
+    // payloadType + marker                      -> +2  bytes
+    // sequenceNumber                            -> +4  bytes
+    // timestamp                                 -> +8  bytes
+    // ssrc                                      -> +12 bytes
 #if defined(MS_LITTLE_ENDIAN)
     uint8_t csrcCount : 4;
     uint8_t extension : 1;

@@ -20,12 +20,11 @@ RtpTranslatedPacket::RtpTranslatedPacket(const RtpCodecMimeType& mime,
     MS_ASSERT(buffer->GetSize() > sizeof(RtpPacketHeader), "buffer size is too small");
     MS_ASSERT(payloadOffset >= sizeof(RtpPacketHeader), "payload offset is too small");
     const auto data = buffer->GetData();
-    const auto header = RtpPacketHeader::InitAsHeader(data);
     // workaround for fix issue with memory corruption in direct usage of RtpMemoryBufferPacket
     // TODO: solve this problem for production, maybe problem inside of RtpPacket::SetExtensions
     // because synthetic packet has no extensions and preallocated memory for that
-    RtpPacket packet(header, nullptr, data + payloadOffset, payloadLength, 0U,
-                     payloadOffset + payloadLength, allocator);
+    RtpPacket packet(RtpPacketHeader::Init(data), nullptr, data + payloadOffset,
+                     payloadLength, 0U, payloadOffset + payloadLength, allocator);
     _impl.reset(packet.Clone());
     _impl->SetTranslated(true);
     Codecs::Tools::ProcessRtpPacket(_impl.get(), mime);
