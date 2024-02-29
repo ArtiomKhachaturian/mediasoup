@@ -25,13 +25,18 @@ FileWriter::~FileWriter()
 
 bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const std::shared_ptr<Buffer>& buffer)
 {
-    bool written = false;
-    if (buffer && !buffer->IsEmpty()) {
+    return buffer && WriteAll(fileNameUtf8, buffer->GetData(), buffer->GetSize());
+}
+
+bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const uint8_t* data, size_t len)
+{
+    bool ok = false;
+    if (data && len) {
         if (const auto handle = Base::OpenFile(fileNameUtf8, false)) {
-            written = FileWrite(handle, buffer) == buffer->GetSize();
+            ok = Write(handle, data, len) == len;
         }
     }
-    return written;
+    return ok;
 }
 
 bool FileWriter::DeleteFromStorage()
@@ -90,7 +95,7 @@ void FileWriter::WriteMediaPayload(const ObjectId&, const std::shared_ptr<Buffer
     if (const auto handle = GetHandle()) {
         if (buffer && !buffer->IsEmpty()) {
             const auto expected = buffer->GetSize();
-            const auto actual = FileWrite(handle, buffer);
+            const auto actual = Write(handle, buffer->GetData(), expected);
             if (expected != actual) {
                 MS_ERROR_STD("file write error, expected %zu but "
                              "written only %zu bytes, error code: %d",
@@ -106,11 +111,10 @@ void FileWriter::EndMediaWriting(const ObjectId& sender)
     Flush();
 }
 
-size_t FileWriter::FileWrite(const std::shared_ptr<FILE>& handle,
-                             const std::shared_ptr<Buffer>& buffer)
+size_t FileWriter::Write(const std::shared_ptr<FILE>& handle, const uint8_t* data, size_t len)
 {
-    if (handle && buffer) {
-        return ::fwrite(buffer->GetData(), 1U, buffer->GetSize(), handle.get());
+    if (handle && data && len) {
+        return ::fwrite(data, 1U, len, handle.get());
     }
     return 0UL;
 }

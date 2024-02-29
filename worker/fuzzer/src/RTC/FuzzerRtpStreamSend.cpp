@@ -32,12 +32,12 @@ void Fuzzer::RTC::RtpStreamSend::Fuzz(const uint8_t* data, size_t len)
 	TestRtpStreamListener testRtpStreamListener;
 
 	// Create RtpStreamSend instance.
-	::RTC::RtpStream::Params params;
+	::RTC::RtpStream::Params params(::RTC::RtpCodecMimeType::Type::VIDEO,
+                                    ::RTC::RtpCodecMimeType::Subtype::VP8);
 
 	params.ssrc          = 1111;
 	params.clockRate     = 90000;
 	params.useNack       = true;
-	params.mimeType.type = ::RTC::RtpCodecMimeType::Type::VIDEO;
 
 	packet->SetSsrc(params.ssrc);
 
