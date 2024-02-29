@@ -1,4 +1,5 @@
 #pragma once
+#include "RTC/Buffers/BufferAllocations.hpp"
 #include "RTC/MediaTranslate/FileDevice.hpp"
 #include "RTC/MediaTranslate/MediaSourceImpl.hpp"
 #include <atomic>
@@ -8,10 +9,10 @@ namespace RTC
 {
 
 
-class FileReader : public FileDevice<MediaSourceImpl>
+class FileReader : public FileDevice<BufferAllocations<MediaSourceImpl>>
 {
     class StartEndNotifier;
-    using Base = FileDevice<MediaSourceImpl>;
+    using Base = FileDevice<BufferAllocations<MediaSourceImpl>>;
 public:
 	FileReader(bool loop = true, size_t chunkSize = 1024U * 1024U /* 1mb */,
                const std::shared_ptr<BufferAllocator>& allocator = nullptr);

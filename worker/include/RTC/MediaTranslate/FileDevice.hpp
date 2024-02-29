@@ -1,5 +1,5 @@
 #pragma once
-#include "RTC/Buffers/BufferAllocations.hpp"
+#include "RTC/InheritanceSelector.hpp"
 #include <atomic>
 #include <memory>
 #include <string>
@@ -17,7 +17,7 @@ namespace RTC
 {
 
 template<class TBase>
-class FileDevice : public BufferAllocations<TBase>
+class FileDevice : public InheritanceSelector<TBase>
 {
 public:
     FileDevice(const FileDevice&) = delete;
@@ -29,8 +29,8 @@ public:
     // but IsOpen and Close may be called.
     virtual bool IsOpen() const { return nullptr != GetHandle(); }
 protected:
-    FileDevice(const std::shared_ptr<BufferAllocator>& allocator = nullptr,
-               std::shared_ptr<FILE> handle = nullptr);
+    template <class... Args>
+    FileDevice(Args&&... args);
     bool Open(const std::string_view& fileNameUtf8, bool readOnly, int* error = nullptr);
     // Closes the file, and implies Flush
     void Close();
@@ -42,10 +42,9 @@ private:
 };
 
 template<class TBase>
-FileDevice<TBase>::FileDevice(const std::shared_ptr<BufferAllocator>& allocator,
-                              std::shared_ptr<FILE> handle)
-    : BufferAllocations<TBase>(allocator)
-    , _handle(std::move(handle))
+template <class... Args>
+FileDevice<TBase>::FileDevice(Args&&... args)
+    : InheritanceSelector<TBase>(std::forward<Args>(args)...)
 {
 }
 
