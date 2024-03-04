@@ -44,8 +44,9 @@ public:
     EndPointInfo(std::shared_ptr<TranslatorEndPoint> endPoint);
     void BeginMediaPlay(uint64_t mediaId, const RtpPacketsTimeline& timeline);
     void EndMediaPlay(uint64_t mediaId);
-    bool AdvanceTimeline(const Timestamp& offset, RtpPacket* packet);
-    bool AdvanceTimeline(uint32_t offset, RtpPacket* packet);
+    bool AdvanceTranslatedPacket(const Timestamp& offset, RtpPacket* packet);
+    bool AdvanceTranslatedPacket(uint32_t offset, RtpPacket* packet);
+    RtpPacket* MapOriginalPacket(uint32_t offset, RtpPacket* packet);
     bool IsConnected() const { return _endPoint->IsConnected(); }
     uint64_t GetId() const { return _endPoint->GetId(); }
     void SetInputLanguageId(const std::string& languageId);
@@ -56,7 +57,6 @@ public:
                                      const Consumer* consumer);
     void SetOutputLanguageAndVoiceId(const Consumer* consumer);
     size_t GetOutputLanguageAndVoiceIdKey() const { return _outputLanguageAndVoiceIdKey.load(); }
-    RtpPacket* MapOriginalPacket(RtpPacket* packet, uint32_t timestampDelta);
 private:
     const std::shared_ptr<TranslatorEndPoint> _endPoint;
     ProtectedUniquePtr<RtpPacketsTimeline> _timeline;
@@ -210,7 +210,7 @@ void ConsumersManager::SendPacket(uint64_t mediaId, uint64_t endPointId,
         LOCK_READ_PROTECTED_OBJ(_endpoints);
         const auto it = _endpoints->find(endPointId);
         if (it != _endpoints->end()) {
-            if (it->second->AdvanceTimeline(packet.GetTimestampOffset(), rtp.get())) {
+            if (it->second->AdvanceTranslatedPacket(packet.GetTimestampOffset(), rtp.get())) {
                 if (output) {
                     rtp->SetAcceptedConsumers(GetConsumers(endPointId));
                     output->AddPacket(rtp.release(), _mappedSsrc, true);
@@ -305,22 +305,43 @@ void ConsumersManager::EndPointInfo::EndMediaPlay(uint64_t mediaId)
     MS_ASSERT(_playingMediaId.compare_exchange_strong(mediaId, 0UL), "playing was not started");
 }
 
-bool ConsumersManager::EndPointInfo::AdvanceTimeline(const Timestamp& offset, RtpPacket* packet)
+bool ConsumersManager::EndPointInfo::AdvanceTranslatedPacket(const Timestamp& offset,
+                                                             RtpPacket* packet)
 {
-    return packet && AdvanceTimeline(offset.GetRtpTime(), packet);
+    return packet && AdvanceTranslatedPacket(offset.GetRtpTime(), packet);
 }
 
-bool ConsumersManager::EndPointInfo::AdvanceTimeline(uint32_t offset, RtpPacket* packet)
+bool ConsumersManager::EndPointInfo::AdvanceTranslatedPacket(uint32_t offset,
+                                                             RtpPacket* packet)
 {
-    if (packet) {
+    if (packet && _playingMediaId.load()) {
         LOCK_READ_PROTECTED_OBJ(_timeline);
         if (const auto& timeline = _timeline.ConstRef()) {
+            if (0 == offset) { // 1st frame
+                offset = timeline->GetTimestampDelta();
+            }
             packet->SetTimestamp(timeline->AdvanceTimestamp(offset));
             packet->SetSequenceNumber(timeline->AdvanceSeqNumber());
             return true;
         }
     }
     return false;
+}
+
+RtpPacket* ConsumersManager::EndPointInfo::MapOriginalPacket(uint32_t offset,
+                                                             RtpPacket* packet)
+{
+    if (packet && !_playingMediaId.load()) {
+        LOCK_READ_PROTECTED_OBJ(_timeline);
+        if (const auto& timeline = _timeline.ConstRef()) {
+            packet = packet->Clone();
+            packet->SetTimestamp(timeline->AdvanceTimestamp(offset));
+            packet->SetSequenceNumber(timeline->AdvanceSeqNumber());
+            return packet;
+        }
+        return nullptr;
+    }
+    return packet;
 }
 
 void ConsumersManager::EndPointInfo::SetInputLanguageId(const std::string& languageId)
@@ -355,23 +376,6 @@ void ConsumersManager::EndPointInfo::SetOutputLanguageAndVoiceId(const Consumer*
     if (consumer) {
         SetOutputLanguageAndVoiceId(consumer->GetLanguageVoiceKey(), consumer);
     }
-}
-
-RtpPacket* ConsumersManager::EndPointInfo::MapOriginalPacket(RtpPacket* packet, uint32_t timestampDelta)
-{
-    if (packet) {
-        LOCK_READ_PROTECTED_OBJ(_timeline);
-        if (const auto& timeline = _timeline.ConstRef()) {
-            if (0UL == _playingMediaId.load()) {
-                packet = packet->Clone();
-                packet->SetTimestamp(timeline->AdvanceTimestamp(timestampDelta));
-                packet->SetSequenceNumber(timeline->AdvanceSeqNumber());
-                return packet;
-            }
-        }
-        return nullptr;
-    }
-    return packet;
 }
 
 /*RtpPacket* ConsumersManager::EndPointInfo::GetCorrectedPacket(RtpPacket* packet,
