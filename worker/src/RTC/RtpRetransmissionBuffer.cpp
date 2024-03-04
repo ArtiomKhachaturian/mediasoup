@@ -99,6 +99,8 @@ namespace RTC
 		const auto timestamp = packet->GetTimestamp();
 
 		MS_DEBUG_DEV("packet [seq:%" PRIu16 ", timestamp:%" PRIu32 "]", seq, timestamp);
+        
+        MS_ERROR_STD("Insert packet (%d SSRC), TS = %u, seq. num = %u", ssrc, timestamp, seq);
 
 		// Buffer is empty, so just insert new item.
 		if (this->buffer.empty())
@@ -556,6 +558,10 @@ namespace RTC
 		{
 			if (IsTooOldTimestamp(oldestItem->timestamp, newestTimestamp))
 			{
+                MS_ERROR_STD("Remove oldest packet (%d SSRC), TS = %u, seq. num = %u",
+                             oldestItem->ssrc,
+                             unsigned(oldestItem->timestamp),
+                             unsigned(oldestItem->sequenceNumber));
 				RemoveOldest();
 
 				itemsRemoved = true;

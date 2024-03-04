@@ -200,7 +200,7 @@ std::unique_ptr<FileWriter> TranslatorSource::CreateFileWriter(uint32_t ssrc,
 void TranslatorSource::OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc)
 {
     RtpPacketsPlayerCallback::OnPlayStarted(mediaId, mediaSourceId, ssrc);
-    _consumersManager.BeginPacketsSending(mediaId, mediaSourceId);
+    _consumersManager.BeginPacketsSending(mediaId, mediaSourceId, ssrc);
 }
 
 void TranslatorSource::OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet)
@@ -213,7 +213,7 @@ void TranslatorSource::OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTrans
 void TranslatorSource::OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc)
 {
     RtpPacketsPlayerCallback::OnPlayFinished(mediaId, mediaSourceId, ssrc);
-    _consumersManager.EndPacketsSending(mediaId, mediaSourceId);
+    _consumersManager.EndPacketsSending(mediaId, mediaSourceId, ssrc);
 }
 
 void TranslatorSource::NotifyThatConnectionEstablished(const ObjectId& endPoint,

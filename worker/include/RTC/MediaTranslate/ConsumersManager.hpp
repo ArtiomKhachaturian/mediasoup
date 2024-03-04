@@ -39,10 +39,10 @@ public:
     bool RemoveConsumer(Consumer* consumer);
     bool DispatchOriginalPacket(RtpPacket* packet, RtpPacketsCollector* collector);
     void NotifyThatConnected(uint64_t endPointId, bool connected);
-    void BeginPacketsSending(uint64_t mediaId, uint64_t endPointId);
+    void BeginPacketsSending(uint64_t mediaId, uint64_t endPointId, uint32_t ssrc);
     void SendPacket(uint64_t mediaId, uint64_t endPointId, RtpTranslatedPacket packet,
                     RtpPacketsCollector* output);
-    void EndPacketsSending(uint64_t mediaId, uint64_t endPointId);
+    void EndPacketsSending(uint64_t mediaId, uint64_t endPointId, uint32_t ssrc);
 private:
     std::shared_ptr<EndPointInfo> CreateEndPoint() const;
     std::shared_ptr<EndPointInfo> GetEndPoint(uint64_t endPointId) const;
