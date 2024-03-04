@@ -30,41 +30,41 @@ RtpPacketsTimeline::RtpPacketsTimeline(const RtpPacketsTimeline& other)
 {
 }
 
-uint32_t RtpPacketsTimeline::AdvanceTimestamp(uint32_t offset)
-{
-    if (offset) {
-        SetTimestamp(GetTimestamp() + offset);
-    }
-    return GetTimestamp();
-}
-
-uint32_t RtpPacketsTimeline::AdvanceTimestamp(const Timestamp& offset)
-{
-    MS_ASSERT(GetClockRate() == offset.GetClockRate(), "clock rate mistmatch");
-    return AdvanceTimestamp(offset.GetRtpTime());
-}
-
 void RtpPacketsTimeline::SetTimestamp(uint32_t timestamp)
 {
     const auto previous = _timestamp.exchange(timestamp);
-    if (previous) {
-        MS_ASSERT(timestamp >= previous, "incorrect timestamps order");
+    if (previous && timestamp >= previous) {
         _timestampDelta = timestamp - previous;
     }
+}
+
+uint32_t RtpPacketsTimeline::GetTimestamp() const
+{
+    return _timestamp.load();
 }
 
 void RtpPacketsTimeline::SetSeqNumber(uint16_t seqNumber)
 {
     const auto previous = _seqNumber.exchange(seqNumber);
-    if (previous) {
-        MS_ASSERT(seqNumber >= previous, "incorrect sequence numbers order");
+    if (previous != seqNumber) {
+        MS_ASSERT(0U == seqNumber || seqNumber >= previous, "incorrect sequence numbers order");
     }
+}
+
+uint16_t RtpPacketsTimeline::GetSeqNumber() const
+{
+    return _seqNumber.load();
 }
 
 uint16_t RtpPacketsTimeline::AdvanceSeqNumber()
 {
     SetSeqNumber((GetSeqNumber() + 1U) & 0xffff);
     return GetSeqNumber();
+}
+
+uint32_t RtpPacketsTimeline::GetTimestampDelta() const
+{
+    return _timestampDelta.load();
 }
 
 uint32_t RtpPacketsTimeline::GetEstimatedTimestampDelta(uint32_t clockRate, uint32_t ms)

@@ -1623,10 +1623,7 @@ namespace RTC
             return;
         }
         
-        if (this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet)) {
-            delete packet;
-            return;
-        }
+        this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet);
 
         // MS_DEBUG_DEV(
         //   "RTP packet received [ssrc:%" PRIu32 ", payloadType:%" PRIu8 ", producerId:%s]",

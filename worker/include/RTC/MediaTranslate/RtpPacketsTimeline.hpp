@@ -17,16 +17,14 @@ public:
     RtpPacketsTimeline(const RtpPacketsTimeline& other);
     RtpPacketsTimeline(RtpPacketsTimeline&&) = delete;
     uint32_t GetClockRate() const { return _clockRate; }
-    uint32_t AdvanceTimestamp(uint32_t offset);
-    uint32_t AdvanceTimestamp(const Timestamp& offset);
     void SetTimestamp(uint32_t timestamp);
-    uint32_t GetTimestamp() const { return _timestamp.load(); }
+    uint32_t GetTimestamp() const;
     uint32_t GetNextTimestamp() const { return GetTimestamp() + GetTimestampDelta(); }
     void SetSeqNumber(uint16_t seqNumber);
-    uint16_t GetSeqNumber() const { return _seqNumber.load(); }
+    uint16_t GetSeqNumber() const;
     // increase & return next seq. number
     uint16_t AdvanceSeqNumber();
-    uint32_t GetTimestampDelta() const { return _timestampDelta.load(); }
+    uint32_t GetTimestampDelta() const;
     RtpPacketsTimeline& operator = (const RtpPacketsTimeline&) = delete;
     RtpPacketsTimeline& operator = (RtpPacketsTimeline&&) = delete;
 private:

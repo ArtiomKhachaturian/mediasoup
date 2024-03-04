@@ -37,17 +37,19 @@ public:
     void AddConsumer(Consumer* consumer);
     void UpdateConsumer(Consumer* consumer);
     bool RemoveConsumer(Consumer* consumer);
-    bool DispatchOriginalPacket(RtpPacket* packet, RtpPacketsCollector* collector);
+    void DispatchOriginalPacket(RtpPacket* packet, RtpPacketsCollector* collector);
     void NotifyThatConnected(uint64_t endPointId, bool connected);
-    void BeginPacketsSending(uint64_t mediaId, uint64_t endPointId, uint32_t ssrc);
+    void BeginPacketsSending(uint64_t mediaId, uint64_t endPointId);
     void SendPacket(uint64_t mediaId, uint64_t endPointId, RtpTranslatedPacket packet,
                     RtpPacketsCollector* output);
-    void EndPacketsSending(uint64_t mediaId, uint64_t endPointId, uint32_t ssrc);
+    void EndPacketsSending(uint64_t mediaId, uint64_t endPointId);
 private:
     std::shared_ptr<EndPointInfo> CreateEndPoint() const;
     std::shared_ptr<EndPointInfo> GetEndPoint(uint64_t endPointId) const;
     std::shared_ptr<EndPointInfo> GetEndPoint(Consumer* consumer) const;
-    std::unordered_set<Consumer*> GetConsumers(uint64_t endPointId) const;
+    std::unordered_set<Consumer*> GetConsumers(uint64_t endPointId, bool alien) const;
+    auto GetMyConsumers(uint64_t endPointId) const { return GetConsumers(endPointId, false); }
+    auto GetAlienConsumers(uint64_t endPointId) const { return GetConsumers(endPointId, true); }
 private:
     TranslatorEndPointFactory* const _endPointsFactory;
     MediaSource* const _translationsInput;

@@ -118,11 +118,10 @@ uint32_t TranslatorSource::GetClockRate() const
     return _depacketizer->GetClockRate();
 }
 
-bool TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
+void TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
-    bool handled = false;
     if (packet) {
-        handled = _consumersManager.DispatchOriginalPacket(packet, _output);
+        _consumersManager.DispatchOriginalPacket(packet, _output);
         if (_serializer->HasSinks() || _serializer->HasTestSink()) {
             const auto makeDeepCopyOfPayload = _serializer->IsAsyncSerialization();
             bool configWasChanged = false;
@@ -136,13 +135,10 @@ bool TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
                         _serializer->SetConfig(_depacketizer->GetVideoConfig(packet));
                     }
                 }
-                if (_serializer->Write(frame.value())) {
-                    ++_addedPacketsCount;
-                }
+                _serializer->Write(frame.value());
             }
         }
     }
-    return handled;
 }
 
 void TranslatorSource::SetInputLanguage(const std::string& languageId)
@@ -200,7 +196,7 @@ std::unique_ptr<FileWriter> TranslatorSource::CreateFileWriter(uint32_t ssrc,
 void TranslatorSource::OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc)
 {
     RtpPacketsPlayerCallback::OnPlayStarted(mediaId, mediaSourceId, ssrc);
-    _consumersManager.BeginPacketsSending(mediaId, mediaSourceId, ssrc);
+    _consumersManager.BeginPacketsSending(mediaId, mediaSourceId);
 }
 
 void TranslatorSource::OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet)
@@ -213,7 +209,7 @@ void TranslatorSource::OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTrans
 void TranslatorSource::OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc)
 {
     RtpPacketsPlayerCallback::OnPlayFinished(mediaId, mediaSourceId, ssrc);
-    _consumersManager.EndPacketsSending(mediaId, mediaSourceId, ssrc);
+    _consumersManager.EndPacketsSending(mediaId, mediaSourceId);
 }
 
 void TranslatorSource::NotifyThatConnectionEstablished(const ObjectId& endPoint,

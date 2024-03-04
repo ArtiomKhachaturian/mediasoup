@@ -123,7 +123,7 @@ bool Translator::RemoveStream(uint32_t ssrc)
     return false;
 }
 
-bool Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
+void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     if (packet && !_producer->IsPaused()) {
         if (const auto ssrc = packet->GetSsrc()) {
@@ -137,11 +137,10 @@ bool Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
                 }
             }
             if (it != _originalSsrcToStreams->end()) {
-                return it->second->AddOriginalRtpPacketForTranslation(packet);
+                it->second->AddOriginalRtpPacketForTranslation(packet);
             }
         }
     }
-    return false;
 }
 
 const std::string& Translator::GetId() const

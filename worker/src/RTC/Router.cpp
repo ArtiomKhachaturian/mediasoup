@@ -690,6 +690,8 @@ namespace RTC
 #endif
 
         auto& consumers = this->mapProducerConsumers.at(producer);
+        
+        bool accepted = false;
 
         if (!consumers.empty())
         {
@@ -715,6 +717,8 @@ namespace RTC
                     }
                     
                     consumer->SendRtpPacket(packet, sharedPacket);
+                    
+                    accepted = true;
                 }
             }
 
@@ -723,16 +727,21 @@ namespace RTC
             DepLibUring::Submit();
 #endif
         }
-
-        auto it = this->mapProducerRtpObservers.find(producer);
-
-        if (it != this->mapProducerRtpObservers.end())
-        {
-            auto& rtpObservers = it->second;
-
-            for (auto* rtpObserver : rtpObservers)
+        else {
+            accepted = true;
+        }
+        
+        if (accepted) {
+            auto it = this->mapProducerRtpObservers.find(producer);
+            
+            if (it != this->mapProducerRtpObservers.end())
             {
-                rtpObserver->ReceiveRtpPacket(producer, packet);
+                auto& rtpObservers = it->second;
+                
+                for (auto* rtpObserver : rtpObservers)
+                {
+                    rtpObserver->ReceiveRtpPacket(producer, packet);
+                }
             }
         }
     }
@@ -1095,7 +1104,7 @@ namespace RTC
         delete transport;
     }
 
-    bool Router::OnTransportProducerRtpPacketTranslationRequired(RTC::Transport* transport,
+    void Router::OnTransportProducerRtpPacketTranslationRequired(RTC::Transport* transport,
                                                                  RTC::Producer* producer,
                                                                  RTC::RtpPacket* packet)
     {
@@ -1104,11 +1113,10 @@ namespace RTC
             if (itt != this->mapTransportTranslators.end()) {
                 const auto it = itt->second.find(producer);
                 if (it != itt->second.end()) {
-                    return it->second->AddOriginalRtpPacketForTranslation(packet);
+                    it->second->AddOriginalRtpPacketForTranslation(packet);
                 }
             }
         }
-        return false;
     }
 
     void Router::OnRtpObserverAddProducer(RTC::RtpObserver* rtpObserver, RTC::Producer* producer)

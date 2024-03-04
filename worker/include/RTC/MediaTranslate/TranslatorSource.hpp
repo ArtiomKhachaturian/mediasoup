@@ -50,8 +50,7 @@ public:
     uint8_t GetPayloadType() const { return _payloadType; }
     uint32_t GetOriginalSsrc() const { return _originalSsrc; }
     uint32_t GetMappedSsrc() const { return _mappedSsrc; }
-    uint64_t GetAddedPacketsCount() const { return _addedPacketsCount; }
-    bool AddOriginalRtpPacketForTranslation(RtpPacket* packet);
+    void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
     void SetInputLanguage(const std::string& languageId);
     void AddConsumer(Consumer* consumer);
     void UpdateConsumer(Consumer* consumer);
@@ -91,7 +90,6 @@ private:
     std::unique_ptr<FileWriter> _fileWriter;
 #endif
     ConsumersManager _consumersManager;
-    uint64_t _addedPacketsCount = 0ULL;
 };
 
 } // namespace RTC
