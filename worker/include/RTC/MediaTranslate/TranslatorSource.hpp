@@ -3,7 +3,6 @@
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayerCallback.hpp"
 #include "RTC/MediaTranslate/ConsumersManager.hpp"
 #include "RTC/MediaTranslate/TranslatorDefines.hpp"
-#include "ProtectedObj.hpp"
 #include <memory>
 #include <string>
 
@@ -23,6 +22,7 @@ class RtpStream;
 class RtpPacketsPlayer;
 class RtpPacketsCollector;
 class TranslatorEndPointFactory;
+class RtpPacketsTimeline2;
 
 class TranslatorSource : private RtpPacketsPlayerCallback, // receiver of translated audio (RTP) packets
                          private TranslatorEndPointSink // receiver of translated audio frames from end-point
@@ -56,8 +56,6 @@ public:
     void AddConsumer(Consumer* consumer);
     void UpdateConsumer(Consumer* consumer);
     void RemoveConsumer(Consumer* consumer);
-    bool IsConnected(Consumer* consumer) const;
-    void SaveProducerRtpPacketInfo(Consumer* consumer, const RtpPacket* packet);
 private:
 	TranslatorSource(uint32_t clockRate, uint32_t originalSsrc,
                      uint32_t mappedSsrc, uint8_t payloadType,
@@ -92,7 +90,7 @@ private:
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     std::unique_ptr<FileWriter> _fileWriter;
 #endif
-    ProtectedObj<ConsumersManager> _consumersManager;
+    ConsumersManager _consumersManager;
     uint64_t _addedPacketsCount = 0ULL;
 };
 

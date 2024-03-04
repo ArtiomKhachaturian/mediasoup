@@ -118,7 +118,7 @@ namespace RTC
             virtual void OnTransportDataConsumerDataProducerClosed(
               RTC::Transport* transport, RTC::DataConsumer* dataConsumer)         = 0;
             virtual void OnTransportListenServerClosed(RTC::Transport* transport) = 0;
-            virtual void OnTransportProducerRtpPacketTranslationRequired(
+            virtual bool OnTransportProducerRtpPacketTranslationRequired(
                   RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
         };
 
@@ -171,7 +171,7 @@ namespace RTC
         
         /* Methods inherited from RtpPacketsCollector. Used for translation service */
     public:
-        void AddPacket(RtpPacket* packet, uint32_t mappedSsrc) override;
+        void AddPacket(RtpPacket* packet, uint32_t mappedSsrc, bool destroyPacketAfter) override;
 
     protected:
         // Must be called from the subclass.

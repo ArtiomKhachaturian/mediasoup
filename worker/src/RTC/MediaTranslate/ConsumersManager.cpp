@@ -6,14 +6,14 @@
 #include "RTC/MediaTranslate/RtpPacketsTimeline.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/Consumer.hpp"
-#include "ProtectedObj.hpp"
+#include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 #include <atomic>
 
 namespace RTC
 {
 
-class ConsumersManager::ConsumerInfoImpl : public ConsumerInfo
+/*class ConsumersManager::ConsumerInfoImpl : public ConsumerInfo
 {
 public:
     ConsumerInfoImpl(size_t languageVoiceKey);
@@ -36,132 +36,184 @@ private:
     ProtectedWeakPtr<const TranslatorEndPoint> _endPointRef;
     RtpPacketsTimeline _producersTimeline;
     absl::flat_hash_map<uint64_t, RtpPacketsTimeline> _mediaTimelines;
+};*/
+
+class ConsumersManager::EndPointInfo
+{
+public:
+    EndPointInfo(std::shared_ptr<TranslatorEndPoint> endPoint);
+    void BeginMediaPlay(uint64_t mediaId, const RtpPacketsTimeline& timeline);
+    void EndMediaPlay(uint64_t mediaId);
+    bool AdvanceTimeline(const Timestamp& offset, RtpPacket* packet);
+    bool AdvanceTimeline(uint32_t offset, RtpPacket* packet);
+    bool IsConnected() const { return _endPoint->IsConnected(); }
+    uint64_t GetId() const { return _endPoint->GetId(); }
+    void SetInputLanguageId(const std::string& languageId);
+    void SetOutputLanguageAndVoiceId(size_t languageAndVoiceIdKey,
+                                     const std::string& languageId,
+                                     const std::string& voiceId);
+    void SetOutputLanguageAndVoiceId(size_t languageAndVoiceIdKey,
+                                     const Consumer* consumer);
+    void SetOutputLanguageAndVoiceId(const Consumer* consumer);
+    size_t GetOutputLanguageAndVoiceIdKey() const { return _outputLanguageAndVoiceIdKey.load(); }
+    RtpPacket* MapOriginalPacket(RtpPacket* packet, uint32_t timestampDelta);
+private:
+    const std::shared_ptr<TranslatorEndPoint> _endPoint;
+    ProtectedUniquePtr<RtpPacketsTimeline> _timeline;
+    std::atomic<size_t> _outputLanguageAndVoiceIdKey = 0U;
+    std::atomic<uint64_t> _playingMediaId = 0UL;
 };
 
 ConsumersManager::ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                                    MediaSource* translationsInput,
-                                   TranslatorEndPointSink* translationsOutput)
+                                   TranslatorEndPointSink* translationsOutput,
+                                   uint32_t mappedSsrc,
+                                   uint32_t clockRate, const RtpCodecMimeType& mime)
     : _endPointsFactory(endPointsFactory)
     , _translationsInput(translationsInput)
     , _translationsOutput(translationsOutput)
+    , _mappedSsrc(mappedSsrc)
+    , _originalTimeline(clockRate, mime)
+    , _inputLanguageId("auto")
 {
 }
 
 ConsumersManager::~ConsumersManager()
 {
-    for (auto ite = _endpoints.begin(); ite != _endpoints.end(); ++ite) {
-        ite->second.first->SetInputMediaSource(nullptr);
-        ite->second.first->RemoveOutputMediaSink(_translationsOutput);
-    }
+    LOCK_WRITE_PROTECTED_OBJ(_endpoints);
+    _endpoints->clear();
 }
 
 void ConsumersManager::SetInputLanguage(const std::string& languageId)
 {
-    if (_inputLanguageId != languageId) {
-        _inputLanguageId = languageId;
-        for (auto it = _endpoints.begin(); it != _endpoints.end(); ++it) {
-            it->second.first->SetInputLanguageId(languageId);
+    if (!languageId.empty()) {
+        LOCK_WRITE_PROTECTED_OBJ(_inputLanguageId);
+        if (_inputLanguageId.ConstRef() != languageId) {
+            _inputLanguageId = languageId;
+            LOCK_READ_PROTECTED_OBJ(_endpoints);
+            for (auto it = _endpoints->begin(); it != _endpoints->end(); ++it) {
+                it->second->SetInputLanguageId(languageId);
+            }
         }
     }
 }
 
-std::shared_ptr<ConsumerInfo> ConsumersManager::AddConsumer(Consumer* consumer)
+std::string ConsumersManager::GetInputLanguage() const
 {
-    std::shared_ptr<ConsumerInfoImpl> info;
+    LOCK_READ_PROTECTED_OBJ(_inputLanguageId);
+    return _inputLanguageId.ConstRef();
+}
+
+void ConsumersManager::AddConsumer(Consumer* consumer)
+{
     if (consumer) {
-        const auto it = _consumersInfo.find(consumer);
-        if (it == _consumersInfo.end()) {
+        LOCK_WRITE_PROTECTED_OBJ(_consumerToEndpointId);
+        if (!_consumerToEndpointId->count(consumer)) {
             const auto key = consumer->GetLanguageVoiceKey();
-            auto endPoint = GetEndPoint(key);
+            std::shared_ptr<EndPointInfo> endPoint;
+            LOCK_WRITE_PROTECTED_OBJ(_endpoints);
+            for (auto it = _endpoints->begin(); it != _endpoints->end(); ++it) {
+                if (it->second->GetOutputLanguageAndVoiceIdKey() == key) {
+                    endPoint = it->second;
+                    break;
+                }
+            }
             if (!endPoint) {
-                endPoint = AddNewEndPoint(consumer, key);
+                endPoint = CreateEndPoint();
+                if (endPoint) {
+                    endPoint->SetOutputLanguageAndVoiceId(key, consumer);
+                    _endpoints->insert(std::make_pair(endPoint->GetId(), endPoint));
+                }
             }
             if (endPoint) {
-                info = std::make_shared<ConsumerInfoImpl>(key);
-                info->SetEndPointRef(endPoint);
-                _consumersInfo[consumer] = info;
+                _consumerToEndpointId->insert(std::make_pair(consumer, endPoint->GetId()));
             }
         }
-        else {
-            UpdateConsumer(consumer, it->second);
-            info = it->second;
-        }
     }
-    return info;
 }
 
 void ConsumersManager::UpdateConsumer(Consumer* consumer)
 {
     if (consumer) {
-        const auto it = _consumersInfo.find(consumer);
+        /*const auto it = _consumersInfo.find(consumer);
         if (it != _consumersInfo.end()) {
             UpdateConsumer(consumer, it->second);
-        }
+        }*/
     }
-}
-
-std::shared_ptr<ConsumerInfo> ConsumersManager::GetConsumer(Consumer* consumer) const
-{
-    if (consumer) {
-        const auto it = _consumersInfo.find(consumer);
-        if (it != _consumersInfo.end()) {
-            return it->second;
-        }
-    }
-    return nullptr;
 }
 
 bool ConsumersManager::RemoveConsumer(Consumer* consumer)
 {
     if (consumer) {
-        const auto it = _consumersInfo.find(consumer);
-        if (it != _consumersInfo.end()) {
-            MS_ASSERT(it->second->GetLanguageVoiceKey() == consumer->GetLanguageVoiceKey(),
-                      "output language & voice changes was not reflected before");
-            const auto ite = _endpoints.find(it->second->GetLanguageVoiceKey());
-            if (ite != _endpoints.end() && 0ULL == --ite->second.second) { // decrease counter
-                ite->second.first->SetInputMediaSource(nullptr);
-                ite->second.first->RemoveOutputMediaSink(_translationsOutput);
-                _endpoints.erase(ite);
+        LOCK_WRITE_PROTECTED_OBJ(_consumerToEndpointId);
+        const auto itc = _consumerToEndpointId->find(consumer);
+        if (itc != _consumerToEndpointId->end()) {
+            size_t endPointUsersCount = 0UL;
+            for (auto it = _consumerToEndpointId->begin(); it != _consumerToEndpointId->end(); ++it) {
+                if (it != itc && it->second == itc->second) {
+                    ++endPointUsersCount;
+                }
             }
-            it->second->ResetEndPointRef();
-            _consumersInfo.erase(it);
+            if (!endPointUsersCount) {
+                LOCK_WRITE_PROTECTED_OBJ(_endpoints);
+                _endpoints->erase(itc->second);
+            }
+            _consumerToEndpointId->erase(itc);
             return true;
         }
     }
     return false;
 }
 
+bool ConsumersManager::DispatchOriginalPacket(RtpPacket* packet, RtpPacketsCollector* collector)
+{
+    bool processed = false;
+    if (packet) {
+        _originalTimeline.SetTimestamp(packet->GetTimestamp());
+        _originalTimeline.SetSeqNumber(packet->GetSequenceNumber());
+        if (collector) {
+            LOCK_READ_PROTECTED_OBJ(_endpoints);
+            processed = !_endpoints->empty();
+            /*for (auto it = _endpoints->begin(); it != _endpoints->end(); ++it) {
+                if (const auto mapped = it->second->MapOriginalPacket(packet,
+                                                                      _originalTimeline.GetTimestampDelta())) {
+                    mapped->SetAcceptedConsumers(GetConsumers(it->first));
+                    collector->AddPacket(mapped, _mappedSsrc, true);
+                }
+            }*/
+        }
+    }
+    return processed;
+}
+
+void ConsumersManager::NotifyThatConnected(uint64_t endPointId, bool connected)
+{
+    
+}
+
 void ConsumersManager::BeginPacketsSending(uint64_t mediaId, uint64_t endPointId)
 {
-    for (auto it = _consumersInfo.begin(); it != _consumersInfo.end(); ++it) {
-        if (it->second->GetEndPointId() == endPointId) {
-            it->second->BeginPacketsSending(mediaId);
+    if (endPointId) {
+        LOCK_READ_PROTECTED_OBJ(_endpoints);
+        const auto it = _endpoints->find(endPointId);
+        if (it != _endpoints->end()) {
+            it->second->BeginMediaPlay(mediaId, _originalTimeline);
         }
     }
 }
 
 void ConsumersManager::SendPacket(uint64_t mediaId, uint64_t endPointId,
-                                  RtpTranslatedPacket packet, uint32_t mappedSsrc,
+                                  RtpTranslatedPacket packet,
                                   RtpPacketsCollector* output)
 {
-    if (output) {
-        if (auto rtp = packet.Take()) {
-            std::list<std::shared_ptr<ConsumerInfoImpl>> accepted;
-            for (auto it = _consumersInfo.begin(); it != _consumersInfo.end(); ++it) {
-                if (it->second->GetEndPointId() == endPointId) {
-                    accepted.push_back(it->second);
-                }
-                else {
-                    rtp->AddRejectedConsumer(it->first);
-                }
-            }
-            if (!accepted.empty()) {
-                const auto needsCopy = accepted.size() > 1U;
-                for (const auto& consumerInfo : accepted) {
-                    const auto consumerPacket = needsCopy ? rtp->Clone() : rtp.release();
-                    consumerInfo->SendPacket(packet.GetTimestampOffset(), mediaId,
-                                             consumerPacket, mappedSsrc, output);
+    if (auto rtp = packet.Take()) {
+        LOCK_READ_PROTECTED_OBJ(_endpoints);
+        const auto it = _endpoints->find(endPointId);
+        if (it != _endpoints->end()) {
+            if (it->second->AdvanceTimeline(packet.GetTimestampOffset(), rtp.get())) {
+                if (output) {
+                    rtp->SetAcceptedConsumers(GetConsumers(endPointId));
+                    output->AddPacket(rtp.release(), _mappedSsrc, true);
                 }
             }
         }
@@ -170,14 +222,186 @@ void ConsumersManager::SendPacket(uint64_t mediaId, uint64_t endPointId,
 
 void ConsumersManager::EndPacketsSending(uint64_t mediaId, uint64_t endPointId)
 {
-    for (auto it = _consumersInfo.begin(); it != _consumersInfo.end(); ++it) {
-        if (it->second->GetEndPointId() == endPointId) {
-            it->second->EndPacketsSending(mediaId);
+    LOCK_READ_PROTECTED_OBJ(_endpoints);
+    const auto it = _endpoints->find(endPointId);
+    if (it != _endpoints->end()) {
+        it->second->EndMediaPlay(mediaId);
+    }
+}
+
+std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::CreateEndPoint() const
+{
+    if (auto endPoint = _endPointsFactory->CreateEndPoint()) {
+        if (!endPoint->AddOutputMediaSink(_translationsOutput)) {
+            // TODO: log error
+        }
+        else {
+            endPoint->SetInputMediaSource(_translationsInput);
+            endPoint->SetInputLanguageId(GetInputLanguage());
+            endPoint->AddOutputMediaSink(_translationsOutput);
+            return std::make_shared<EndPointInfo>(std::move(endPoint));
+        }
+    }
+    return nullptr;
+}
+
+std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::GetEndPoint(uint64_t endPointId) const
+{
+    if (endPointId) {
+        LOCK_READ_PROTECTED_OBJ(_endpoints);
+        const auto it = _endpoints->find(endPointId);
+        if (it != _endpoints->end()) {
+            return it->second;
+        }
+    }
+    return nullptr;
+}
+
+std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::GetEndPoint(Consumer* consumer) const
+{
+    if (consumer) {
+        LOCK_READ_PROTECTED_OBJ(_consumerToEndpointId);
+        const auto it = _consumerToEndpointId->find(consumer);
+        if (it != _consumerToEndpointId->end()) {
+            return GetEndPoint(it->second);
+        }
+    }
+    return nullptr;
+}
+
+std::unordered_set<Consumer*> ConsumersManager::GetConsumers(uint64_t endPointId) const
+{
+    if (endPointId) {
+        std::unordered_set<Consumer*> consumers;
+        LOCK_READ_PROTECTED_OBJ(_consumerToEndpointId);
+        for (auto it = _consumerToEndpointId->begin(); it != _consumerToEndpointId->end(); ++it) {
+            if (it->second == endPointId) {
+                consumers.insert(it->first);
+            }
+        }
+        return consumers;
+    }
+    return {};
+}
+
+ConsumersManager::EndPointInfo::EndPointInfo(std::shared_ptr<TranslatorEndPoint> endPoint)
+    : _endPoint(std::move(endPoint))
+{
+}
+
+void ConsumersManager::EndPointInfo::BeginMediaPlay(uint64_t mediaId,
+                                                    const RtpPacketsTimeline& timeline)
+{
+    uint64_t expected = 0UL;
+    MS_ASSERT(_playingMediaId.compare_exchange_strong(expected, mediaId), "previous playing is not finished");
+    LOCK_WRITE_PROTECTED_OBJ(_timeline);
+    if (!_timeline->get()) {
+        _timeline = std::make_unique<RtpPacketsTimeline>(timeline);
+    }
+}
+
+void ConsumersManager::EndPointInfo::EndMediaPlay(uint64_t mediaId)
+{
+    MS_ASSERT(_playingMediaId.compare_exchange_strong(mediaId, 0UL), "playing was not started");
+}
+
+bool ConsumersManager::EndPointInfo::AdvanceTimeline(const Timestamp& offset, RtpPacket* packet)
+{
+    return packet && AdvanceTimeline(offset.GetRtpTime(), packet);
+}
+
+bool ConsumersManager::EndPointInfo::AdvanceTimeline(uint32_t offset, RtpPacket* packet)
+{
+    if (packet) {
+        LOCK_READ_PROTECTED_OBJ(_timeline);
+        if (const auto& timeline = _timeline.ConstRef()) {
+            packet->SetTimestamp(timeline->AdvanceTimestamp(offset));
+            packet->SetSequenceNumber(timeline->AdvanceSeqNumber());
+            return true;
+        }
+    }
+    return false;
+}
+
+void ConsumersManager::EndPointInfo::SetInputLanguageId(const std::string& languageId)
+{
+    _endPoint->SetInputLanguageId(languageId);
+}
+
+void ConsumersManager::EndPointInfo::SetOutputLanguageAndVoiceId(size_t languageAndVoiceIdKey,
+                                                                 const std::string& languageId,
+                                                                 const std::string& voiceId)
+{
+    if (!languageId.empty() && !voiceId.empty()) {
+        if (languageAndVoiceIdKey != _outputLanguageAndVoiceIdKey.exchange(languageAndVoiceIdKey)) {
+            _endPoint->SetOutputLanguageId(languageId);
+            _endPoint->SetOutputVoiceId(voiceId);
         }
     }
 }
 
-std::shared_ptr<TranslatorEndPoint> ConsumersManager::AddNewEndPoint(const Consumer* consumer,
+void ConsumersManager::EndPointInfo::SetOutputLanguageAndVoiceId(size_t languageAndVoiceIdKey,
+                                                                 const Consumer* consumer)
+{
+    if (consumer) {
+        SetOutputLanguageAndVoiceId(languageAndVoiceIdKey,
+                                    consumer->GetLanguageId(),
+                                    consumer->GetVoiceId());
+    }
+}
+
+void ConsumersManager::EndPointInfo::SetOutputLanguageAndVoiceId(const Consumer* consumer)
+{
+    if (consumer) {
+        SetOutputLanguageAndVoiceId(consumer->GetLanguageVoiceKey(), consumer);
+    }
+}
+
+RtpPacket* ConsumersManager::EndPointInfo::MapOriginalPacket(RtpPacket* packet, uint32_t timestampDelta)
+{
+    if (packet) {
+        LOCK_READ_PROTECTED_OBJ(_timeline);
+        if (const auto& timeline = _timeline.ConstRef()) {
+            if (0UL == _playingMediaId.load()) {
+                packet = packet->Clone();
+                packet->SetTimestamp(timeline->AdvanceTimestamp(timestampDelta));
+                packet->SetSequenceNumber(timeline->AdvanceSeqNumber());
+                return packet;
+            }
+        }
+        return nullptr;
+    }
+    return packet;
+}
+
+/*RtpPacket* ConsumersManager::EndPointInfo::GetCorrectedPacket(RtpPacket* packet,
+                                                              uint32_t timestampDelta)
+{
+    if (packet) {
+        LOCK_READ_PROTECTED_OBJ(_timeline);
+        if (const auto& timeline = _timeline.ConstRef()) {
+            if (0UL == _playingMediaId.load()) {
+                timeline->AdvanceTimestamp(timestampDelta);
+                timeline->AdvanceSeqNumber();
+            }
+        }
+    }
+    return packet;
+}*/
+
+/*std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::GetEndPoint(size_t languageVoiceKey) const
+{
+    if (languageVoiceKey) {
+        LOCK_READ_PROTECTED_OBJ(_languageVoiceKeyToEndpointId);
+        const auto it = _languageVoiceKeyToEndpointId->find(languageVoiceKey);
+        if (it != _languageVoiceKeyToEndpointId->end()) {
+            return GetEndPointById(it->second);
+        }
+    }
+    return nullptr;
+}*/
+
+/*std::shared_ptr<TranslatorEndPoint> ConsumersManager::AddNewEndPoint(const Consumer* consumer,
                                                                      size_t key)
 {
     if (consumer && key) {
@@ -225,31 +449,9 @@ std::shared_ptr<TranslatorEndPoint> ConsumersManager::GetEndPoint(size_t key) co
         }
     }
     return nullptr;
-}
+}*/
 
-void ConsumersManager::UpdateConsumer(const Consumer* consumer,
-                                      const std::shared_ptr<ConsumerInfoImpl>& consumerInfo)
-{
-    if (consumer && consumerInfo) {
-        // TODO: complete this method
-        /*const auto it = _consumersSettings.find(consumer);
-        if (it != _consumersSettings.end()) {
-            const auto settingsKey = GetSettingsKey(consumer);
-            if (it->second != settingsKey) { // language or voice changed
-                const auto iteOld = _endpoints.find(it->second);
-                MS_ASSERT(iteOld != _endpoints.end(), "wrong consumer reference");
-                --iteOld->second.second;
-                const auto iteNew = _endpoints.find(settingsKey);
-                
-            }
-            return GetEndPoint(settingsKey);
-        }*/
-        MS_ASSERT(false, "not yet implemented");
-
-    }
-}
-
-ConsumersManager::ConsumerInfoImpl::ConsumerInfoImpl(size_t languageVoiceKey)
+/*ConsumersManager::ConsumerInfoImpl::ConsumerInfoImpl(size_t languageVoiceKey)
 {
     SetLanguageVoiceKey(languageVoiceKey);
 }
@@ -342,6 +544,6 @@ bool ConsumersManager::ConsumerInfoImpl::IsConnected() const
     LOCK_READ_PROTECTED_OBJ(_endPointRef);
     const auto endPoint = _endPointRef->lock();
     return endPoint && endPoint->IsConnected();
-}
+}*/
 
 } // namespace RTC

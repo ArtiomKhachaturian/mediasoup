@@ -113,7 +113,7 @@ namespace RTC
         void OnTransportDataConsumerDataProducerClosed(
           RTC::Transport* transport, RTC::DataConsumer* dataConsumer) override;
         void OnTransportListenServerClosed(RTC::Transport* transport) override;
-        void OnTransportProducerRtpPacketTranslationRequired(
+        bool OnTransportProducerRtpPacketTranslationRequired(
           RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) override;
 
         /* Pure virtual methods inherited from RTC::RtpObserver::Listener. */

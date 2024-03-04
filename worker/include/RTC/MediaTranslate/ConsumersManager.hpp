@@ -1,6 +1,9 @@
 #pragma once
 #include "RTC/MediaTranslate/RtpTranslatedPacket.hpp"
-#include <absl/container/flat_hash_map.h>
+#include "RTC/MediaTranslate/RtpPacketsTimeline.hpp"
+#include "ProtectedObj.hpp"
+#include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <string>
 
@@ -15,42 +18,47 @@ class TranslatorEndPoint;
 class TranslatorEndPointFactory;
 class RtpPacket;
 class RtpPacketsCollector;
+class RtpCodecMimeType;
 
 class ConsumersManager
 {
     // second is counter of consumers with the same output language & voice
-    using EndPointEntry = std::pair<std::shared_ptr<TranslatorEndPoint>, uint64_t>;
+    //using EndPointEntry = std::pair<std::shared_ptr<TranslatorEndPoint>, uint64_t>;
     class ConsumerInfoImpl;
+    class EndPointInfo;
 public:
     ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                      MediaSource* translationsInput,
-                     TranslatorEndPointSink* translationsOutput);
+                     TranslatorEndPointSink* translationsOutput,
+                     uint32_t mappedSsrc, uint32_t clockRate, const RtpCodecMimeType& mime);
     ~ConsumersManager();
     void SetInputLanguage(const std::string& languageId);
-    std::shared_ptr<ConsumerInfo> AddConsumer(Consumer* consumer);
+    std::string GetInputLanguage() const;
+    void AddConsumer(Consumer* consumer);
     void UpdateConsumer(Consumer* consumer);
-    std::shared_ptr<ConsumerInfo> GetConsumer(Consumer* consumer) const;
     bool RemoveConsumer(Consumer* consumer);
-    size_t GetSize() const { return _consumersInfo.size(); }
+    bool DispatchOriginalPacket(RtpPacket* packet, RtpPacketsCollector* collector);
+    void NotifyThatConnected(uint64_t endPointId, bool connected);
     void BeginPacketsSending(uint64_t mediaId, uint64_t endPointId);
     void SendPacket(uint64_t mediaId, uint64_t endPointId, RtpTranslatedPacket packet,
-                    uint32_t mappedSsrc, RtpPacketsCollector* output);
+                    RtpPacketsCollector* output);
     void EndPacketsSending(uint64_t mediaId, uint64_t endPointId);
 private:
-    std::shared_ptr<TranslatorEndPoint> AddNewEndPoint(const Consumer* consumer, size_t key);
-    std::shared_ptr<TranslatorEndPoint> CreateEndPoint() const;
-    std::shared_ptr<TranslatorEndPoint> GetEndPoint(const Consumer* consumer) const;
-    std::shared_ptr<TranslatorEndPoint> GetEndPoint(size_t key) const;
-    void UpdateConsumer(const Consumer* consumer, const std::shared_ptr<ConsumerInfoImpl>& consumerInfo);
+    std::shared_ptr<EndPointInfo> CreateEndPoint() const;
+    std::shared_ptr<EndPointInfo> GetEndPoint(uint64_t endPointId) const;
+    std::shared_ptr<EndPointInfo> GetEndPoint(Consumer* consumer) const;
+    std::unordered_set<Consumer*> GetConsumers(uint64_t endPointId) const;
 private:
     TranslatorEndPointFactory* const _endPointsFactory;
     MediaSource* const _translationsInput;
     TranslatorEndPointSink* const _translationsOutput;
-    std::string _inputLanguageId;
-    // consumer info contains combined hash of output language & voice for consumers
-    absl::flat_hash_map<Consumer*, std::shared_ptr<ConsumerInfoImpl>> _consumersInfo;
-    // key is combined hash from output language & voice
-    absl::flat_hash_map<size_t, EndPointEntry> _endpoints;
+    const uint32_t _mappedSsrc;
+    RtpPacketsTimeline _originalTimeline;
+    ProtectedObj<std::string> _inputLanguageId;
+    // key is end-point ID
+    ProtectedObj<std::unordered_map<uint64_t, std::shared_ptr<EndPointInfo>>> _endpoints;
+    // key is consumer ptr, value - end-point ID
+    ProtectedObj<std::unordered_map<Consumer*, uint64_t>> _consumerToEndpointId;
 };
 
 } // namespace RTC

@@ -1451,7 +1451,7 @@ namespace RTC
         }
     }
 
-    void Transport::AddPacket(RtpPacket* packet, uint32_t mappedSsrc)
+    void Transport::AddPacket(RtpPacket* packet, uint32_t mappedSsrc, bool destroyPacketAfter)
     {
         MS_TRACE();
         
@@ -1476,7 +1476,9 @@ namespace RTC
                                 packet->GetPayloadType());
                 }
             }
-            delete packet;
+            if (destroyPacketAfter) {
+                delete packet;
+            }
         }
     }
 
@@ -1621,7 +1623,10 @@ namespace RTC
             return;
         }
         
-        this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet);
+        if (this->listener->OnTransportProducerRtpPacketTranslationRequired(this, producer, packet)) {
+            delete packet;
+            return;
+        }
 
         // MS_DEBUG_DEV(
         //   "RTP packet received [ssrc:%" PRIu32 ", payloadType:%" PRIu8 ", producerId:%s]",

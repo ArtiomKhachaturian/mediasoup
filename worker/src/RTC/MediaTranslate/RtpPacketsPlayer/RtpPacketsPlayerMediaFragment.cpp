@@ -95,7 +95,7 @@ private:
     void Process(std::unique_ptr<Task> task);
     void Process(StartTask* startTask, std::optional<RtpTranslatedPacket> packet);
     bool ReadNextFrame(StartTask* startTask, bool enque);
-    void ClearTasks();
+    bool ClearTasks();
 private:
     const std::weak_ptr<MediaTimer> _timerRef;
     const ProtectedUniquePtr<MediaFrameDeserializer> _deserializer;
@@ -183,7 +183,14 @@ void RtpPacketsPlayerMediaFragment::TasksQueue::SetTimerId(uint64_t timerId)
             timer->Unregister(oldTimerId);
         }
         LOCK_WRITE_PROTECTED_OBJ(_tasks);
-        ClearTasks();
+        if (ClearTasks()) {
+            LOCK_WRITE_PROTECTED_OBJ(_startTask);
+            if (const auto startTask = _startTask.Take()) {
+                _callback->OnPlayFinished(startTask->GetMediaId(),
+                                          startTask->GetMediaSourceId(),
+                                          startTask->GetSsrc());
+            }
+        }
     }
 }
 
@@ -351,11 +358,15 @@ bool RtpPacketsPlayerMediaFragment::TasksQueue::ReadNextFrame(StartTask* startTa
     return ok;
 }
 
-void RtpPacketsPlayerMediaFragment::TasksQueue::ClearTasks()
+bool RtpPacketsPlayerMediaFragment::TasksQueue::ClearTasks()
 {
-    while (!_tasks->empty()) {
-        _tasks->pop();
+    if (!_tasks->empty()) {
+        while (!_tasks->empty()) {
+            _tasks->pop();
+        }
+        return true;
     }
+    return false;
 }
 
 } // namespace RTC

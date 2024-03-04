@@ -192,23 +192,22 @@ namespace RTC
 		MS_TRACE();
 	}
 
-    void RtpPacket::AddRejectedConsumer(Consumer* consumer)
+    void RtpPacket::AddAcceptedConsumer(Consumer* consumer)
     {
         if (consumer) {
-            rejectedConsumers.insert(consumer);
+            this->acceptedConsumers.insert(consumer);
         }
     }
-    
-    void RtpPacket::RemoveRejectedConsumer(Consumer* consumer)
+
+    void RtpPacket::SetAcceptedConsumers(std::unordered_set<Consumer*> consumers)
     {
-        if (consumer) {
-            rejectedConsumers.erase(consumer);
-        }
+        // assume that all consumers are non-null
+        this->acceptedConsumers = std::move(consumers);
     }
     
-    bool RtpPacket::ConsumerIsRejected(Consumer* consumer) const
+    bool RtpPacket::ConsumerIsAccepted(Consumer* consumer) const
     {
-        return consumer && rejectedConsumers.count(consumer) > 0UL;
+        return consumer && (this->acceptedConsumers.empty() || this->acceptedConsumers.count(consumer) > 0UL);
     }
 
 	void RtpPacket::Dump() const
@@ -798,7 +797,7 @@ namespace RTC
 		// Store allocated buffer.
 		packet->buffer = std::move(buffer);
         
-        packet->rejectedConsumers = this->rejectedConsumers;
+        packet->acceptedConsumers = this->acceptedConsumers;
 
 		return packet;
 	}

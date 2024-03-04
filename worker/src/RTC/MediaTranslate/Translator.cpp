@@ -123,7 +123,7 @@ bool Translator::RemoveStream(uint32_t ssrc)
     return false;
 }
 
-void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
+bool Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     if (packet && !_producer->IsPaused()) {
         if (const auto ssrc = packet->GetSsrc()) {
@@ -137,11 +137,11 @@ void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
                 }
             }
             if (it != _originalSsrcToStreams->end()) {
-                const auto added = it->second->AddOriginalRtpPacketForTranslation(packet);
-                PostProcessAfterAdding(packet, added, it->second.get());
+                return it->second->AddOriginalRtpPacketForTranslation(packet);
             }
         }
     }
+    return false;
 }
 
 const std::string& Translator::GetId() const
@@ -204,26 +204,6 @@ void Translator::AddConsumersToSource(TranslatorSource* source) const
         LOCK_READ_PROTECTED_OBJ(_consumers);
         for (const auto consumer : _consumers.ConstRef()) {
             source->AddConsumer(consumer);
-        }
-    }
-}
-
-void Translator::PostProcessAfterAdding(RtpPacket* packet, bool added, TranslatorSource* source)
-{
-    if (packet && source) {
-        LOCK_READ_PROTECTED_OBJ(_consumers);
-        if (!_consumers->empty()) {
-            const auto playing = _rtpPacketsPlayer->IsPlaying(source->GetOriginalSsrc());
-            const auto saveInfo = !added || source->GetAddedPacketsCount() < 2UL;
-            for (const auto consumer : _consumers.ConstRef()) {
-                const auto reject = added && (playing || source->IsConnected(consumer));
-                if (reject) {
-                    packet->AddRejectedConsumer(consumer);
-                }
-                if (saveInfo || !reject) {
-                    source->SaveProducerRtpPacketInfo(consumer, packet);
-                }
-            }
         }
     }
 }

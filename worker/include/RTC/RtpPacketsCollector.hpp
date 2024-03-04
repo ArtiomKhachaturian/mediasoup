@@ -10,7 +10,8 @@ class Consumer;
 class RtpPacketsCollector
 {
 public:
-	virtual void AddPacket(RtpPacket* packet, uint32_t mappedSsrc) = 0;
+	virtual void AddPacket(RtpPacket* packet, uint32_t mappedSsrc,
+                           bool destroyPacketAfter = true) = 0;
 protected:
 	virtual ~RtpPacketsCollector() = default;
 };

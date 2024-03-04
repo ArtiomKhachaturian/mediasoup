@@ -705,7 +705,7 @@ namespace RTC
 
             for (auto* consumer : consumers)
             {
-                if (!packet->ConsumerIsRejected(consumer)) {
+                if (packet->ConsumerIsAccepted(consumer)) {
                     // Update MID RTP extension value.
                     const auto& mid = consumer->GetRtpParameters().mid;
                     
@@ -1095,7 +1095,7 @@ namespace RTC
         delete transport;
     }
 
-    void Router::OnTransportProducerRtpPacketTranslationRequired(RTC::Transport* transport,
+    bool Router::OnTransportProducerRtpPacketTranslationRequired(RTC::Transport* transport,
                                                                  RTC::Producer* producer,
                                                                  RTC::RtpPacket* packet)
     {
@@ -1104,10 +1104,11 @@ namespace RTC
             if (itt != this->mapTransportTranslators.end()) {
                 const auto it = itt->second.find(producer);
                 if (it != itt->second.end()) {
-                    it->second->AddOriginalRtpPacketForTranslation(packet);
+                    return it->second->AddOriginalRtpPacketForTranslation(packet);
                 }
             }
         }
+        return false;
     }
 
     void Router::OnRtpObserverAddProducer(RTC::RtpObserver* rtpObserver, RTC::Producer* producer)

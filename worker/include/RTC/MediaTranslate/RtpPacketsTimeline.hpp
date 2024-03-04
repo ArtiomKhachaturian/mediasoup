@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <cstdint>
 
 namespace RTC
@@ -6,26 +7,35 @@ namespace RTC
 
 class RtpPacket;
 class Timestamp;
+class RtpCodecMimeType;
 
 class RtpPacketsTimeline
 {
 public:
-    RtpPacketsTimeline() = default;
-    RtpPacketsTimeline(const RtpPacketsTimeline&) = default;
-    void CopyPacketInfoFrom(const RtpPacket* packet);
-    uint16_t GetTimestampDelta() const { return _timestampDelta; }
-    uint32_t GetLastTimestamp() const { return _lastTimestamp; }
-    void SetLastTimestamp(uint32_t lastTimestamp);
-    uint32_t GetNextTimestamp() const;
-    uint16_t GetLastSeqNumber() const { return _lastSeqNumber; }
-    void SetLastSeqNumber(uint16_t seqNumber) { _lastSeqNumber = seqNumber; }
-    uint16_t GetNextSeqNumber();
-    void Reset();
-    RtpPacketsTimeline& operator = (const RtpPacketsTimeline&) = default;
+    RtpPacketsTimeline() = delete;
+    RtpPacketsTimeline(uint32_t clockRate, const RtpCodecMimeType& mime);
+    RtpPacketsTimeline(const RtpPacketsTimeline& other);
+    RtpPacketsTimeline(RtpPacketsTimeline&&) = delete;
+    uint32_t GetClockRate() const { return _clockRate; }
+    uint32_t AdvanceTimestamp(uint32_t offset);
+    uint32_t AdvanceTimestamp(const Timestamp& offset);
+    void SetTimestamp(uint32_t timestamp);
+    uint32_t GetTimestamp() const { return _timestamp.load(); }
+    uint32_t GetNextTimestamp() const { return GetTimestamp() + GetTimestampDelta(); }
+    void SetSeqNumber(uint16_t seqNumber);
+    uint16_t GetSeqNumber() const { return _seqNumber.load(); }
+    // increase & return next seq. number
+    uint16_t AdvanceSeqNumber();
+    uint32_t GetTimestampDelta() const { return _timestampDelta.load(); }
+    RtpPacketsTimeline& operator = (const RtpPacketsTimeline&) = delete;
+    RtpPacketsTimeline& operator = (RtpPacketsTimeline&&) = delete;
 private:
-    uint32_t _lastTimestamp = 0U;
-    uint16_t _lastSeqNumber = 0U;
-    uint16_t _timestampDelta = 0U;
+    static uint32_t GetEstimatedTimestampDelta(uint32_t clockRate, uint32_t ms);
+private:
+    const uint32_t _clockRate;
+    std::atomic<uint32_t> _timestamp = 0U;
+    std::atomic<uint16_t> _seqNumber = 0U;
+    std::atomic<uint32_t> _timestampDelta = 0U;
 };
 
 } // namespace RTC

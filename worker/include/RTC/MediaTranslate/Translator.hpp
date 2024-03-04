@@ -34,7 +34,7 @@ public:
                                               const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     bool AddStream(const RtpStream* stream, uint32_t mappedSsrc);
     bool RemoveStream(uint32_t ssrc);
-    void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
+    bool AddOriginalRtpPacketForTranslation(RtpPacket* packet);
     const std::string& GetId() const;
     void AddConsumer(Consumer* consumer);
     void RemoveConsumer(Consumer* consumer);
@@ -47,7 +47,6 @@ private:
                RtpPacketsCollector* output,
                const std::shared_ptr<BufferAllocator>& allocator);
     void AddConsumersToSource(TranslatorSource* source) const;
-    void PostProcessAfterAdding(RtpPacket* packet, bool added, TranslatorSource* source);
 #ifdef NO_TRANSLATION_SERVICE
     std::shared_ptr<TranslatorEndPoint> CreateStubEndPoint() const;
     std::shared_ptr<TranslatorEndPoint> CreateMaybeFileEndPoint() const;

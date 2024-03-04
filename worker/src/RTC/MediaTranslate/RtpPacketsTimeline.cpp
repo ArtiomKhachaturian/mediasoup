@@ -1,46 +1,77 @@
+#define MS_CLASS "RTC::RtpPacketsTimeline"
 #include "RTC/MediaTranslate/RtpPacketsTimeline.hpp"
 #include "RTC/Timestamp.hpp"
-#include "RTC/RtpPacket.hpp"
+#include "RTC/RtpDictionaries.hpp"
+#include "RTC/Timestamp.hpp"
+#include "Logger.hpp"
 
 namespace RTC
 {
 
-void RtpPacketsTimeline::CopyPacketInfoFrom(const RtpPacket* packet)
+RtpPacketsTimeline::RtpPacketsTimeline(uint32_t clockRate, const RtpCodecMimeType& mime)
+    : _clockRate(clockRate)
 {
-    if (packet) {
-        _lastSeqNumber = packet->GetSequenceNumber();
-        SetLastTimestamp(packet->GetTimestamp());
+    switch (mime.GetSubtype()) {
+        case RtpCodecMimeType::Subtype::OPUS:
+        case RtpCodecMimeType::Subtype::MULTIOPUS:
+            // 20 ms is default interval in OPUS encoder
+            _timestampDelta = GetEstimatedTimestampDelta(_clockRate, 20U);
+            break;
+        default:
+            break;
     }
 }
 
-uint32_t RtpPacketsTimeline::GetNextTimestamp() const
+RtpPacketsTimeline::RtpPacketsTimeline(const RtpPacketsTimeline& other)
+    : _clockRate(other.GetClockRate())
+    , _timestamp(other.GetTimestamp())
+    , _seqNumber(other.GetSeqNumber())
+    , _timestampDelta(other.GetTimestampDelta())
 {
-    return GetLastTimestamp() + GetTimestampDelta();
 }
 
-uint16_t RtpPacketsTimeline::GetNextSeqNumber()
+uint32_t RtpPacketsTimeline::AdvanceTimestamp(uint32_t offset)
 {
-    //const auto number = _lastSeqNumber;
-    //_lastSeqNumber = (_lastSeqNumber + 1U) & 0xffff;
-    //return number;
-    _lastSeqNumber = (_lastSeqNumber + 1U) & 0xffff;
-    return _lastSeqNumber;
+    if (offset) {
+        SetTimestamp(GetTimestamp() + offset);
+    }
+    return GetTimestamp();
 }
 
-void RtpPacketsTimeline::SetLastTimestamp(uint32_t lastTimestamp)
+uint32_t RtpPacketsTimeline::AdvanceTimestamp(const Timestamp& offset)
 {
-    if (_lastTimestamp != lastTimestamp) {
-        if (_lastTimestamp && lastTimestamp > _lastTimestamp) {
-            _timestampDelta = lastTimestamp - _lastTimestamp;
-        }
-        _lastTimestamp = lastTimestamp;
+    MS_ASSERT(GetClockRate() == offset.GetClockRate(), "clock rate mistmatch");
+    return AdvanceTimestamp(offset.GetRtpTime());
+}
+
+void RtpPacketsTimeline::SetTimestamp(uint32_t timestamp)
+{
+    const auto previous = _timestamp.exchange(timestamp);
+    if (previous) {
+        MS_ASSERT(timestamp >= previous, "incorrect timestamps order");
+        _timestampDelta = timestamp - previous;
     }
 }
 
-void RtpPacketsTimeline::Reset()
+void RtpPacketsTimeline::SetSeqNumber(uint16_t seqNumber)
 {
-    _lastTimestamp = 0U;
-    _lastSeqNumber = _timestampDelta = 0U;
+    const auto previous = _seqNumber.exchange(seqNumber);
+    if (previous) {
+        MS_ASSERT(seqNumber >= previous, "incorrect sequence numbers order");
+    }
+}
+
+uint16_t RtpPacketsTimeline::AdvanceSeqNumber()
+{
+    SetSeqNumber((GetSeqNumber() + 1U) & 0xffff);
+    return GetSeqNumber();
+}
+
+uint32_t RtpPacketsTimeline::GetEstimatedTimestampDelta(uint32_t clockRate, uint32_t ms)
+{
+    Timestamp offset(clockRate);
+    offset.SetTime(webrtc::Timestamp::ms(ms));
+    return offset.GetRtpTime();
 }
 
 } // namespace RTC

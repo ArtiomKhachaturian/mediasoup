@@ -11,10 +11,10 @@
 #endif
 #include <flatbuffers/flatbuffers.h>
 #include <absl/container/flat_hash_map.h>
-#include <absl/container/flat_hash_set.h>
 #include <array>
 #include <memory>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace RTC
@@ -116,9 +116,9 @@ namespace RTC
           const std::shared_ptr<BufferAllocator>& allocator = nullptr);
         ~RtpPacket();
 
-        void AddRejectedConsumer(Consumer* consumer);
-        void RemoveRejectedConsumer(Consumer* consumer);
-        bool ConsumerIsRejected(Consumer* consumer) const;
+        void AddAcceptedConsumer(Consumer* consumer);
+        void SetAcceptedConsumers(std::unordered_set<Consumer*> consumers);
+        bool ConsumerIsAccepted(Consumer* consumer) const;
         
 		void Dump() const;
 		flatbuffers::Offset<FBS::RtpPacket::Dump> FillBuffer(flatbuffers::FlatBufferBuilder& builder) const;
@@ -657,7 +657,7 @@ namespace RTC
         std::shared_ptr<BufferAllocator> allocator;
 		// Codecs
 		std::shared_ptr<Codecs::PayloadDescriptorHandler> payloadDescriptorHandler;
-        absl::flat_hash_set<Consumer*> rejectedConsumers;
+        std::unordered_set<Consumer*> acceptedConsumers;
 	};
 } // namespace RTC
 

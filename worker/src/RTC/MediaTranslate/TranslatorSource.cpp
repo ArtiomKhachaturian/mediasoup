@@ -35,7 +35,8 @@ TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc,
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     , _fileWriter(CreateFileWriter(GetOriginalSsrc(), producerId, _serializer.get()))
 #endif
-    , _consumersManager(endPointsFactory, _serializer.get(), GetMediaReceiver())
+    , _consumersManager(endPointsFactory, _serializer.get(), GetMediaReceiver(),
+                        mappedSsrc, clockRate, _serializer->GetMimeType())
 {
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     if (_fileWriter && !_serializer->AddTestSink(_fileWriter.get())) {
@@ -44,6 +45,8 @@ TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc,
         _fileWriter.reset();
     }
 #endif
+    _rtpPacketsPlayer->AddStream(GetOriginalSsrc(), GetClockRate(),
+                                 GetPayloadType(), GetMime(), this);
 }
 
 TranslatorSource::~TranslatorSource()
@@ -118,22 +121,24 @@ uint32_t TranslatorSource::GetClockRate() const
 bool TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     bool handled = false;
-    if (packet && (_serializer->HasSinks() || _serializer->HasTestSink())) {
-        const auto makeDeepCopyOfPayload = _serializer->IsAsyncSerialization();
-        bool configWasChanged = false;
-        if (auto frame = _depacketizer->AddPacket(packet, makeDeepCopyOfPayload,
-                                                  &configWasChanged)) {
-            if (configWasChanged) {
-                if (_depacketizer->GetMimeType().IsAudioCodec()) {
-                    _serializer->SetConfig(_depacketizer->GetAudioConfig(packet));
+    if (packet) {
+        handled = _consumersManager.DispatchOriginalPacket(packet, _output);
+        if (_serializer->HasSinks() || _serializer->HasTestSink()) {
+            const auto makeDeepCopyOfPayload = _serializer->IsAsyncSerialization();
+            bool configWasChanged = false;
+            if (auto frame = _depacketizer->AddPacket(packet, makeDeepCopyOfPayload,
+                                                      &configWasChanged)) {
+                if (configWasChanged) {
+                    if (_depacketizer->GetMimeType().IsAudioCodec()) {
+                        _serializer->SetConfig(_depacketizer->GetAudioConfig(packet));
+                    }
+                    else if (_depacketizer->GetMimeType().IsVideoCodec()) {
+                        _serializer->SetConfig(_depacketizer->GetVideoConfig(packet));
+                    }
                 }
-                else if (_depacketizer->GetMimeType().IsVideoCodec()) {
-                    _serializer->SetConfig(_depacketizer->GetVideoConfig(packet));
+                if (_serializer->Write(frame.value())) {
+                    ++_addedPacketsCount;
                 }
-            }
-            handled = _serializer->Write(frame.value());
-            if (handled) {
-                ++_addedPacketsCount;
             }
         }
     }
@@ -142,61 +147,22 @@ bool TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 
 void TranslatorSource::SetInputLanguage(const std::string& languageId)
 {
-    LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-    _consumersManager->SetInputLanguage(languageId);
+    _consumersManager.SetInputLanguage(languageId);
 }
 
 void TranslatorSource::AddConsumer(Consumer* consumer)
 {
-    if (consumer) {
-        LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-        if (0U == _consumersManager->GetSize()) { // 1st
-            _rtpPacketsPlayer->AddStream(GetOriginalSsrc(), GetClockRate(),
-                                         GetPayloadType(), GetMime(), this);
-        }
-        _consumersManager->AddConsumer(consumer);
-    }
+    _consumersManager.AddConsumer(consumer);
 }
 
 void TranslatorSource::UpdateConsumer(Consumer* consumer)
 {
-    if (consumer) {
-        LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-        _consumersManager->UpdateConsumer(consumer);
-    }
+    _consumersManager.UpdateConsumer(consumer);
 }
 
 void TranslatorSource::RemoveConsumer(Consumer* consumer)
 {
-    if (consumer) {
-        LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-        _consumersManager->RemoveConsumer(consumer);
-        if (0U == _consumersManager->GetSize()) { // last
-            _rtpPacketsPlayer->RemoveStream(GetOriginalSsrc());
-        }
-    }
-}
-
-bool TranslatorSource::IsConnected(Consumer* consumer) const
-{
-    if (consumer) {
-        LOCK_READ_PROTECTED_OBJ(_consumersManager);
-        if (const auto info = _consumersManager->GetConsumer(consumer)) {
-            return info->IsConnected();
-        }
-    }
-    return false;
-}
-
-void TranslatorSource::SaveProducerRtpPacketInfo(Consumer* consumer,
-                                                         const RtpPacket* packet)
-{
-    if (consumer && packet) {
-        LOCK_READ_PROTECTED_OBJ(_consumersManager);
-        if (const auto info = _consumersManager->GetConsumer(consumer)) {
-            info->SaveProducerRtpPacketInfo(packet);
-        }
-    }
+    _consumersManager.RemoveConsumer(consumer);
 }
 
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
@@ -234,30 +200,27 @@ std::unique_ptr<FileWriter> TranslatorSource::CreateFileWriter(uint32_t ssrc,
 void TranslatorSource::OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc)
 {
     RtpPacketsPlayerCallback::OnPlayStarted(mediaId, mediaSourceId, ssrc);
-    LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-    _consumersManager->BeginPacketsSending(mediaId, mediaSourceId);
+    _consumersManager.BeginPacketsSending(mediaId, mediaSourceId);
 }
 
 void TranslatorSource::OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet)
 {
     if (packet) {
-        LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-        _consumersManager->SendPacket(mediaId, mediaSourceId, std::move(packet),
-                                      GetMappedSsrc(), _output);
+        _consumersManager.SendPacket(mediaId, mediaSourceId, std::move(packet), _output);
     }
 }
 
 void TranslatorSource::OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc)
 {
     RtpPacketsPlayerCallback::OnPlayFinished(mediaId, mediaSourceId, ssrc);
-    LOCK_WRITE_PROTECTED_OBJ(_consumersManager);
-    _consumersManager->EndPacketsSending(mediaId, mediaSourceId);
+    _consumersManager.EndPacketsSending(mediaId, mediaSourceId);
 }
 
 void TranslatorSource::NotifyThatConnectionEstablished(const ObjectId& endPoint,
                                                        bool connected)
 {
     TranslatorEndPointSink::NotifyThatConnectionEstablished(endPoint, connected);
+    _consumersManager.NotifyThatConnected(endPoint.GetId(), connected);
     if (!connected) {
         _rtpPacketsPlayer->Stop(GetOriginalSsrc(), endPoint.GetId());
     }
