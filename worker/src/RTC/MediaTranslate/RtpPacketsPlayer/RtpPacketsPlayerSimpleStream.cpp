@@ -64,19 +64,27 @@ void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId,
 
 void RtpPacketsPlayerSimpleStream::Stop(uint64_t mediaSourceId, uint64_t mediaId)
 {
-    LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
-    const auto it = _playingMedias->find(mediaSourceId);
-    if (it != _playingMedias->end()) {
-        if (mediaId) {
-            it->second.erase(mediaId);
-        }
-        else {
-            it->second.clear();
-        }
-        if (it->second.empty()) {
-            _playingMedias->erase(it);
+    MediaFragmentsMap fragments;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
+        const auto it = _playingMedias->find(mediaSourceId);
+        if (it != _playingMedias->end()) {
+            if (mediaId) {
+                const auto itm = it->second.find(mediaId);
+                if (itm != it->second.end()) {
+                    fragments[mediaId] = std::move(itm->second);
+                    it->second.erase(itm);
+                }
+            }
+            else {
+                fragments = std::move(it->second);
+            }
+            if (it->second.empty()) {
+                _playingMedias->erase(it);
+            }
         }
     }
+    fragments.clear();
 }
 
 bool RtpPacketsPlayerSimpleStream::IsPlaying() const
