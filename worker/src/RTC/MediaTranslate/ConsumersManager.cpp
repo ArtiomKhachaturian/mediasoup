@@ -297,6 +297,9 @@ void ConsumersManager::EndPointInfo::BeginMediaPlay(uint64_t mediaId,
     LOCK_WRITE_PROTECTED_OBJ(_timeline);
     if (!_timeline->get()) {
         _timeline = std::make_unique<RtpPacketsTimeline>(timeline);
+        MS_ERROR_STD("Fix timeline, TS = %u, seq. num = %u",
+                     unsigned(_timeline->get()->GetTimestamp()),
+                     unsigned(_timeline->get()->GetSeqNumber()));
     }
 }
 
@@ -322,6 +325,9 @@ bool ConsumersManager::EndPointInfo::AdvanceTranslatedPacket(uint32_t offset,
             }
             packet->SetTimestamp(timeline->AdvanceTimestamp(offset));
             packet->SetSequenceNumber(timeline->AdvanceSeqNumber());
+            MS_ERROR_STD("Fixed timeline after advance, TS = %u, seq. num = %u",
+                         unsigned(_timeline->get()->GetTimestamp()),
+                         unsigned(_timeline->get()->GetSeqNumber()));
             return true;
         }
     }
