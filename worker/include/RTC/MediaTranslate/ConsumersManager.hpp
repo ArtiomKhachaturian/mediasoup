@@ -11,7 +11,6 @@ namespace RTC
 {
 
 class Consumer;
-class ConsumerInfo;
 class MediaSource;
 class TranslatorEndPointSink;
 class TranslatorEndPoint;
@@ -22,9 +21,6 @@ class RtpCodecMimeType;
 
 class ConsumersManager
 {
-    // second is counter of consumers with the same output language & voice
-    //using EndPointEntry = std::pair<std::shared_ptr<TranslatorEndPoint>, uint64_t>;
-    class ConsumerInfoImpl;
     class EndPointInfo;
 public:
     ConsumersManager(TranslatorEndPointFactory* endPointsFactory,

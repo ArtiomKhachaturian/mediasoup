@@ -4,7 +4,6 @@
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "RTC/MediaTranslate/WebM/WebMSerializer.hpp"
-#include "RTC/MediaTranslate/ConsumerInfo.hpp"
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
 #endif

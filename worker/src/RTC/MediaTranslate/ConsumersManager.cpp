@@ -1,6 +1,5 @@
 #define MS_CLASS "RTC::ConsumersManager"
 #include "RTC/MediaTranslate/ConsumersManager.hpp"
-#include "RTC/MediaTranslate/ConsumerInfo.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointFactory.hpp"
 #include "RTC/MediaTranslate/RtpPacketsTimeline.hpp"
