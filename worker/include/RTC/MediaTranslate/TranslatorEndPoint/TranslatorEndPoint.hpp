@@ -24,6 +24,7 @@ public:
     void SetInputMediaSource(MediaSource* inputMediaSource);
     bool AddOutputMediaSink(TranslatorEndPointSink* sink);
     bool RemoveOutputMediaSink(TranslatorEndPointSink* sink);
+    void RemoveAllOutputMediaSinks();
     bool HasOutputMediaSinks() const { return !_outputMediaSinks.IsEmpty(); }
     // language settings
     void SetInputLanguageId(const std::string& languageId);

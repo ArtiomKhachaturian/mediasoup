@@ -8,6 +8,7 @@
 #include "ProtectedObj.hpp"
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
+#include <atomic>
 #include <unordered_map>
 #include <queue>
 
@@ -88,6 +89,8 @@ class RtpPacketsPlayerMainLoopStream::Impl : public RtpPacketsPlayerCallback
 {
 public:
     Impl(RtpPacketsPlayerCallback* callback);
+    ~Impl() final { ClearTasks(); }
+    void Deactivate();
     // impl. of RtpPacketsPlayerCallback
     void OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc) final;
     void OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet) final;
@@ -95,12 +98,15 @@ public:
 private:
     static void OnInvoke(uv_async_t* handle);
     void OnInvoke();
+    void ClearTasks();
     void EnqueTask(uint64_t mediaId, uint64_t mediaSourceId, std::unique_ptr<Task> task);
+    bool IsActive() const { return _active.load(); }
 private:
     const UVAsyncHandle _handle;
     RtpPacketsPlayerCallback* const _callback;
     // key is media source ID
     ProtectedObj<std::unordered_map<uint64_t, QueuedMediaSouceTasks>> _tasks;
+    std::atomic_bool _active = true;
 };
 
 RtpPacketsPlayerMainLoopStream::RtpPacketsPlayerMainLoopStream(std::unique_ptr<Impl> impl,
@@ -112,6 +118,7 @@ RtpPacketsPlayerMainLoopStream::RtpPacketsPlayerMainLoopStream(std::unique_ptr<I
 
 RtpPacketsPlayerMainLoopStream::~RtpPacketsPlayerMainLoopStream()
 {
+    _impl->Deactivate();
 }
 
 std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerMainLoopStream::
@@ -157,24 +164,37 @@ RtpPacketsPlayerMainLoopStream::Impl::Impl(RtpPacketsPlayerCallback* callback)
     _tasks->reserve(1U);
 }
 
+void RtpPacketsPlayerMainLoopStream::Impl::Deactivate()
+{
+    if (_active.exchange(false)) {
+        ClearTasks();
+    }
+}
+
 void RtpPacketsPlayerMainLoopStream::Impl::OnPlayStarted(uint64_t mediaId,
                                                          uint64_t mediaSourceId,
                                                          uint32_t ssrc)
 {
-    EnqueTask(mediaId, mediaSourceId, std::make_unique<StartFinishTask>(ssrc, true));
+    if (IsActive()) {
+        EnqueTask(mediaId, mediaSourceId, std::make_unique<StartFinishTask>(ssrc, true));
+    }
 }
 
 void RtpPacketsPlayerMainLoopStream::Impl::OnPlay(uint64_t mediaId, uint64_t mediaSourceId,
                                                   RtpTranslatedPacket packet)
 {
-    EnqueTask(mediaId, mediaSourceId,  std::make_unique<RtpPacketTask>(std::move(packet)));
+    if (IsActive()) {
+        EnqueTask(mediaId, mediaSourceId,  std::make_unique<RtpPacketTask>(std::move(packet)));
+    }
 }
 
 void RtpPacketsPlayerMainLoopStream::Impl::OnPlayFinished(uint64_t mediaId,
                                                           uint64_t mediaSourceId,
                                                           uint32_t ssrc)
 {
-    EnqueTask(mediaId, mediaSourceId, std::make_unique<StartFinishTask>(ssrc, false));
+    if (IsActive()) {
+        EnqueTask(mediaId, mediaSourceId, std::make_unique<StartFinishTask>(ssrc, false));
+    }
 }
 
 void RtpPacketsPlayerMainLoopStream::Impl::OnInvoke(uv_async_t* handle)
@@ -186,25 +206,33 @@ void RtpPacketsPlayerMainLoopStream::Impl::OnInvoke(uv_async_t* handle)
 
 void RtpPacketsPlayerMainLoopStream::Impl::OnInvoke()
 {
-    LOCK_WRITE_PROTECTED_OBJ(_tasks);
-    if (!_tasks->empty()) {
-        std::list<uint64_t> completedMediaSources;
-        for (auto it = _tasks->begin(); it != _tasks->end(); ++it) {
-            it->second.Play(it->first, _callback);
-            if (!it->second.IsEmpty()) {
-                completedMediaSources.push_back(it->first);
+    if (IsActive()) {
+        LOCK_WRITE_PROTECTED_OBJ(_tasks);
+        if (!_tasks->empty()) {
+            std::list<uint64_t> completedMediaSources;
+            for (auto it = _tasks->begin(); it != _tasks->end(); ++it) {
+                it->second.Play(it->first, _callback);
+                if (!it->second.IsEmpty()) {
+                    completedMediaSources.push_back(it->first);
+                }
+            }
+            for (const auto completedMediaSource : completedMediaSources) {
+                _tasks->erase(completedMediaSource);
             }
         }
-        for (const auto completedMediaSource : completedMediaSources) {
-            _tasks->erase(completedMediaSource);
-        }
     }
+}
+
+void RtpPacketsPlayerMainLoopStream::Impl::ClearTasks()
+{
+    LOCK_WRITE_PROTECTED_OBJ(_tasks);
+    _tasks->clear();
 }
 
 void RtpPacketsPlayerMainLoopStream::Impl::EnqueTask(uint64_t mediaId, uint64_t mediaSourceId,
                                                      std::unique_ptr<Task> task)
 {
-    if (task) {
+    if (task && IsActive()) {
         {
             LOCK_WRITE_PROTECTED_OBJ(_tasks);
             _tasks.Ref()[mediaSourceId].Enqueue(mediaId, std::move(task));

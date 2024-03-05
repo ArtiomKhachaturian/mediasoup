@@ -4,8 +4,8 @@
 #include "RTC/Buffers/BufferAllocations.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "ProtectedObj.hpp"
-#include "absl/container/flat_hash_map.h"
 #include <memory>
+#include <unordered_map>
 
 namespace RTC
 {
@@ -16,7 +16,7 @@ class RtpPacketsPlayerSimpleStream : public BufferAllocations<RtpPacketsPlayerSt
                                      private RtpPacketsPlayerCallback
 {
     template<typename V>
-    using UInt64Map = absl::flat_hash_map<uint64_t, V>;
+    using UInt64Map = std::unordered_map<uint64_t, V>;
     // key is media ID
     using MediaFragmentsMap = UInt64Map<std::unique_ptr<RtpPacketsPlayerMediaFragment>>;
     // key is media source ID

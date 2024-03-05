@@ -6,10 +6,10 @@
 #include "UVAsyncHandle.hpp"
 #include "Logger.hpp"
 #include "ProtectedObj.hpp"
-#include <absl/container/flat_hash_map.h>
 #include <variant>
 #include <queue>
 #include <thread>
+#include <unordered_map>
 
 namespace {
 
@@ -126,7 +126,7 @@ private:
     const UVLoop _loop;
     const UVAsyncHandle _commandEvent;
     const UVAsyncHandle _stopEvent;
-    ProtectedObj<absl::flat_hash_map<uint64_t, std::unique_ptr<TimerWrapper>>> _timers;
+    ProtectedObj<std::unordered_map<uint64_t, std::unique_ptr<TimerWrapper>>> _timers;
     ProtectedObj<CommandsQueue> _commands;
 };
 

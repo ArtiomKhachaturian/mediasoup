@@ -18,10 +18,17 @@ RtpPacketsPlayerSimpleStream::RtpPacketsPlayerSimpleStream(uint32_t ssrc, uint32
     , _mime(mime)
     , _callback(callback)
 {
+    _playingMedias->reserve(1U);
 }
 
 RtpPacketsPlayerSimpleStream::~RtpPacketsPlayerSimpleStream()
 {
+    MediaSourcesMap playingMedias;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
+        playingMedias = _playingMedias.Take();
+    }
+    playingMedias.clear();
 }
 
 std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerSimpleStream::

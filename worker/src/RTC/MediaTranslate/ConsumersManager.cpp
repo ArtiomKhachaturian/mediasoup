@@ -18,6 +18,7 @@ class ConsumersManager::EndPointInfo
     using PlayInfo = std::pair<uint64_t, uint32_t>;
 public:
     EndPointInfo(std::shared_ptr<TranslatorEndPoint> endPoint);
+    ~EndPointInfo();
     bool IsStub() const { return _endPoint->IsStub(); }
     void BeginMediaPlay(uint64_t mediaId, const RtpPacketsTimeline& timeline);
     void EndMediaPlay(uint64_t mediaId);
@@ -289,6 +290,11 @@ ConsumersManager::EndPointInfo::EndPointInfo(std::shared_ptr<TranslatorEndPoint>
     : _endPoint(std::move(endPoint))
     , _playInfo(0U, 0U)
 {
+}
+
+ConsumersManager::EndPointInfo::~EndPointInfo()
+{
+    _endPoint->RemoveAllOutputMediaSinks();
 }
 
 void ConsumersManager::EndPointInfo::BeginMediaPlay(uint64_t mediaId, const RtpPacketsTimeline& timeline)

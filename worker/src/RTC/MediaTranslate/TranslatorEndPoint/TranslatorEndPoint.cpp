@@ -84,6 +84,14 @@ bool TranslatorEndPoint::RemoveOutputMediaSink(TranslatorEndPointSink* sink)
     return false;
 }
 
+void TranslatorEndPoint::RemoveAllOutputMediaSinks()
+{
+    if (!_outputMediaSinks.IsEmpty()) {
+        _outputMediaSinks.Clear();
+        Disconnect();
+    }
+}
+
 void TranslatorEndPoint::SetInputLanguageId(const std::string& languageId)
 {
     ChangeTranslationSettings(languageId, _inputLanguageId);
