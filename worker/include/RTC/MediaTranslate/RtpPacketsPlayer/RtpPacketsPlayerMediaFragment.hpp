@@ -12,14 +12,14 @@ class MediaTimer;
 class MediaFrameDeserializer;
 class RtpCodecMimeType;
 class RtpPacketsPlayerCallback;
+class RtpPacketsPlayerMediaFragmentQueue;
 class RtpPacketizer;
 class RtpPacket;
 
 class RtpPacketsPlayerMediaFragment
 {
-    class TasksQueue;
 private:
-    RtpPacketsPlayerMediaFragment(std::shared_ptr<TasksQueue> queue);
+    RtpPacketsPlayerMediaFragment(std::shared_ptr<RtpPacketsPlayerMediaFragmentQueue> queue);
 public:
     static std::unique_ptr<RtpPacketsPlayerMediaFragment> Parse(const std::shared_ptr<Buffer>& buffer,
                                                                 const std::shared_ptr<MediaTimer> playerTimer,
@@ -31,7 +31,7 @@ public:
     void Start(size_t trackIndex, uint32_t ssrc, uint32_t clockRate,
                uint64_t mediaId, uint64_t mediaSourceId);
 private:
-    const std::shared_ptr<TasksQueue> _queue;
+    const std::shared_ptr<RtpPacketsPlayerMediaFragmentQueue> _queue;
 };
 
 } // namespace RTC
