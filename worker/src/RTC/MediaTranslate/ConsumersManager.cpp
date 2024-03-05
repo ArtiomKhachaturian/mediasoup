@@ -19,6 +19,7 @@ class ConsumersManager::EndPointInfo
     using PlayInfo = std::pair<uint64_t, uint32_t>;
 public:
     EndPointInfo(std::shared_ptr<TranslatorEndPoint> endPoint);
+    bool IsStub() const { return _endPoint->IsStub(); }
     void BeginMediaPlay(uint64_t mediaId, const RtpPacketsTimeline& timeline);
     void EndMediaPlay(uint64_t mediaId);
     bool IsPlaying() const;
@@ -159,6 +160,7 @@ void ConsumersManager::DispatchOriginalPacket(RtpPacket* packet, RtpPacketsColle
                     else {
                         const auto delta = _originalTimeline.GetTimestampDelta();
                         if (auto mapped = it->second->MapOriginalPacket(delta, packet)) {
+                            rejectedConsumers.merge(GetMyConsumers(it->first));
                             mapped->SetRejectedConsumers(GetAlienConsumers(it->first));
                             if (collector) {
                                 collector->AddPacket(mapped.release(), _mappedSsrc, true);
@@ -174,7 +176,21 @@ void ConsumersManager::DispatchOriginalPacket(RtpPacket* packet, RtpPacketsColle
 
 void ConsumersManager::NotifyThatConnected(uint64_t endPointId, bool connected)
 {
-    
+    if (endPointId) {
+        LOCK_READ_PROTECTED_OBJ(_endpoints);
+        const auto it = _endpoints->find(endPointId);
+        if (it != _endpoints->end()) {
+            const auto& endPoint = it->second;
+            if (endPoint->IsStub()) {
+                if (connected) {
+                    endPoint->BeginMediaPlay(1U, _originalTimeline);
+                }
+                else {
+                    endPoint->EndMediaPlay(1U);
+                }
+            }
+        }
+    }
 }
 
 void ConsumersManager::BeginPacketsSending(uint64_t mediaId, uint64_t endPointId)
@@ -182,7 +198,7 @@ void ConsumersManager::BeginPacketsSending(uint64_t mediaId, uint64_t endPointId
     if (endPointId) {
         LOCK_READ_PROTECTED_OBJ(_endpoints);
         const auto it = _endpoints->find(endPointId);
-        if (it != _endpoints->end()) {
+        if (it != _endpoints->end() && !it->second->IsStub()) {
             it->second->BeginMediaPlay(mediaId, _originalTimeline);
         }
     }
@@ -195,7 +211,7 @@ void ConsumersManager::SendPacket(uint64_t mediaId, uint64_t endPointId,
     if (auto rtp = packet.Take()) {
         LOCK_READ_PROTECTED_OBJ(_endpoints);
         const auto it = _endpoints->find(endPointId);
-        if (it != _endpoints->end()) {
+        if (it != _endpoints->end() && !it->second->IsStub()) {
             if (it->second->AdvanceTranslatedPacket(packet.GetTimestampOffset(), rtp.get())) {
                 if (output) {
                     rtp->SetRejectedConsumers(GetAlienConsumers(endPointId));
@@ -210,7 +226,7 @@ void ConsumersManager::EndPacketsSending(uint64_t mediaId, uint64_t endPointId)
 {
     LOCK_READ_PROTECTED_OBJ(_endpoints);
     const auto it = _endpoints->find(endPointId);
-    if (it != _endpoints->end()) {
+    if (it != _endpoints->end() && !it->second->IsStub()) {
         it->second->EndMediaPlay(mediaId);
     }
 }
@@ -286,9 +302,6 @@ void ConsumersManager::EndPointInfo::BeginMediaPlay(uint64_t mediaId, const RtpP
         }
         _playInfo->first = mediaId;
         _playInfo->second = _timeline->get()->GetTimestamp();
-        /*MS_ERROR_STD("BeginMediaPlay -> fix timeline, TS = %u, seq. num = %u",
-                     unsigned(_timeline->get()->GetTimestamp()),
-                     unsigned(_timeline->get()->GetSeqNumber()));*/
     }
 }
 
@@ -298,10 +311,6 @@ void ConsumersManager::EndPointInfo::EndMediaPlay(uint64_t mediaId)
     if (_playInfo->first == mediaId) {
         _playInfo->first = 0U;
         _playInfo->second = 0U;
-        /*LOCK_READ_PROTECTED_OBJ(_timeline);
-        MS_ERROR_STD("EndMediaPlay -> unfix timeline, TS = %u, seq. num = %u",
-                     unsigned(_timeline->get()->GetTimestamp()),
-                     unsigned(_timeline->get()->GetSeqNumber()));*/
     }
 }
 
@@ -319,7 +328,7 @@ bool ConsumersManager::EndPointInfo::AdvanceTranslatedPacket(uint32_t offset, Rt
             LOCK_READ_PROTECTED_OBJ(_timeline);
             if (const auto& timeline = _timeline.ConstRef()) {
                 if (0 == offset) { // 1st frame
-                    offset = timeline->GetTimestampDelta();
+                    _playInfo->second += timeline->GetTimestampDelta();
                 }
                 packet->SetTimestamp(_playInfo->second + offset);
                 packet->SetSequenceNumber(timeline->AdvanceSeqNumber());

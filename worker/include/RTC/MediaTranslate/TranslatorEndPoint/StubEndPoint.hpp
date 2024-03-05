@@ -16,6 +16,7 @@ public:
     ~StubEndPoint() final;
     // impl. of TranslatorEndPoint
     bool IsConnected() const final { return _connected.load(); }
+    bool IsStub() const final { return true; }
 protected:
     void Connect() final;
     void Disconnect() final;

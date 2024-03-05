@@ -36,6 +36,7 @@ public:
     const std::string& GetOwnerId() const { return _ownerId; }
     const std::string& GetName() const { return _name; }
     virtual bool IsConnected() const = 0;
+    virtual bool IsStub() const { return false; }
 protected:
     TranslatorEndPoint(std::string ownerId = std::string(),
                        std::string name = std::string(),
