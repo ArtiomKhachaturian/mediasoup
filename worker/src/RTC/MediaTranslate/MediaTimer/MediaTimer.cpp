@@ -25,6 +25,7 @@ public:
     SingleShotCallback(const std::shared_ptr<MediaTimerCallback>& callback,
                        const std::weak_ptr<SingleshotOwner>& ownerRef);
     // impl. of MediaTimerCallback
+    void OnCallbackRegistered(uint64_t timerId, bool registered) final;
     void OnEvent(uint64_t timerId) final;
 private:
     const std::shared_ptr<MediaTimerCallback> _callback;
@@ -55,6 +56,7 @@ private:
     Impl(std::unique_ptr<MediaTimerHandleFactory> factory, std::string timerName);
     static std::unique_ptr<MediaTimerHandleFactory> CreateFactory(const std::string& timerName);
     static MediaTimerHandle* GetHandle(uint64_t timerId) { return reinterpret_cast<MediaTimerHandle*>(timerId); }
+    static uint64_t GetTimerId(const MediaTimerHandle* handle) { return handle ? handle->GetId() : 0ULL; }
 private:
     const std::unique_ptr<MediaTimerHandleFactory> _factory;
     const std::string _timerName;
@@ -237,14 +239,19 @@ uint64_t MediaTimer::Impl::Register(const std::shared_ptr<MediaTimerCallback>& c
     uint64_t timerId = 0ULL;
     if (callback) {
         if (auto handle = _factory->CreateHandle(callback)) {
-            timerId = handle->GetId();
+            timerId = GetTimerId(handle);
             MS_ASSERT(handle == GetHandle(timerId), "incorrect timer handle");
-            LOCK_WRITE_PROTECTED_OBJ(_handles);
+            {
+                LOCK_WRITE_PROTECTED_OBJ(_handles);
+                _handles->insert(handle);
+            }
             if (start) {
                 handle->SetTimeout(start->first);
+            }
+            callback->OnCallbackRegistered(timerId, true);
+            if (start) {
                 handle->Start(start->second);
             }
-            _handles->insert(handle);
         }
         else {
             MS_ERROR_STD("failed to create handle for media timer %s", _timerName.c_str());
@@ -256,8 +263,8 @@ uint64_t MediaTimer::Impl::Register(const std::shared_ptr<MediaTimerCallback>& c
 void MediaTimer::Impl::UnregisterAll()
 {
     LOCK_WRITE_PROTECTED_OBJ(_handles);
-    for (auto it = _handles->begin(); it != _handles->end(); ++it) {
-        _factory->DestroyHandle(*it);
+    for (const auto handle : _handles.ConstRef()) {
+        _factory->DestroyHandle(handle);
     }
     _handles->clear();
 }
@@ -311,6 +318,11 @@ void MediaTimerHandle::SetTimeout(uint32_t timeoutMs)
     }
 }
 
+MediaTimerHandle::~MediaTimerHandle()
+{
+    _callback->OnCallbackRegistered(GetId(), false);
+}
+
 } // namespace RTC
 
 namespace {
@@ -320,6 +332,12 @@ SingleShotCallback::SingleShotCallback(const std::shared_ptr<MediaTimerCallback>
     : _callback(callback)
     , _ownerRef(ownerRef)
 {
+}
+
+void SingleShotCallback::OnCallbackRegistered(uint64_t timerId, bool registered)
+{
+    MediaTimerCallback::OnCallbackRegistered(timerId, registered);
+    _callback->OnCallbackRegistered(timerId, registered);
 }
 
 void SingleShotCallback::OnEvent(uint64_t timerId)

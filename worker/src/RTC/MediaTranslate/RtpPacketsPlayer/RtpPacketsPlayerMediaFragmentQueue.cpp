@@ -75,7 +75,7 @@ RtpPacketsPlayerMediaFragmentQueue::
 
 RtpPacketsPlayerMediaFragmentQueue::~RtpPacketsPlayerMediaFragmentQueue()
 {
-    SetTimerId(0UL);
+    Stop();
 }
 
 std::shared_ptr<RtpPacketsPlayerMediaFragmentQueue> RtpPacketsPlayerMediaFragmentQueue::
@@ -92,20 +92,21 @@ std::shared_ptr<RtpPacketsPlayerMediaFragmentQueue> RtpPacketsPlayerMediaFragmen
     return queue;
 }
 
-void RtpPacketsPlayerMediaFragmentQueue::SetTimerId(uint64_t timerId)
+void RtpPacketsPlayerMediaFragmentQueue::SetTimerId(uint64_t desiredTimerId, uint64_t expectedTimerId)
 {
-    const auto oldTimerId = _timerId.exchange(timerId);
-    if (timerId != oldTimerId && !timerId) {
-        if (const auto timer = _timerRef.lock()) {
-            timer->Unregister(oldTimerId);
-        }
-        LOCK_WRITE_PROTECTED_OBJ(_tasks);
-        if (ClearTasks()) {
-            LOCK_WRITE_PROTECTED_OBJ(_startTask);
-            if (const auto startTask = _startTask.Take()) {
-                _callback->OnPlayFinished(startTask->GetMediaId(),
-                                          startTask->GetMediaSourceId(),
-                                          startTask->GetSsrc());
+    if (desiredTimerId != expectedTimerId) {
+        if (_timerId.compare_exchange_strong(expectedTimerId, desiredTimerId) && !desiredTimerId) {
+            if (const auto timer = _timerRef.lock()) {
+                timer->Unregister(expectedTimerId);
+            }
+            LOCK_WRITE_PROTECTED_OBJ(_tasks);
+            if (ClearTasks()) {
+                LOCK_WRITE_PROTECTED_OBJ(_startTask);
+                if (const auto startTask = _startTask.Take()) {
+                    _callback->OnPlayFinished(startTask->GetMediaId(),
+                                              startTask->GetMediaSourceId(),
+                                              startTask->GetSsrc());
+                }
             }
         }
     }
@@ -127,6 +128,11 @@ void RtpPacketsPlayerMediaFragmentQueue::Start(size_t trackIndex, uint32_t ssrc,
     }
 }
 
+void RtpPacketsPlayerMediaFragmentQueue::Stop()
+{
+    SetTimerId(0UL, GetTimerId());
+}
+
 size_t RtpPacketsPlayerMediaFragmentQueue::GetTracksCount() const
 {
     LOCK_READ_PROTECTED_OBJ(_deserializer);
@@ -138,6 +144,16 @@ std::optional<RtpCodecMimeType> RtpPacketsPlayerMediaFragmentQueue::
 {
     LOCK_READ_PROTECTED_OBJ(_deserializer);
     return _deserializer->get()->GetTrackType(trackIndex);
+}
+
+void RtpPacketsPlayerMediaFragmentQueue::OnCallbackRegistered(uint64_t timerId, bool registered)
+{
+    if (registered) {
+        SetTimerId(timerId, 0UL);
+    }
+    else {
+        SetTimerId(0UL, timerId);
+    }
 }
 
 void RtpPacketsPlayerMediaFragmentQueue::OnEvent(uint64_t /*timerId*/)

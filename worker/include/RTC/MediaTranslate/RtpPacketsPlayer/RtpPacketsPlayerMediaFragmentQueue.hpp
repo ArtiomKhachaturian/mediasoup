@@ -25,17 +25,19 @@ public:
                                                                       std::unique_ptr<MediaFrameDeserializer> deserializer,
                                                                       RtpPacketsPlayerCallback* callback);
     ~RtpPacketsPlayerMediaFragmentQueue() final;
-    void SetTimerId(uint64_t timerId);
     void Start(size_t trackIndex, uint32_t ssrc, uint32_t clockRate,
                uint64_t mediaId, uint64_t mediaSourceId);
+    void Stop();
     size_t GetTracksCount() const;
     std::optional<RtpCodecMimeType> GetTrackType(size_t trackIndex) const;
     // impl. of MediaTimerCallback
+    void OnCallbackRegistered(uint64_t timerId, bool registered) final;
     void OnEvent(uint64_t timerId) final;
 private:
     RtpPacketsPlayerMediaFragmentQueue(const std::weak_ptr<MediaTimer>& timerRef,
                                        std::unique_ptr<MediaFrameDeserializer> deserializer,
                                        RtpPacketsPlayerCallback* callback);
+    void SetTimerId(uint64_t desiredTimerId, uint64_t expectedTimerId);
     uint64_t GetTimerId() const { return _timerId.load(); }
     void SetClockRate(size_t trackIndex, uint32_t clockRate);
     void Enque(std::unique_ptr<Task> task);

@@ -15,7 +15,7 @@ RtpPacketsPlayerMediaFragment::RtpPacketsPlayerMediaFragment(std::shared_ptr<Rtp
 
 RtpPacketsPlayerMediaFragment::~RtpPacketsPlayerMediaFragment()
 {
-    _queue->SetTimerId(0ULL);
+    _queue->Stop();
 }
 
 void RtpPacketsPlayerMediaFragment::Start(size_t trackIndex, uint32_t ssrc, uint32_t clockRate,
@@ -49,8 +49,7 @@ std::unique_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
                 auto queue = RtpPacketsPlayerMediaFragmentQueue::Create(playerTimer,
                                                                         std::move(deserializer),
                                                                         callback);
-                if (queue) {
-                    queue->SetTimerId(playerTimer->Register(queue));
+                if (queue && playerTimer->Register(queue)) {
                     fragment.reset(new RtpPacketsPlayerMediaFragment(std::move(queue)));
                 }
                 else {

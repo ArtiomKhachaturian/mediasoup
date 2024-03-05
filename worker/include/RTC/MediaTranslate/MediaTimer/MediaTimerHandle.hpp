@@ -11,10 +11,9 @@ class MediaTimerCallback;
 class MediaTimerHandle : public ObjectId
 {
 public:
-    virtual ~MediaTimerHandle() = default;
+    virtual ~MediaTimerHandle();
     uint32_t GetTimeout() const { return _timeoutMs.load(); }
     void SetTimeout(uint32_t timeoutMs);
-    const auto& GetCallback() const { return _callback; }
     virtual void Start(bool singleshot) = 0;
     virtual void Stop() = 0;
     virtual bool IsStarted() const = 0;
