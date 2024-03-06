@@ -6,7 +6,7 @@
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUV.hpp"
 #include "ProtectedObj.hpp"
 #include "Logger.hpp"
-#include <unordered_set>
+#include <unordered_map>
 
 namespace {
 
@@ -39,8 +39,9 @@ namespace RTC
 
 class MediaTimer::Impl : public SingleshotOwner
 {
+    using HandlesMap = std::unordered_map<uint64_t, std::shared_ptr<MediaTimerHandle>>;
 public:
-    ~Impl() { UnregisterAll(); }
+    ~Impl();
     static std::shared_ptr<Impl> Create(std::string timerName);
     void SetTimeout(uint64_t timerId, uint32_t timeoutMs);
     void Start(uint64_t timerId, bool singleshot);
@@ -54,14 +55,15 @@ public:
     void Unregister(uint64_t timerId) final;
 private:
     Impl(std::unique_ptr<MediaTimerHandleFactory> factory, std::string timerName);
+    std::shared_ptr<MediaTimerHandle> GetHandle(uint64_t timerId) const;
     static std::unique_ptr<MediaTimerHandleFactory> CreateFactory(const std::string& timerName);
-    static MediaTimerHandle* GetHandle(uint64_t timerId) { return reinterpret_cast<MediaTimerHandle*>(timerId); }
-    static uint64_t GetTimerId(const MediaTimerHandle* handle) { return handle ? handle->GetId() : 0ULL; }
+    //static MediaTimerHandle* GetHandle(uint64_t timerId) { return reinterpret_cast<MediaTimerHandle*>(timerId); }
+    //static uint64_t GetTimerId(const MediaTimerHandle* handle) { return handle ? handle->GetId() : 0ULL; }
 private:
     const std::unique_ptr<MediaTimerHandleFactory> _factory;
     const std::string _timerName;
     // key is timer ID
-    ProtectedObj<std::unordered_set<MediaTimerHandle*>> _handles;
+    ProtectedObj<HandlesMap> _handles;
 };
 
 MediaTimer::MediaTimer(std::string timerName)
@@ -174,6 +176,11 @@ MediaTimer::Impl::Impl(std::unique_ptr<MediaTimerHandleFactory> factory, std::st
 {
 }
 
+MediaTimer::Impl::~Impl()
+{
+    UnregisterAll();
+}
+
 std::shared_ptr<MediaTimer::Impl> MediaTimer::Impl::Create(std::string timerName)
 {
     std::shared_ptr<Impl> impl;
@@ -187,49 +194,38 @@ std::shared_ptr<MediaTimer::Impl> MediaTimer::Impl::Create(std::string timerName
     return impl;
 }
 
+void MediaTimer::Impl::SetTimeout(uint64_t timerId, uint32_t timeoutMs)
+{
+    if (const auto handle = GetHandle(timerId)) {
+        handle->SetTimeout(timeoutMs);
+    }
+}
+
 void MediaTimer::Impl::Start(uint64_t timerId, bool singleshot)
 {
-    if (timerId) {
-        LOCK_READ_PROTECTED_OBJ(_handles);
-        const auto it = _handles->find(GetHandle(timerId));
-        if (it != _handles->end()) {
-            (*it)->Start(singleshot);
-        }
+    if (const auto handle = GetHandle(timerId)) {
+        handle->Start(singleshot);
     }
 }
 
 bool MediaTimer::Impl::IsStarted(uint64_t timerId) const
 {
-    if (timerId) {
-        LOCK_READ_PROTECTED_OBJ(_handles);
-        const auto it = _handles->find(GetHandle(timerId));
-        if (it != _handles->end()) {
-            return (*it)->IsStarted();
-        }
-    }
-    return false;
+    const auto handle = GetHandle(timerId);
+    return handle && handle->IsStarted();
 }
 
 std::optional<uint32_t> MediaTimer::Impl::GetTimeout(uint64_t timerId) const
 {
-    if (timerId) {
-        LOCK_READ_PROTECTED_OBJ(_handles);
-        const auto it = _handles->find(GetHandle(timerId));
-        if (it != _handles->end()) {
-            return (*it)->GetTimeout();
-        }
+    if (const auto handle = GetHandle(timerId)) {
+        return handle->GetTimeout();
     }
     return std::nullopt;
 }
 
 void MediaTimer::Impl::Stop(uint64_t timerId)
 {
-    if (timerId) {
-        LOCK_READ_PROTECTED_OBJ(_handles);
-        const auto it = _handles->find(GetHandle(timerId));
-        if (it != _handles->end()) {
-            (*it)->Stop();
-        }
+    if (const auto handle = GetHandle(timerId)) {
+        handle->Stop();
     }
 }
 
@@ -239,11 +235,10 @@ uint64_t MediaTimer::Impl::Register(const std::shared_ptr<MediaTimerCallback>& c
     uint64_t timerId = 0ULL;
     if (callback) {
         if (auto handle = _factory->CreateHandle(callback)) {
-            timerId = GetTimerId(handle);
-            MS_ASSERT(handle == GetHandle(timerId), "incorrect timer handle");
+            timerId = handle->GetId();
             {
                 LOCK_WRITE_PROTECTED_OBJ(_handles);
-                _handles->insert(handle);
+                _handles->insert(std::make_pair(timerId, handle));
             }
             if (start) {
                 handle->SetTimeout(start->first);
@@ -262,22 +257,29 @@ uint64_t MediaTimer::Impl::Register(const std::shared_ptr<MediaTimerCallback>& c
 
 void MediaTimer::Impl::UnregisterAll()
 {
-    LOCK_WRITE_PROTECTED_OBJ(_handles);
-    for (const auto handle : _handles.ConstRef()) {
-        _factory->DestroyHandle(handle);
+    HandlesMap handles;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_handles);
+        handles = _handles.Take();
     }
-    _handles->clear();
+    for (auto it = handles.begin(); it != handles.end(); ++it) {
+        _factory->DestroyHandle(std::move(it->second));
+    }
 }
 
 void MediaTimer::Impl::Unregister(uint64_t timerId)
 {
     if (timerId) {
-        LOCK_WRITE_PROTECTED_OBJ(_handles);
-        const auto it = _handles->find(GetHandle(timerId));
-        if (it != _handles->end()) {
-            _factory->DestroyHandle(*it);
-            _handles->erase(it);
+        std::shared_ptr<MediaTimerHandle> handle;
+        {
+            LOCK_WRITE_PROTECTED_OBJ(_handles);
+            const auto it = _handles->find(timerId);
+            if (it != _handles->end()) {
+                handle = std::move(it->second);
+                _handles->erase(it);
+            }
         }
+        _factory->DestroyHandle(std::move(handle));
     }
 }
 
@@ -287,22 +289,23 @@ std::unique_ptr<MediaTimerHandleFactory> MediaTimer::Impl::
     return MediaTimerHandleFactoryUV::Create(timerName);
 }
 
-void MediaTimer::Impl::SetTimeout(uint64_t timerId, uint32_t timeoutMs)
+std::shared_ptr<MediaTimerHandle> MediaTimer::Impl::GetHandle(uint64_t timerId) const
 {
     if (timerId) {
         LOCK_READ_PROTECTED_OBJ(_handles);
-        const auto it = _handles->find(GetHandle(timerId));
+        const auto it = _handles->find(timerId);
         if (it != _handles->end()) {
-            (*it)->SetTimeout(timeoutMs);
+            return it->second;
         }
     }
+    return nullptr;
 }
 
-void MediaTimerHandleFactory::DestroyHandle(MediaTimerHandle* handle)
+void MediaTimerHandleFactory::DestroyHandle(std::shared_ptr<MediaTimerHandle> handle)
 {
     if (handle) {
         handle->Stop();
-        delete handle;
+        handle.reset();
     }
 }
 

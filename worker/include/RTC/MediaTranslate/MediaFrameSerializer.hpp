@@ -2,9 +2,9 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "ProtectedObj.hpp"
-#include "absl/container/flat_hash_map.h"
 #include <memory>
 #include <string>
+#include <unordered_map>
 
 namespace webrtc {
 class TimeDelta;
@@ -49,7 +49,7 @@ private:
     void SetMediaConfig(const TConfig& config);
 private:
     const RtpCodecMimeType _mime;
-    ProtectedObj<absl::flat_hash_map<MediaSink*, std::unique_ptr<SinkWriter>>> _writers;
+    ProtectedObj<std::unordered_map<MediaSink*, std::unique_ptr<SinkWriter>>> _writers;
     ProtectedUniquePtr<SinkWriter> _testWriter;
 };
 

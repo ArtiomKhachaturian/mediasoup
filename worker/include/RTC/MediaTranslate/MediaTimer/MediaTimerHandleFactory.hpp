@@ -12,8 +12,8 @@ class MediaTimerHandleFactory
 {
 public:
     virtual ~MediaTimerHandleFactory() = default;
-    virtual MediaTimerHandle* CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback) = 0;
-    virtual void DestroyHandle(MediaTimerHandle* handle);
+    virtual std::shared_ptr<MediaTimerHandle> CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback) = 0;
+    virtual void DestroyHandle(std::shared_ptr<MediaTimerHandle> handle);
 protected:
 	MediaTimerHandleFactory() = default;
 };

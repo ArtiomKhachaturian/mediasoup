@@ -368,16 +368,22 @@ void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<Buffer>& bu
                                                TranslatorEndPoint* endPoint)
 {
     if (buffer && endPoint) {
-        LOCK_WRITE_PROTECTED_OBJ(_impl);
-        if (_impl->Append(buffer)) {
-            const auto now = DepLibUV::GetTimeMs();
-            if (now > _sliceOriginTimestamp + _timeSliceMs) {
-                _sliceOriginTimestamp = now;
-                endPoint->WriteBinary(_impl->Take());
+        std::shared_ptr<Buffer> outputBuffer;
+        {
+            LOCK_WRITE_PROTECTED_OBJ(_impl);
+            if (_impl->Append(buffer)) {
+                const auto now = DepLibUV::GetTimeMs();
+                if (now > _sliceOriginTimestamp + _timeSliceMs) {
+                    _sliceOriginTimestamp = now;
+                    outputBuffer = _impl->Take();
+                }
+            }
+            else {
+                MS_ERROR_STD("unable to add memory buffer (%zu bytes) to input slice", buffer->GetSize());
             }
         }
-        else {
-            MS_ERROR_STD("unable to add memory buffer (%zu bytes) to input slice", buffer->GetSize());
+        if (outputBuffer) {
+            endPoint->WriteBinary(outputBuffer);
         }
     }
 }

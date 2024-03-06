@@ -212,10 +212,10 @@ std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactoryUV::
     return factory;
 }
 
-MediaTimerHandle* MediaTimerHandleFactoryUV::CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback)
+std::shared_ptr<MediaTimerHandle> MediaTimerHandleFactoryUV::CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback)
 {
     if (!IsCancelled()) {
-        return new MediaTimerHandleUV(callback, _impl);
+        return std::make_shared<MediaTimerHandleUV>(callback, _impl);
     }
     return nullptr;
 }
@@ -331,7 +331,7 @@ void MediaTimerHandleFactoryUV::Impl::OnCommand()
                 SetTimeout(command.GetTimerId(), command.GetTimeout());
                 break;
             default:
-                // TODO: log unhandled/unknown command
+                MS_ASSERT(false, "unhandled/unknown UV timer command");
                 break;
         }
         commands.pop();

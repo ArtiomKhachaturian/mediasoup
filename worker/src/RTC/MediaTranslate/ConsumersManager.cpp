@@ -176,31 +176,23 @@ void ConsumersManager::DispatchOriginalPacket(RtpPacket* packet, RtpPacketsColle
 
 void ConsumersManager::NotifyThatConnected(uint64_t endPointId, bool connected)
 {
-    if (endPointId) {
-        LOCK_READ_PROTECTED_OBJ(_endpoints);
-        const auto it = _endpoints->find(endPointId);
-        if (it != _endpoints->end()) {
-            const auto& endPoint = it->second;
-            if (endPoint->IsStub()) {
-                if (connected) {
-                    endPoint->BeginMediaPlay(1U, _originalTimeline);
-                }
-                else {
-                    endPoint->EndMediaPlay(1U);
-                }
-            }
+    const auto endPoint = GetEndPoint(endPointId);
+    if (endPoint && endPoint->IsStub()) {
+        // fake media ID
+        if (connected) {
+            endPoint->BeginMediaPlay(1U, _originalTimeline);
+        }
+        else {
+            endPoint->EndMediaPlay(1U);
         }
     }
 }
 
 void ConsumersManager::BeginPacketsSending(uint64_t mediaId, uint64_t endPointId)
 {
-    if (endPointId) {
-        LOCK_READ_PROTECTED_OBJ(_endpoints);
-        const auto it = _endpoints->find(endPointId);
-        if (it != _endpoints->end() && !it->second->IsStub()) {
-            it->second->BeginMediaPlay(mediaId, _originalTimeline);
-        }
+    const auto endPoint = GetEndPoint(endPointId);
+    if (endPoint && !endPoint->IsStub()) {
+        endPoint->BeginMediaPlay(mediaId, _originalTimeline);
     }
 }
 
@@ -209,10 +201,9 @@ void ConsumersManager::SendPacket(uint64_t mediaId, uint64_t endPointId,
                                   RtpPacketsCollector* output)
 {
     if (auto rtp = packet.Take()) {
-        LOCK_READ_PROTECTED_OBJ(_endpoints);
-        const auto it = _endpoints->find(endPointId);
-        if (it != _endpoints->end() && !it->second->IsStub()) {
-            if (it->second->AdvanceTranslatedPacket(packet.GetTimestampOffset(), rtp.get())) {
+        const auto endPoint = GetEndPoint(endPointId);
+        if (endPoint && !endPoint->IsStub()) {
+            if (endPoint->AdvanceTranslatedPacket(packet.GetTimestampOffset(), rtp.get())) {
                 if (output) {
                     rtp->SetRejectedConsumers(GetAlienConsumers(endPointId));
                     output->AddPacket(rtp.release(), _mappedSsrc, true);
@@ -224,10 +215,9 @@ void ConsumersManager::SendPacket(uint64_t mediaId, uint64_t endPointId,
 
 void ConsumersManager::EndPacketsSending(uint64_t mediaId, uint64_t endPointId)
 {
-    LOCK_READ_PROTECTED_OBJ(_endpoints);
-    const auto it = _endpoints->find(endPointId);
-    if (it != _endpoints->end() && !it->second->IsStub()) {
-        it->second->EndMediaPlay(mediaId);
+    const auto endPoint = GetEndPoint(endPointId);
+    if (endPoint && !endPoint->IsStub()) {
+        endPoint->EndMediaPlay(mediaId);
     }
 }
 
@@ -273,17 +263,16 @@ std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::GetEndPoint(Co
 
 std::unordered_set<Consumer*> ConsumersManager::GetConsumers(uint64_t endPointId, bool alien) const
 {
+    std::unordered_set<Consumer*> consumers;
     if (endPointId) {
-        std::unordered_set<Consumer*> consumers;
         LOCK_READ_PROTECTED_OBJ(_consumerToEndpointId);
         for (auto it = _consumerToEndpointId->begin(); it != _consumerToEndpointId->end(); ++it) {
             if (alien ? it->second != endPointId : it->second == endPointId) {
                 consumers.insert(it->first);
             }
         }
-        return consumers;
     }
-    return {};
+    return consumers;
 }
 
 ConsumersManager::EndPointInfo::EndPointInfo(std::shared_ptr<TranslatorEndPoint> endPoint)

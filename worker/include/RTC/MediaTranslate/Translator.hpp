@@ -22,7 +22,6 @@ class WebsocketFactory;
 
 class Translator : private BufferAllocations<TranslatorEndPointFactory>
 {
-    template <typename T> using Protected = ProtectedObj<T, std::shared_mutex>;
     template <typename K, typename V> using Map = std::unordered_map<K, V>;
     template <typename V> using StreamMap = Map<uint32_t, V>;
 public:
@@ -67,10 +66,10 @@ private:
     mutable std::weak_ptr<TranslatorEndPoint> _nonStubEndPointRef;
 #endif
     // key is original SSRC
-    Protected<StreamMap<std::unique_ptr<TranslatorSource>>> _originalSsrcToStreams;
+    ProtectedObj<StreamMap<std::unique_ptr<TranslatorSource>>> _originalSsrcToStreams;
     // key is mapped SSRC
     StreamMap<uint32_t> _mappedSsrcToOriginal;
-    Protected<std::list<Consumer*>> _consumers;
+    ProtectedObj<std::list<Consumer*>> _consumers;
 };
 
 } // namespace RTC

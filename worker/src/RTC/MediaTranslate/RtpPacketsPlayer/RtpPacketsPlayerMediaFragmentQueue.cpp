@@ -101,8 +101,12 @@ void RtpPacketsPlayerMediaFragmentQueue::SetTimerId(uint64_t desiredTimerId, uin
             }
             LOCK_WRITE_PROTECTED_OBJ(_tasks);
             if (ClearTasks()) {
-                LOCK_WRITE_PROTECTED_OBJ(_startTask);
-                if (const auto startTask = _startTask.Take()) {
+                std::unique_ptr<StartTask> startTask;
+                {
+                    LOCK_WRITE_PROTECTED_OBJ(_startTask);
+                    startTask = _startTask.Take();
+                }
+                if (startTask) {
                     _callback->OnPlayFinished(startTask->GetMediaId(),
                                               startTask->GetMediaSourceId(),
                                               startTask->GetSsrc());
