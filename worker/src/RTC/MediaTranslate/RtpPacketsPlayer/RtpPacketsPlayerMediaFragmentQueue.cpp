@@ -131,6 +131,7 @@ void RtpPacketsPlayerMediaFragmentQueue::Start(size_t trackIndex, uint32_t ssrc,
 void RtpPacketsPlayerMediaFragmentQueue::Stop()
 {
     SetTimerId(0UL, GetTimerId());
+    _framesTimeout = 0U;
 }
 
 size_t RtpPacketsPlayerMediaFragmentQueue::GetTracksCount() const
@@ -253,7 +254,7 @@ void RtpPacketsPlayerMediaFragmentQueue::Process(StartTask* startTask,
                     break;
             }
         }
-        if (timeout.has_value()) {
+        if (timeout.has_value() && timeout.value() != _framesTimeout.exchange(timeout.value())) {
             if (const auto timer = _timerRef.lock()) {
                 timer->SetTimeout(GetTimerId(), timeout.value());
             }
