@@ -52,6 +52,7 @@ private:
     ProtectedUniquePtr<StartTask> _startTask;
     std::atomic<uint64_t> _timerId = 0;
     // used for adjust of timer interval
+    std::atomic<uint32_t> _framesTimeout = 0U;
     ProtectedObj<std::queue<std::unique_ptr<Task>>> _tasks;
 };
 
