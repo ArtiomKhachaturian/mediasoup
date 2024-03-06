@@ -25,12 +25,12 @@
 #define LOCAL_WEBSOCKET_TEST_SERVER
 #endif
 
-#define MOCK_WEBM_INPUT_FILE "/Users/user/Documents/Sources/mediasoup_rtp_packets/speakshift_test2_3-59.webm"
+#define MOCK_WEBM_INPUT_FILE "/Users/user/Documents/Sources/mediasoup_rtp_packets/received_translation_mono_example.webm"
 // in seconds
-#define MOCK_WEBM_INPUT_FILE_LEN_SECS 240U
+#define MOCK_WEBM_INPUT_FILE_LEN_SECS 4U
 
 #if defined(LOCAL_WEBSOCKET_TEST_SERVER) || defined(NO_TRANSLATION_SERVICE)
-#define MOCK_DISCONNECT_AFTER_MS 10000U
+//#define MOCK_DISCONNECT_AFTER_MS 10000U
 //#define MOCK_DISCONNECT_STUB_END_POINTS
 #endif
 
