@@ -290,7 +290,7 @@ bool PoolAllocator::AllocatorImpl::RunGarbageCollector()
 
 void PoolAllocator::AllocatorImpl::PurgeGarbage(uint32_t maxBufferAgeMs)
 {
-    size_t deallocated = 0U, still = 0U;
+    //size_t deallocated = 0U, still = 0U;
     {
         const WriteMutexLock lock(_heapChunksMtx);
         if (maxBufferAgeMs) {
@@ -298,11 +298,11 @@ void PoolAllocator::AllocatorImpl::PurgeGarbage(uint32_t maxBufferAgeMs)
             for (auto it = _heapChunks.begin(); it != _heapChunks.end();) {
                 if (it->second->GetAge() >= maxBufferAgeMs) {
                     it = _heapChunks.erase(it);
-                    ++deallocated;
+                    //++deallocated;
                 }
                 else {
                     ++it;
-                    ++still;
+                    //++still;
                 }
             }
         }
@@ -310,14 +310,14 @@ void PoolAllocator::AllocatorImpl::PurgeGarbage(uint32_t maxBufferAgeMs)
             _heapChunks.clear();
         }
     }
-    if (deallocated || still) {
+    /*if (deallocated || still) {
         float usage = 100.f;
         if (deallocated) {
             usage = std::floor(100 * (float(still) / float(still + deallocated)));
         }
         MS_DUMP_STD("Purge stats: deallocated chunks %zu, still %zu, usage %d %%",
                      deallocated, still, static_cast<int>(usage));
-    }
+    }*/
 }
 
 void PoolAllocator::AllocatorImpl::StopGarbageCollector()

@@ -780,7 +780,8 @@ namespace RTC
 
 		// Create the new RtpPacket instance and return it.
 		auto* packet = new RtpPacket(
-		  newHeader, newHeaderExtension, newPayload, this->payloadLength, this->payloadPadding, this->size);
+		  newHeader, newHeaderExtension, newPayload, this->payloadLength, this->payloadPadding,
+          this->size, this->allocator);
 
 		// Keep already set extension ids.
 		packet->midExtensionId               = this->midExtensionId;
