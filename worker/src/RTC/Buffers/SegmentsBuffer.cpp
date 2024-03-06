@@ -68,6 +68,18 @@ SegmentsBuffer::Result SegmentsBuffer::Push(const std::shared_ptr<Buffer>& buffe
     return result;
 }
 
+std::shared_ptr<Buffer> SegmentsBuffer::Take()
+{
+    Merge();
+    if (!_buffers.empty()) {
+        MS_ASSERT(1U == _buffers.size(), "merge operation was incorrect");
+        auto buffer = std::move(_buffers.front());
+        _buffers.clear();
+        return buffer;
+    }
+    return nullptr;
+}
+
 void SegmentsBuffer::Clear()
 {
     _buffers.clear();

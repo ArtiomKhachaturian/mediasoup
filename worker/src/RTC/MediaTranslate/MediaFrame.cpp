@@ -68,9 +68,7 @@ std::shared_ptr<const Buffer> MediaFrame::GetPayload() const
 
 std::shared_ptr<Buffer> MediaFrame::TakePayload()
 {
-    auto oldPayload = _payload;
-    _payload = std::make_shared<SegmentsBuffer>(oldPayload->GetAllocator());
-    return oldPayload;
+    return _payload->Take();
 }
 
 void MediaFrame::SetKeyFrame(bool keyFrame)

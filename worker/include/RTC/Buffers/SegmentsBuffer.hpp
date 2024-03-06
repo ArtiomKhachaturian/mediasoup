@@ -29,6 +29,7 @@ public:
     SegmentsBuffer& operator = (const SegmentsBuffer&) = delete;
     SegmentsBuffer& operator = (SegmentsBuffer&&) = delete;
     Result Push(const std::shared_ptr<Buffer>& buffer);
+    std::shared_ptr<Buffer> Take();
     void Clear();
     size_t CopyTo(size_t offset, size_t len, uint8_t* output) const;
     size_t GetCapacity() const { return _capacity; }
