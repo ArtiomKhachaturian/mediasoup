@@ -127,11 +127,8 @@ private:
     void OnOpen(websocketpp::connection_hdl hdl);
     void OnMessage(websocketpp::connection_hdl hdl, MessagePtr message);
     void OnClose(websocketpp::connection_hdl hdl);
-    template<class Guard>
-    void DropHdl(std::unique_ptr<Guard> droppedGuard);
     // return true if state changed
-    template<class Guard = HdlWriteGuard>
-    bool SetOpened(bool opened, std::unique_ptr<Guard> droppedGuard = nullptr);
+    bool SetOpened(bool opened);
     bool IsOpened() const { return _opened.load(std::memory_order_relaxed); }
     static std::string ToText(MessagePtr message);
     static std::shared_ptr<Buffer> ToBinary(MessagePtr message);
@@ -388,15 +385,19 @@ bool WebsocketTpp::SocketImpl<TConfig>::Open()
 template<class TConfig>
 void WebsocketTpp::SocketImpl<TConfig>::Close()
 {
-    auto droppedGuard = std::make_unique<HdlWriteGuard>(_hdl.GetWriteGuard());
-    if (!_hdl->expired()) {
+    websocketpp::connection_hdl hdl;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_hdl);
+        hdl = _hdl.Take();
+    }
+    if (hdl.expired()) {
         websocketpp::lib::error_code ec;
-        _client.close(_hdl, _closeCode, websocketpp::close::status::get_string(_closeCode), ec);
+        _client.close(hdl, _closeCode, websocketpp::close::status::get_string(_closeCode), ec);
         _client.stop();
         if (ec) { // ignore of failures during closing
             _errorStreamBuf.Write(ec.message());
         }
-        DropHdl(std::move(droppedGuard));
+        SetOpened(false);
     }
 }
 
@@ -405,21 +406,23 @@ bool WebsocketTpp::SocketImpl<TConfig>::WriteBinary(const std::shared_ptr<Buffer
 {
     bool ok = false;
     if (buffer && IsOpened()) {
-        LOCK_READ_PROTECTED_OBJ(_hdl);
-        if (!_hdl->expired()) {
-            websocketpp::lib::error_code ec;
-            // overhead - deep copy of input buffer,
-            // Websocketpp doesn't supports of buffers abstraction
-            _client.send(_hdl, buffer->GetData(), buffer->GetSize(),
-                         websocketpp::frame::opcode::binary, ec);
-            if (ec) {
-                InvokeListenersMethod(&WebsocketListener::OnFailed,
-                                      WebsocketFailure::WriteBinary,
-                                      ec.message());
+        websocketpp::lib::error_code ec;
+        {
+            LOCK_READ_PROTECTED_OBJ(_hdl);
+            if (!_hdl->expired()) {
+                // overhead - deep copy of input buffer,
+                // Websocketpp doesn't supports of buffers abstraction
+                _client.send(_hdl, buffer->GetData(), buffer->GetSize(),
+                             websocketpp::frame::opcode::binary, ec);
+                if (!ec) {
+                    ok = true;
+                }
             }
-            else {
-                ok = true;
-            }
+        }
+        if (!ok && ec) {
+            InvokeListenersMethod(&WebsocketListener::OnFailed,
+                                  WebsocketFailure::WriteBinary,
+                                  ec.message());
         }
     }
     return ok;
@@ -430,18 +433,20 @@ bool WebsocketTpp::SocketImpl<TConfig>::WriteText(const std::string& text)
 {
     bool ok = false;
     if (IsOpened()) {
-        LOCK_READ_PROTECTED_OBJ(_hdl);
-        if (!_hdl->expired()) {
-            websocketpp::lib::error_code ec;
-            _client.send(_hdl, text, websocketpp::frame::opcode::text, ec);
-            if (ec) {
-                InvokeListenersMethod(&WebsocketListener::OnFailed,
-                                      WebsocketFailure::WriteText,
-                                      ec.message());
+        websocketpp::lib::error_code ec;
+        {
+            LOCK_READ_PROTECTED_OBJ(_hdl);
+            if (!_hdl->expired()) {
+                _client.send(_hdl, text, websocketpp::frame::opcode::text, ec);
+                if (!ec) {
+                    ok = true;
+                }
             }
-            else {
-                ok = true;
-            }
+        }
+        if (!ok && ec) {
+            InvokeListenersMethod(&WebsocketListener::OnFailed,
+                                  WebsocketFailure::WriteText,
+                                  ec.message());
         }
     }
     return ok;
@@ -499,15 +504,19 @@ void WebsocketTpp::SocketImpl<TConfig>::OnSocketInit(websocketpp::connection_hdl
 template<class TConfig>
 void WebsocketTpp::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
 {
-    auto droppedGuard = std::make_unique<HdlWriteGuard>(_hdl.GetWriteGuard());
-    if (hdl.lock() == _hdl->lock()) {
-        websocketpp::lib::error_code ec;
-        if (const auto connection = _client.get_con_from_hdl(hdl, ec)) {
-            ec = connection->get_ec();
+    bool report = false;
+    websocketpp::lib::error_code ec;
+    {
+        LOCK_READ_PROTECTED_OBJ(_hdl);
+        report = _hdl->lock() == hdl.lock();
+        if (report) {
+            if (const auto connection = _client.get_con_from_hdl(hdl, ec)) {
+                ec = connection->get_ec();
+            }
         }
-        _client.stop();
-        // report error & reset state
-        DropHdl(std::move(droppedGuard));
+    }
+    if (report) {
+        // report error
         InvokeListenersMethod(&WebsocketListener::OnFailed, WebsocketFailure::General, ec.message());
     }
 }
@@ -515,14 +524,20 @@ void WebsocketTpp::SocketImpl<TConfig>::OnFail(websocketpp::connection_hdl hdl)
 template<class TConfig>
 void WebsocketTpp::SocketImpl<TConfig>::OnOpen(websocketpp::connection_hdl hdl)
 {
-    auto droppedGuard = std::make_unique<HdlReadGuard>(_hdl.GetReadGuard());
-    if (hdl.lock() == _hdl->lock()) {
-        if (const auto& tcpNoDelay = GetConfig()->GetOptions()._tcpNoDelay) {
-            const websocketpp::lib::asio::ip::tcp::no_delay option(tcpNoDelay.value());
-            SetTcpSocketOption(option, hdl, "TCP_NO_DELAY");
+    bool opened = false;
+    {
+        LOCK_READ_PROTECTED_OBJ(_hdl);
+        if (_hdl->lock() == hdl.lock()) {
+            opened = true;
+            if (const auto& tcpNoDelay = GetConfig()->GetOptions()._tcpNoDelay) {
+                const websocketpp::lib::asio::ip::tcp::no_delay option(tcpNoDelay.value());
+                SetTcpSocketOption(option, hdl, "TCP_NO_DELAY");
+            }
         }
+    }
+    if (opened) {
         // update state
-        SetOpened(true, std::move(droppedGuard));
+        SetOpened(true);
     }
 }
 
@@ -556,26 +571,28 @@ void WebsocketTpp::SocketImpl<TConfig>::OnMessage(websocketpp::connection_hdl hd
 template<class TConfig>
 void WebsocketTpp::SocketImpl<TConfig>::OnClose(websocketpp::connection_hdl hdl)
 {
-    auto droppedGuard = std::make_unique<HdlWriteGuard>(_hdl.GetWriteGuard());
-    if (hdl.lock() == _hdl->lock()) {
-        // report about close & reset state
-        DropHdl(std::move(droppedGuard));
+    bool closed = false;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_hdl);
+        if (hdl.lock() == _hdl->lock()) {
+            _hdl = websocketpp::connection_hdl();
+            closed = true;
+        }
+    }
+    if (closed) {
+        SetOpened(false);
     }
 }
 
-template<class TConfig> template<class Guard>
-void WebsocketTpp::SocketImpl<TConfig>::DropHdl(std::unique_ptr<Guard> droppedGuard)
+template<class TConfig>
+bool WebsocketTpp::SocketImpl<TConfig>::SetOpened(bool opened)
 {
-    _hdl = websocketpp::connection_hdl();
-    SetOpened(false, std::move(droppedGuard));
-}
-
-template<class TConfig> template<class Guard>
-bool WebsocketTpp::SocketImpl<TConfig>::SetOpened(bool opened, std::unique_ptr<Guard> droppedGuard)
-{
+    const auto oldState = GetState();
     if (opened != _opened.exchange(opened)) {
-        droppedGuard.reset();
-        InvokeListenersMethod(&WebsocketListener::OnStateChanged, GetState());
+        const auto newState = GetState();
+        if (oldState != newState) {
+            InvokeListenersMethod(&WebsocketListener::OnStateChanged, newState);
+        }
         return true;
     }
     return false;

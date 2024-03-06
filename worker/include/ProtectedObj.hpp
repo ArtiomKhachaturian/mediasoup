@@ -15,16 +15,16 @@ namespace RTC
 {
 
 template<class TMutexType> struct MutextTraits {
-    using MutexWriteGuard = std::unique_lock<TMutexType>;
+    using MutexWriteGuard = std::lock_guard<TMutexType>;
     using MutexReadGuard = MutexWriteGuard;
 };
 
 template<> struct MutextTraits<std::shared_mutex> {
-    using MutexWriteGuard = std::unique_lock<std::shared_mutex>;
+    using MutexWriteGuard = std::lock_guard<std::shared_mutex>;
     using MutexReadGuard = std::shared_lock<std::shared_mutex>;
 };
 
-template <typename T, class TMutexType = std::shared_mutex>
+template <typename T, class TMutexType = std::recursive_mutex>
 class ProtectedObj
 {
 public:
