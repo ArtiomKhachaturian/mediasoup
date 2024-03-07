@@ -18,10 +18,19 @@ RtpPacketsPlayerMediaFragment::~RtpPacketsPlayerMediaFragment()
     _queue->Stop();
 }
 
-void RtpPacketsPlayerMediaFragment::Start(size_t trackIndex, uint32_t ssrc, uint32_t clockRate,
-                                          uint64_t mediaId, uint64_t mediaSourceId)
+void RtpPacketsPlayerMediaFragment::Start(size_t trackIndex, uint32_t clockRate)
 {
-    _queue->Start(trackIndex, ssrc, clockRate, mediaId, mediaSourceId);
+    _queue->Start(trackIndex, clockRate);
+}
+
+uint64_t RtpPacketsPlayerMediaFragment::GetMediaId() const
+{
+    return _queue->GetMediaId();
+}
+
+uint64_t RtpPacketsPlayerMediaFragment::GetMediaSourceId() const
+{
+    return _queue->GetMediaSourceId();
 }
 
 size_t RtpPacketsPlayerMediaFragment::GetTracksCount() const
@@ -35,9 +44,10 @@ std::optional<RtpCodecMimeType> RtpPacketsPlayerMediaFragment::GetTrackMimeType(
 }
 
 std::unique_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
-    Parse(const std::shared_ptr<Buffer>& buffer,
+    Parse(uint64_t mediaId, uint64_t mediaSourceId,
+          const std::shared_ptr<Buffer>& buffer,
           const std::shared_ptr<MediaTimer> playerTimer,
-          RtpPacketsPlayerCallback* callback,
+          RtpPacketsPlayerStreamCallback* callback,
           const std::shared_ptr<BufferAllocator>& allocator)
 {
     std::unique_ptr<RtpPacketsPlayerMediaFragment> fragment;
@@ -46,7 +56,9 @@ std::unique_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
         const auto result = deserializer->Add(buffer);
         if (MaybeOk(result)) {
             if (deserializer->GetTracksCount()) {
-                auto queue = RtpPacketsPlayerMediaFragmentQueue::Create(playerTimer,
+                auto queue = RtpPacketsPlayerMediaFragmentQueue::Create(mediaId,
+                                                                        mediaSourceId,
+                                                                        playerTimer,
                                                                         std::move(deserializer),
                                                                         callback);
                 if (queue && playerTimer->Register(queue)) {
