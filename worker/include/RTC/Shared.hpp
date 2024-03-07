@@ -17,8 +17,8 @@ namespace RTC
 		~Shared();
 
 	public:
-		ChannelMessageRegistrator* channelMessageRegistrator{ nullptr };
-		Channel::ChannelNotifier* channelNotifier{ nullptr };
+		ChannelMessageRegistrator* const channelMessageRegistrator;
+		Channel::ChannelNotifier* const channelNotifier;
 	};
 } // namespace RTC
 

@@ -321,8 +321,12 @@ namespace RTC
           this->recvRtpHeaderExtensionIds.transportWideCc01 != 0u
             ? flatbuffers::Optional<uint8_t>(this->recvRtpHeaderExtensionIds.transportWideCc01)
             : flatbuffers::nullopt);
-
-        auto rtpListenerOffset = this->rtpListener.FillBuffer(builder);
+        
+        flatbuffers::Offset<FBS::Transport::RtpListener> rtpListenerOffset;
+        {
+            LOCK_READ_PROTECTED_OBJ(this->rtpListener);
+            rtpListenerOffset = this->rtpListener->FillBuffer(builder);
+        }
 
         // Add sctpParameters.
         flatbuffers::Offset<FBS::SctpParameters::SctpParameters> sctpParameters;
@@ -630,7 +634,8 @@ namespace RTC
                 // This may throw. If so, delete the Producer and throw.
                 try
                 {
-                    this->rtpListener.AddProducer(producer);
+                    LOCK_WRITE_PROTECTED_OBJ(this->rtpListener);
+                    this->rtpListener->AddProducer(producer);
                 }
                 catch (const MediaSoupError& error)
                 {
@@ -651,7 +656,8 @@ namespace RTC
                 }
                 catch (const MediaSoupError& error)
                 {
-                    this->rtpListener.RemoveProducer(producer);
+                    LOCK_WRITE_PROTECTED_OBJ(this->rtpListener);
+                    this->rtpListener->RemoveProducer(producer);
 
                     delete producer;
 
@@ -671,28 +677,28 @@ namespace RTC
 
                 if (producerRtpHeaderExtensionIds.mid != 0u)
                 {
-                    this->recvRtpHeaderExtensionIds.mid = producerRtpHeaderExtensionIds.mid;
+                    this->recvRtpHeaderExtensionIds.mid = producerRtpHeaderExtensionIds.mid.load();
                 }
 
                 if (producerRtpHeaderExtensionIds.rid != 0u)
                 {
-                    this->recvRtpHeaderExtensionIds.rid = producerRtpHeaderExtensionIds.rid;
+                    this->recvRtpHeaderExtensionIds.rid = producerRtpHeaderExtensionIds.rid.load();
                 }
 
                 if (producerRtpHeaderExtensionIds.rrid != 0u)
                 {
-                    this->recvRtpHeaderExtensionIds.rrid = producerRtpHeaderExtensionIds.rrid;
+                    this->recvRtpHeaderExtensionIds.rrid = producerRtpHeaderExtensionIds.rrid.load();
                 }
 
                 if (producerRtpHeaderExtensionIds.absSendTime != 0u)
                 {
-                    this->recvRtpHeaderExtensionIds.absSendTime = producerRtpHeaderExtensionIds.absSendTime;
+                    this->recvRtpHeaderExtensionIds.absSendTime = producerRtpHeaderExtensionIds.absSendTime.load();
                 }
 
                 if (producerRtpHeaderExtensionIds.transportWideCc01 != 0u)
                 {
                     this->recvRtpHeaderExtensionIds.transportWideCc01 =
-                      producerRtpHeaderExtensionIds.transportWideCc01;
+                      producerRtpHeaderExtensionIds.transportWideCc01.load();
                 }
 
                 // Create status response.
@@ -1280,7 +1286,10 @@ namespace RTC
                 RTC::Producer* producer = GetProducerById(body->producerId()->str());
 
                 // Remove it from the RtpListener.
-                this->rtpListener.RemoveProducer(producer);
+                {
+                    LOCK_WRITE_PROTECTED_OBJ(this->rtpListener);
+                    this->rtpListener->RemoveProducer(producer);
+                }
 
                 // Remove it from the map.
                 this->mapProducers.erase(producer->id);
@@ -1458,7 +1467,8 @@ namespace RTC
         if (packet) {
             if (!this->destroying) {
                 // Get the associated Producer.
-                if (RTC::Producer* producer = this->rtpListener.GetProducer(packet)) {
+                LOCK_READ_PROTECTED_OBJ(this->rtpListener);
+                if (RTC::Producer* producer = this->rtpListener->GetProducer(packet)) {
                     ApplyHeaderExtensions(packet);
                     if (producer->MangleRtpPacket(packet, mappedSsrc)) {
                         producer->PostProcessRtpPacket(packet);
@@ -1601,7 +1611,8 @@ namespace RTC
         }
 
         // Get the associated Producer.
-        RTC::Producer* producer = this->rtpListener.GetProducer(packet);
+        LOCK_READ_PROTECTED_OBJ(this->rtpListener);
+        RTC::Producer* producer = this->rtpListener->GetProducer(packet);
 
         if (!producer)
         {
@@ -2103,7 +2114,8 @@ namespace RTC
                 for (auto it = sr->Begin(); it != sr->End(); ++it)
                 {
                     auto& report   = *it;
-                    auto* producer = this->rtpListener.GetProducer(report->GetSsrc());
+                    LOCK_READ_PROTECTED_OBJ(this->rtpListener);
+                    auto* producer = this->rtpListener->GetProducer(report->GetSsrc());
 
                     if (!producer)
                     {
@@ -2164,7 +2176,8 @@ namespace RTC
                                     ssrcInfo->SetSsrc(xr->GetSsrc());
                                 }
 
-                                auto* producer = this->rtpListener.GetProducer(ssrcInfo->GetSsrc());
+                                LOCK_READ_PROTECTED_OBJ(this->rtpListener);
+                                auto* producer = this->rtpListener->GetProducer(ssrcInfo->GetSsrc());
 
                                 if (!producer)
                                 {

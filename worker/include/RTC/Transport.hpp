@@ -29,6 +29,7 @@
 #include "RTC/TransportCongestionControlClient.hpp"
 #include "RTC/TransportCongestionControlServer.hpp"
 #include "handles/TimerHandle.hpp"
+#include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <string>
 #include <vector>
@@ -358,7 +359,7 @@ namespace RTC
         bool direct{ false }; // Whether this Transport allows direct communication.
         bool destroying{ false };
         struct RTC::RtpHeaderExtensionIds recvRtpHeaderExtensionIds;
-        RTC::RtpListener rtpListener;
+        ProtectedObj<RTC::RtpListener> rtpListener;
         RTC::SctpListener sctpListener;
         RTC::RateCalculator recvTransmission;
         RTC::RateCalculator sendTransmission;

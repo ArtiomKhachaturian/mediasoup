@@ -264,8 +264,8 @@ namespace RTC
 		};
 
 	public:
-		static std::optional<Type> GetType(const RtpParameters& rtpParameters);
-		static std::string& GetTypeString(Type type);
+		static Type GetType(const RtpParameters& rtpParameters) noexcept(false);
+		static const std::string& GetTypeString(Type type);
 		static FBS::RtpParameters::Type TypeToFbs(Type type);
 
 	private:

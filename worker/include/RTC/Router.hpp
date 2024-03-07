@@ -16,6 +16,7 @@
 #include "RTC/WebRtcServer.hpp"
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
 #include "RTC/MediaTranslate/Translator.hpp"
+#include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <string>
@@ -141,9 +142,9 @@ namespace RTC
         absl::flat_hash_map<std::string, RTC::RtpObserver*> mapRtpObservers;
         // Others.
         absl::flat_hash_map<RTC::Transport*, TranslatorsMap> mapTransportTranslators;
-        absl::flat_hash_map<RTC::Producer*, absl::flat_hash_set<RTC::Consumer*>> mapProducerConsumers;
+        ProtectedObj<absl::flat_hash_map<RTC::Producer*, absl::flat_hash_set<RTC::Consumer*>>> mapProducerConsumers;
         absl::flat_hash_map<RTC::Consumer*, RTC::Producer*> mapConsumerProducer;
-        absl::flat_hash_map<RTC::Producer*, absl::flat_hash_set<RTC::RtpObserver*>> mapProducerRtpObservers;
+        ProtectedObj<absl::flat_hash_map<RTC::Producer*, absl::flat_hash_set<RTC::RtpObserver*>>> mapProducerRtpObservers;
         absl::flat_hash_map<std::string, RTC::Producer*> mapProducers;
         absl::flat_hash_map<RTC::DataProducer*, absl::flat_hash_set<RTC::DataConsumer*>>
           mapDataProducerDataConsumers;

@@ -1,5 +1,6 @@
 #ifndef MS_RTC_RTP_HEADER_EXTENSION_IDS_HPP
 #define MS_RTC_RTP_HEADER_EXTENSION_IDS_HPP
+#include <atomic>
 
 namespace RTC
 {
@@ -8,17 +9,17 @@ namespace RTC
 	struct RtpHeaderExtensionIds
 	{
 		// 0 means no id.
-		uint8_t mid{ 0u };
-		uint8_t rid{ 0u };
-		uint8_t rrid{ 0u };
-		uint8_t absSendTime{ 0u };
-		uint8_t transportWideCc01{ 0u };
-		uint8_t frameMarking07{ 0u }; // NOTE: Remove once RFC.
-		uint8_t frameMarking{ 0u };
-		uint8_t ssrcAudioLevel{ 0u };
-		uint8_t videoOrientation{ 0u };
-		uint8_t toffset{ 0u };
-		uint8_t absCaptureTime{ 0u };
+		std::atomic_uint8_t mid{ 0u };
+        std::atomic_uint8_t rid{ 0u };
+        std::atomic_uint8_t rrid{ 0u };
+        std::atomic_uint8_t absSendTime{ 0u };
+        std::atomic_uint8_t transportWideCc01{ 0u };
+        std::atomic_uint8_t frameMarking07{ 0u }; // NOTE: Remove once RFC.
+        std::atomic_uint8_t frameMarking{ 0u };
+        std::atomic_uint8_t ssrcAudioLevel{ 0u };
+        std::atomic_uint8_t videoOrientation{ 0u };
+        std::atomic_uint8_t toffset{ 0u };
+        std::atomic_uint8_t absCaptureTime{ 0u };
 	};
 } // namespace RTC
 

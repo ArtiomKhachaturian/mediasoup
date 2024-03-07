@@ -58,9 +58,15 @@ namespace RTC
         this->mapRtpObservers.clear();
 
         // Clear other maps.
-        this->mapProducerConsumers.clear();
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->mapProducerConsumers);
+            this->mapProducerConsumers->clear();
+        }
         this->mapConsumerProducer.clear();
-        this->mapProducerRtpObservers.clear();
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->mapProducerRtpObservers);
+            this->mapProducerRtpObservers->clear();
+        }
         this->mapProducers.clear();
         this->mapDataProducerDataConsumers.clear();
         this->mapDataConsumerDataProducer.clear();
@@ -96,23 +102,27 @@ namespace RTC
 
         // Add mapProducerIdConsumerIds.
         std::vector<flatbuffers::Offset<FBS::Common::StringStringArray>> mapProducerIdConsumerIds;
-        mapProducerIdConsumerIds.reserve(this->mapProducerConsumers.size());
-
-        for (const auto& kv : this->mapProducerConsumers)
         {
-            auto* producer        = kv.first;
-            const auto& consumers = kv.second;
+            LOCK_READ_PROTECTED_OBJ(this->mapProducerConsumers);
+            
+            mapProducerIdConsumerIds.reserve(this->mapProducerConsumers->size());
 
-            std::vector<flatbuffers::Offset<flatbuffers::String>> consumerIds;
-            consumerIds.reserve(consumers.size());
-
-            for (auto* consumer : consumers)
+            for (const auto& kv : this->mapProducerConsumers.ConstRef())
             {
-                consumerIds.emplace_back(builder.CreateString(consumer->id));
-            }
+                auto* producer        = kv.first;
+                const auto& consumers = kv.second;
 
-            mapProducerIdConsumerIds.emplace_back(
-              FBS::Common::CreateStringStringArrayDirect(builder, producer->id.c_str(), &consumerIds));
+                std::vector<flatbuffers::Offset<flatbuffers::String>> consumerIds;
+                consumerIds.reserve(consumers.size());
+
+                for (auto* consumer : consumers)
+                {
+                    consumerIds.emplace_back(builder.CreateString(consumer->id));
+                }
+
+                mapProducerIdConsumerIds.emplace_back(
+                  FBS::Common::CreateStringStringArrayDirect(builder, producer->id.c_str(), &consumerIds));
+            }
         }
 
         // Add mapConsumerIdProducerId.
@@ -130,23 +140,28 @@ namespace RTC
 
         // Add mapProducerIdObserverIds.
         std::vector<flatbuffers::Offset<FBS::Common::StringStringArray>> mapProducerIdObserverIds;
-        mapProducerIdObserverIds.reserve(this->mapProducerRtpObservers.size());
-
-        for (const auto& kv : this->mapProducerRtpObservers)
+        
         {
-            auto* producer           = kv.first;
-            const auto& rtpObservers = kv.second;
-
-            std::vector<flatbuffers::Offset<flatbuffers::String>> observerIds;
-            observerIds.reserve(rtpObservers.size());
-
-            for (auto* rtpObserver : rtpObservers)
+            LOCK_READ_PROTECTED_OBJ(this->mapProducerRtpObservers);
+            
+            mapProducerIdObserverIds.reserve(this->mapProducerRtpObservers->size());
+            
+            for (const auto& kv : this->mapProducerRtpObservers.ConstRef())
             {
-                observerIds.emplace_back(builder.CreateString(rtpObserver->id));
+                auto* producer           = kv.first;
+                const auto& rtpObservers = kv.second;
+                
+                std::vector<flatbuffers::Offset<flatbuffers::String>> observerIds;
+                observerIds.reserve(rtpObservers.size());
+                
+                for (auto* rtpObserver : rtpObservers)
+                {
+                    observerIds.emplace_back(builder.CreateString(rtpObserver->id));
+                }
+                
+                mapProducerIdObserverIds.emplace_back(
+                                                      FBS::Common::CreateStringStringArrayDirect(builder, producer->id.c_str(), &observerIds));
             }
-
-            mapProducerIdObserverIds.emplace_back(
-              FBS::Common::CreateStringStringArrayDirect(builder, producer->id.c_str(), &observerIds));
         }
 
         // Add mapDataProducerIdDataConsumerIds.
@@ -428,12 +443,15 @@ namespace RTC
                 // Remove it from the map.
                 this->mapRtpObservers.erase(rtpObserver->id);
 
-                // Iterate all entries in mapProducerRtpObservers and remove the closed one.
-                for (auto& kv : this->mapProducerRtpObservers)
                 {
-                    auto& rtpObservers = kv.second;
-
-                    rtpObservers.erase(rtpObserver);
+                    LOCK_WRITE_PROTECTED_OBJ( this->mapProducerRtpObservers);
+                    // Iterate all entries in mapProducerRtpObservers and remove the closed one.
+                    for (auto& kv : this->mapProducerRtpObservers.Ref())
+                    {
+                        auto& rtpObservers = kv.second;
+                        
+                        rtpObservers.erase(rtpObserver);
+                    }
                 }
 
                 MS_DEBUG_DEV("RtpObserver closed [rtpObserverId:%s]", rtpObserver->id.c_str());
@@ -501,8 +519,11 @@ namespace RTC
     {
         MS_TRACE();
 
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerConsumers);
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerRtpObservers);
+        
         MS_ASSERT(
-          this->mapProducerConsumers.find(producer) == this->mapProducerConsumers.end(),
+          this->mapProducerConsumers->find(producer) == this->mapProducerConsumers->end(),
           "Producer already present in mapProducerConsumers");
 
         if (this->mapProducers.find(producer->id) != this->mapProducers.end())
@@ -512,8 +533,8 @@ namespace RTC
 
         // Insert the Producer in the maps.
         this->mapProducers[producer->id] = producer;
-        this->mapProducerConsumers[producer];
-        this->mapProducerRtpObservers[producer];
+        this->mapProducerConsumers->insert(std::make_pair(producer, absl::flat_hash_set<RTC::Consumer*>()));
+        this->mapProducerRtpObservers->insert(std::make_pair(producer, absl::flat_hash_set<RTC::RtpObserver*>()));
         const auto itt = this->mapTransportTranslators.find(transport);
         if (itt == this->mapTransportTranslators.end()) {
             MS_THROW_ERROR("Transport is not present in mapTransportTranslators [transportId:%s]", transport->id.c_str());
@@ -533,17 +554,20 @@ namespace RTC
     inline void Router::OnTransportProducerClosed(RTC::Transport* transport, RTC::Producer* producer)
     {
         MS_TRACE();
-
-        auto mapProducerConsumersIt    = this->mapProducerConsumers.find(producer);
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerConsumers);
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerRtpObservers);
+        
+        auto mapProducerConsumersIt    = this->mapProducerConsumers->find(producer);
         auto mapProducersIt            = this->mapProducers.find(producer->id);
-        auto mapProducerRtpObserversIt = this->mapProducerRtpObservers.find(producer);
+        auto mapProducerRtpObserversIt = this->mapProducerRtpObservers->find(producer);
 
         MS_ASSERT(
-          mapProducerConsumersIt != this->mapProducerConsumers.end(),
+          mapProducerConsumersIt != this->mapProducerConsumers->end(),
           "Producer not present in mapProducerConsumers");
         MS_ASSERT(mapProducersIt != this->mapProducers.end(), "Producer not present in mapProducers");
         MS_ASSERT(
-          mapProducerRtpObserversIt != this->mapProducerRtpObservers.end(),
+          mapProducerRtpObserversIt != this->mapProducerRtpObservers->end(),
           "Producer not present in mapProducerRtpObservers");
         
         // translators
@@ -578,28 +602,31 @@ namespace RTC
 
         // Remove the Producer from the maps.
         this->mapProducers.erase(mapProducersIt);
-        this->mapProducerConsumers.erase(mapProducerConsumersIt);
-        this->mapProducerRtpObservers.erase(mapProducerRtpObserversIt);
+        this->mapProducerConsumers->erase(mapProducerConsumersIt);
+        this->mapProducerRtpObservers->erase(mapProducerRtpObserversIt);
     }
 
     inline void Router::OnTransportProducerPaused(RTC::Transport* /*transport*/, RTC::Producer* producer)
     {
         MS_TRACE();
-
-        auto& consumers = this->mapProducerConsumers.at(producer);
-
-        for (auto* consumer : consumers)
+        
         {
-            consumer->ProducerPaused();
+            LOCK_READ_PROTECTED_OBJ(this->mapProducerConsumers);
+            
+            for (auto* consumer : this->mapProducerConsumers->at(producer))
+            {
+                consumer->ProducerPaused();
+            }
+
         }
 
-        auto it = this->mapProducerRtpObservers.find(producer);
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerRtpObservers);
+        
+        auto it = this->mapProducerRtpObservers->find(producer);
 
-        if (it != this->mapProducerRtpObservers.end())
+        if (it != this->mapProducerRtpObservers->end())
         {
-            auto& rtpObservers = it->second;
-
-            for (auto* rtpObserver : rtpObservers)
+            for (auto* rtpObserver : it->second)
             {
                 rtpObserver->ProducerPaused(producer);
             }
@@ -610,20 +637,22 @@ namespace RTC
     {
         MS_TRACE();
 
-        auto& consumers = this->mapProducerConsumers.at(producer);
-
-        for (auto* consumer : consumers)
         {
-            consumer->ProducerResumed();
+            LOCK_READ_PROTECTED_OBJ(this->mapProducerConsumers);
+                        
+            for (auto* consumer : this->mapProducerConsumers->at(producer))
+            {
+                consumer->ProducerResumed();
+            }
         }
+        
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerRtpObservers);
 
-        auto it = this->mapProducerRtpObservers.find(producer);
+        auto it = this->mapProducerRtpObservers->find(producer);
 
-        if (it != this->mapProducerRtpObservers.end())
+        if (it != this->mapProducerRtpObservers->end())
         {
-            auto& rtpObservers = it->second;
-
-            for (auto* rtpObserver : rtpObservers)
+            for (auto* rtpObserver : it->second)
             {
                 rtpObserver->ProducerResumed(producer);
             }
@@ -641,10 +670,10 @@ namespace RTC
         if (const auto translator = GetTranslator(producer)) {
             translator->AddStream(rtpStream, mappedSsrc);
         }
+        
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerConsumers);
 
-        auto& consumers = this->mapProducerConsumers.at(producer);
-
-        for (auto* consumer : consumers)
+        for (auto* consumer : this->mapProducerConsumers->at(producer))
         {
             consumer->ProducerNewRtpStream(rtpStream, mappedSsrc);
         }
@@ -658,10 +687,10 @@ namespace RTC
       uint8_t previousScore)
     {
         MS_TRACE();
+        
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerConsumers);
 
-        auto& consumers = this->mapProducerConsumers.at(producer);
-
-        for (auto* consumer : consumers)
+        for (auto* consumer : this->mapProducerConsumers->at(producer))
         {
             consumer->ProducerRtpStreamScore(rtpStream, score, previousScore);
         }
@@ -672,9 +701,9 @@ namespace RTC
     {
         MS_TRACE();
 
-        auto& consumers = this->mapProducerConsumers.at(producer);
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerConsumers);
 
-        for (auto* consumer : consumers)
+        for (auto* consumer : this->mapProducerConsumers->at(producer))
         {
             consumer->ProducerRtcpSenderReport(rtpStream, first);
         }
@@ -688,57 +717,60 @@ namespace RTC
 #ifdef MS_RTC_LOGGER_RTP
         packet->logger.routerId = this->id;
 #endif
-
-        auto& consumers = this->mapProducerConsumers.at(producer);
-        
         bool accepted = false;
 
-        if (!consumers.empty())
         {
-            // Cloned ref-counted packet that RtpStreamSend will store for as long as
-            // needed avoiding multiple allocations unless absolutely necessary.
-            // Clone only happens if needed.
-            std::shared_ptr<RTC::RtpPacket> sharedPacket;
-
-#ifdef MS_LIBURING_SUPPORTED
-            // Activate liburing usage.
-            DepLibUring::SetActive();
-#endif
-
-            for (auto* consumer : consumers)
+            LOCK_READ_PROTECTED_OBJ(this->mapProducerConsumers);
+            const auto& consumers = this->mapProducerConsumers->at(producer);
+            
+            if (!consumers.empty())
             {
-                if (packet->ConsumerIsAccepted(consumer)) {
-                    // Update MID RTP extension value.
-                    const auto& mid = consumer->GetRtpParameters().mid;
-                    
-                    if (!mid.empty())
-                    {
-                        packet->UpdateMid(mid);
-                    }
-                    
-                    consumer->SendRtpPacket(packet, sharedPacket);
-                    
-                    accepted = true;
-                }
-            }
-
+                // Cloned ref-counted packet that RtpStreamSend will store for as long as
+                // needed avoiding multiple allocations unless absolutely necessary.
+                // Clone only happens if needed.
+                std::shared_ptr<RTC::RtpPacket> sharedPacket;
+                
 #ifdef MS_LIBURING_SUPPORTED
-            // Submit all prepared submission entries.
-            DepLibUring::Submit();
+                // Activate liburing usage.
+                DepLibUring::SetActive();
 #endif
-        }
-        else {
-            accepted = true;
+                
+                for (auto* consumer : consumers)
+                {
+                    if (packet->ConsumerIsAccepted(consumer)) {
+                        // Update MID RTP extension value.
+                        const auto& mid = consumer->GetRtpParameters().mid;
+                        
+                        if (!mid.empty())
+                        {
+                            packet->UpdateMid(mid);
+                        }
+                        
+                        consumer->SendRtpPacket(packet, sharedPacket);
+                        
+                        accepted = true;
+                    }
+                }
+                
+#ifdef MS_LIBURING_SUPPORTED
+                // Submit all prepared submission entries.
+                DepLibUring::Submit();
+#endif
+            }
+            else {
+                accepted = true;
+            }
         }
         
         if (accepted) {
-            auto it = this->mapProducerRtpObservers.find(producer);
             
-            if (it != this->mapProducerRtpObservers.end())
+            LOCK_READ_PROTECTED_OBJ(this->mapProducerRtpObservers);
+            
+            auto it = this->mapProducerRtpObservers->find(producer);
+            
+            if (it != this->mapProducerRtpObservers->end())
             {
-                auto& rtpObservers = it->second;
-                
-                for (auto* rtpObserver : rtpObservers)
+                for (auto* rtpObserver : it->second)
                 {
                     rtpObserver->ReceiveRtpPacket(producer, packet);
                 }
@@ -754,9 +786,9 @@ namespace RTC
     {
         MS_TRACE();
 
-        auto& consumers = this->mapProducerConsumers.at(producer);
-
-        for (auto* consumer : consumers)
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerConsumers);
+        
+        for (auto* consumer : this->mapProducerConsumers->at(producer))
         {
             consumer->NeedWorstRemoteFractionLost(mappedSsrc, worstRemoteFractionLost);
         }
@@ -775,10 +807,13 @@ namespace RTC
         }
 
         auto* producer              = mapProducersIt->second;
-        auto mapProducerConsumersIt = this->mapProducerConsumers.find(producer);
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerConsumers);
+        
+        auto mapProducerConsumersIt = this->mapProducerConsumers->find(producer);
 
         MS_ASSERT(
-          mapProducerConsumersIt != this->mapProducerConsumers.end(),
+          mapProducerConsumersIt != this->mapProducerConsumers->end(),
           "Producer not present in mapProducerConsumers");
         MS_ASSERT(
           this->mapConsumerProducer.find(consumer) == this->mapConsumerProducer.end(),
@@ -830,9 +865,11 @@ namespace RTC
 
         // Get the associated Producer.
         auto* producer = mapConsumerProducerIt->second;
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerConsumers);
 
         MS_ASSERT(
-          this->mapProducerConsumers.find(producer) != this->mapProducerConsumers.end(),
+          this->mapProducerConsumers->find(producer) != this->mapProducerConsumers->end(),
           "Producer not present in mapProducerConsumers");
         
         if (const auto translator = GetTranslator(producer)) {
@@ -840,7 +877,7 @@ namespace RTC
         }
 
         // Remove the Consumer from the set of Consumers of the Producer.
-        auto& consumers = this->mapProducerConsumers.at(producer);
+        auto& consumers = this->mapProducerConsumers->at(producer);
 
         consumers.erase(consumer);
 
@@ -1122,13 +1159,15 @@ namespace RTC
     void Router::OnRtpObserverAddProducer(RTC::RtpObserver* rtpObserver, RTC::Producer* producer)
     {
         // Add to the map.
-        this->mapProducerRtpObservers[producer].insert(rtpObserver);
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerRtpObservers);
+        this->mapProducerRtpObservers.Ref()[producer].insert(rtpObserver);
     }
 
     void Router::OnRtpObserverRemoveProducer(RTC::RtpObserver* rtpObserver, RTC::Producer* producer)
     {
         // Remove from the map.
-        this->mapProducerRtpObservers[producer].erase(rtpObserver);
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerRtpObservers);
+        this->mapProducerRtpObservers.Ref()[producer].erase(rtpObserver);
     }
 
     Translator* Router::GetTranslator(const RTC::Producer* producer) const

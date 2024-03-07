@@ -29,22 +29,14 @@ namespace RTC
 	  const std::string& id,    
 	  RTC::Producer::Listener* listener,
 	  const FBS::Transport::ProduceRequest* data)
-	  : id(id), shared(shared), listener(listener), kind(RTC::Media::Kind(data->kind()))
+	  : id(id), shared(shared), listener(listener), 
+        kind(RTC::Media::Kind(data->kind())),
+        rtpParameters(data->rtpParameters()), // This may throw.
+        type(RTC::RtpParameters::GetType(this->rtpParameters)), // Evaluate type.
+        maxRtcpInterval(this->kind == RTC::Media::Kind::AUDIO ? RTC::RTCP::MaxAudioIntervalMs : RTC::RTCP::MaxVideoIntervalMs), // Set the RTCP report generation interval.
+        languageId("auto")
 	{
 		MS_TRACE();
-
-		// This may throw.
-		this->rtpParameters = RTC::RtpParameters(data->rtpParameters());
-
-		// Evaluate type.
-		auto type = RTC::RtpParameters::GetType(this->rtpParameters);
-
-		if (!type.has_value())
-		{
-			MS_THROW_TYPE_ERROR("invalid RTP parameters");
-		}
-
-		this->type = type.value();
 
 		// Reserve a slot in rtpStreamByEncodingIdx and rtpStreamsScores vectors
 		// for each RTP stream.
@@ -64,18 +56,18 @@ namespace RTC
 
 		for (const auto& codec : *data->rtpMapping()->codecs())
 		{
-			this->rtpMapping.codecs[codec->payloadType()] = codec->mappedPayloadType();
+			this->rtpMapping->codecs[codec->payloadType()] = codec->mappedPayloadType();
 		}
 
 		const auto* encodings = data->rtpMapping()->encodings();
 
-		this->rtpMapping.encodings.reserve(encodings->size());
+		this->rtpMapping->encodings.reserve(encodings->size());
 
 		for (const auto& encoding : *encodings)
 		{
-			this->rtpMapping.encodings.emplace_back();
+			this->rtpMapping->encodings.emplace_back();
 
-			auto& encodingMapping = this->rtpMapping.encodings.back();
+			auto& encodingMapping = this->rtpMapping->encodings.back();
 
 			// ssrc is optional.
 			if (encoding->ssrc().has_value())
@@ -123,7 +115,7 @@ namespace RTC
 
 		// The number of encodings in rtpParameters must match the number of encodings
 		// in rtpMapping.
-		if (this->rtpParameters.encodings.size() != this->rtpMapping.encodings.size())
+		if (this->rtpParameters.encodings.size() != this->rtpMapping->encodings.size())
 		{
 			MS_THROW_TYPE_ERROR("rtpParameters.encodings size does not match rtpMapping.encodings size");
 		}
@@ -194,16 +186,6 @@ namespace RTC
 			}
 		}
 
-		// Set the RTCP report generation interval.
-		if (this->kind == RTC::Media::Kind::AUDIO)
-		{
-			this->maxRtcpInterval = RTC::RTCP::MaxAudioIntervalMs;
-		}
-		else
-		{
-			this->maxRtcpInterval = RTC::RTCP::MaxVideoIntervalMs;
-		}
-
 		// Create a KeyFrameRequestManager.
 		if (this->kind == RTC::Media::Kind::VIDEO)
 		{
@@ -253,26 +235,30 @@ namespace RTC
 
 		// Add rtpMapping.codecs.
 		std::vector<flatbuffers::Offset<FBS::RtpParameters::CodecMapping>> codecs;
-
-		for (const auto& kv : this->rtpMapping.codecs)
-		{
-			codecs.emplace_back(FBS::RtpParameters::CreateCodecMapping(builder, kv.first, kv.second));
-		}
-
-		// Add rtpMapping.encodings.
-		std::vector<flatbuffers::Offset<FBS::RtpParameters::EncodingMapping>> encodings;
-		encodings.reserve(this->rtpMapping.encodings.size());
-
-		for (const auto& encodingMapping : this->rtpMapping.encodings)
-		{
-			encodings.emplace_back(FBS::RtpParameters::CreateEncodingMappingDirect(
-			  builder,
-			  encodingMapping.rid.c_str(),
-			  encodingMapping.ssrc != 0u ? flatbuffers::Optional<uint32_t>(encodingMapping.ssrc)
-			                             : flatbuffers::nullopt,
-			  nullptr, /* capability mode. NOTE: Present in NODE*/
-			  encodingMapping.mappedSsrc));
-		}
+        std::vector<flatbuffers::Offset<FBS::RtpParameters::EncodingMapping>> encodings;
+        
+        {
+            LOCK_READ_PROTECTED_OBJ(this->rtpMapping);
+            
+            for (const auto& kv : this->rtpMapping->codecs)
+            {
+                codecs.emplace_back(FBS::RtpParameters::CreateCodecMapping(builder, kv.first, kv.second));
+            }
+            
+            // Add rtpMapping.encodings.
+            encodings.reserve(this->rtpMapping->encodings.size());
+            
+            for (const auto& encodingMapping : this->rtpMapping->encodings)
+            {
+                encodings.emplace_back(FBS::RtpParameters::CreateEncodingMappingDirect(
+                   builder,
+                   encodingMapping.rid.c_str(),
+                   encodingMapping.ssrc != 0u ? flatbuffers::Optional<uint32_t>(encodingMapping.ssrc)
+                   : flatbuffers::nullopt,
+                   nullptr, /* capability mode. NOTE: Present in NODE*/
+                   encodingMapping.mappedSsrc));
+            }
+        }
 
 		// Build rtpMapping.
 		auto rtpMapping = FBS::RtpParameters::CreateRtpMappingDirect(builder, &codecs, &encodings);
@@ -830,10 +816,19 @@ namespace RTC
 		this->keyFrameRequestManager->KeyFrameNeeded(ssrc);
 	}
 
-    void Producer::SetLanguageId(const std::string& languageId)
+    std::string Producer::GetLanguageId() const
+    {
+        LOCK_READ_PROTECTED_OBJ(this->languageId);
+        return this->languageId.ConstRef();
+    }
+
+    void Producer::SetLanguageId(std::string languageId)
     {
         MS_TRACE();
-        this->languageId = languageId;
+        if (!languageId.empty()) {
+            LOCK_WRITE_PROTECTED_OBJ(this->languageId);
+            this->languageId = std::move(languageId);
+        }
     }
 
 	RTC::RtpStreamRecv* Producer::GetRtpStream(RTC::RtpPacket* packet)
@@ -1075,9 +1070,11 @@ namespace RTC
 		MS_ASSERT(
 		  !this->rtpStreamByEncodingIdx[encodingIdx],
 		  "RtpStream for given encoding index already exists");
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->rtpMapping);
 
 		auto& encoding        = this->rtpParameters.encodings[encodingIdx];
-		auto& encodingMapping = this->rtpMapping.encodings[encodingIdx];
+		auto& encodingMapping = this->rtpMapping->encodings[encodingIdx];
 
 		MS_DEBUG_TAG(
 		  rtp,
@@ -1148,7 +1145,7 @@ namespace RTC
 		// Only perform RTP inactivity check on simulcast and only if there are
 		// more than 1 stream.
 		auto useRtpInactivityCheck =
-		  this->type == RtpParameters::Type::SIMULCAST && this->rtpMapping.encodings.size() > 1;
+		  this->type == RtpParameters::Type::SIMULCAST && this->rtpMapping->encodings.size() > 1;
 
 		// Create a RtpStreamRecv for receiving a media stream.
 		auto* rtpStream = new RTC::RtpStreamRecv(this, params, SendNackDelay, useRtpInactivityCheck);
@@ -1202,10 +1199,11 @@ namespace RTC
 
 		// Mangle the payload type.
 		{
+            LOCK_READ_PROTECTED_OBJ(this->rtpMapping);
 			const uint8_t payloadType = packet->GetPayloadType();
-			auto it                   = this->rtpMapping.codecs.find(payloadType);
+			auto it                   = this->rtpMapping->codecs.find(payloadType);
 
-			if (it == this->rtpMapping.codecs.end())
+			if (it == this->rtpMapping->codecs.end())
 			{
 				MS_WARN_TAG(rtp, "unknown payload type [payloadType:%" PRIu8 "]", payloadType);
 

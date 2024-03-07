@@ -14,6 +14,8 @@
 #include "RTC/RtpPacket.hpp"
 #include "RTC/RtpStreamRecv.hpp"
 #include "RTC/Shared.hpp"
+#include "ProtectedObj.hpp"
+#include <atomic>
 #include <string>
 #include <vector>
 #include <optional>
@@ -69,9 +71,9 @@ namespace RTC
 	private:
 		struct VideoOrientation
 		{
-			bool camera{ false };
-			bool flip{ false };
-			uint16_t rotation{ 0 };
+			std::atomic_bool camera{ false };
+            std::atomic_bool flip{ false };
+			std::atomic<uint16_t> rotation{ 0 };
 		};
 
 	public:
@@ -139,8 +141,8 @@ namespace RTC
 		void ReceiveRtcpXrDelaySinceLastRr(RTC::RTCP::DelaySinceLastRr::SsrcInfo* ssrcInfo);
 		bool GetRtcp(RTC::RTCP::CompoundPacket* packet, uint64_t nowMs);
 		void RequestKeyFrame(uint32_t mappedSsrc);
-        const std::string& GetLanguageId() const { return this->languageId; }
-        void SetLanguageId(const std::string& languageId);
+        std::string GetLanguageId() const;
+        void SetLanguageId(std::string languageId);
         bool MangleRtpPacket(RTC::RtpPacket* packet, uint32_t mappedSsrc) const;
         bool MangleRtpPacket(RTC::RtpPacket* packet, RTC::RtpStreamRecv* rtpStream) const;
         void PostProcessRtpPacket(const RTC::RtpPacket* packet);
@@ -184,17 +186,19 @@ namespace RTC
 
 	private:
 		// Passed by argument.
-		RTC::Shared* shared{ nullptr };
-		RTC::Producer::Listener* listener{ nullptr };
-        std::string languageId;
+		RTC::Shared* const shared;
+		RTC::Producer::Listener* const listener;
+        // Others.
+        const RTC::Media::Kind kind;
+        const RTC::RtpParameters rtpParameters;
+        const RTC::RtpParameters::Type type;
+        const uint16_t maxRtcpInterval;
+        ProtectedObj<std::string> languageId;
 		// Allocated by this.
 		absl::flat_hash_map<uint32_t, RTC::RtpStreamRecv*> mapSsrcRtpStream;
 		RTC::KeyFrameRequestManager* keyFrameRequestManager{ nullptr };
 		// Others.
-		RTC::Media::Kind kind;
-		RTC::RtpParameters rtpParameters;
-		RTC::RtpParameters::Type type;
-		struct RtpMapping rtpMapping;
+		ProtectedObj<struct RtpMapping> rtpMapping;
 		std::vector<RTC::RtpStreamRecv*> rtpStreamByEncodingIdx;
 		std::vector<uint8_t> rtpStreamScores;
 		absl::flat_hash_map<uint32_t, RTC::RtpStreamRecv*> mapRtxSsrcRtpStream;
@@ -205,9 +209,8 @@ namespace RTC
 		RTC::RtpPacket* currentRtpPacket{ nullptr };
 		// Timestamp when last RTCP was sent.
 		uint64_t lastRtcpSentTime{ 0u };
-		uint16_t maxRtcpInterval{ 0u };
 		// Video orientation.
-		bool videoOrientationDetected{ false };
+        std::atomic_bool videoOrientationDetected{ false };
 		struct VideoOrientation videoOrientation;
 		struct TraceEventTypes traceEventTypes;
 		// Static buffer.

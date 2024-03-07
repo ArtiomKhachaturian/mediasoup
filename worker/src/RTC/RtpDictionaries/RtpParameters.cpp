@@ -21,7 +21,7 @@ namespace RTC
 
 	/* Class methods. */
 
-	std::optional<RtpParameters::Type> RtpParameters::GetType(const RtpParameters& rtpParameters)
+	RtpParameters::Type RtpParameters::GetType(const RtpParameters& rtpParameters)
 	{
 		MS_TRACE();
 
@@ -54,11 +54,15 @@ namespace RTC
 		{
 			type.emplace(RtpParameters::Type::SIMULCAST);
 		}
+        
+        if (!type.has_value()) {
+            MS_THROW_TYPE_ERROR("invalid RTP parameters");
+        }
 
-		return type;
+		return type.value();
 	}
 
-	std::string& RtpParameters::GetTypeString(RtpParameters::Type type)
+	const std::string& RtpParameters::GetTypeString(RtpParameters::Type type)
 	{
 		MS_TRACE();
 
