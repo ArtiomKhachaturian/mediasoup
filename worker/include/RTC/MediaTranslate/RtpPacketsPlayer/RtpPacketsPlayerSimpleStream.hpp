@@ -5,6 +5,7 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "ProtectedObj.hpp"
 #include <memory>
+#include <optional>
 #include <unordered_map>
 
 namespace RTC
@@ -18,10 +19,12 @@ class RtpPacketsPlayerSimpleStream : public BufferAllocations<RtpPacketsPlayerSt
 {
     template<typename V>
     using UInt64Map = std::unordered_map<uint64_t, V>;
+    // 2nd is track number
+    using PendingMedia = std::pair<std::unique_ptr<RtpPacketsPlayerMediaFragment>, size_t>;
     // key is media ID
-    using MediaFragmentsMap = UInt64Map<std::unique_ptr<RtpPacketsPlayerMediaFragment>>;
+    using PendingMediaMap = UInt64Map<PendingMedia>;
     // key is media source ID
-    using MediaSourcesMap = UInt64Map<MediaFragmentsMap>;
+    using PendingMediasMap = UInt64Map<PendingMediaMap>;
 public:
     ~RtpPacketsPlayerSimpleStream() final;
     static std::unique_ptr<RtpPacketsPlayerStream> Create(uint32_t ssrc, uint32_t clockRate,
@@ -40,8 +43,12 @@ private:
                                  const RtpCodecMimeType& mime,
                                  RtpPacketsPlayerCallback* callback,
                                  const std::shared_ptr<BufferAllocator>& allocator);
-    static bool IsPlaying(uint64_t mediaSourceId, uint64_t mediaId,
-                          const MediaSourcesMap& playingMedias);
+    void ActivateMedia(size_t trackIndex, std::unique_ptr<RtpPacketsPlayerMediaFragment> fragment);
+    void ActivatePendingMedia(PendingMedia pendingMedia);
+    void ActivateNextPendingMedia();
+    bool DeactivateMedia(uint64_t mediaId, uint64_t mediaSourceId);
+    void DeactivateMedia();
+    std::optional<size_t> GetTrackIndex(const RtpPacketsPlayerMediaFragment* fragment) const;
     // impl. of RtpPacketsPlayerStreamCallback
     void OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId) final;
     void OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet) final;
@@ -52,8 +59,8 @@ private:
     const uint8_t _payloadType;
     const RtpCodecMimeType _mime;
     RtpPacketsPlayerCallback* const _callback;
-    // key is media source ID
-    ProtectedObj<MediaSourcesMap> _playingMedias;
+    ProtectedUniquePtr<RtpPacketsPlayerMediaFragment> _activeMedia;
+    ProtectedObj<PendingMediasMap> _pendingMedias;
 };
 
 } // namespace RTC

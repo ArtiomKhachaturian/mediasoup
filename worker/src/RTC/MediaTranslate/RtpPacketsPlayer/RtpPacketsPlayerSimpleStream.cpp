@@ -19,17 +19,14 @@ RtpPacketsPlayerSimpleStream::RtpPacketsPlayerSimpleStream(uint32_t ssrc, uint32
     , _mime(mime)
     , _callback(callback)
 {
-    _playingMedias->reserve(1U);
+    _pendingMedias->reserve(1U);
 }
 
 RtpPacketsPlayerSimpleStream::~RtpPacketsPlayerSimpleStream()
 {
-    MediaSourcesMap playingMedias;
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
-        playingMedias = _playingMedias.Take();
-    }
-    playingMedias.clear();
+    DeactivateMedia();
+    LOCK_WRITE_PROTECTED_OBJ(_pendingMedias);
+    _pendingMedias->clear();
 }
 
 std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerSimpleStream::
@@ -51,21 +48,20 @@ void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId,
                                         const std::shared_ptr<MediaTimer> timer)
 {
     if (media && timer) {
-        const uint64_t mediaId = media->GetId();
-        LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
-        auto& playingMedias = _playingMedias.Ref();
-        if (!IsPlaying(mediaSourceId, mediaId, playingMedias)) {
-            if (auto fragment = RtpPacketsPlayerMediaFragment::Parse(mediaId,
-                                                                     mediaSourceId,
-                                                                     media, timer, this,
-                                                                     GetAllocator())) {
-                for (size_t i = 0U; i < fragment->GetTracksCount(); ++i) {
-                    const auto mime = fragment->GetTrackMimeType(i);
-                    if (mime.has_value() && mime.value() == _mime) {
-                        fragment->Start(i, _clockRate);
-                        playingMedias[mediaSourceId][mediaId] = std::move(fragment);
-                        break;
-                    }
+        if (auto fragment = RtpPacketsPlayerMediaFragment::Parse(mediaSourceId,
+                                                                 media, timer,
+                                                                 GetAllocator())) {
+            const auto trackIndex = GetTrackIndex(fragment.get());
+            if (trackIndex.has_value()) {
+                LOCK_WRITE_PROTECTED_OBJ(_activeMedia);
+                if (!_activeMedia.ConstRef()) {
+                    ActivateMedia(trackIndex.value(), std::move(fragment));
+                }
+                else {
+                    const auto mediaId = media->GetId();
+                    LOCK_WRITE_PROTECTED_OBJ(_pendingMedias);
+                    auto& pendingMedias = _pendingMedias.Ref();
+                    pendingMedias[mediaSourceId][mediaId] = std::make_pair(std::move(fragment), trackIndex.value());
                 }
             }
         }
@@ -74,45 +70,84 @@ void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId,
 
 void RtpPacketsPlayerSimpleStream::Stop(uint64_t mediaSourceId, uint64_t mediaId)
 {
-    MediaFragmentsMap fragments;
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
-        const auto it = _playingMedias->find(mediaSourceId);
-        if (it != _playingMedias->end()) {
-            if (mediaId) {
-                const auto itm = it->second.find(mediaId);
-                if (itm != it->second.end()) {
-                    fragments[mediaId] = std::move(itm->second);
-                    it->second.erase(itm);
-                }
-            }
-            else {
-                fragments = std::move(it->second);
-            }
-            if (it->second.empty()) {
-                _playingMedias->erase(it);
-            }
-        }
+    if (DeactivateMedia(mediaId, mediaSourceId)) {
+        ActivateNextPendingMedia();
     }
-    fragments.clear();
 }
 
 bool RtpPacketsPlayerSimpleStream::IsPlaying() const
 {
-    LOCK_READ_PROTECTED_OBJ(_playingMedias);
-    return !_playingMedias->empty();
+    LOCK_READ_PROTECTED_OBJ(_activeMedia);
+    return nullptr != _activeMedia.ConstRef();
 }
 
-bool RtpPacketsPlayerSimpleStream::IsPlaying(uint64_t mediaSourceId, uint64_t mediaId,
-                                             const MediaSourcesMap& playingMedias)
+void RtpPacketsPlayerSimpleStream::ActivateMedia(size_t trackIndex,
+                                                 std::unique_ptr<RtpPacketsPlayerMediaFragment> fragment)
 {
-    if (!playingMedias.empty()) {
-        const auto its = playingMedias.find(mediaSourceId);
-        if (its != playingMedias.end()) {
-            return its->second.count(mediaId) > 0U;
+    if (fragment) {
+        _activeMedia = std::move(fragment);
+        _activeMedia->get()->Start(trackIndex, _clockRate, this);
+    }
+}
+
+void RtpPacketsPlayerSimpleStream::ActivatePendingMedia(PendingMedia pendingMedia)
+{
+    if (pendingMedia.first) {
+        LOCK_WRITE_PROTECTED_OBJ(_activeMedia);
+        ActivateMedia(pendingMedia.second, std::move(pendingMedia.first));
+    }
+}
+
+void RtpPacketsPlayerSimpleStream::ActivateNextPendingMedia()
+{
+    LOCK_WRITE_PROTECTED_OBJ(_pendingMedias);
+    // take next unordered media
+    for (auto it = _pendingMedias->begin(); it != _pendingMedias->end(); ++it) {
+        bool activated = false;
+        for (auto itm = it->second.begin(); itm != it->second.end(); ++itm) {
+            ActivatePendingMedia(std::move(itm->second));
+            it->second.erase(itm);
+            activated = true;
+            break;
+        }
+        if (activated) {
+            if (it->second.empty()) {
+                _pendingMedias->erase(it);
+            }
+            break;
+        }
+    }
+}
+
+bool RtpPacketsPlayerSimpleStream::DeactivateMedia(uint64_t mediaId, uint64_t mediaSourceId)
+{
+    LOCK_WRITE_PROTECTED_OBJ(_activeMedia);
+    if (auto& activeMedia = _activeMedia.Ref()) {
+        if (activeMedia->GetMediaId() == mediaId && activeMedia->GetMediaSourceId() == mediaSourceId) {
+            activeMedia.reset();
+            return true;
         }
     }
     return false;
+}
+
+void RtpPacketsPlayerSimpleStream::DeactivateMedia()
+{
+    LOCK_WRITE_PROTECTED_OBJ(_activeMedia);
+    _activeMedia->reset();
+}
+
+std::optional<size_t> RtpPacketsPlayerSimpleStream::GetTrackIndex(const RtpPacketsPlayerMediaFragment* fragment) const
+{
+    if (fragment) {
+        for (size_t i = 0U; i < fragment->GetTracksCount(); ++i) {
+            const auto mime = fragment->GetTrackMimeType(i);
+            if (mime.has_value() && mime.value() == _mime) {
+                return i;
+            }
+        }
+    }
+    return std::nullopt;
 }
 
 void RtpPacketsPlayerSimpleStream::OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId)
@@ -130,20 +165,8 @@ void RtpPacketsPlayerSimpleStream::OnPlay(uint64_t mediaId, uint64_t mediaSource
 
 void RtpPacketsPlayerSimpleStream::OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId)
 {
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_playingMedias);
-        const auto its = _playingMedias->find(mediaSourceId);
-        if (its != _playingMedias->end()) {
-            const auto itm = its->second.find(mediaId);
-            if (itm != its->second.end()) {
-                its->second.erase(itm);
-                if (its->second.empty()) {
-                    _playingMedias->erase(its);
-                }
-            }
-        }
-    }
     _callback->OnPlayFinished(mediaId, mediaSourceId, _ssrc);
+    Stop(mediaSourceId, mediaId);
 }
 
 } // namespace RTC

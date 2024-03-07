@@ -18,9 +18,9 @@ RtpPacketsPlayerMediaFragment::~RtpPacketsPlayerMediaFragment()
     _queue->Stop();
 }
 
-void RtpPacketsPlayerMediaFragment::Start(size_t trackIndex, uint32_t clockRate)
+void RtpPacketsPlayerMediaFragment::Start(size_t trackIndex, uint32_t clockRate, RtpPacketsPlayerStreamCallback* callback)
 {
-    _queue->Start(trackIndex, clockRate);
+    _queue->Start(trackIndex, clockRate, callback);
 }
 
 uint64_t RtpPacketsPlayerMediaFragment::GetMediaId() const
@@ -44,23 +44,21 @@ std::optional<RtpCodecMimeType> RtpPacketsPlayerMediaFragment::GetTrackMimeType(
 }
 
 std::unique_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
-    Parse(uint64_t mediaId, uint64_t mediaSourceId,
-          const std::shared_ptr<Buffer>& buffer,
+    Parse(uint64_t mediaSourceId,
+          const std::shared_ptr<Buffer>& media,
           const std::shared_ptr<MediaTimer> playerTimer,
-          RtpPacketsPlayerStreamCallback* callback,
           const std::shared_ptr<BufferAllocator>& allocator)
 {
     std::unique_ptr<RtpPacketsPlayerMediaFragment> fragment;
-    if (buffer && callback && playerTimer) {
+    if (media && playerTimer) {
         auto deserializer = std::make_unique<WebMDeserializer>(allocator);
-        const auto result = deserializer->Add(buffer);
+        const auto result = deserializer->Add(media);
         if (MaybeOk(result)) {
             if (deserializer->GetTracksCount()) {
-                auto queue = RtpPacketsPlayerMediaFragmentQueue::Create(mediaId,
+                auto queue = RtpPacketsPlayerMediaFragmentQueue::Create(media->GetId(),
                                                                         mediaSourceId,
                                                                         playerTimer,
-                                                                        std::move(deserializer),
-                                                                        callback);
+                                                                        std::move(deserializer));
                 if (queue && playerTimer->Register(queue)) {
                     fragment.reset(new RtpPacketsPlayerMediaFragment(std::move(queue)));
                 }

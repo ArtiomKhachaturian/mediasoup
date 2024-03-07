@@ -21,18 +21,16 @@ class RtpPacketsPlayerMediaFragment
 private:
     RtpPacketsPlayerMediaFragment(std::shared_ptr<RtpPacketsPlayerMediaFragmentQueue> queue);
 public:
-    static std::unique_ptr<RtpPacketsPlayerMediaFragment> Parse(uint64_t mediaId,
-                                                                uint64_t mediaSourceId,
-                                                                const std::shared_ptr<Buffer>& buffer,
+    static std::unique_ptr<RtpPacketsPlayerMediaFragment> Parse(uint64_t mediaSourceId,
+                                                                const std::shared_ptr<Buffer>& media,
                                                                 const std::shared_ptr<MediaTimer> playerTimer,
-                                                                RtpPacketsPlayerStreamCallback* callback,
                                                                 const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~RtpPacketsPlayerMediaFragment();
     uint64_t GetMediaId() const;
     uint64_t GetMediaSourceId() const;
     size_t GetTracksCount() const;
     std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const;
-    void Start(size_t trackIndex, uint32_t clockRate);
+    void Start(size_t trackIndex, uint32_t clockRate, RtpPacketsPlayerStreamCallback* callback);
 private:
     const std::shared_ptr<RtpPacketsPlayerMediaFragmentQueue> _queue;
 };

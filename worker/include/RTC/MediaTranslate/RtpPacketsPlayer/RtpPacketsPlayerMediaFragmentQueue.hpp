@@ -23,12 +23,11 @@ class RtpPacketsPlayerMediaFragmentQueue : public MediaTimerCallback
 public:
     static std::shared_ptr<RtpPacketsPlayerMediaFragmentQueue> Create(uint64_t mediaId, uint64_t mediaSourceId,
                                                                       const std::weak_ptr<MediaTimer>& timerRef,
-                                                                      std::unique_ptr<MediaFrameDeserializer> deserializer,
-                                                                      RtpPacketsPlayerStreamCallback* callback);
+                                                                      std::unique_ptr<MediaFrameDeserializer> deserializer);
     ~RtpPacketsPlayerMediaFragmentQueue() final;
     uint64_t GetMediaId() const { return _mediaId; }
     uint64_t GetMediaSourceId() const { return _mediaSourceId; }
-    void Start(size_t trackIndex, uint32_t clockRate);
+    void Start(size_t trackIndex, uint32_t clockRate, RtpPacketsPlayerStreamCallback* callback);
     void Stop();
     size_t GetTracksCount() const;
     std::optional<RtpCodecMimeType> GetTrackType(size_t trackIndex) const;
@@ -38,8 +37,7 @@ public:
 private:
     RtpPacketsPlayerMediaFragmentQueue(uint64_t mediaId, uint64_t mediaSourceId,
                                        const std::weak_ptr<MediaTimer>& timerRef,
-                                       std::unique_ptr<MediaFrameDeserializer> deserializer,
-                                       RtpPacketsPlayerStreamCallback* callback);
+                                       std::unique_ptr<MediaFrameDeserializer> deserializer);
     void SetTimerId(uint64_t desiredTimerId, uint64_t expectedTimerId);
     uint64_t GetTimerId() const { return _timerId.load(); }
     void SetClockRate(size_t trackIndex, uint32_t clockRate);
@@ -53,7 +51,6 @@ private:
     const uint64_t _mediaSourceId;
     const std::weak_ptr<MediaTimer> _timerRef;
     const ProtectedUniquePtr<MediaFrameDeserializer> _deserializer;
-    RtpPacketsPlayerStreamCallback* const _callback;
     ProtectedUniquePtr<StartTask> _startTask;
     std::atomic<uint64_t> _timerId = 0;
     // used for adjust of timer interval
