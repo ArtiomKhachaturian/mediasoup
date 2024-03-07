@@ -5,6 +5,7 @@
 #include "RTC/Codecs/PayloadDescriptorHandler.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/SeqManager.hpp"
+#include "ProtectedObj.hpp"
 
 /* https://tools.ietf.org/html/draft-ietf-payload-vp9-06
  * VP9 Payload Descriptor
@@ -100,7 +101,9 @@ namespace RTC
 				  : RTC::Codecs::EncodingContext(params)
 				{
 				}
-				~EncodingContext() = default;
+                uint16_t GetMaxPictureId() const;
+                void SyncPictureId(uint16_t pictureId);
+                bool GetPictureId(uint16_t pictureIdIn, uint16_t& pictureIdOut);
 
 				/* Pure virtual methods inherited from RTC::Codecs::EncodingContext. */
 			public:
@@ -110,8 +113,9 @@ namespace RTC
 				}
 
 			public:
-				RTC::SeqManager<uint16_t, 15> pictureIdManager;
-				bool syncRequired{ false };
+                std::atomic_bool syncRequired{ false };
+            private:
+                ProtectedObj<RTC::SeqManager<uint16_t, 15>> pictureIdManager;
 			};
 
 			class PayloadDescriptorHandler : public RTC::Codecs::PayloadDescriptorHandler

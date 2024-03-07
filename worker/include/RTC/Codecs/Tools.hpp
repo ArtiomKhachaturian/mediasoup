@@ -164,7 +164,7 @@ namespace RTC
 				}
 			}
 
-			static EncodingContext* GetEncodingContext(
+			static std::unique_ptr<EncodingContext> GetEncodingContext(
 			  const RTC::RtpCodecMimeType& mimeType, const RTC::Codecs::EncodingContext::Params& params)
 			{
 				switch (mimeType.GetType())
@@ -174,13 +174,12 @@ namespace RTC
 						switch (mimeType.GetSubtype())
 						{
 							case RTC::RtpCodecMimeType::Subtype::VP8:
-								return new RTC::Codecs::VP8::EncodingContext(params);
+								return std::make_unique<RTC::Codecs::VP8::EncodingContext>(params);
 							case RTC::RtpCodecMimeType::Subtype::VP9:
-								return new RTC::Codecs::VP9::EncodingContext(params);
+								return std::make_unique<RTC::Codecs::VP9::EncodingContext>(params);
 							case RTC::RtpCodecMimeType::Subtype::H264:
-								return new RTC::Codecs::H264::EncodingContext(params);
 							case RTC::RtpCodecMimeType::Subtype::H264_SVC:
-								return new RTC::Codecs::H264_SVC::EncodingContext(params);
+                                return std::make_unique<RTC::Codecs::EncodingContext>(params);
 							default:
 								return nullptr;
 						}
@@ -192,7 +191,7 @@ namespace RTC
 						{
 							case RTC::RtpCodecMimeType::Subtype::OPUS:
 							case RTC::RtpCodecMimeType::Subtype::MULTIOPUS:
-								return new RTC::Codecs::Opus::EncodingContext(params);
+								return std::make_unique<RTC::Codecs::EncodingContext>(params);
 							default:
 								return nullptr;
 						}

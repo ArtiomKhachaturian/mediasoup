@@ -18,38 +18,31 @@ namespace RTC
 	  const std::string& producerId,
 	  RTC::Consumer::Listener* listener,
 	  const FBS::Transport::ConsumeRequest* data)
-	  : RTC::Consumer::Consumer(shared, id, producerId, listener, data, RTC::RtpParameters::Type::SIMPLE)
+	  : RTC::Consumer::Consumer(shared, id, producerId, listener, data, RTC::RtpParameters::Type::SIMPLE),
+        encodingContext(CreateEncodingContext(this->rtpParameters)),
+        keyFrameSupported(IsKeyFrameSupported(this->rtpParameters)),
+        rtpStream(CreateRtpStream(this->rtpParameters, this)) // Create RtpStreamSend instance for sending a single stream to the remote.
 	{
 		MS_TRACE();
+        
+        MS_ASSERT(this->rtpStream, "failed create RTP send stream");
 
 		// Ensure there is a single encoding.
 		if (this->consumableRtpEncodings.size() != 1u)
 		{
 			MS_THROW_TYPE_ERROR("invalid consumableRtpEncodings with size != 1");
 		}
-
-		auto& encoding         = this->rtpParameters.encodings[0];
-		const auto* mediaCodec = this->rtpParameters.GetCodecForEncoding(encoding);
-
-		this->keyFrameSupported = RTC::Codecs::Tools::CanBeKeyFrame(mediaCodec->mimeType);
-
-		// Create RtpStreamSend instance for sending a single stream to the remote.
-		CreateRtpStream();
-
-		// Create the encoding context for Opus.
-		if (
-		  mediaCodec->mimeType.GetType() == RTC::RtpCodecMimeType::Type::AUDIO &&
-		  (mediaCodec->mimeType.GetSubtype() == RTC::RtpCodecMimeType::Subtype::OPUS ||
-		   mediaCodec->mimeType.GetSubtype() == RTC::RtpCodecMimeType::Subtype::MULTIOPUS))
-		{
-			RTC::Codecs::EncodingContext::Params params;
-
-			this->encodingContext.reset(
-			  RTC::Codecs::Tools::GetEncodingContext(mediaCodec->mimeType, params));
-
-			// ignoreDtx is set to false by default.
-			this->encodingContext->SetIgnoreDtx(data->ignoreDtx());
-		}
+        
+        if (this->encodingContext) {
+            // ignoreDtx is set to false by default.
+            this->encodingContext->SetIgnoreDtx(data->ignoreDtx());
+        }
+        
+        // If the Consumer is paused, tell the RtpStreamSend.
+        if (IsPaused() || IsProducerPaused())
+        {
+            this->rtpStream->Pause();
+        }
 
 		// NOTE: This may throw.
 		this->shared->channelMessageRegistrator->RegisterHandler(
@@ -63,8 +56,6 @@ namespace RTC
 		MS_TRACE();
 
 		this->shared->channelMessageRegistrator->UnregisterHandler(this->id);
-
-		delete this->rtpStream;
 	}
 
 	flatbuffers::Offset<FBS::Consumer::DumpResponse> SimpleConsumer::FillBuffer(
@@ -93,10 +84,11 @@ namespace RTC
 		// Add stats of our send stream.
 		rtpStreams.emplace_back(this->rtpStream->FillBufferStats(builder));
 
+        LOCK_READ_PROTECTED_OBJ(this->producerRtpStream);
 		// Add stats of our recv stream.
-		if (this->producerRtpStream)
+        if (const auto producerRtpStream = this->producerRtpStream.ConstRef())
 		{
-			rtpStreams.emplace_back(this->producerRtpStream->FillBufferStats(builder));
+			rtpStreams.emplace_back(producerRtpStream->FillBufferStats(builder));
 		}
 
 		return FBS::Consumer::CreateGetStatsResponseDirect(builder, &rtpStreams);
@@ -111,14 +103,29 @@ namespace RTC
 
 		uint8_t producerScore{ 0 };
 
-		if (this->producerRtpStream)
+        LOCK_READ_PROTECTED_OBJ(this->producerRtpStream);
+        
+        if (const auto producerRtpStream = this->producerRtpStream.ConstRef())
 		{
-			producerScore = this->producerRtpStream->GetScore();
+			producerScore = producerRtpStream->GetScore();
 		}
 
 		return FBS::Consumer::CreateConsumerScoreDirect(
 		  builder, this->rtpStream->GetScore(), producerScore, this->producerRtpStreamScores);
 	}
+
+    bool SimpleConsumer::IsActive() const
+    {
+        if (RTC::Consumer::IsActive()) {
+            LOCK_READ_PROTECTED_OBJ(this->producerRtpStream);
+            if (const auto producerRtpStream = this->producerRtpStream.ConstRef()) {
+                // If there is no RTP inactivity check do not consider the stream
+                // inactive despite it has score 0.
+                return producerRtpStream->GetScore() > 0U || !producerRtpStream->HasRtpInactivityCheckEnabled();
+            }
+        }
+        return false;
+    }
 
 	void SimpleConsumer::HandleRequest(Channel::ChannelRequest* request)
 	{
@@ -170,7 +177,8 @@ namespace RTC
 	void SimpleConsumer::ProducerRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t /*mappedSsrc*/)
 	{
 		MS_TRACE();
-
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->producerRtpStream);
 		this->producerRtpStream = rtpStream;
 	}
 
@@ -178,8 +186,10 @@ namespace RTC
 	{
 		MS_TRACE();
 
-		this->producerRtpStream = rtpStream;
-
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->producerRtpStream);
+            this->producerRtpStream = rtpStream;
+        }
 		// Emit the score event.
 		EmitScore();
 	}
@@ -236,20 +246,22 @@ namespace RTC
 		}
 
 		this->managingBitrate = true;
+        
+        LOCK_READ_PROTECTED_OBJ(this->producerRtpStream);
+        
+        if (const auto producerRtpStream = this->producerRtpStream.ConstRef()) {
+            // Video SimpleConsumer does not really play the BWE game when. However, let's
+            // be honest and try to be nice.
+            auto nowMs          = DepLibUV::GetTimeMs();
+            auto desiredBitrate = producerRtpStream->GetBitrate(nowMs);
 
-		// Video SimpleConsumer does not really play the BWE game when. However, let's
-		// be honest and try to be nice.
-		auto nowMs          = DepLibUV::GetTimeMs();
-		auto desiredBitrate = this->producerRtpStream->GetBitrate(nowMs);
+            if (desiredBitrate < bitrate)
+            {
+                return desiredBitrate;
+            }
+        }
 
-		if (desiredBitrate < bitrate)
-		{
-			return desiredBitrate;
-		}
-		else
-		{
-			return bitrate;
-		}
+        return bitrate;
 	}
 
 	void SimpleConsumer::ApplyLayers()
@@ -281,13 +293,17 @@ namespace RTC
 		{
 			return 0u;
 		}
-
-		auto nowMs          = DepLibUV::GetTimeMs();
-		auto desiredBitrate = this->producerRtpStream->GetBitrate(nowMs);
-
-		// If consumer.rtpParameters.encodings[0].maxBitrate was given and it's
-		// greater than computed one, then use it.
-		auto maxBitrate = this->rtpParameters.encodings[0].maxBitrate;
+        
+        // If consumer.rtpParameters.encodings[0].maxBitrate was given and it's
+        // greater than computed one, then use it.
+        auto maxBitrate = this->rtpParameters.encodings[0].maxBitrate;
+        auto desiredBitrate = maxBitrate;
+        
+        LOCK_READ_PROTECTED_OBJ(this->producerRtpStream);
+        if (const auto producerRtpStream = this->producerRtpStream.ConstRef()) {
+            auto nowMs     = DepLibUV::GetTimeMs();
+            desiredBitrate = producerRtpStream->GetBitrate(nowMs);
+        }
 
 		if (maxBitrate > desiredBitrate)
 		{
@@ -340,7 +356,8 @@ namespace RTC
 			  packet->GetSequenceNumber(),
 			  packet->GetTimestamp());
 
-			this->rtpSeqManager.Drop(packet->GetSequenceNumber());
+            LOCK_WRITE_PROTECTED_OBJ(this->rtpSeqManager);
+			this->rtpSeqManager->Drop(packet->GetSequenceNumber());
 
 #ifdef MS_RTC_LOGGER_RTP
 			packet->logger.Dropped(RtcLogger::RtpPacket::DropReason::DROPPED_BY_CODEC);
@@ -371,7 +388,8 @@ namespace RTC
 				MS_DEBUG_TAG(rtp, "sync key frame received");
 			}
 
-			this->rtpSeqManager.Sync(packet->GetSequenceNumber() - 1);
+            LOCK_WRITE_PROTECTED_OBJ(this->rtpSeqManager);
+			this->rtpSeqManager->Sync(packet->GetSequenceNumber() - 1);
 
 			this->syncRequired = false;
 		}
@@ -379,7 +397,10 @@ namespace RTC
 		// Update RTP seq number and timestamp.
 		uint16_t seq;
 
-		this->rtpSeqManager.Input(packet->GetSequenceNumber(), seq);
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->rtpSeqManager);
+            this->rtpSeqManager->Input(packet->GetSequenceNumber(), seq);
+        }
 
 		// Save original packet fields.
 		auto origSsrc = packet->GetSsrc();
@@ -606,87 +627,6 @@ namespace RTC
 		}
 	}
 
-	void SimpleConsumer::CreateRtpStream()
-	{
-		MS_TRACE();
-
-		auto& encoding         = this->rtpParameters.encodings[0];
-		const auto* mediaCodec = this->rtpParameters.GetCodecForEncoding(encoding);
-
-		MS_DEBUG_TAG(
-		  rtp, "[ssrc:%" PRIu32 ", payloadType:%" PRIu8 "]", encoding.ssrc, mediaCodec->payloadType);
-
-		// Set stream params.
-		RTC::RtpStream::Params params(mediaCodec->mimeType);
-
-		params.ssrc        = encoding.ssrc;
-		params.payloadType = mediaCodec->payloadType;
-		params.clockRate   = mediaCodec->clockRate;
-		params.cname       = this->rtpParameters.rtcp.cname;
-
-		// Check in band FEC in codec parameters.
-		if (mediaCodec->parameters.HasInteger("useinbandfec") && mediaCodec->parameters.GetInteger("useinbandfec") == 1)
-		{
-			MS_DEBUG_TAG(rtp, "in band FEC enabled");
-
-			params.useInBandFec = true;
-		}
-
-		// Check DTX in codec parameters.
-		if (mediaCodec->parameters.HasInteger("usedtx") && mediaCodec->parameters.GetInteger("usedtx") == 1)
-		{
-			MS_DEBUG_TAG(rtp, "DTX enabled");
-
-			params.useDtx = true;
-		}
-
-		// Check DTX in the encoding.
-		if (encoding.dtx)
-		{
-			MS_DEBUG_TAG(rtp, "DTX enabled");
-
-			params.useDtx = true;
-		}
-
-		for (const auto& fb : mediaCodec->rtcpFeedback)
-		{
-			if (!params.useNack && fb.type == "nack" && fb.parameter.empty())
-			{
-				MS_DEBUG_2TAGS(rtp, rtcp, "NACK supported");
-
-				params.useNack = true;
-			}
-			else if (!params.usePli && fb.type == "nack" && fb.parameter == "pli")
-			{
-				MS_DEBUG_2TAGS(rtp, rtcp, "PLI supported");
-
-				params.usePli = true;
-			}
-			else if (!params.useFir && fb.type == "ccm" && fb.parameter == "fir")
-			{
-				MS_DEBUG_2TAGS(rtp, rtcp, "FIR supported");
-
-				params.useFir = true;
-			}
-		}
-
-		this->rtpStream = new RTC::RtpStreamSend(this, params, this->rtpParameters.mid);
-		this->rtpStreams.push_back(this->rtpStream);
-
-		// If the Consumer is paused, tell the RtpStreamSend.
-		if (IsPaused() || IsProducerPaused())
-		{
-			this->rtpStream->Pause();
-		}
-
-		const auto* rtxCodec = this->rtpParameters.GetRtxCodecForEncoding(encoding);
-
-		if (rtxCodec && encoding.hasRtx)
-		{
-			this->rtpStream->SetRtx(rtxCodec->payloadType, encoding.rtx.ssrc);
-		}
-	}
-
 	void SimpleConsumer::RequestKeyFrame()
 	{
 		MS_TRACE();
@@ -736,4 +676,131 @@ namespace RTC
 		// May emit 'trace' event.
 		EmitTraceEventRtpAndKeyFrameTypes(packet, this->rtpStream->HasRtx());
 	}
+
+    const RTC::RtpCodecParameters* SimpleConsumer::Get1stCodec(const RTC::RtpParameters& rtpParameters)
+    {
+        if (!rtpParameters.encodings.empty()) {
+            const auto& encoding = rtpParameters.encodings[0];
+            return rtpParameters.GetCodecForEncoding(encoding);
+        }
+        return nullptr;
+    }
+
+    bool SimpleConsumer::IsKeyFrameSupported(const RTC::RtpParameters& rtpParameters)
+    {
+        if (const auto codec = Get1stCodec(rtpParameters)) {
+            return RTC::Codecs::Tools::CanBeKeyFrame(codec->mimeType);
+        }
+        return false;
+    }
+
+    std::unique_ptr<RTC::Codecs::EncodingContext> SimpleConsumer::
+        CreateEncodingContext(const RTC::RtpParameters& rtpParameters)
+    {
+        if (const auto codec = Get1stCodec(rtpParameters)) {
+            // Create the encoding context for Opus.
+            if (codec->mimeType.GetType() == RTC::RtpCodecMimeType::Type::AUDIO &&
+                (codec->mimeType.GetSubtype() == RTC::RtpCodecMimeType::Subtype::OPUS ||
+                 codec->mimeType.GetSubtype() == RTC::RtpCodecMimeType::Subtype::MULTIOPUS))
+            {
+                RTC::Codecs::EncodingContext::Params params;
+
+                return RTC::Codecs::Tools::GetEncodingContext(codec->mimeType, params);
+            }
+        }
+        return nullptr;
+    }
+
+    std::unique_ptr<RTC::RtpStreamSend> SimpleConsumer::CreateRtpStream(const RTC::RtpCodecParameters* codec,
+                                                                        const RTC::RtpEncodingParameters& encoding,
+                                                                        const std::string& cname,
+                                                                        const std::string& mid,
+                                                                        RTC::RtpStreamSend::Listener* listener)
+    {
+        MS_TRACE();
+        
+        if (codec && listener) {
+            MS_DEBUG_TAG(rtp, "[ssrc:%" PRIu32 ", payloadType:%" PRIu8 "]", encoding.ssrc, codec->payloadType);
+
+            // Set stream params.
+            RTC::RtpStream::Params params(codec->mimeType);
+
+            params.ssrc        = encoding.ssrc;
+            params.payloadType = codec->payloadType;
+            params.clockRate   = codec->clockRate;
+            params.cname       = cname;
+
+            // Check in band FEC in codec parameters.
+            if (codec->parameters.HasInteger("useinbandfec") && codec->parameters.GetInteger("useinbandfec") == 1)
+            {
+                MS_DEBUG_TAG(rtp, "in band FEC enabled");
+
+                params.useInBandFec = true;
+            }
+
+            // Check DTX in codec parameters.
+            if (codec->parameters.HasInteger("usedtx") && codec->parameters.GetInteger("usedtx") == 1)
+            {
+                MS_DEBUG_TAG(rtp, "DTX enabled");
+
+                params.useDtx = true;
+            }
+
+            // Check DTX in the encoding.
+            if (encoding.dtx)
+            {
+                MS_DEBUG_TAG(rtp, "DTX enabled");
+
+                params.useDtx = true;
+            }
+
+            for (const auto& fb : codec->rtcpFeedback)
+            {
+                if (!params.useNack && fb.type == "nack" && fb.parameter.empty())
+                {
+                    MS_DEBUG_2TAGS(rtp, rtcp, "NACK supported");
+
+                    params.useNack = true;
+                }
+                else if (!params.usePli && fb.type == "nack" && fb.parameter == "pli")
+                {
+                    MS_DEBUG_2TAGS(rtp, rtcp, "PLI supported");
+
+                    params.usePli = true;
+                }
+                else if (!params.useFir && fb.type == "ccm" && fb.parameter == "fir")
+                {
+                    MS_DEBUG_2TAGS(rtp, rtcp, "FIR supported");
+
+                    params.useFir = true;
+                }
+            }
+            return std::make_unique<RTC::RtpStreamSend>(listener, params, mid);
+        }
+        return nullptr;
+    }
+
+    std::unique_ptr<RTC::RtpStreamSend> SimpleConsumer::CreateRtpStream(const RTC::RtpParameters& rtpParameters,
+                                                                        RTC::RtpStreamSend::Listener* listener)
+    {
+        MS_TRACE();
+        
+        if (listener) {
+            if (const auto codec = Get1stCodec(rtpParameters)) {
+                const auto& encoding = rtpParameters.encodings[0];
+                auto stream = CreateRtpStream(codec, encoding,
+                                              rtpParameters.rtcp.cname,
+                                              rtpParameters.mid, listener);
+                if (stream) {
+                    const auto* rtxCodec = rtpParameters.GetRtxCodecForEncoding(encoding);
+                    if (rtxCodec && encoding.hasRtx) {
+                        stream->SetRtx(rtxCodec->payloadType, encoding.rtx.ssrc);
+                    }
+                    return stream;
+                }
+            }
+        }
+        return nullptr;
+    }
+
 } // namespace RTC

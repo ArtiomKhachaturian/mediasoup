@@ -5,6 +5,7 @@
 #include "RTC/Codecs/PayloadDescriptorHandler.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/SeqManager.hpp"
+#include "ProtectedObj.hpp"
 
 /* RFC 7741
  * VP8 Payload Descriptor
@@ -83,8 +84,13 @@ namespace RTC
 				  : RTC::Codecs::EncodingContext(params)
 				{
 				}
-				~EncodingContext() = default;
-
+                void SyncPictureId(uint16_t pictureId);
+                void SyncT10PictureIndex(uint8_t pictureIndex);
+                void DropPictureId(uint16_t pictureId);
+                void DropT10PictureIndex(uint8_t pictureIndex);
+                bool GetPictureId(uint16_t pictureIdIn, uint16_t& pictureIdOut);
+                bool GetT10PictureIndex(uint8_t pictureIndexIn, uint8_t& pictureIndexOut);
+                uint16_t GetMaxPictureId() const;
 				/* Pure virtual methods inherited from RTC::Codecs::EncodingContext. */
 			public:
 				void SyncRequired() override
@@ -93,16 +99,17 @@ namespace RTC
 				}
 
 			public:
-				RTC::SeqManager<uint16_t, 15> pictureIdManager;
-				RTC::SeqManager<uint8_t> tl0PictureIndexManager;
-				bool syncRequired{ false };
+                std::atomic_bool syncRequired{ false };
+            private:
+                ProtectedObj<RTC::SeqManager<uint16_t, 15>> pictureIdManager;
+                ProtectedObj<RTC::SeqManager<uint8_t>> tl0PictureIndexManager;
 			};
 
 		public:
 			class PayloadDescriptorHandler : public RTC::Codecs::PayloadDescriptorHandler
 			{
 			public:
-				explicit PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor);
+				explicit PayloadDescriptorHandler(std::unique_ptr<const PayloadDescriptor> payloadDescriptor);
                 
 			public:
 				void Dump() const override
@@ -129,7 +136,7 @@ namespace RTC
                 }
 
 			private:
-				std::unique_ptr<PayloadDescriptor> payloadDescriptor;
+				const std::unique_ptr<const PayloadDescriptor> payloadDescriptor;
 			};
 		};
 	} // namespace Codecs

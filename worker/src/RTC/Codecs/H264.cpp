@@ -178,11 +178,10 @@ namespace RTC
 			MS_DUMP("</H264::PayloadDescriptor>");
 		}
 
-		H264::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<H264::PayloadDescriptor> payloadDescriptor)
+		H264::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<const PayloadDescriptor> descriptor)
+            : payloadDescriptor(std::move(descriptor))
 		{
 			MS_TRACE();
-
-			this->payloadDescriptor = std::move(payloadDescriptor);
 		}
 
 		bool H264::PayloadDescriptorHandler::Process(
@@ -190,12 +189,10 @@ namespace RTC
 		{
 			MS_TRACE();
 
-			auto* context = static_cast<RTC::Codecs::H264::EncodingContext*>(encodingContext);
-
-			MS_ASSERT(context->GetTargetTemporalLayer() >= 0, "target temporal layer cannot be -1");
+			MS_ASSERT(encodingContext->GetTargetTemporalLayer() >= 0, "target temporal layer cannot be -1");
 
 			// Check if the payload should contain temporal layer info.
-			if (context->GetTemporalLayers() > 1 && !this->payloadDescriptor->hasTid)
+			if (encodingContext->GetTemporalLayers() > 1 && !this->payloadDescriptor->hasTid)
 			{
 				MS_WARN_DEV("stream is supposed to have >1 temporal layers but does not have tid field");
 			}
@@ -203,7 +200,7 @@ namespace RTC
 			// clang-format off
 			if (
 				this->payloadDescriptor->hasTid &&
-				this->payloadDescriptor->tid > context->GetTargetTemporalLayer()
+				this->payloadDescriptor->tid > encodingContext->GetTargetTemporalLayer()
 			)
 			// clang-format on
 			{
@@ -216,7 +213,7 @@ namespace RTC
 			// clang-format off
 			else if (
 				this->payloadDescriptor->hasTid &&
-				this->payloadDescriptor->tid > context->GetCurrentTemporalLayer() &&
+				this->payloadDescriptor->tid > encodingContext->GetCurrentTemporalLayer() &&
 				!this->payloadDescriptor->b
 			)
 			// clang-format on
@@ -228,20 +225,20 @@ namespace RTC
 			// clang-format off
 			if (
 				this->payloadDescriptor->hasTid &&
-				this->payloadDescriptor->tid > context->GetCurrentTemporalLayer()
+				this->payloadDescriptor->tid > encodingContext->GetCurrentTemporalLayer()
 			)
 			// clang-format on
 			{
-				context->SetCurrentTemporalLayer(this->payloadDescriptor->tid);
+                encodingContext->SetCurrentTemporalLayer(this->payloadDescriptor->tid);
 			}
 			else if (!this->payloadDescriptor->hasTid)
 			{
-				context->SetCurrentTemporalLayer(0);
+                encodingContext->SetCurrentTemporalLayer(0);
 			}
 
-			if (context->GetCurrentTemporalLayer() > context->GetTargetTemporalLayer())
+			if (encodingContext->GetCurrentTemporalLayer() > encodingContext->GetTargetTemporalLayer())
 			{
-				context->SetCurrentTemporalLayer(context->GetTargetTemporalLayer());
+                encodingContext->SetCurrentTemporalLayer(encodingContext->GetTargetTemporalLayer());
 			}
 
 			return true;

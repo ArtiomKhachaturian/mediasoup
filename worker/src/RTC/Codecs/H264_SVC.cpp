@@ -261,11 +261,10 @@ namespace RTC
 			MS_DUMP("</H264_SVC::PayloadDescriptor>");
 		}
 
-		H264_SVC::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor)
+		H264_SVC::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<const PayloadDescriptor> descriptor)
+            : payloadDescriptor(std::move(descriptor))
 		{
 			MS_TRACE();
-
-			this->payloadDescriptor = std::move(payloadDescriptor);
 		}
 
 		bool H264_SVC::PayloadDescriptorHandler::Process(
@@ -273,22 +272,20 @@ namespace RTC
 		{
 			MS_TRACE();
 
-			auto* context = static_cast<RTC::Codecs::H264_SVC::EncodingContext*>(encodingContext);
-
-			MS_ASSERT(context->GetTargetSpatialLayer() >= 0, "target spatial layer cannot be -1");
-			MS_ASSERT(context->GetTargetTemporalLayer() >= 0, "target temporal layer cannot be -1");
+			MS_ASSERT(encodingContext->GetTargetSpatialLayer() >= 0, "target spatial layer cannot be -1");
+			MS_ASSERT(encodingContext->GetTargetTemporalLayer() >= 0, "target temporal layer cannot be -1");
 
 			auto packetSpatialLayer  = GetSpatialLayer();
 			auto packetTemporalLayer = GetTemporalLayer();
-			auto tmpSpatialLayer     = context->GetCurrentSpatialLayer();
-			auto tmpTemporalLayer    = context->GetCurrentTemporalLayer();
+			auto tmpSpatialLayer     = encodingContext->GetCurrentSpatialLayer();
+			auto tmpTemporalLayer    = encodingContext->GetCurrentTemporalLayer();
 
 			// If packet spatial or temporal layer is higher than maximum announced
 			// one, drop the packet.
 			// clang-format off
 			if (
-				packetSpatialLayer >= context->GetSpatialLayers() ||
-				packetTemporalLayer >= context->GetTemporalLayers()
+				packetSpatialLayer >= encodingContext->GetSpatialLayers() ||
+				packetTemporalLayer >= encodingContext->GetTemporalLayers()
 			)
 			// clang-format on
 			{
@@ -302,27 +299,27 @@ namespace RTC
 			const bool isOldPacket = false;
 
 			// Upgrade current spatial layer if needed.
-			if (context->GetTargetSpatialLayer() > context->GetCurrentSpatialLayer())
+			if (encodingContext->GetTargetSpatialLayer() > encodingContext->GetCurrentSpatialLayer())
 			{
 				if (this->payloadDescriptor->isKeyFrame)
 				{
 					MS_DEBUG_DEV(
 					  "upgrading tmpSpatialLayer from %" PRIu16 " to %" PRIu16 " (packet:%" PRIu8 ":%" PRIu8
 					  ")",
-					  context->GetCurrentSpatialLayer(),
-					  context->GetTargetSpatialLayer(),
+                      encodingContext->GetCurrentSpatialLayer(),
+                      encodingContext->GetTargetSpatialLayer(),
 					  packetSpatialLayer,
 					  packetTemporalLayer);
 
-					tmpSpatialLayer  = context->GetTargetSpatialLayer();
+					tmpSpatialLayer  = encodingContext->GetTargetSpatialLayer();
 					tmpTemporalLayer = 0; // Just in case.
 				}
 			}
 			// Downgrade current spatial layer if needed.
-			else if (context->GetTargetSpatialLayer() < context->GetCurrentSpatialLayer())
+			else if (encodingContext->GetTargetSpatialLayer() < encodingContext->GetCurrentSpatialLayer())
 			{
 				// In K-SVC we must wait for a keyframe.
-				if (context->IsKSvc())
+				if (encodingContext->IsKSvc())
 				{
 					if (this->payloadDescriptor->isKeyFrame)
 					// clang-format on
@@ -330,12 +327,12 @@ namespace RTC
 						MS_DEBUG_DEV(
 						  "downgrading tmpSpatialLayer from %" PRIu16 " to %" PRIu16 " (packet:%" PRIu8
 						  ":%" PRIu8 ") after keyframe (K-SVC)",
-						  context->GetCurrentSpatialLayer(),
-						  context->GetTargetSpatialLayer(),
+                          encodingContext->GetCurrentSpatialLayer(),
+                          encodingContext->GetTargetSpatialLayer(),
 						  packetSpatialLayer,
 						  packetTemporalLayer);
 
-						tmpSpatialLayer  = context->GetTargetSpatialLayer();
+						tmpSpatialLayer  = encodingContext->GetTargetSpatialLayer();
 						tmpTemporalLayer = 0; // Just in case.
 					}
 				}
@@ -344,7 +341,7 @@ namespace RTC
 				{
 					// clang-format off
 					if (
-						packetSpatialLayer == context->GetTargetSpatialLayer() &&
+						packetSpatialLayer == encodingContext->GetTargetSpatialLayer() &&
 						this->payloadDescriptor->e
 					)
 					// clang-format on
@@ -352,12 +349,12 @@ namespace RTC
 						MS_DEBUG_DEV(
 						  "downgrading tmpSpatialLayer from %" PRIu16 " to %" PRIu16 " (packet:%" PRIu8
 						  ":%" PRIu8 ") without keyframe (full SVC)",
-						  context->GetCurrentSpatialLayer(),
-						  context->GetTargetSpatialLayer(),
+                          encodingContext->GetCurrentSpatialLayer(),
+                          encodingContext->GetTargetSpatialLayer(),
 						  packetSpatialLayer,
 						  packetTemporalLayer);
 
-						tmpSpatialLayer  = context->GetTargetSpatialLayer();
+						tmpSpatialLayer  = encodingContext->GetTargetSpatialLayer();
 						tmpTemporalLayer = 0; // Just in case.
 					}
 				}
@@ -373,11 +370,11 @@ namespace RTC
 			if (!isOldPacket)
 			{
 				// Upgrade current temporal layer if needed.
-				if (context->GetTargetTemporalLayer() > context->GetCurrentTemporalLayer())
+				if (encodingContext->GetTargetTemporalLayer() > encodingContext->GetCurrentTemporalLayer())
 				{
 					// clang-format off
 					if (
-						packetTemporalLayer >= context->GetCurrentTemporalLayer() + 1 &&
+						packetTemporalLayer >= encodingContext->GetCurrentTemporalLayer() + 1 &&
 						this->payloadDescriptor->s
 					)
 					// clang-format on
@@ -385,7 +382,7 @@ namespace RTC
 						MS_DEBUG_DEV(
 						  "upgrading tmpTemporalLayer from %" PRIu16 " to %" PRIu8 " (packet:%" PRIu8 ":%" PRIu8
 						  ")",
-						  context->GetCurrentTemporalLayer(),
+                          encodingContext->GetCurrentTemporalLayer(),
 						  packetTemporalLayer,
 						  packetSpatialLayer,
 						  packetTemporalLayer);
@@ -394,11 +391,11 @@ namespace RTC
 					}
 				}
 				// Downgrade current temporal layer if needed.
-				else if (context->GetTargetTemporalLayer() < context->GetCurrentTemporalLayer())
+				else if (encodingContext->GetTargetTemporalLayer() < encodingContext->GetCurrentTemporalLayer())
 				{
 					// clang-format off
 					if (
-						packetTemporalLayer == context->GetTargetTemporalLayer() &&
+						packetTemporalLayer == encodingContext->GetTargetTemporalLayer() &&
 						this->payloadDescriptor->e
 					)
 					// clang-format on
@@ -406,12 +403,12 @@ namespace RTC
 						MS_DEBUG_DEV(
 						  "downgrading tmpTemporalLayer from %" PRIu16 " to %" PRIu16 " (packet:%" PRIu8
 						  ":%" PRIu8 ")",
-						  context->GetCurrentTemporalLayer(),
-						  context->GetTargetTemporalLayer(),
+                          encodingContext->GetCurrentTemporalLayer(),
+                          encodingContext->GetTargetTemporalLayer(),
 						  packetSpatialLayer,
 						  packetTemporalLayer);
 
-						tmpTemporalLayer = context->GetTargetTemporalLayer();
+						tmpTemporalLayer = encodingContext->GetTargetTemporalLayer();
 					}
 				}
 
@@ -429,15 +426,15 @@ namespace RTC
 			}
 
 			// Update current spatial layer if needed.
-			if (tmpSpatialLayer != context->GetCurrentSpatialLayer())
+			if (tmpSpatialLayer != encodingContext->GetCurrentSpatialLayer())
 			{
-				context->SetCurrentSpatialLayer(tmpSpatialLayer);
+                encodingContext->SetCurrentSpatialLayer(tmpSpatialLayer);
 			}
 
 			// Update current temporal layer if needed.
-			if (tmpTemporalLayer != context->GetCurrentTemporalLayer())
+			if (tmpTemporalLayer != encodingContext->GetCurrentTemporalLayer())
 			{
-				context->SetCurrentTemporalLayer(tmpTemporalLayer);
+                encodingContext->SetCurrentTemporalLayer(tmpTemporalLayer);
 			}
 
 			return true;

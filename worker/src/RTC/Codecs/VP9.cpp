@@ -137,6 +137,24 @@ namespace RTC
 
 			packet->SetPayloadDescriptorHandler(std::make_shared<PayloadDescriptorHandler>(std::move(payloadDescriptor)));
 		}
+    
+        void VP9::EncodingContext::SyncPictureId(uint16_t pictureId)
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->pictureIdManager);
+            this->pictureIdManager->Sync(pictureId);
+        }
+    
+        uint16_t VP9::EncodingContext::GetMaxPictureId() const
+        {
+            LOCK_READ_PROTECTED_OBJ(this->pictureIdManager);
+            return this->pictureIdManager->GetMaxInput();
+        }
+    
+        bool VP9::EncodingContext::GetPictureId(uint16_t pictureIdIn, uint16_t& pictureIdOut)
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->pictureIdManager);
+            return this->pictureIdManager->Input(pictureIdIn, pictureIdOut);
+        }
 
 		/* Instance methods. */
 
@@ -215,8 +233,7 @@ namespace RTC
 			)
 			// clang-format on
 			{
-				context->pictureIdManager.Sync(this->payloadDescriptor->pictureId - 1);
-
+                context->SyncPictureId(this->payloadDescriptor->pictureId - 1);
 				context->syncRequired = false;
 			}
 
@@ -225,7 +242,7 @@ namespace RTC
 				this->payloadDescriptor->hasPictureId &&
 				RTC::SeqManager<uint16_t, 15>::IsSeqLowerThan(
 					this->payloadDescriptor->pictureId,
-					context->pictureIdManager.GetMaxInput())
+					context->GetMaxPictureId())
 			);
 			// clang-format on
 
@@ -376,7 +393,7 @@ namespace RTC
 			{
 				uint16_t pictureId;
 
-				context->pictureIdManager.Input(this->payloadDescriptor->pictureId, pictureId);
+				context->GetPictureId(this->payloadDescriptor->pictureId, pictureId);
 			}
 
 			// Update current spatial layer if needed.

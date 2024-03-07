@@ -4,7 +4,6 @@
 #include "common.hpp"
 #include "RTC/Codecs/PayloadDescriptorHandler.hpp"
 #include "RTC/RtpPacket.hpp"
-#include "RTC/SeqManager.hpp"
 
 namespace RTC
 {
@@ -53,31 +52,10 @@ namespace RTC
 			static void ProcessRtpPacket(RTC::RtpPacket* packet);
 
 		public:
-			class EncodingContext : public RTC::Codecs::EncodingContext
-			{
-			public:
-				explicit EncodingContext(const RTC::Codecs::EncodingContext::Params& params)
-				  : RTC::Codecs::EncodingContext(params)
-				{
-				}
-				~EncodingContext() = default;
-
-				/* Pure virtual methods inherited from RTC::Codecs::EncodingContext. */
-			public:
-				void SyncRequired() override
-				{
-				}
-
-			public:
-				RTC::SeqManager<uint16_t, 15> pictureIdManager;
-				bool syncRequired{ false };
-			};
-
-		public:
 			class PayloadDescriptorHandler : public RTC::Codecs::PayloadDescriptorHandler
 			{
 			public:
-				explicit PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor);
+				explicit PayloadDescriptorHandler(std::unique_ptr<const PayloadDescriptor> payloadDescriptor);
 
 			public:
 				void Dump() const override
@@ -106,7 +84,7 @@ namespace RTC
                 }
 
 			private:
-				std::unique_ptr<PayloadDescriptor> payloadDescriptor;
+				const std::unique_ptr<const PayloadDescriptor> payloadDescriptor;
 			};
 		};
 	} // namespace Codecs

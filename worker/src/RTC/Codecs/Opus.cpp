@@ -146,11 +146,10 @@ namespace RTC
 			MS_DUMP("</Opus::PayloadDescriptor>");
 		}
 
-		Opus::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor)
+		Opus::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<const PayloadDescriptor> descriptor)
+            : payloadDescriptor(std::move(descriptor))
 		{
 			MS_TRACE();
-
-			this->payloadDescriptor = std::move(payloadDescriptor);
 		}
 
 		bool Opus::PayloadDescriptorHandler::Process(
@@ -158,9 +157,7 @@ namespace RTC
 		{
 			MS_TRACE();
 
-			auto* context = static_cast<RTC::Codecs::Opus::EncodingContext*>(encodingContext);
-
-			if (this->payloadDescriptor->isDtx && context->GetIgnoreDtx())
+			if (this->payloadDescriptor->isDtx && encodingContext->GetIgnoreDtx())
 			{
 				return false;
 			}

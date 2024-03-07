@@ -158,6 +158,48 @@ namespace RTC
 
 			packet->SetPayloadDescriptorHandler(std::make_shared<PayloadDescriptorHandler>(std::move(payloadDescriptor)));
 		}
+    
+        void VP8::EncodingContext::SyncPictureId(uint16_t pictureId)
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->pictureIdManager);
+            this->pictureIdManager->Sync(pictureId);
+        }
+        
+        void VP8::EncodingContext::SyncT10PictureIndex(uint8_t pictureIndex)
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->tl0PictureIndexManager);
+            this->tl0PictureIndexManager->Sync(pictureIndex);
+        }
+    
+        void VP8::EncodingContext::DropPictureId(uint16_t pictureId)
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->pictureIdManager);
+            this->pictureIdManager->Drop(pictureId);
+        }
+        
+        void VP8::EncodingContext::DropT10PictureIndex(uint8_t pictureIndex)
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->tl0PictureIndexManager);
+            this->tl0PictureIndexManager->Drop(pictureIndex);
+        }
+    
+        bool VP8::EncodingContext::GetPictureId(uint16_t pictureIdIn, uint16_t& pictureIdOut)
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->pictureIdManager);
+            return this->pictureIdManager->Input(pictureIdIn, pictureIdOut);
+        }
+        
+        bool VP8::EncodingContext::GetT10PictureIndex(uint8_t pictureIndexIn, uint8_t& pictureIndexOut)
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->tl0PictureIndexManager);
+            return this->tl0PictureIndexManager->Input(pictureIndexIn, pictureIndexOut);
+        }
+    
+        uint16_t VP8::EncodingContext::GetMaxPictureId() const
+        {
+            LOCK_READ_PROTECTED_OBJ(this->pictureIdManager);
+            return this->pictureIdManager->GetMaxInput();
+        }
 
 		/* Instance methods. */
 
@@ -233,11 +275,10 @@ namespace RTC
 			Encode(data, this->pictureId, this->tl0PictureIndex);
 		}
 
-		VP8::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor)
+		VP8::PayloadDescriptorHandler::PayloadDescriptorHandler(std::unique_ptr<const PayloadDescriptor> descriptor)
+            : payloadDescriptor(std::move(descriptor))
 		{
 			MS_TRACE();
-
-			this->payloadDescriptor = std::move(payloadDescriptor);
 		}
 
 		bool VP8::PayloadDescriptorHandler::Process(
@@ -264,9 +305,8 @@ namespace RTC
 			)
 			// clang-format on
 			{
-				context->pictureIdManager.Sync(this->payloadDescriptor->pictureId - 1);
-				context->tl0PictureIndexManager.Sync(this->payloadDescriptor->tl0PictureIndex - 1);
-
+                context->SyncPictureId(this->payloadDescriptor->pictureId - 1);
+                context->SyncT10PictureIndex(this->payloadDescriptor->tl0PictureIndex - 1);
 				context->syncRequired = false;
 			}
 
@@ -278,17 +318,17 @@ namespace RTC
 				this->payloadDescriptor->hasTl0PictureIndex &&
 				!RTC::SeqManager<uint16_t, 15>::IsSeqLowerThan(
 					this->payloadDescriptor->pictureId,
-					context->pictureIdManager.GetMaxInput())
+					context->GetMaxPictureId())
 			)
 			// clang-format on
 			{
 				if (this->payloadDescriptor->tlIndex > context->GetTargetTemporalLayer())
 				{
-					context->pictureIdManager.Drop(this->payloadDescriptor->pictureId);
+					context->DropPictureId(this->payloadDescriptor->pictureId);
 
 					if (this->payloadDescriptor->tlIndex == 0)
 					{
-						context->tl0PictureIndexManager.Drop(this->payloadDescriptor->tl0PictureIndex);
+						context->DropT10PictureIndex(this->payloadDescriptor->tl0PictureIndex);
 					}
 
 					return false;
@@ -301,11 +341,11 @@ namespace RTC
 				)
 				// clang-format on
 				{
-					context->pictureIdManager.Drop(this->payloadDescriptor->pictureId);
+					context->DropPictureId(this->payloadDescriptor->pictureId);
 
 					if (this->payloadDescriptor->tlIndex == 0)
 					{
-						context->tl0PictureIndexManager.Drop(this->payloadDescriptor->tl0PictureIndex);
+						context->DropT10PictureIndex(this->payloadDescriptor->tl0PictureIndex);
 					}
 
 					return false;
@@ -320,7 +360,7 @@ namespace RTC
 			// clang-format off
 			if (
 				this->payloadDescriptor->hasPictureId &&
-				!context->pictureIdManager.Input(this->payloadDescriptor->pictureId, pictureId)
+				!context->GetPictureId(this->payloadDescriptor->pictureId, pictureId)
 			)
 			// clang-format on
 			{
@@ -331,7 +371,7 @@ namespace RTC
 			// clang-format off
 			if (
 				this->payloadDescriptor->hasTl0PictureIndex &&
-				!context->tl0PictureIndexManager.Input(
+				!context->GetT10PictureIndex(
 					this->payloadDescriptor->tl0PictureIndex, tl0PictureIndex)
 			)
 			// clang-format on

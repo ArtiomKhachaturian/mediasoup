@@ -5,7 +5,6 @@
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
 #include "MediaSoupErrors.hpp"
-#include "Utils.hpp"
 
 namespace RTC
 {
@@ -19,12 +18,15 @@ namespace RTC
 	  const FBS::Transport::ConsumeRequest* data,
 	  RTC::RtpParameters::Type type)
 	  : id(id), producerId(producerId), shared(shared), listener(listener),
-	    kind(RTC::Media::Kind(data->kind())), type(type)
+	    kind(RTC::Media::Kind(data->kind())), type(type),
+        maxRtcpInterval(RTC::Media::Kind::AUDIO == this->kind ? RTC::RTCP::MaxAudioIntervalMs : RTC::RTCP::MaxVideoIntervalMs),
+        rtpParameters(data->rtpParameters()), // This may throw.
+        consumableRtpEncodings(GetEncodingParameters(data)),
+        supportedCodecPayloadTypes(GetSupportedCodecPayloadTypes(this->rtpParameters.codecs)),
+        mediaSsrcs(GetSsrcs(this->rtpParameters.encodings, false)),
+        rtxSsrcs(GetSsrcs(this->rtpParameters.encodings, true))
 	{
 		MS_TRACE();
-
-		// This may throw.
-		this->rtpParameters = RTC::RtpParameters(data->rtpParameters());
 
 		if (this->rtpParameters.encodings.empty())
 		{
@@ -32,7 +34,7 @@ namespace RTC
 		}
 
 		// All encodings must have SSRCs.
-		for (auto& encoding : this->rtpParameters.encodings)
+		for (const auto& encoding : this->rtpParameters.encodings)
 		{
 			if (encoding.ssrc == 0)
 			{
@@ -44,32 +46,9 @@ namespace RTC
 			}
 		}
 
-		if (data->consumableRtpEncodings()->size() == 0)
-		{
-			MS_THROW_TYPE_ERROR("empty consumableRtpEncodings");
-		}
-
-		this->consumableRtpEncodings.reserve(data->consumableRtpEncodings()->size());
-
-		for (size_t i{ 0 }; i < data->consumableRtpEncodings()->size(); ++i)
-		{
-			const auto* entry = data->consumableRtpEncodings()->Get(i);
-
-			// This may throw due the constructor of RTC::RtpEncodingParameters.
-			this->consumableRtpEncodings.emplace_back(entry);
-
-			// Verify that it has ssrc field.
-			auto& encoding = this->consumableRtpEncodings[i];
-
-			if (encoding.ssrc == 0u)
-			{
-				MS_THROW_TYPE_ERROR("wrong encoding in consumableRtpEncodings (missing ssrc)");
-			}
-		}
-
 		// Fill RTP header extension ids and their mapped values.
 		// This may throw.
-		for (auto& exten : this->rtpParameters.headerExtensions)
+		for (const auto& exten : this->rtpParameters.headerExtensions)
 		{
 			if (exten.id == 0u)
 			{
@@ -114,40 +93,6 @@ namespace RTC
 
 		// paused is set to false by default.
 		this->paused = data->paused();
-
-		// Fill supported codec payload types.
-		for (auto& codec : this->rtpParameters.codecs)
-		{
-			if (codec.mimeType.IsMediaCodec())
-			{
-				this->supportedCodecPayloadTypes[codec.payloadType] = true;
-			}
-		}
-
-		// Fill media SSRCs vector.
-		for (auto& encoding : this->rtpParameters.encodings)
-		{
-			this->mediaSsrcs.push_back(encoding.ssrc);
-		}
-
-		// Fill RTX SSRCs vector.
-		for (auto& encoding : this->rtpParameters.encodings)
-		{
-			if (encoding.hasRtx)
-			{
-				this->rtxSsrcs.push_back(encoding.rtx.ssrc);
-			}
-		}
-
-		// Set the RTCP report generation interval.
-		if (this->kind == RTC::Media::Kind::AUDIO)
-		{
-			this->maxRtcpInterval = RTC::RTCP::MaxAudioIntervalMs;
-		}
-		else
-		{
-			this->maxRtcpInterval = RTC::RTCP::MaxVideoIntervalMs;
-		}
 	}
 
 	Consumer::~Consumer()
@@ -240,24 +185,18 @@ namespace RTC
 
 			case Channel::ChannelRequest::Method::CONSUMER_PAUSE:
 			{
-				if (this->paused)
-				{
-					request->Accept();
+                const bool wasActive = IsActive();
+                
+                if (!this->paused.exchange(true)) {
+                    
+                    MS_DEBUG_DEV("Consumer paused [consumerId:%s]", this->id.c_str());
 
-					break;
-				}
-
-				const bool wasActive = IsActive();
-
-				this->paused = true;
-
-				MS_DEBUG_DEV("Consumer paused [consumerId:%s]", this->id.c_str());
-
-				if (wasActive)
-				{
-					UserOnPaused();
-				}
-
+                    if (wasActive)
+                    {
+                        UserOnPaused();
+                    }
+                }
+               
 				request->Accept();
 
 				break;
@@ -265,21 +204,15 @@ namespace RTC
 
 			case Channel::ChannelRequest::Method::CONSUMER_RESUME:
 			{
-				if (!this->paused)
-				{
-					request->Accept();
+                if (this->paused.exchange(false)) {
+                    
+                    MS_DEBUG_DEV("Consumer resumed [consumerId:%s]", this->id.c_str());
 
-					break;
-				}
-
-				this->paused = false;
-
-				MS_DEBUG_DEV("Consumer resumed [consumerId:%s]", this->id.c_str());
-
-				if (IsActive())
-				{
-					UserOnResumed();
-				}
+                    if (IsActive())
+                    {
+                        UserOnResumed();
+                    }
+                }
 
 				request->Accept();
 
@@ -366,94 +299,87 @@ namespace RTC
 	void Consumer::TransportConnected()
 	{
 		MS_TRACE();
+        
+        if (!this->transportConnected.exchange(true)) {
+            MS_DEBUG_DEV("Transport connected [consumerId:%s]", this->id.c_str());
 
-		if (this->transportConnected)
-		{
-			return;
-		}
-
-		this->transportConnected = true;
-
-		MS_DEBUG_DEV("Transport connected [consumerId:%s]", this->id.c_str());
-
-		UserOnTransportConnected();
+            UserOnTransportConnected();
+        }
 	}
 
 	void Consumer::TransportDisconnected()
 	{
 		MS_TRACE();
+        
+        if (this->transportConnected.exchange(false)) {
+            MS_DEBUG_DEV("Transport disconnected [consumerId:%s]", this->id.c_str());
 
-		if (!this->transportConnected)
-		{
-			return;
-		}
-
-		this->transportConnected = false;
-
-		MS_DEBUG_DEV("Transport disconnected [consumerId:%s]", this->id.c_str());
-
-		UserOnTransportDisconnected();
+            UserOnTransportDisconnected();
+        }
 	}
 
 	void Consumer::ProducerPaused()
 	{
 		MS_TRACE();
+        
+        const bool wasActive = IsActive();
+        
+        if (!this->producerPaused.exchange(true)) {
+            
+            MS_DEBUG_DEV("Producer paused [consumerId:%s]", this->id.c_str());
 
-		if (this->producerPaused)
-		{
-			return;
-		}
+            if (wasActive)
+            {
+                UserOnPaused();
+            }
 
-		const bool wasActive = IsActive();
-
-		this->producerPaused = true;
-
-		MS_DEBUG_DEV("Producer paused [consumerId:%s]", this->id.c_str());
-
-		if (wasActive)
-		{
-			UserOnPaused();
-		}
-
-		this->shared->channelNotifier->Emit(this->id, FBS::Notification::Event::CONSUMER_PRODUCER_PAUSE);
+            this->shared->channelNotifier->Emit(this->id, FBS::Notification::Event::CONSUMER_PRODUCER_PAUSE);
+        }
 	}
 
 	void Consumer::ProducerResumed()
 	{
 		MS_TRACE();
+        
+        if (this->producerPaused.exchange(false)) {
+            
+            MS_DEBUG_DEV("Producer resumed [consumerId:%s]", this->id.c_str());
 
-		if (!this->producerPaused)
-		{
-			return;
-		}
+            if (IsActive())
+            {
+                UserOnResumed();
+            }
 
-		this->producerPaused = false;
-
-		MS_DEBUG_DEV("Producer resumed [consumerId:%s]", this->id.c_str());
-
-		if (IsActive())
-		{
-			UserOnResumed();
-		}
-
-		this->shared->channelNotifier->Emit(this->id, FBS::Notification::Event::CONSUMER_PRODUCER_RESUME);
+            this->shared->channelNotifier->Emit(this->id, FBS::Notification::Event::CONSUMER_PRODUCER_RESUME);
+        }
 	}
 
-    void Consumer::SetLanguageId(const std::string& languageId)
+    std::string Consumer::GetLanguageId() const
     {
-        MS_TRACE();
-        this->languageId = languageId;
+        LOCK_READ_PROTECTED_OBJ(this->languageId);
+        return this->languageId.ConstRef();
     }
 
-    void Consumer::SetVoiceId(const std::string& voiceId)
+    void Consumer::SetLanguageId(std::string languageId)
     {
         MS_TRACE();
-        this->voiceId = voiceId;
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->languageId);
+        this->languageId = std::move(languageId);
     }
 
-    size_t Consumer::GetLanguageVoiceKey() const
+    std::string Consumer::GetVoiceId() const
     {
-        return Utils::HashCombine(GetLanguageId(), GetVoiceId());
+        LOCK_READ_PROTECTED_OBJ(this->voiceId);
+        return this->voiceId.ConstRef();
+    }
+
+    void Consumer::SetVoiceId(std::string voiceId)
+    {
+        MS_TRACE();
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->voiceId);
+        this->voiceId = std::move(voiceId);
     }
 
 	void Consumer::ProducerRtpStreamScores(const std::vector<uint8_t>* scores)
@@ -470,13 +396,14 @@ namespace RTC
 	{
 		MS_TRACE();
 
-		this->producerClosed = true;
-
-		MS_DEBUG_DEV("Producer closed [consumerId:%s]", this->id.c_str());
-
-		this->shared->channelNotifier->Emit(this->id, FBS::Notification::Event::CONSUMER_PRODUCER_CLOSE);
-
-		this->listener->OnConsumerProducerClosed(this);
+        if (!this->producerClosed.exchange(true)) {
+            
+            MS_DEBUG_DEV("Producer closed [consumerId:%s]", this->id.c_str());
+            
+            this->shared->channelNotifier->Emit(this->id, FBS::Notification::Event::CONSUMER_PRODUCER_CLOSE);
+            
+            this->listener->OnConsumerProducerClosed(this);
+        }
 	}
 
 	void Consumer::EmitTraceEventRtpAndKeyFrameTypes(RTC::RtpPacket* packet, bool isRtx) const
@@ -591,4 +518,68 @@ namespace RTC
 		  FBS::Notification::Body::Consumer_TraceNotification,
 		  notification);
 	}
+
+    std::vector<RTC::RtpEncodingParameters> Consumer::
+        GetEncodingParameters(const FBS::Transport::ConsumeRequest* data)
+    {
+        if (data->consumableRtpEncodings()->size() == 0)
+        {
+            MS_THROW_TYPE_ERROR("empty consumableRtpEncodings");
+        }
+        
+        std::vector<RTC::RtpEncodingParameters> encodings;
+
+        encodings.reserve(data->consumableRtpEncodings()->size());
+
+        for (unsigned i{ 0 }; i < data->consumableRtpEncodings()->size(); ++i)
+        {
+            const auto* entry = data->consumableRtpEncodings()->Get(i);
+
+            // This may throw due the constructor of RTC::RtpEncodingParameters.
+            encodings.emplace_back(entry);
+
+            // Verify that it has ssrc field.
+            const auto& encoding = encodings[i];
+
+            if (encoding.ssrc == 0u)
+            {
+                MS_THROW_TYPE_ERROR("wrong encoding in consumableRtpEncodings (missing ssrc)");
+            }
+        }
+        
+        return encodings;
+    }
+
+    std::bitset<128u> Consumer::GetSupportedCodecPayloadTypes(const std::vector<RtpCodecParameters>& codecs)
+    {
+        std::bitset<128u> payloads;
+        // Fill supported codec payload types.
+        for (const auto& codec : codecs)
+        {
+            if (codec.mimeType.IsMediaCodec())
+            {
+                payloads[codec.payloadType] = true;
+            }
+        }
+        return payloads;
+    }
+
+    std::vector<uint32_t> Consumer::GetSsrcs(const std::vector<RtpEncodingParameters>& encodings, bool rtx)
+    {
+        std::vector<uint32_t> ssrcs;
+        if (!encodings.empty()) {
+            ssrcs.reserve(encodings.size());
+            for (const auto& encoding : encodings) {
+                if (rtx) {
+                    if (encoding.hasRtx) {
+                        ssrcs.push_back(encoding.rtx.ssrc);
+                    }
+                }
+                else {
+                    ssrcs.push_back(encoding.ssrc);
+                }
+            }
+        }
+        return ssrcs;
+    }
 } // namespace RTC

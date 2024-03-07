@@ -103,7 +103,7 @@ namespace RTC
 		params.spatialLayers  = encoding.spatialLayers;
 		params.temporalLayers = encoding.temporalLayers;
 
-		this->encodingContext.reset(RTC::Codecs::Tools::GetEncodingContext(mediaCodec->mimeType, params));
+		this->encodingContext = RTC::Codecs::Tools::GetEncodingContext(mediaCodec->mimeType, params);
 
 		MS_ASSERT(this->encodingContext, "no encoding context for this codec");
 

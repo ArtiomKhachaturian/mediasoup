@@ -2,6 +2,7 @@
 #define MS_RTC_CODECS_PAYLOAD_DESCRIPTOR_HANDLER_HPP
 
 #include "common.hpp"
+#include <atomic>
 
 namespace RTC
 {
@@ -87,15 +88,15 @@ namespace RTC
 			{
 				this->ignoreDtx = ignoreDtx;
 			}
-			virtual void SyncRequired() = 0;
+            virtual void SyncRequired() {}
 
 		private:
-			Params params;
-			int16_t targetSpatialLayer{ -1 };
-			int16_t targetTemporalLayer{ -1 };
-			int16_t currentSpatialLayer{ -1 };
-			int16_t currentTemporalLayer{ -1 };
-			bool ignoreDtx{ false };
+			const Params params;
+			std::atomic<int16_t> targetSpatialLayer{ -1 };
+            std::atomic<int16_t> targetTemporalLayer{ -1 };
+            std::atomic<int16_t> currentSpatialLayer{ -1 };
+            std::atomic<int16_t> currentTemporalLayer{ -1 };
+			std::atomic_bool ignoreDtx{ false };
 		};
 
 		class PayloadDescriptorHandler

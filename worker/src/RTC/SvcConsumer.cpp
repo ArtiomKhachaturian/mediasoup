@@ -85,7 +85,7 @@ namespace RTC
 		params.temporalLayers = encoding.temporalLayers;
 		params.ksvc           = encoding.ksvc;
 
-		this->encodingContext.reset(RTC::Codecs::Tools::GetEncodingContext(mediaCodec->mimeType, params));
+		this->encodingContext = RTC::Codecs::Tools::GetEncodingContext(mediaCodec->mimeType, params);
 
 		MS_ASSERT(this->encodingContext, "no encoding context for this codec");
 

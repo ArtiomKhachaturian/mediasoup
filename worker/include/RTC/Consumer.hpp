@@ -18,7 +18,9 @@
 #include "RTC/RtpStreamRecv.hpp"
 #include "RTC/RtpStreamSend.hpp"
 #include "RTC/Shared.hpp"
+#include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_set.h>
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -134,11 +136,10 @@ namespace RTC
 		}
 		void ProducerPaused();
 		void ProducerResumed();
-        const std::string& GetLanguageId() const { return this->languageId; }
-        void SetLanguageId(const std::string& languageId);
-        const std::string& GetVoiceId() const { return this->voiceId; }
-        void SetVoiceId(const std::string& voiceId);
-        size_t GetLanguageVoiceKey() const;
+        std::string GetLanguageId() const;
+        void SetLanguageId(std::string languageId);
+        std::string GetVoiceId() const;
+        void SetVoiceId(std::string voiceId);
 		virtual void ProducerRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc)    = 0;
 		virtual void ProducerNewRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc) = 0;
 		void ProducerRtpStreamScores(const std::vector<uint8_t>* scores);
@@ -156,7 +157,6 @@ namespace RTC
 		virtual uint32_t GetDesiredBitrate() const                          = 0;
 		virtual void SendRtpPacket(RTC::RtpPacket* packet, std::shared_ptr<RTC::RtpPacket>& sharedPacket) = 0;
 		virtual bool GetRtcp(RTC::RTCP::CompoundPacket* packet, uint64_t nowMs) = 0;
-		virtual const std::vector<RTC::RtpStreamSend*>& GetRtpStreams() const   = 0;
 		virtual void NeedWorstRemoteFractionLost(uint32_t mappedSsrc, uint8_t& worstRemoteFractionLost) = 0;
 		virtual void ReceiveNack(RTC::RTCP::FeedbackRtpNackPacket* nackPacket) = 0;
 		virtual void ReceiveKeyFrameRequest(
@@ -179,6 +179,9 @@ namespace RTC
 		void EmitTraceEvent(flatbuffers::Offset<FBS::Consumer::TraceNotification>& notification) const;
 
 	private:
+        static std::vector<RTC::RtpEncodingParameters> GetEncodingParameters(const FBS::Transport::ConsumeRequest* data) noexcept(false);
+        static std::bitset<128u> GetSupportedCodecPayloadTypes(const std::vector<RtpCodecParameters>& codecs);
+        static std::vector<uint32_t> GetSsrcs(const std::vector<RtpEncodingParameters>& encodings, bool rtx);
 		virtual void UserOnTransportConnected()    = 0;
 		virtual void UserOnTransportDisconnected() = 0;
 		virtual void UserOnPaused()                = 0;
@@ -191,36 +194,37 @@ namespace RTC
 
 	protected:
 		// Passed by argument.
-		RTC::Shared* shared{ nullptr };
-		RTC::Consumer::Listener* listener{ nullptr };
-		RTC::Media::Kind kind;
-		RTC::RtpParameters rtpParameters;
-		RTC::RtpParameters::Type type;
-        // both language & voice should be defined explictly for translation service,
-        // otherwise translation is not available
-        std::string languageId;
-        std::string voiceId;
-		std::vector<RTC::RtpEncodingParameters> consumableRtpEncodings;
+		RTC::Shared* const shared;
+		RTC::Consumer::Listener* const listener;
+		const RTC::Media::Kind kind;
+        const RTC::RtpParameters::Type type;
+        const uint16_t maxRtcpInterval;
+        // Others.
+		const RTC::RtpParameters rtpParameters;
+		const std::vector<RTC::RtpEncodingParameters> consumableRtpEncodings;
 		struct RTC::RtpHeaderExtensionIds rtpHeaderExtensionIds;
+        // Whether a payload type is supported or not is represented in the
+        // corresponding position of the bitset.
+        const std::bitset<128u> supportedCodecPayloadTypes;
 		const std::vector<uint8_t>* producerRtpStreamScores{ nullptr };
 		// Others.
-		// Whether a payload type is supported or not is represented in the
-		// corresponding position of the bitset.
-		std::bitset<128u> supportedCodecPayloadTypes;
-		uint64_t lastRtcpSentTime{ 0u };
-		uint16_t maxRtcpInterval{ 0u };
-		bool externallyManagedBitrate{ false };
-		uint8_t priority{ 1u };
+		std::atomic<uint64_t> lastRtcpSentTime{ 0u };
+        std::atomic_bool externallyManagedBitrate{ false };
+        std::atomic<uint8_t> priority{ 1u };
 		struct TraceEventTypes traceEventTypes;
 
 	private:
 		// Others.
-		std::vector<uint32_t> mediaSsrcs;
-		std::vector<uint32_t> rtxSsrcs;
-		bool transportConnected{ false };
-		bool paused{ false };
-		bool producerPaused{ false };
-		bool producerClosed{ false };
+		const std::vector<uint32_t> mediaSsrcs;
+        const std::vector<uint32_t> rtxSsrcs;
+		std::atomic_bool transportConnected{ false };
+        std::atomic_bool paused{ false };
+        std::atomic_bool producerPaused{ false };
+        std::atomic_bool producerClosed{ false };
+        // both language & voice should be defined explictly for translation service,
+        // otherwise translation is not available
+        ProtectedObj<std::string> languageId;
+        ProtectedObj<std::string> voiceId;
 	};
 } // namespace RTC
 

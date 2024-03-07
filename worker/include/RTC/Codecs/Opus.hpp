@@ -26,31 +26,10 @@ namespace RTC
 			static void ProcessRtpPacket(RTC::RtpPacket* packet);
 
 		public:
-			class EncodingContext : public RTC::Codecs::EncodingContext
-			{
-			public:
-				explicit EncodingContext(const RTC::Codecs::EncodingContext::Params& params)
-				  : RTC::Codecs::EncodingContext(params)
-				{
-				}
-				~EncodingContext() = default;
-
-				/* Pure virtual methods inherited from RTC::Codecs::EncodingContext. */
-			public:
-				void SyncRequired() override
-				{
-					this->syncRequired = true;
-				}
-
-			public:
-				bool syncRequired{ false };
-			};
-
-		public:
 			class PayloadDescriptorHandler : public RTC::Codecs::PayloadDescriptorHandler
 			{
 			public:
-				explicit PayloadDescriptorHandler(std::unique_ptr<PayloadDescriptor> payloadDescriptor);
+				explicit PayloadDescriptorHandler(std::unique_ptr<const PayloadDescriptor> payloadDescriptor);
 
 			public:
 				void Dump() const override
@@ -80,7 +59,7 @@ namespace RTC
                 }
 
 			private:
-				std::unique_ptr<PayloadDescriptor> payloadDescriptor;
+				const std::unique_ptr<const PayloadDescriptor> payloadDescriptor;
 			};
             
         public:

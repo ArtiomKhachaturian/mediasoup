@@ -26,18 +26,7 @@ namespace RTC
 		  flatbuffers::FlatBufferBuilder& builder) override;
 		flatbuffers::Offset<FBS::Consumer::ConsumerScore> FillBufferScore(
 		  flatbuffers::FlatBufferBuilder& builder) const override;
-		bool IsActive() const override
-		{
-			// clang-format off
-			return (
-				RTC::Consumer::IsActive() &&
-				this->producerRtpStream &&
-				// If there is no RTP inactivity check do not consider the stream
-				// inactive despite it has score 0.
-				(this->producerRtpStream->GetScore() > 0u || !this->producerRtpStream->HasRtpInactivityCheckEnabled())
-			);
-			// clang-format on
-		}
+        bool IsActive() const override;
 		void ProducerRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc) override;
 		void ProducerNewRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc) override;
 		void ProducerRtpStreamScore(
@@ -48,10 +37,6 @@ namespace RTC
 		void ApplyLayers() override;
 		uint32_t GetDesiredBitrate() const override;
 		void SendRtpPacket(RTC::RtpPacket* packet, std::shared_ptr<RTC::RtpPacket>& sharedPacket) override;
-		const std::vector<RTC::RtpStreamSend*>& GetRtpStreams() const override
-		{
-			return this->rtpStreams;
-		}
 		bool GetRtcp(RTC::RTCP::CompoundPacket* packet, uint64_t nowMs) override;
 		void NeedWorstRemoteFractionLost(uint32_t mappedSsrc, uint8_t& worstRemoteFractionLost) override;
 		void ReceiveNack(RTC::RTCP::FeedbackRtpNackPacket* nackPacket) override;
@@ -70,9 +55,18 @@ namespace RTC
 		void UserOnTransportDisconnected() override;
 		void UserOnPaused() override;
 		void UserOnResumed() override;
-		void CreateRtpStream();
 		void RequestKeyFrame();
 		void EmitScore() const;
+        static const RTC::RtpCodecParameters* Get1stCodec(const RTC::RtpParameters& rtpParameters);
+        static bool IsKeyFrameSupported(const RTC::RtpParameters& rtpParameters);
+        static std::unique_ptr<RTC::Codecs::EncodingContext> CreateEncodingContext(const RTC::RtpParameters& rtpParameters);
+        static std::unique_ptr<RTC::RtpStreamSend> CreateRtpStream(const RTC::RtpCodecParameters* codec,
+                                                                   const RTC::RtpEncodingParameters& encoding,
+                                                                   const std::string& cname,
+                                                                   const std::string& mid,
+                                                                   RTC::RtpStreamSend::Listener* listener);
+        static std::unique_ptr<RTC::RtpStreamSend> CreateRtpStream(const RTC::RtpParameters& rtpParameters,
+                                                                   RTC::RtpStreamSend::Listener* listener);
 
 		/* Pure virtual methods inherited from RtpStreamSend::Listener. */
 	public:
@@ -80,16 +74,15 @@ namespace RTC
 		void OnRtpStreamRetransmitRtpPacket(RTC::RtpStreamSend* rtpStream, RTC::RtpPacket* packet) override;
 
 	private:
+        const std::unique_ptr<RTC::Codecs::EncodingContext> encodingContext;
+        const bool keyFrameSupported;
 		// Allocated by this.
-		RTC::RtpStreamSend* rtpStream{ nullptr };
+        const std::unique_ptr<RTC::RtpStreamSend> rtpStream;
 		// Others.
-		std::vector<RTC::RtpStreamSend*> rtpStreams;
-		RTC::RtpStreamRecv* producerRtpStream{ nullptr };
-		bool keyFrameSupported{ false };
-		bool syncRequired{ false };
-		RTC::SeqManager<uint16_t> rtpSeqManager;
-		bool managingBitrate{ false };
-		std::unique_ptr<RTC::Codecs::EncodingContext> encodingContext;
+		ProtectedObj<RTC::RtpStreamRecv*> producerRtpStream{ nullptr };
+		std::atomic_bool syncRequired{ false };
+        ProtectedObj<RTC::SeqManager<uint16_t>> rtpSeqManager;
+        std::atomic_bool managingBitrate{ false };
 	};
 } // namespace RTC
 
