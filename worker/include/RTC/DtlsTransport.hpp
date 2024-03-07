@@ -119,7 +119,8 @@ namespace RTC
 
 	private:
 		static void GenerateCertificateAndPrivateKey();
-		static void ReadCertificateAndPrivateKeyFromFiles();
+		static void ReadCertificateAndPrivateKeyFromFiles(const std::string& dtlsCertificateFile,
+                                                          const std::string& dtlsPrivateKeyFile);
 		static void CreateSslCtx();
 		static void GenerateFingerprints();
 

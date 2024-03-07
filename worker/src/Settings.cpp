@@ -22,7 +22,7 @@ static std::mutex GlobalSyncMutex;
 
 /* Class variables. */
 
-thread_local struct Settings::Configuration Settings::configuration;
+struct Settings::Configuration Settings::configuration;
 // clang-format off
 absl::flat_hash_map<std::string, LogLevel> Settings::String2LogLevel =
 {
@@ -39,6 +39,82 @@ absl::flat_hash_map<LogLevel, std::string> Settings::LogLevel2String =
 	{ LogLevel::LOG_NONE,  "none"  }
 };
 // clang-format on
+
+Settings::LogTags::LogTags(const LogTags& other)
+{
+    this->info = other.info.load();
+    this->ice = other.ice.load();
+    this->dtls = other.dtls.load();
+    this->rtp = other.rtp.load();
+    this->srtp = other.srtp.load();
+    this->rtcp = other.rtcp.load();
+    this->rtx = other.rtx.load();
+    this->bwe = other.bwe.load();
+    this->score = other.score.load();
+    this->simulcast = other.simulcast.load();
+    this->svc = other.svc.load();
+    this->sctp = other.sctp.load();
+    this->message = other.message.load();
+}
+
+Settings::LogTags& Settings::LogTags::operator = (const LogTags& other)
+{
+    if (&other != this) {
+        this->info = other.info.load();
+        this->ice = other.ice.load();
+        this->dtls = other.dtls.load();
+        this->rtp = other.rtp.load();
+        this->srtp = other.srtp.load();
+        this->rtcp = other.rtcp.load();
+        this->rtx = other.rtx.load();
+        this->bwe = other.bwe.load();
+        this->score = other.score.load();
+        this->simulcast = other.simulcast.load();
+        this->svc = other.svc.load();
+        this->sctp = other.sctp.load();
+        this->message = other.message.load();
+    }
+    return *this;
+}
+
+void Settings::Configuration::SetDtlsCertificateFile(std::string dtlsCertificateFile)
+{
+    LOCK_WRITE_PROTECTED_OBJ(this->dtlsCertificateFile);
+    this->dtlsCertificateFile = std::move(dtlsCertificateFile);
+}
+
+std::string Settings::Configuration::GetDtlsCertificateFile() const
+{
+    LOCK_READ_PROTECTED_OBJ(this->dtlsCertificateFile);
+    return this->dtlsCertificateFile.ConstRef();
+}
+
+void Settings::Configuration::SetDtlsPrivateKeyFile(std::string dtlsPrivateKeyFile)
+{
+    LOCK_WRITE_PROTECTED_OBJ(this->dtlsPrivateKeyFile);
+    this->dtlsPrivateKeyFile = std::move(dtlsCertificateFile);
+}
+
+std::string Settings::Configuration::GetDtlsPrivateKeyFile() const
+{
+    LOCK_READ_PROTECTED_OBJ(this->dtlsPrivateKeyFile);
+    return this->dtlsPrivateKeyFile.ConstRef();
+}
+
+void Settings::Configuration::SetLibwebrtcFieldTrials(std::string libwebrtcFieldTrials)
+{
+    LOCK_WRITE_PROTECTED_OBJ(this->libwebrtcFieldTrials);
+    if (libwebrtcFieldTrials != this->libwebrtcFieldTrials.ConstRef()) {
+        MS_WARN_TAG(info, "overriding default value of libwebrtcFieldTrials may generate crashes in mediasoup-worker");
+        this->libwebrtcFieldTrials = std::move(libwebrtcFieldTrials);
+    }
+}
+
+std::string Settings::Configuration::GetLibwebrtcFieldTrials() const
+{
+    LOCK_READ_PROTECTED_OBJ(this->libwebrtcFieldTrials);
+    return this->libwebrtcFieldTrials.ConstRef();
+}
 
 /* Class methods. */
 
@@ -84,8 +160,7 @@ void Settings::SetConfiguration(int argc, char* argv[])
 		{
 			case 'l':
 			{
-				stringValue = std::string(optarg);
-				SetLogLevel(stringValue);
+				SetLogLevel(std::string(optarg));
 
 				break;
 			}
@@ -128,33 +203,19 @@ void Settings::SetConfiguration(int argc, char* argv[])
 
 			case 'c':
 			{
-				stringValue                                 = std::string(optarg);
-				Settings::configuration.dtlsCertificateFile = stringValue;
-
+                Settings::configuration.SetDtlsCertificateFile(std::string(optarg));
 				break;
 			}
 
 			case 'p':
 			{
-				stringValue                                = std::string(optarg);
-				Settings::configuration.dtlsPrivateKeyFile = stringValue;
-
+                Settings::configuration.SetDtlsPrivateKeyFile(std::string(optarg));
 				break;
 			}
 
 			case 'W':
 			{
-				stringValue = std::string(optarg);
-
-				if (stringValue != Settings::configuration.libwebrtcFieldTrials)
-				{
-					MS_WARN_TAG(
-					  info,
-					  "overriding default value of libwebrtcFieldTrials may generate crashes in mediasoup-worker");
-
-					Settings::configuration.libwebrtcFieldTrials = stringValue;
-				}
-
+                Settings::configuration.SetLibwebrtcFieldTrials(std::string(optarg));
 				break;
 			}
 
@@ -272,21 +333,22 @@ void Settings::PrintConfiguration()
 
 	MS_DEBUG_TAG(info, "<configuration>");
 
-	MS_DEBUG_TAG(
-	  info, "  logLevel: %s", Settings::LogLevel2String[Settings::configuration.logLevel].c_str());
+	MS_DEBUG_TAG(info, "  logLevel: %s", Settings::LogLevel2String[Settings::configuration.logLevel].c_str());
 	MS_DEBUG_TAG(info, "  logTags: %s", logTagsStream.str().c_str());
-	MS_DEBUG_TAG(info, "  rtcMinPort: %" PRIu16, Settings::configuration.rtcMinPort);
-	MS_DEBUG_TAG(info, "  rtcMaxPort: %" PRIu16, Settings::configuration.rtcMaxPort);
-	if (!Settings::configuration.dtlsCertificateFile.empty())
+	MS_DEBUG_TAG(info, "  rtcMinPort: %" PRIu16, Settings::configuration.rtcMinPort.load());
+	MS_DEBUG_TAG(info, "  rtcMaxPort: %" PRIu16, Settings::configuration.rtcMaxPort.load());
+    
+    const auto dtlsCertificateFile = Settings::configuration.GetDtlsCertificateFile();
+    if (!dtlsCertificateFile.empty())
+    {
+        MS_DEBUG_TAG(info, "  dtlsCertificateFile: %s", dtlsCertificateFile.c_str());
+        MS_DEBUG_TAG(info, "  dtlsPrivateKeyFile: %s", Settings::configuration.GetDtlsPrivateKeyFile().c_str());
+    }
+
+    const auto libwebrtcFieldTrials = Settings::configuration.GetLibwebrtcFieldTrials();
+    if (!libwebrtcFieldTrials.empty())
 	{
-		MS_DEBUG_TAG(
-		  info, "  dtlsCertificateFile: %s", Settings::configuration.dtlsCertificateFile.c_str());
-		MS_DEBUG_TAG(info, "  dtlsPrivateKeyFile: %s", Settings::configuration.dtlsPrivateKeyFile.c_str());
-	}
-	if (!Settings::configuration.libwebrtcFieldTrials.empty())
-	{
-		MS_DEBUG_TAG(
-		  info, "  libwebrtcFieldTrials: %s", Settings::configuration.libwebrtcFieldTrials.c_str());
+		MS_DEBUG_TAG(info, "  libwebrtcFieldTrials: %s", libwebrtcFieldTrials.c_str());
 	}
 
 	MS_DEBUG_TAG(info, "</configuration>");
@@ -304,10 +366,8 @@ void Settings::HandleRequest(Channel::ChannelRequest* request)
 
 			if (flatbuffers::IsFieldPresent(body, FBS::Worker::UpdateSettingsRequest::VT_LOGLEVEL))
 			{
-				auto logLevel = body->logLevel()->str();
-
 				// This may throw.
-				Settings::SetLogLevel(logLevel);
+				Settings::SetLogLevel(body->logLevel()->str());
 			}
 
 			// Update logTags if requested.
@@ -338,7 +398,7 @@ void Settings::HandleRequest(Channel::ChannelRequest* request)
 	}
 }
 
-void Settings::SetLogLevel(std::string& level)
+void Settings::SetLogLevel(std::string level)
 {
 	MS_TRACE();
 
@@ -422,28 +482,22 @@ void Settings::SetLogTags(const std::vector<std::string>& tags)
 void Settings::SetDtlsCertificateAndPrivateKeyFiles()
 {
 	MS_TRACE();
-
-	if (
-	  !Settings::configuration.dtlsCertificateFile.empty() &&
-	  Settings::configuration.dtlsPrivateKeyFile.empty())
+    
+    const auto dtlsCertificateFile = Settings::configuration.GetDtlsCertificateFile();
+    const auto dtlsPrivateKeyFile = Settings::configuration.GetDtlsPrivateKeyFile();
+	
+    if (!dtlsCertificateFile.empty() && dtlsPrivateKeyFile.empty())
 	{
 		MS_THROW_TYPE_ERROR("missing dtlsPrivateKeyFile");
 	}
-	else if (
-	  Settings::configuration.dtlsCertificateFile.empty() &&
-	  !Settings::configuration.dtlsPrivateKeyFile.empty())
+	else if (dtlsCertificateFile.empty() && !dtlsPrivateKeyFile.empty())
 	{
 		MS_THROW_TYPE_ERROR("missing dtlsCertificateFile");
 	}
-	else if (
-	  Settings::configuration.dtlsCertificateFile.empty() &&
-	  Settings::configuration.dtlsPrivateKeyFile.empty())
+	else if (dtlsCertificateFile.empty() && dtlsPrivateKeyFile.empty())
 	{
 		return;
 	}
-
-	const std::string& dtlsCertificateFile = Settings::configuration.dtlsCertificateFile;
-	const std::string& dtlsPrivateKeyFile  = Settings::configuration.dtlsPrivateKeyFile;
 
 	try
 	{

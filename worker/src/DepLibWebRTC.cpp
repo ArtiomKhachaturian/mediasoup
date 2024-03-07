@@ -17,16 +17,11 @@ void DepLibWebRTC::ClassInit()
 {
 	MS_TRACE();
 
-	MS_DEBUG_TAG(
-	  info, "libwebrtc field trials: \"%s\"", Settings::configuration.libwebrtcFieldTrials.c_str());
-
-	std::call_once(
-	  GlobalInitOnce,
-	  []
-	  {
-		  webrtc::field_trial::InitFieldTrialsFromString(
-		    Settings::configuration.libwebrtcFieldTrials.c_str());
-	  });
+	std::call_once(GlobalInitOnce,[] {
+        const auto libwebrtcFieldTrials = Settings::configuration.GetLibwebrtcFieldTrials();
+        MS_DEBUG_TAG(info, "libwebrtc field trials: \"%s\"", libwebrtcFieldTrials.c_str());
+        webrtc::field_trial::InitFieldTrialsFromString(libwebrtcFieldTrials.c_str());
+    });
 }
 
 void DepLibWebRTC::ClassDestroy()

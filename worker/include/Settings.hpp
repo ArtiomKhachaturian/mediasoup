@@ -3,8 +3,10 @@
 
 #include "common.hpp"
 #include "LogLevel.hpp"
+#include "ProtectedObj.hpp"
 #include "Channel/ChannelRequest.hpp"
 #include <absl/container/flat_hash_map.h>
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -13,32 +15,44 @@ class Settings
 public:
 	struct LogTags
 	{
-		bool info{ false };
-		bool ice{ false };
-		bool dtls{ false };
-		bool rtp{ false };
-		bool srtp{ false };
-		bool rtcp{ false };
-		bool rtx{ false };
-		bool bwe{ false };
-		bool score{ false };
-		bool simulcast{ false };
-		bool svc{ false };
-		bool sctp{ false };
-		bool message{ false };
+        LogTags() = default;
+        LogTags(const LogTags& other);
+        LogTags(LogTags&&) = delete;
+		std::atomic_bool info{ false };
+        std::atomic_bool ice{ false };
+        std::atomic_bool dtls{ false };
+        std::atomic_bool rtp{ false };
+        std::atomic_bool srtp{ false };
+        std::atomic_bool rtcp{ false };
+        std::atomic_bool rtx{ false };
+        std::atomic_bool bwe{ false };
+        std::atomic_bool score{ false };
+        std::atomic_bool simulcast{ false };
+        std::atomic_bool svc{ false };
+        std::atomic_bool sctp{ false };
+        std::atomic_bool message{ false };
+        LogTags& operator = (const LogTags& other);
+        LogTags& operator = (LogTags&&) = delete;
 	};
 
 public:
 	// Struct holding the configuration.
 	struct Configuration
 	{
-		LogLevel logLevel{ LogLevel::LOG_ERROR };
+		std::atomic<LogLevel> logLevel{ LogLevel::LOG_ERROR };
 		struct LogTags logTags;
-		uint16_t rtcMinPort{ 10000u };
-		uint16_t rtcMaxPort{ 59999u };
-		std::string dtlsCertificateFile;
-		std::string dtlsPrivateKeyFile;
-		std::string libwebrtcFieldTrials{ "WebRTC-Bwe-AlrLimitedBackoff/Enabled/" };
+        std::atomic<uint16_t> rtcMinPort{ 10000u };
+        std::atomic<uint16_t> rtcMaxPort{ 59999u };
+        void SetDtlsCertificateFile(std::string dtlsCertificateFile);
+        std::string GetDtlsCertificateFile() const;
+        void SetDtlsPrivateKeyFile(std::string dtlsPrivateKeyFile);
+        std::string GetDtlsPrivateKeyFile() const;
+        void SetLibwebrtcFieldTrials(std::string libwebrtcFieldTrials);
+        std::string GetLibwebrtcFieldTrials() const;
+    private:
+		RTC::ProtectedObj<std::string> dtlsCertificateFile;
+        RTC::ProtectedObj<std::string> dtlsPrivateKeyFile;
+        RTC::ProtectedObj<std::string> libwebrtcFieldTrials{ "WebRTC-Bwe-AlrLimitedBackoff/Enabled/" };
 	};
 
 public:
@@ -47,12 +61,12 @@ public:
 	static void HandleRequest(Channel::ChannelRequest* request);
 
 private:
-	static void SetLogLevel(std::string& level);
+	static void SetLogLevel(std::string level);
 	static void SetLogTags(const std::vector<std::string>& tags);
 	static void SetDtlsCertificateAndPrivateKeyFiles();
 
 public:
-	thread_local static struct Configuration configuration;
+	static struct Configuration configuration;
 
 private:
 	static absl::flat_hash_map<std::string, LogLevel> String2LogLevel; // NOLINT(readability-identifier-naming)

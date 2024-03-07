@@ -161,17 +161,17 @@ namespace RTC
 	void DtlsTransport::ClassInit()
 	{
 		MS_TRACE();
-
+        
+        const auto dtlsCertificateFile = Settings::configuration.GetDtlsCertificateFile();
+        const auto dtlsPrivateKeyFile = Settings::configuration.GetDtlsPrivateKeyFile();
 		// Generate a X509 certificate and private key (unless PEM files are provided).
-		if (
-		  Settings::configuration.dtlsCertificateFile.empty() ||
-		  Settings::configuration.dtlsPrivateKeyFile.empty())
+		if (dtlsCertificateFile.empty() || dtlsPrivateKeyFile.empty())
 		{
 			GenerateCertificateAndPrivateKey();
 		}
 		else
 		{
-			ReadCertificateAndPrivateKeyFromFiles();
+			ReadCertificateAndPrivateKeyFromFiles(dtlsCertificateFile, dtlsPrivateKeyFile);
 		}
 
 		// Create a global SSL_CTX.
@@ -441,13 +441,14 @@ namespace RTC
 		MS_THROW_ERROR("DTLS certificate and private key generation failed");
 	}
 
-	void DtlsTransport::ReadCertificateAndPrivateKeyFromFiles()
+	void DtlsTransport::ReadCertificateAndPrivateKeyFromFiles(const std::string& dtlsCertificateFile,
+                                                              const std::string& dtlsPrivateKeyFile)
 	{
 		MS_TRACE();
 
 		FILE* file{ nullptr };
 
-		file = fopen(Settings::configuration.dtlsCertificateFile.c_str(), "r");
+		file = fopen(dtlsCertificateFile.c_str(), "r");
 
 		if (!file)
 		{
@@ -467,7 +468,7 @@ namespace RTC
 
 		fclose(file);
 
-		file = fopen(Settings::configuration.dtlsPrivateKeyFile.c_str(), "r");
+		file = fopen(dtlsPrivateKeyFile.c_str(), "r");
 
 		if (!file)
 		{
