@@ -3,6 +3,7 @@
 
 #include "RTC/AudioLevelObserver.hpp"
 #include "Logger.hpp"
+#include "Utils.hpp"
 #include "MediaSoupErrors.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include <cmath> // std::lround()
@@ -11,36 +12,30 @@ namespace RTC
 {
 	/* Instance methods. */
 
+    int8_t AudioLevelObserver::DBovs::GetAvg() const
+    {
+        return static_cast<int8_t>(std::lround(float(this->totalSum.load()) / this->count.load()));
+    }
+
 	AudioLevelObserver::AudioLevelObserver(
 	  RTC::Shared* shared,
 	  const std::string& id,
 	  RTC::RtpObserver::Listener* listener,
 	  const FBS::AudioLevelObserver::AudioLevelObserverOptions* options)
-	  : RTC::RtpObserver(shared, id, listener)
+	  : RTC::RtpObserver(shared, id, listener),
+        maxEntries(options->maxEntries()),
+        threshold(options->threshold()),
+        periodicTimer(new TimerHandle(this))
 	{
 		MS_TRACE();
-
-		this->maxEntries = options->maxEntries();
-		this->threshold  = options->threshold();
-		this->interval   = options->interval();
 
 		if (this->threshold > 0)
 		{
 			MS_THROW_TYPE_ERROR("invalid threshold value %" PRIi8, this->threshold);
 		}
 
-		if (this->interval < 250)
-		{
-			this->interval = 250;
-		}
-		else if (this->interval > 5000)
-		{
-			this->interval = 5000;
-		}
-
-		this->periodicTimer = new TimerHandle(this);
-
-		this->periodicTimer->Start(this->interval, this->interval);
+        const auto interval = Utils::Bound<uint16_t>(250, options->interval(), 5000);
+		this->periodicTimer->Start(interval, interval);
 
 		// NOTE: This may throw.
 		this->shared->channelMessageRegistrator->RegisterHandler(
@@ -55,7 +50,6 @@ namespace RTC
 
 		this->shared->channelMessageRegistrator->UnregisterHandler(this->id);
 
-		delete this->periodicTimer;
 	}
 
 	void AudioLevelObserver::AddProducer(RTC::Producer* producer)
@@ -68,15 +62,16 @@ namespace RTC
 		}
 
 		// Insert into the map.
-		this->mapProducerDBovs[producer];
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerDBovs);
+        this->mapProducerDBovs->emplace(producer, std::make_unique<DBovs>());
 	}
 
 	void AudioLevelObserver::RemoveProducer(RTC::Producer* producer)
 	{
 		MS_TRACE();
-
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerDBovs);
 		// Remove from the map.
-		this->mapProducerDBovs.erase(producer);
+        this->mapProducerDBovs->erase(producer);
 	}
 
 	void AudioLevelObserver::ReceiveRtpPacket(RTC::Producer* producer, RTC::RtpPacket* packet)
@@ -95,23 +90,26 @@ namespace RTC
 		{
 			return;
 		}
+        
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerDBovs);
+		const auto& dBovs = this->mapProducerDBovs->at(producer);
 
-		auto& dBovs = this->mapProducerDBovs.at(producer);
-
-		dBovs.totalSum += volume;
-		dBovs.count++;
+		dBovs->totalSum.fetch_add(volume);
+		dBovs->count.fetch_add(1U);
 	}
 
 	void AudioLevelObserver::ProducerPaused(RTC::Producer* producer)
 	{
 		// Remove from the map.
-		this->mapProducerDBovs.erase(producer);
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerDBovs);
+		this->mapProducerDBovs->erase(producer);
 	}
 
 	void AudioLevelObserver::ProducerResumed(RTC::Producer* producer)
 	{
 		// Insert into the map.
-		this->mapProducerDBovs[producer];
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerDBovs);
+        this->mapProducerDBovs->emplace(producer, std::make_unique<DBovs>());
 	}
 
 	void AudioLevelObserver::Paused()
@@ -122,10 +120,8 @@ namespace RTC
 
 		ResetMapProducerDBovs();
 
-		if (!this->silence)
+		if (!this->silence.exchange(true))
 		{
-			this->silence = true;
-
 			this->shared->channelNotifier->Emit(
 			  this->id, FBS::Notification::Event::AUDIOLEVELOBSERVER_SILENCE);
 		}
@@ -143,24 +139,28 @@ namespace RTC
 		MS_TRACE();
 
 		absl::btree_multimap<int8_t, RTC::Producer*> mapDBovsProducer;
-
-		for (auto& kv : this->mapProducerDBovs)
-		{
-			auto* producer = kv.first;
-			auto& dBovs    = kv.second;
-
-			if (dBovs.count < 10)
-			{
-				continue;
-			}
-
-			auto avgDBov = -1 * static_cast<int8_t>(std::lround(dBovs.totalSum / dBovs.count));
-
-			if (avgDBov >= this->threshold)
-			{
-				mapDBovsProducer.insert({ avgDBov, producer });
-			}
-		}
+        
+        {
+            LOCK_READ_PROTECTED_OBJ(this->mapProducerDBovs);
+            
+            for (const auto& kv : this->mapProducerDBovs.ConstRef())
+            {
+                auto* producer = kv.first;
+                const auto& dBovs    = kv.second;
+                
+                if (dBovs->count < 10)
+                {
+                    continue;
+                }
+                
+                auto avgDBov = -1 * dBovs->GetAvg();
+                
+                if (avgDBov >= this->threshold)
+                {
+                    mapDBovsProducer.insert({ avgDBov, producer });
+                }
+            }
+        }
 
 		// Clear the map.
 		ResetMapProducerDBovs();
@@ -189,10 +189,8 @@ namespace RTC
 			  FBS::Notification::Body::AudioLevelObserver_VolumesNotification,
 			  notification);
 		}
-		else if (!this->silence)
+		else if (!this->silence.exchange(true))
 		{
-			this->silence = true;
-
 			this->shared->channelNotifier->Emit(
 			  this->id, FBS::Notification::Event::AUDIOLEVELOBSERVER_SILENCE);
 		}
@@ -202,12 +200,14 @@ namespace RTC
 	{
 		MS_TRACE();
 
-		for (auto& kv : this->mapProducerDBovs)
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerDBovs);
+        
+		for (const auto& kv : this->mapProducerDBovs.ConstRef())
 		{
-			auto& dBovs = kv.second;
+			const auto& dBovs = kv.second;
 
-			dBovs.totalSum = 0;
-			dBovs.count    = 0;
+			dBovs->totalSum = 0;
+			dBovs->count    = 0;
 		}
 	}
 

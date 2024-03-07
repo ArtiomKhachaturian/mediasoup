@@ -87,28 +87,18 @@ namespace RTC
 	void RtpObserver::Pause()
 	{
 		MS_TRACE();
-
-		if (this->paused)
-		{
-			return;
-		}
-
-		this->paused = true;
-
-		Paused();
+        
+        if (!this->paused.exchange(true)) {
+            Paused();
+        }
 	}
 
 	void RtpObserver::Resume()
 	{
 		MS_TRACE();
-
-		if (!this->paused)
-		{
-			return;
-		}
-
-		this->paused = false;
-
-		Resumed();
+        
+        if (this->paused.exchange(false)) {
+            Resumed();
+        }
 	}
 } // namespace RTC

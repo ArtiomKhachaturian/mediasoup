@@ -4,7 +4,9 @@
 #include "RTC/RtpObserver.hpp"
 #include "RTC/Shared.hpp"
 #include "handles/TimerHandle.hpp"
+#include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
+#include <atomic>
 
 namespace RTC
 {
@@ -13,8 +15,9 @@ namespace RTC
 	private:
 		struct DBovs
 		{
-			uint16_t totalSum{ 0u }; // Sum of dBvos (positive integer).
-			size_t count{ 0u };      // Number of dBvos entries in totalSum.
+			std::atomic<uint16_t> totalSum{ 0u }; // Sum of dBvos (positive integer).
+            std::atomic<size_t> count{ 0u };      // Number of dBvos entries in totalSum.
+            int8_t GetAvg() const;
 		};
 
 	public:
@@ -44,14 +47,13 @@ namespace RTC
 
 	private:
 		// Passed by argument.
-		uint16_t maxEntries{ 1u };
-		int8_t threshold{ -80 };
-		uint16_t interval{ 1000u };
+		const uint16_t maxEntries;
+        const int8_t threshold;
 		// Allocated by this.
-		TimerHandle* periodicTimer{ nullptr };
+		const std::unique_ptr<TimerHandle> periodicTimer;
 		// Others.
-		absl::flat_hash_map<RTC::Producer*, DBovs> mapProducerDBovs;
-		bool silence{ true };
+		ProtectedObj<absl::flat_hash_map<RTC::Producer*, std::unique_ptr<DBovs>>> mapProducerDBovs;
+		std::atomic_bool silence{ true };
 	};
 } // namespace RTC
 

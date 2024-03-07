@@ -374,6 +374,12 @@ namespace Utils
 		}
 	};
 
+    template <typename T> // this function is better than [std::clamp] (constexpr, no dangling references on output)
+    inline constexpr T Bound(const T& min, const T& val, const T& max)
+    {
+        return std::max(min, std::min(max, val));
+    }
+
     // hash support
     template <typename T>
     inline size_t HashCombine(const T& v)

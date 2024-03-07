@@ -4,6 +4,7 @@
 #include "RTC/RtpObserver.hpp"
 #include "RTC/Shared.hpp"
 #include "handles/TimerHandle.hpp"
+#include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <utility>
 #include <vector>
@@ -17,56 +18,8 @@ namespace RTC
 {
 	class ActiveSpeakerObserver : public RTC::RtpObserver, public TimerHandle::Listener
 	{
-	private:
-		class Speaker
-		{
-		public:
-			Speaker();
-			void EvalActivityScores();
-			double GetActivityScore(uint8_t interval) const;
-			void LevelChanged(uint32_t level, uint64_t now);
-			void LevelTimedOut(uint64_t now);
-
-		private:
-			bool ComputeImmediates();
-			bool ComputeLongs();
-			bool ComputeMediums();
-			void EvalImmediateActivityScore();
-			void EvalMediumActivityScore();
-			void EvalLongActivityScore();
-			void UpdateMinLevel(int8_t level);
-
-		public:
-			bool paused{ false };
-			double immediateActivityScore{ 0 };
-			double mediumActivityScore{ 0 };
-			double longActivityScore{ 0 };
-			uint64_t lastLevelChangeTime{ 0 };
-
-		private:
-			uint8_t minLevel{ 0u };
-			uint8_t nextMinLevel{ 0u };
-			uint32_t nextMinLevelWindowLen{ 0u };
-			std::vector<uint8_t> immediates;
-			std::vector<uint8_t> mediums;
-			std::vector<uint8_t> longs;
-			std::vector<uint8_t> levels;
-			size_t nextLevelIndex{ 0u };
-		};
-
-		class ProducerSpeaker
-		{
-		public:
-			explicit ProducerSpeaker(RTC::Producer* producer);
-			~ProducerSpeaker();
-
-		public:
-			RTC::Producer* producer;
-			Speaker* speaker;
-		};
-
-	private:
-		static const size_t RelativeSpeachActivitiesLen{ 3u };
+        class Speaker;
+        class ProducerSpeaker;
 
 	public:
 		ActiveSpeakerObserver(
@@ -87,21 +40,22 @@ namespace RTC
 		void Paused() override;
 		void Resumed() override;
 		void Update();
-		bool CalculateActiveSpeaker();
+		bool CalculateActiveSpeaker(const absl::flat_hash_map<std::string, ProducerSpeaker*>& mapProducerSpeakers);
 		void TimeoutIdleLevels(uint64_t now);
+        bool ResetDominantId(const std::string& previousDominantId);
+        std::string GetDominantId() const;
 
 		/* Pure virtual methods inherited from TimerHandle. */
 	protected:
 		void OnTimer(TimerHandle* timer) override;
 
 	private:
-		double relativeSpeachActivities[RelativeSpeachActivitiesLen]{};
-		std::string dominantId;
-		TimerHandle* periodicTimer{ nullptr };
-		uint16_t interval{ 300u };
+        static inline constexpr size_t RelativeSpeachActivitiesLen = 3u;
+        const std::unique_ptr<TimerHandle> periodicTimer;
+        ProtectedObj<std::string> dominantId;
 		// Map of ProducerSpeakers indexed by Producer id.
-		absl::flat_hash_map<std::string, ProducerSpeaker*> mapProducerSpeakers;
-		uint64_t lastLevelIdleTime{ 0u };
+        ProtectedObj<absl::flat_hash_map<std::string, ProducerSpeaker*>> mapProducerSpeakers;
+        ProtectedObj<uint64_t> lastLevelIdleTime{ 0u };
 	};
 } // namespace RTC
 

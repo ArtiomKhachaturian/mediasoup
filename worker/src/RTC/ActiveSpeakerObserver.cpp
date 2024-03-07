@@ -2,8 +2,11 @@
 
 #include "RTC/ActiveSpeakerObserver.hpp"
 #include "Logger.hpp"
+#include "Utils.hpp"
 #include "MediaSoupErrors.hpp"
 #include "RTC/RtpDictionaries.hpp"
+#include <atomic>
+#include <optional>
 
 namespace RTC
 {
@@ -93,26 +96,69 @@ namespace RTC
 		return changed;
 	}
 
+    class ActiveSpeakerObserver::Speaker
+    {
+        struct MinLevelEval
+        {
+            uint8_t level = MinLevel;
+            uint8_t nextLevel = MinLevel;
+            uint32_t nextLevelWindowLen{ 0u };
+            double GetSqrt() const { return std::sqrt(static_cast<double>(this->level * this->nextLevel)); }
+        };
+    public:
+        Speaker();
+        void EvalActivityScores();
+        double GetActivityScore(uint8_t interval) const;
+        void LevelChanged(uint32_t level, uint64_t now);
+        void LevelTimedOut(uint64_t now);
+        uint64_t GetLastLevelChangeTime() const;
+    private:
+        bool ComputeImmediates();
+        bool ComputeLongs();
+        bool ComputeMediums();
+        void EvalImmediateActivityScore();
+        void EvalMediumActivityScore();
+        void EvalLongActivityScore();
+        void UpdateMinLevel(int8_t level);
+
+    public:
+        std::atomic_bool paused{ false };
+        
+    private:
+        std::atomic<double> immediateActivityScore{ 0 };
+        std::atomic<double> mediumActivityScore{ 0 };
+        std::atomic<double> longActivityScore{ 0 };
+        ProtectedObj<uint64_t> lastLevelChangeTime{ 0 };
+        ProtectedObj<MinLevelEval> minLevel;
+        ProtectedObj<std::vector<uint8_t>> immediates;
+        ProtectedObj<std::vector<uint8_t>> mediums;
+        ProtectedObj<std::vector<uint8_t>> longs;
+        ProtectedObj<std::vector<uint8_t>> levels;
+        size_t nextLevelIndex{ 0u }; // guarded with [levels]
+    };
+
+    class ActiveSpeakerObserver::ProducerSpeaker
+    {
+    public:
+        explicit ProducerSpeaker(RTC::Producer* producer);
+        ~ProducerSpeaker();
+
+    public:
+        RTC::Producer* const producer;
+        Speaker* const speaker;
+    };
+
 	ActiveSpeakerObserver::ActiveSpeakerObserver(
 	  RTC::Shared* shared,
 	  const std::string& id,
 	  RTC::RtpObserver::Listener* listener,
 	  const FBS::ActiveSpeakerObserver::ActiveSpeakerObserverOptions* options)
-	  : RTC::RtpObserver(shared, id, listener), interval(options->interval())
+	  : RTC::RtpObserver(shared, id, listener)
+      , periodicTimer(new TimerHandle(this))
 	{
 		MS_TRACE();
 
-		if (this->interval < 100)
-		{
-			this->interval = 100;
-		}
-		else if (this->interval > 5000)
-		{
-			this->interval = 5000;
-		}
-
-		this->periodicTimer = new TimerHandle(this);
-
+        const auto interval = Utils::Bound<uint16_t>(100, options->interval(), 5000);
 		this->periodicTimer->Start(interval, interval);
 
 		// NOTE: This may throw.
@@ -128,17 +174,16 @@ namespace RTC
 
 		this->shared->channelMessageRegistrator->UnregisterHandler(this->id);
 
-		delete this->periodicTimer;
-
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerSpeakers);
 		// Must clear all entries in this->mapProducerSpeakers since RemoveProducer()
 		// won't be called for each existing Producer if the ActiveSpeakerObserver or
 		// its parent Router are directly closed.
-		for (auto& kv : this->mapProducerSpeakers)
+		for (auto& kv : this->mapProducerSpeakers.Ref())
 		{
 			auto* producerSpeaker = kv.second;
 			delete producerSpeaker;
 		}
-		this->mapProducerSpeakers.clear();
+		this->mapProducerSpeakers->clear();
 	}
 
 	void ActiveSpeakerObserver::AddProducer(RTC::Producer* producer)
@@ -149,22 +194,27 @@ namespace RTC
 		{
 			MS_THROW_TYPE_ERROR("not an audio Producer");
 		}
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerSpeakers);
 
-		if (this->mapProducerSpeakers.find(producer->id) != this->mapProducerSpeakers.end())
+		if (this->mapProducerSpeakers->find(producer->id) != this->mapProducerSpeakers->end())
 		{
 			MS_THROW_ERROR("Producer already in map");
 		}
+        
+        this->mapProducerSpeakers->insert(std::make_pair(producer->id, new ProducerSpeaker(producer)));
 
-		this->mapProducerSpeakers[producer->id] = new ProducerSpeaker(producer);
 	}
 
 	void ActiveSpeakerObserver::RemoveProducer(RTC::Producer* producer)
 	{
 		MS_TRACE();
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerSpeakers);
 
-		auto it = this->mapProducerSpeakers.find(producer->id);
+		auto it = this->mapProducerSpeakers->find(producer->id);
 
-		if (it == this->mapProducerSpeakers.end())
+		if (it == this->mapProducerSpeakers->end())
 		{
 			return;
 		}
@@ -173,23 +223,23 @@ namespace RTC
 
 		delete producerSpeaker;
 
-		this->mapProducerSpeakers.erase(producer->id);
+		this->mapProducerSpeakers->erase(producer->id);
+        
+        if (ResetDominantId(producer->id)) {
 
-		if (producer->id == this->dominantId)
-		{
-			this->dominantId.erase();
-
-			Update();
-		}
+            Update();
+        }
 	}
 
 	void ActiveSpeakerObserver::ProducerPaused(RTC::Producer* producer)
 	{
 		MS_TRACE();
+        
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerSpeakers);
 
-		auto it = this->mapProducerSpeakers.find(producer->id);
+		auto it = this->mapProducerSpeakers->find(producer->id);
 
-		if (it != this->mapProducerSpeakers.end())
+		if (it != this->mapProducerSpeakers->end())
 		{
 			auto* producerSpeaker = it->second;
 
@@ -200,10 +250,12 @@ namespace RTC
 	void ActiveSpeakerObserver::ProducerResumed(RTC::Producer* producer)
 	{
 		MS_TRACE();
+        
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerSpeakers);
 
-		auto it = this->mapProducerSpeakers.find(producer->id);
+		auto it = this->mapProducerSpeakers->find(producer->id);
 
-		if (it != this->mapProducerSpeakers.end())
+		if (it != this->mapProducerSpeakers->end())
 		{
 			auto* producerSpeaker = it->second;
 
@@ -229,10 +281,12 @@ namespace RTC
 		}
 
 		const uint8_t volume = 127 - level;
+        
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerSpeakers);
 
-		auto it = this->mapProducerSpeakers.find(producer->id);
+		auto it = this->mapProducerSpeakers->find(producer->id);
 
-		if (it != this->mapProducerSpeakers.end())
+		if (it != this->mapProducerSpeakers->end())
 		{
 			auto* producerSpeaker = it->second;
 			const uint64_t now    = DepLibUV::GetTimeMs();
@@ -268,20 +322,25 @@ namespace RTC
 
 		const uint64_t now = DepLibUV::GetTimeMs();
 
-		if (now - this->lastLevelIdleTime >= LevelIdleTimeout)
-		{
-			if (this->lastLevelIdleTime != 0)
-			{
-				TimeoutIdleLevels(now);
-			}
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->lastLevelIdleTime);
+            if (now - this->lastLevelIdleTime.ConstRef() >= LevelIdleTimeout)
+            {
+                if (this->lastLevelIdleTime.ConstRef() != 0)
+                {
+                    TimeoutIdleLevels(now);
+                }
+                
+                this->lastLevelIdleTime = now;
+            }
+        }
+        
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerSpeakers);
 
-			this->lastLevelIdleTime = now;
-		}
-
-		if (!this->mapProducerSpeakers.empty() && CalculateActiveSpeaker())
+		if (!this->mapProducerSpeakers->empty() && CalculateActiveSpeaker(this->mapProducerSpeakers))
 		{
 			auto notification = FBS::ActiveSpeakerObserver::CreateDominantSpeakerNotificationDirect(
-			  this->shared->channelNotifier->GetBufferBuilder(), this->dominantId.c_str());
+			  this->shared->channelNotifier->GetBufferBuilder(), GetDominantId().c_str());
 
 			this->shared->channelNotifier->Emit(
 			  this->id,
@@ -291,12 +350,12 @@ namespace RTC
 		}
 	}
 
-	bool ActiveSpeakerObserver::CalculateActiveSpeaker()
+	bool ActiveSpeakerObserver::CalculateActiveSpeaker(const absl::flat_hash_map<std::string, ProducerSpeaker*>& mapProducerSpeakers)
 	{
 		MS_TRACE();
 
 		std::string newDominantId;
-		const int32_t speakerCount = this->mapProducerSpeakers.size();
+		const int32_t speakerCount = mapProducerSpeakers.size();
 
 		if (speakerCount == 0)
 		{
@@ -304,19 +363,20 @@ namespace RTC
 		}
 		else if (speakerCount == 1)
 		{
-			auto it               = this->mapProducerSpeakers.begin();
+			auto it               = mapProducerSpeakers.begin();
 			auto* producerSpeaker = it->second;
 			newDominantId         = producerSpeaker->producer->id;
 		}
 		else
 		{
-			Speaker* dominantSpeaker = (this->dominantId.empty())
+            LOCK_WRITE_PROTECTED_OBJ(this->dominantId);
+			Speaker* dominantSpeaker = (this->dominantId->empty())
 			                             ? nullptr
-			                             : this->mapProducerSpeakers.at(this->dominantId)->speaker;
+			                             : mapProducerSpeakers.at(this->dominantId.ConstRef())->speaker;
 
 			if (dominantSpeaker == nullptr)
 			{
-				auto it               = this->mapProducerSpeakers.begin();
+				auto it               = mapProducerSpeakers.begin();
 				newDominantId         = it->first;
 				auto* producerSpeaker = it->second;
 				dominantSpeaker       = producerSpeaker->speaker;
@@ -329,29 +389,31 @@ namespace RTC
 			dominantSpeaker->EvalActivityScores();
 			double newDominantC2 = C2;
 
-			for (auto& kv : this->mapProducerSpeakers)
+			for (const auto& kv : mapProducerSpeakers)
 			{
 				auto* producerSpeaker = kv.second;
 				auto* speaker         = producerSpeaker->speaker;
 				const auto& id        = producerSpeaker->producer->id;
 
-				if (id == this->dominantId || speaker->paused)
+				if (id == this->dominantId.ConstRef() || speaker->paused)
 				{
 					continue;
 				}
 
 				speaker->EvalActivityScores();
+                
+                static thread_local double relativeSpeachActivities[RelativeSpeachActivitiesLen] = {};
 
 				for (uint8_t interval = 0u; interval < ActiveSpeakerObserver::RelativeSpeachActivitiesLen;
 				     ++interval)
 				{
-					this->relativeSpeachActivities[interval] = std::log(
+					relativeSpeachActivities[interval] = std::log(
 					  speaker->GetActivityScore(interval) / dominantSpeaker->GetActivityScore(interval));
 				}
 
-				const double c1 = this->relativeSpeachActivities[0];
-				const double c2 = this->relativeSpeachActivities[1];
-				const double c3 = this->relativeSpeachActivities[2];
+				const double c1 = relativeSpeachActivities[0];
+				const double c2 = relativeSpeachActivities[1];
+				const double c3 = relativeSpeachActivities[2];
 
 				if ((c1 > C1) && (c2 > C2) && (c3 > C3) && (c2 > newDominantC2))
 				{
@@ -361,9 +423,9 @@ namespace RTC
 			}
 		}
 
-		if (!newDominantId.empty() && newDominantId != this->dominantId)
+		if (!newDominantId.empty() && newDominantId != this->dominantId.ConstRef())
 		{
-			this->dominantId = newDominantId;
+			this->dominantId = std::move(newDominantId);
 
 			return true;
 		}
@@ -374,15 +436,18 @@ namespace RTC
 	void ActiveSpeakerObserver::TimeoutIdleLevels(uint64_t now)
 	{
 		MS_TRACE();
+        
+        LOCK_READ_PROTECTED_OBJ(this->mapProducerSpeakers);
 
-		for (auto& kv : this->mapProducerSpeakers)
+		for (const auto& kv : this->mapProducerSpeakers.ConstRef())
 		{
 			auto* producerSpeaker = kv.second;
 			auto* speaker         = producerSpeaker->speaker;
 			const auto& id        = producerSpeaker->producer->id;
-			const uint64_t idle   = now - speaker->lastLevelChangeTime;
+			const uint64_t idle   = now - speaker->GetLastLevelChangeTime();
+            const auto dominantId = GetDominantId();
 
-			if (SpeakerIdleTimeout < idle && (this->dominantId.empty() || id != this->dominantId))
+			if (SpeakerIdleTimeout < idle && (dominantId.empty() || id != dominantId))
 			{
 				speaker->paused = true;
 			}
@@ -392,6 +457,24 @@ namespace RTC
 			}
 		}
 	}
+
+    bool ActiveSpeakerObserver::ResetDominantId(const std::string& previousDominantId)
+    {
+        if (!previousDominantId.empty()) {
+            LOCK_WRITE_PROTECTED_OBJ(this->dominantId);
+            if (this->dominantId.ConstRef() == previousDominantId) {
+                this->dominantId->clear();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    std::string ActiveSpeakerObserver::GetDominantId() const
+    {
+        LOCK_READ_PROTECTED_OBJ(this->dominantId);
+        return this->dominantId;
+    }
 
 	ActiveSpeakerObserver::ProducerSpeaker::ProducerSpeaker(RTC::Producer* producer)
 	  : producer(producer), speaker(new Speaker())
@@ -411,7 +494,7 @@ namespace RTC
 	ActiveSpeakerObserver::Speaker::Speaker()
 	  : immediateActivityScore(MinActivityScore), mediumActivityScore(MinActivityScore),
 	    longActivityScore(MinActivityScore), lastLevelChangeTime(DepLibUV::GetTimeMs()),
-	    minLevel(MinLevel), nextMinLevel(MinLevel), immediates(ImmediateBuffLen, 0),
+	    immediates(ImmediateBuffLen, 0),
 	    mediums(MediumsBuffLen, 0), longs(LongsBuffLen, 0), levels(LevelsBuffLen, 0)
 	{
 		MS_TRACE();
@@ -458,12 +541,16 @@ namespace RTC
 
 	void ActiveSpeakerObserver::Speaker::LevelChanged(uint32_t level, uint64_t now)
 	{
-		if (this->lastLevelChangeTime <= now)
+        std::optional<uint64_t> elapsed;
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->lastLevelChangeTime);
+            if (this->lastLevelChangeTime <= now) {
+                elapsed = now - this->lastLevelChangeTime;
+                this->lastLevelChangeTime = now;
+            }
+        }
+		if (elapsed.has_value())
 		{
-			const uint64_t elapsed = now - this->lastLevelChangeTime;
-
-			this->lastLevelChangeTime = now;
-
 			int8_t b{ 0 };
 
 			if (level < MinLevel)
@@ -483,13 +570,18 @@ namespace RTC
 			// Producer is paused, using a different packetization time or using DTX
 			// we need to update more than one sample when receiving an audio packet.
 			const uint32_t intervalsUpdated =
-			  std::min(std::max(static_cast<uint32_t>(elapsed / 20), 1U), LevelsBuffLen);
+			  std::min(std::max(static_cast<uint32_t>(elapsed.value() / 20), 1U), LevelsBuffLen);
 
-			for (uint32_t i{ 0u }; i < intervalsUpdated; ++i)
-			{
-				this->levels[this->nextLevelIndex] = b;
-				this->nextLevelIndex               = (this->nextLevelIndex + 1) % LevelsBuffLen;
-			}
+            {
+                LOCK_WRITE_PROTECTED_OBJ(this->levels);
+                auto& levels = this->levels.Ref();
+                
+                for (uint32_t i{ 0u }; i < intervalsUpdated; ++i)
+                {
+                    levels[this->nextLevelIndex] = b;
+                    this->nextLevelIndex         = (this->nextLevelIndex + 1) % LevelsBuffLen;
+                }
+            }
 
 			UpdateMinLevel(b);
 		}
@@ -502,12 +594,26 @@ namespace RTC
 		LevelChanged(MinLevel, now);
 	}
 
+    uint64_t ActiveSpeakerObserver::Speaker::GetLastLevelChangeTime() const
+    {
+        LOCK_READ_PROTECTED_OBJ(this->lastLevelChangeTime);
+        return this->lastLevelChangeTime.ConstRef();
+    }
+
 	bool ActiveSpeakerObserver::Speaker::ComputeImmediates()
 	{
 		MS_TRACE();
+        
+        int8_t minLevel = 0;
+        
+        {
+            LOCK_READ_PROTECTED_OBJ(this->minLevel);
+            minLevel = this->minLevel->level + SubunitLengthN1;
+        }
 
-		const int8_t minLevel = this->minLevel + SubunitLengthN1;
-		bool changed          = false;
+        bool changed          = false;
+        
+        LOCK_READ_PROTECTED_OBJ(this->levels);
 
 		for (uint32_t i = 0; i < ImmediateBuffLen; ++i)
 		{
@@ -517,7 +623,7 @@ namespace RTC
 			const size_t levelIndex = this->nextLevelIndex >= (i + 1)
 			                            ? this->nextLevelIndex - i - 1
 			                            : this->nextLevelIndex + LevelsBuffLen - i - 1;
-			uint8_t level           = this->levels[levelIndex];
+			uint8_t level           = this->levels->at(levelIndex);
 
 			if (level < minLevel)
 			{
@@ -525,11 +631,14 @@ namespace RTC
 			}
 
 			const uint8_t immediate = (level / SubunitLengthN1);
+            
+            LOCK_WRITE_PROTECTED_OBJ(this->immediates);
+            auto& immediates = this->immediates.Ref();
 
-			if (this->immediates[i] != immediate)
+			if (immediates[i] != immediate)
 			{
-				this->immediates[i] = immediate;
-				changed             = true;
+                immediates[i] = immediate;
+				changed       = true;
 			}
 		}
 
@@ -539,36 +648,48 @@ namespace RTC
 	bool ActiveSpeakerObserver::Speaker::ComputeMediums()
 	{
 		MS_TRACE();
+        
+        LOCK_READ_PROTECTED_OBJ(this->immediates);
+        LOCK_WRITE_PROTECTED_OBJ(this->mediums);
 
-		return ComputeBigs(this->immediates, this->mediums, MediumThreshold);
+		return ComputeBigs(this->immediates.ConstRef(), this->mediums.Ref(), MediumThreshold);
 	}
 
 	bool ActiveSpeakerObserver::Speaker::ComputeLongs()
 	{
 		MS_TRACE();
+        
+        LOCK_READ_PROTECTED_OBJ(this->mediums);
+        LOCK_WRITE_PROTECTED_OBJ(this->longs);
 
-		return ComputeBigs(this->mediums, this->longs, LongThreashold);
+		return ComputeBigs(this->mediums.ConstRef(), this->longs.Ref(), LongThreashold);
 	}
 
 	void ActiveSpeakerObserver::Speaker::EvalImmediateActivityScore()
 	{
 		MS_TRACE();
+        
+        LOCK_READ_PROTECTED_OBJ(this->immediates);
 
-		this->immediateActivityScore = ComputeActivityScore(this->immediates[0], N1, 0.5, 0.78);
+		this->immediateActivityScore = ComputeActivityScore(this->immediates->at(0), N1, 0.5, 0.78);
 	}
 
 	void ActiveSpeakerObserver::Speaker::EvalMediumActivityScore()
 	{
 		MS_TRACE();
-
-		this->mediumActivityScore = ComputeActivityScore(this->mediums[0], N2, 0.5, 24);
+        
+        LOCK_READ_PROTECTED_OBJ(this->mediums);
+		
+        this->mediumActivityScore = ComputeActivityScore(this->mediums->at(0), N2, 0.5, 24);
 	}
 
 	void ActiveSpeakerObserver::Speaker::EvalLongActivityScore()
 	{
 		MS_TRACE();
+        
+        LOCK_READ_PROTECTED_OBJ(this->longs);
 
-		this->longActivityScore = ComputeActivityScore(this->longs[0], N3, 0.5, 47);
+		this->longActivityScore = ComputeActivityScore(this->longs->at(0), N3, 0.5, 47);
 	}
 
 	void ActiveSpeakerObserver::Speaker::UpdateMinLevel(int8_t level)
@@ -579,32 +700,34 @@ namespace RTC
 		{
 			return;
 		}
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->minLevel);
 
-		if ((this->minLevel == MinLevel) || (this->minLevel > level))
+		if ((this->minLevel->level == MinLevel) || (this->minLevel->level > level))
 		{
-			this->minLevel              = level;
-			this->nextMinLevel          = MinLevel;
-			this->nextMinLevelWindowLen = 0;
+			this->minLevel->level              = level;
+			this->minLevel->nextLevel          = MinLevel;
+			this->minLevel->nextLevelWindowLen = 0;
 		}
 		else
 		{
-			if (this->nextMinLevel == MinLevel)
+			if (this->minLevel->nextLevel == MinLevel)
 			{
-				this->nextMinLevel          = level;
-				this->nextMinLevelWindowLen = 1;
+                this->minLevel->nextLevel          = level;
+				this->minLevel->nextLevelWindowLen = 1;
 			}
 			else
 			{
-				if (this->nextMinLevel > level)
+				if (this->minLevel->nextLevel > level)
 				{
-					this->nextMinLevel = level;
+                    this->minLevel->nextLevel = level;
 				}
 
-				this->nextMinLevelWindowLen++;
+                this->minLevel->nextLevelWindowLen++;
 
-				if (this->nextMinLevelWindowLen >= MinLevelWindowLen)
+				if (this->minLevel->nextLevelWindowLen >= MinLevelWindowLen)
 				{
-					double newMinLevel = std::sqrt(static_cast<double>(this->minLevel * this->nextMinLevel));
+					double newMinLevel = this->minLevel->GetSqrt();
 
 					if (newMinLevel < MinLevel)
 					{
@@ -615,9 +738,9 @@ namespace RTC
 						newMinLevel = MaxLevel;
 					}
 
-					this->minLevel              = static_cast<int8_t>(newMinLevel);
-					this->nextMinLevel          = MinLevel;
-					this->nextMinLevelWindowLen = 0;
+                    this->minLevel->level              = static_cast<int8_t>(newMinLevel);
+                    this->minLevel->nextLevel          = MinLevel;
+                    this->minLevel->nextLevelWindowLen = 0;
 				}
 			}
 		}

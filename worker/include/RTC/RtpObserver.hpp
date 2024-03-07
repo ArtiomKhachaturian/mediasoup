@@ -5,6 +5,7 @@
 #include "RTC/Producer.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/Shared.hpp"
+#include <atomic>
 #include <string>
 
 namespace RTC
@@ -32,10 +33,7 @@ namespace RTC
 	public:
 		void Pause();
 		void Resume();
-		bool IsPaused() const
-		{
-			return this->paused;
-		}
+		bool IsPaused() const { return this->paused.load(); }
 		virtual void AddProducer(RTC::Producer* producer)                              = 0;
 		virtual void RemoveProducer(RTC::Producer* producer)                           = 0;
 		virtual void ReceiveRtpPacket(RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
@@ -56,13 +54,13 @@ namespace RTC
 
 	protected:
 		// Passed by argument.
-		RTC::Shared* shared{ nullptr };
+		RTC::Shared* const shared;
 
 	private:
 		// Passed by argument.
-		RTC::RtpObserver::Listener* listener{ nullptr };
+		RTC::RtpObserver::Listener* const listener;
 		// Others.
-		bool paused{ false };
+		std::atomic_bool paused{ false };
 	};
 } // namespace RTC
 
