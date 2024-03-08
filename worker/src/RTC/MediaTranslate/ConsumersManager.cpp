@@ -158,7 +158,7 @@ void ConsumersManager::DispatchOriginalPacket(RtpPacket* packet, RtpPacketsColle
     if (packet) {
         _originalTimeline.SetTimestamp(packet->GetTimestamp());
         _originalTimeline.SetSeqNumber(packet->GetSequenceNumber());
-        std::unordered_set<Consumer*> rejectedConsumers;
+        std::unordered_set<uint64_t> rejectedConsumers;
         {
             LOCK_READ_PROTECTED_OBJ(_endpoints);
             if (!_endpoints->empty()) {
@@ -270,14 +270,14 @@ std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::GetEndPoint(Co
     return nullptr;
 }
 
-std::unordered_set<Consumer*> ConsumersManager::GetConsumers(uint64_t endPointId, bool alien) const
+std::unordered_set<uint64_t> ConsumersManager::GetConsumers(uint64_t endPointId, bool alien) const
 {
-    std::unordered_set<Consumer*> consumers;
+    std::unordered_set<uint64_t> consumers;
     if (endPointId) {
         LOCK_READ_PROTECTED_OBJ(_consumerToEndpointId);
         for (auto it = _consumerToEndpointId->begin(); it != _consumerToEndpointId->end(); ++it) {
             if (alien ? it->second != endPointId : it->second == endPointId) {
-                consumers.insert(it->first);
+                consumers.insert(it->first->GetId());
             }
         }
     }

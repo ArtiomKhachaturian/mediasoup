@@ -116,9 +116,10 @@ namespace RTC
           const std::shared_ptr<BufferAllocator>& allocator = nullptr);
         ~RtpPacket();
 
-        void AddRejectedConsumer(Consumer* consumer);
-        void SetRejectedConsumers(std::unordered_set<Consumer*> consumers);
-        bool ConsumerIsAccepted(Consumer* consumer) const;
+        void AddRejectedConsumer(const Consumer* consumer);
+        void SetRejectedConsumers(std::unordered_set<uint64_t> rejectedConsumerIds);
+        void SetRejectedConsumers(const std::unordered_set<const Consumer*>& consumers);
+        bool ConsumerIsAccepted(const Consumer* consumer) const;
         
 		void Dump() const;
 		flatbuffers::Offset<FBS::RtpPacket::Dump> FillBuffer(flatbuffers::FlatBufferBuilder& builder) const;
@@ -657,7 +658,7 @@ namespace RTC
         std::shared_ptr<BufferAllocator> allocator;
 		// Codecs
 		std::shared_ptr<Codecs::PayloadDescriptorHandler> payloadDescriptorHandler;
-        std::unordered_set<Consumer*> rejectedConsumers;
+        std::unordered_set<uint64_t> rejectedConsumerIds;
 	};
 } // namespace RTC
 
