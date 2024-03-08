@@ -18,13 +18,14 @@
 #include "RTC/RtpStreamRecv.hpp"
 #include "RTC/RtpStreamSend.hpp"
 #include "RTC/Shared.hpp"
+#include "RTC/ObjectId.hpp"
 #include <absl/container/flat_hash_set.h>
 #include <string>
 #include <vector>
 
 namespace RTC
 {
-	class Consumer : public Channel::ChannelSocket::RequestHandler
+	class Consumer : public ObjectId, public Channel::ChannelSocket::RequestHandler
 	{
 	public:
 		class Listener

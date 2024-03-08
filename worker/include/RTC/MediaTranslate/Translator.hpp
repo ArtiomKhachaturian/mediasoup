@@ -34,7 +34,6 @@ public:
     bool AddStream(const RtpStream* stream, uint32_t mappedSsrc);
     bool RemoveStream(uint32_t ssrc);
     void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
-    const std::string& GetId() const { return _producerId; }
     void AddConsumer(Consumer* consumer);
     void RemoveConsumer(Consumer* consumer);
     void SetProducerPaused(bool paused);
@@ -47,6 +46,7 @@ private:
                RtpPacketsPlayer* rtpPacketsPlayer,
                RtpPacketsCollector* output,
                const std::shared_ptr<BufferAllocator>& allocator);
+    const std::string& GetId() const { return _producerId; }
     void AddConsumersToSource(TranslatorSource* source) const;
 #ifdef NO_TRANSLATION_SERVICE
     std::shared_ptr<TranslatorEndPoint> CreateStubEndPoint() const;
