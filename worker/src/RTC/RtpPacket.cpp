@@ -2,6 +2,7 @@
 // #define MS_LOG_DEV_LEVEL 3
 
 #include "RTC/RtpPacket.hpp"
+#include "RTC/Consumer.hpp"
 #include "RTC/Buffers/BufferAllocator.hpp"
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
@@ -192,22 +193,35 @@ namespace RTC
 		MS_TRACE();
 	}
 
-    void RtpPacket::AddRejectedConsumer(Consumer* consumer)
+    void RtpPacket::AddRejectedConsumer(const Consumer* consumer)
     {
         if (consumer) {
-            this->rejectedConsumers.insert(consumer);
+            this->rejectedConsumerIds.insert(consumer->GetId());
         }
     }
 
-    void RtpPacket::SetRejectedConsumers(std::unordered_set<Consumer*> consumers)
+    void RtpPacket::SetRejectedConsumers(std::unordered_set<uint64_t> rejectedConsumerIds)
     {
-        // assume that all consumers are non-null
-        this->rejectedConsumers = std::move(consumers);
+        this->rejectedConsumerIds = std::move(rejectedConsumerIds);
+    }
+
+    void RtpPacket::SetRejectedConsumers(const std::unordered_set<const Consumer*>& consumers)
+    {
+        if (!consumers.empty()) {
+            std::unordered_set<uint64_t> rejectedConsumerIds;
+            rejectedConsumerIds.reserve(consumers.size());
+            for (const auto consumer : consumers) {
+                if (consumer) {
+                    rejectedConsumerIds.insert(consumer->GetId());
+                }
+            }
+            SetRejectedConsumers(std::move(rejectedConsumerIds));
+        }
     }
     
-    bool RtpPacket::ConsumerIsAccepted(Consumer* consumer) const
+    bool RtpPacket::ConsumerIsAccepted(const Consumer* consumer) const
     {
-        return consumer && (this->rejectedConsumers.empty() || 0UL == this->rejectedConsumers.count(consumer));
+        return consumer && 0U == this->rejectedConsumerIds.count(consumer->GetId());
     }
 
 	void RtpPacket::Dump() const
@@ -796,9 +810,8 @@ namespace RTC
 		// Assign the payload descriptor handler.
 		packet->payloadDescriptorHandler = this->payloadDescriptorHandler;
 		// Store allocated buffer.
-		packet->buffer = std::move(buffer);
-        
-        packet->rejectedConsumers = this->rejectedConsumers;
+		packet->buffer = std::move(buffer);        
+        packet->rejectedConsumerIds = this->rejectedConsumerIds;
 
 		return packet;
 	}

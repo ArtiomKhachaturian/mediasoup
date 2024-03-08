@@ -43,7 +43,7 @@ private:
     std::shared_ptr<EndPointInfo> CreateEndPoint() const;
     std::shared_ptr<EndPointInfo> GetEndPoint(uint64_t endPointId) const;
     std::shared_ptr<EndPointInfo> GetEndPoint(Consumer* consumer) const;
-    std::unordered_set<Consumer*> GetConsumers(uint64_t endPointId, bool alien) const;
+    std::unordered_set<uint64_t> GetConsumers(uint64_t endPointId, bool alien) const;
     auto GetMyConsumers(uint64_t endPointId) const { return GetConsumers(endPointId, false); }
     auto GetAlienConsumers(uint64_t endPointId) const { return GetConsumers(endPointId, true); }
     static size_t GetLanguageVoiceKey(const Consumer* consumer);
