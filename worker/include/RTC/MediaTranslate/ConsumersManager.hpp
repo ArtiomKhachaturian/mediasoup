@@ -48,6 +48,7 @@ private:
     auto GetAlienConsumers(uint64_t endPointId) const { return GetConsumers(endPointId, true); }
     static size_t GetLanguageVoiceKey(const Consumer* consumer);
 private:
+    static inline constexpr uint64_t _noEndPointId = 0ULL;
     TranslatorEndPointFactory* const _endPointsFactory;
     MediaSource* const _translationsInput;
     TranslatorEndPointSink* const _translationsOutput;
