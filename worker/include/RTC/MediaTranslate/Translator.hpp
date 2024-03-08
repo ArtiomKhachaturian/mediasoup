@@ -4,8 +4,6 @@
 #include "RTC/Buffers/BufferAllocations.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
-#include "ProtectedObj.hpp"
-#include <shared_mutex>
 #include <unordered_map>
 
 namespace RTC
@@ -38,8 +36,8 @@ public:
     void AddConsumer(const Consumer* consumer);
     void RemoveConsumer(const Consumer* consumer);
     void SetProducerPaused(bool paused);
-    void SetProducerLanguageId(const std::string& languageId);
-    std::string GetProducerLanguageId() const;
+    void SetProducerLanguageId(std::string languageId);
+    const std::string& GetProducerLanguageId() const { return _producerLanguageId; }
     void UpdateConsumerLanguageOrVoice(const Consumer* consumer);
 private:
     Translator(const Producer* producer,
@@ -68,14 +66,14 @@ private:
     // websocket or file end-point, valid for 1st created instance, just for debug
     mutable std::weak_ptr<TranslatorEndPoint> _nonStubEndPointRef;
 #endif
-    std::atomic_bool _producerPaused = false;
-    ProtectedObj<std::string> _producerLanguageId;
+    bool _producerPaused = false;
+    std::string _producerLanguageId;
     // key is original SSRC
-    ProtectedObj<StreamMap<std::unique_ptr<TranslatorSource>>> _originalSsrcToStreams;
+    StreamMap<std::unique_ptr<TranslatorSource>> _originalSsrcToStreams;
     // key is mapped SSRC
     StreamMap<uint32_t> _mappedSsrcToOriginal;
     // key is consumer integer ID
-    ProtectedObj<Map<uint64_t, std::shared_ptr<ConsumerTranslatorImpl>>> _consumers;
+    Map<uint64_t, std::shared_ptr<ConsumerTranslatorImpl>> _consumers;
 };
 
 } // namespace RTC

@@ -183,12 +183,12 @@ void ConsumersManager::DispatchOriginalPacket(RtpPacket* packet, RtpPacketsColle
             if (!_endPoints->empty()) {
                 for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
                     if (it->second->IsPlaying()) {
-                        rejectedConsumers.merge(GetMyConsumers(it->first));
+                        rejectedConsumers.merge(it->second->GetConsumers());
                     }
                     else {
                         const auto delta = _originalTimeline.GetTimestampDelta();
                         if (auto mapped = it->second->MapOriginalPacket(delta, packet)) {
-                            rejectedConsumers.merge(GetMyConsumers(it->first));
+                            rejectedConsumers.merge(it->second->GetConsumers());
                             mapped->SetRejectedConsumers(GetAlienConsumers(it->first));
                             if (collector) {
                                 collector->AddPacket(mapped.release(), _mappedSsrc, true);
@@ -310,22 +310,14 @@ std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::GetEndPoint(ui
     return nullptr;
 }
 
-std::unordered_set<uint64_t> ConsumersManager::GetConsumers(uint64_t endPointId, bool alien) const
+std::unordered_set<uint64_t> ConsumersManager::GetAlienConsumers(uint64_t endPointId) const
 {
     std::unordered_set<uint64_t> consumers;
     if (endPointId) {
-        LOCK_READ_PROTECTED_OBJ(_endPoints);
-        if (alien) {
-            for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
-                if (it->first != endPointId) {
-                    consumers.merge(it->second->GetConsumers());
-                }
-            }
-        }
-        else {
-            const auto it = _endPoints->find(endPointId);
-            if (it != _endPoints->end()) {
-                consumers = it->second->GetConsumers();
+        consumers.reserve(_endPoints->size());
+        for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+            if (it->first != endPointId) {
+                consumers.merge(it->second->GetConsumers());
             }
         }
     }
@@ -336,6 +328,7 @@ ConsumersManager::EndPointInfo::EndPointInfo(std::shared_ptr<TranslatorEndPoint>
     : _endPoint(std::move(endPoint))
     , _playInfo(0U, 0U)
 {
+    _consumers->reserve(1U);
 }
 
 ConsumersManager::EndPointInfo::~EndPointInfo()

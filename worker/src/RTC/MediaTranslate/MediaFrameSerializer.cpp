@@ -29,7 +29,6 @@ private:
 private:
     const std::unique_ptr<RtpDepacketizer> _depacketizer;
     const std::unique_ptr<MediaFrameWriter> _impl;
-    // TODO: think about thread-safety for these members
     std::optional<Timestamp> _lastTimestamp;
     webrtc::TimeDelta _offset = webrtc::TimeDelta::Zero();
 };
@@ -41,6 +40,7 @@ MediaFrameSerializer::MediaFrameSerializer(const RtpCodecMimeType& mime,
     , _mime(mime)
     , _clockRate(clockRate)
 {
+    _writers->reserve(1U);
 }
 
 MediaFrameSerializer::~MediaFrameSerializer()

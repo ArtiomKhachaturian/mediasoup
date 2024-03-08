@@ -24,7 +24,7 @@ template<> struct MutextTraits<std::shared_mutex> {
     using MutexReadGuard = std::shared_lock<std::shared_mutex>;
 };
 
-template <typename T, class TMutexType = std::recursive_mutex>
+template <typename T, class TMutexType = std::mutex>
 class ProtectedObj
 {
 public:
