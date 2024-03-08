@@ -2777,6 +2777,20 @@ namespace RTC
         }
     }
 
+    void Transport::OnConsumerLanguageIdChanged(RTC::Consumer* consumer)
+    {
+        MS_TRACE();
+        
+        this->listener->OnTransportConsumerLanguageIdChanged(this, consumer);
+    }
+
+    void Transport::OnConsumerVoiceIdChanged(RTC::Consumer* consumer)
+    {
+        MS_TRACE();
+        
+        this->listener->OnTransportConsumerVoiceIdChanged(this, consumer);
+    }
+
     inline void Transport::OnDataProducerMessageReceived(
       RTC::DataProducer* dataProducer,
       const uint8_t* msg,
