@@ -121,7 +121,7 @@ void TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     if (packet) {
         _consumersManager.DispatchOriginalPacket(packet, _output);
-        if (_serializer->HasSinks() || _serializer->HasTestSink()) {
+        if (_serializer->IsReadyToWrite()) {
             const auto makeDeepCopyOfPayload = _serializer->IsAsyncSerialization();
             bool configWasChanged = false;
             if (auto frame = _depacketizer->AddPacket(packet, makeDeepCopyOfPayload,
@@ -145,19 +145,19 @@ void TranslatorSource::SetInputLanguage(const std::string& languageId)
     _consumersManager.SetInputLanguage(languageId);
 }
 
-void TranslatorSource::AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
+bool TranslatorSource::AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
-    _consumersManager.AddConsumer(consumer);
+    return _consumersManager.AddConsumer(consumer);
 }
 
-void TranslatorSource::UpdateConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
+bool TranslatorSource::UpdateConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
-    _consumersManager.UpdateConsumer(consumer);
+    return _consumersManager.UpdateConsumer(consumer);
 }
 
-void TranslatorSource::RemoveConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
+bool TranslatorSource::RemoveConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
-    _consumersManager.RemoveConsumer(consumer);
+    return _consumersManager.RemoveConsumer(consumer);
 }
 
 #ifdef WRITE_PRODUCER_RECV_TO_FILE

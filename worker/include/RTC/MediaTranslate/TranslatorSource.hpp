@@ -52,9 +52,9 @@ public:
     uint32_t GetMappedSsrc() const { return _mappedSsrc; }
     void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
     void SetInputLanguage(const std::string& languageId);
-    void AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
-    void UpdateConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
-    void RemoveConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
+    bool AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
+    bool UpdateConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
+    bool RemoveConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
 private:
 	TranslatorSource(uint32_t clockRate, uint32_t originalSsrc,
                      uint32_t mappedSsrc, uint8_t payloadType,

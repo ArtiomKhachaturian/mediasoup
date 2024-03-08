@@ -22,6 +22,10 @@ class RtpCodecMimeType;
 class ConsumersManager
 {
     class EndPointInfo;
+    template<typename K, typename V>
+    using ProtectedMap = ProtectedObj<std::unordered_map<K, V>>;
+    template<typename V>
+    using ProtectedU64Map = ProtectedMap<uint64_t, V>;
 public:
     ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                      MediaSource* translationsInput,
@@ -30,8 +34,8 @@ public:
     ~ConsumersManager();
     void SetInputLanguage(const std::string& languageId);
     std::string GetInputLanguage() const;
-    void AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
-    void UpdateConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
+    bool AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
+    bool UpdateConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
     bool RemoveConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
     void DispatchOriginalPacket(RtpPacket* packet, RtpPacketsCollector* collector);
     void NotifyThatConnected(uint64_t endPointId, bool connected);
@@ -40,13 +44,15 @@ public:
                     RtpPacketsCollector* output);
     void EndPacketsSending(uint64_t mediaId, uint64_t endPointId);
 private:
+    bool AddNewEndPointFor(const std::shared_ptr<ConsumerTranslator>& consumer);
+    bool AddNewEndPointFor(const std::shared_ptr<ConsumerTranslator>& consumer,
+                           std::string consumerLanguageId,
+                           std::string consumerVoiceId);
     std::shared_ptr<EndPointInfo> CreateEndPoint() const;
     std::shared_ptr<EndPointInfo> GetEndPoint(uint64_t endPointId) const;
-    std::shared_ptr<EndPointInfo> GetEndPoint(const std::shared_ptr<ConsumerTranslator>& consumer) const;
     std::unordered_set<uint64_t> GetConsumers(uint64_t endPointId, bool alien) const;
     auto GetMyConsumers(uint64_t endPointId) const { return GetConsumers(endPointId, false); }
     auto GetAlienConsumers(uint64_t endPointId) const { return GetConsumers(endPointId, true); }
-    static size_t GetLanguageVoiceKey(const std::shared_ptr<ConsumerTranslator>& consumer);
 private:
     static inline constexpr uint64_t _noEndPointId = 0ULL;
     TranslatorEndPointFactory* const _endPointsFactory;
@@ -55,10 +61,8 @@ private:
     const uint32_t _mappedSsrc;
     RtpPacketsTimeline _originalTimeline;
     ProtectedObj<std::string> _inputLanguageId;
-    // key is end-point ID
-    ProtectedObj<std::unordered_map<uint64_t, std::shared_ptr<EndPointInfo>>> _endpoints;
-    // key is consumer ptr, value - end-point ID
-    ProtectedObj<std::unordered_map<std::shared_ptr<ConsumerTranslator>, uint64_t>> _consumerToEndpointId;
+    // key is end-point ID, value - end-point wrapper
+    ProtectedU64Map<std::shared_ptr<EndPointInfo>> _endPoints;
 };
 
 } // namespace RTC
