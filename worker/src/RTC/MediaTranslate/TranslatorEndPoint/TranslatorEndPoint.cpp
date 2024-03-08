@@ -135,7 +135,12 @@ bool TranslatorEndPoint::HasInput() const
 
 bool TranslatorEndPoint::HasValidTranslationSettings() const
 {
-    return HasOutputLanguageId() && HasOutputLanguageId() && HasOutputVoiceId();
+    if (HasOutputVoiceId()) {
+        const auto input = GetInputLanguageId();
+        const auto output = GetOutputLanguageId();
+        return !input.empty() && !output.empty() && input != output;
+    }
+    return false;
 }
 
 void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
