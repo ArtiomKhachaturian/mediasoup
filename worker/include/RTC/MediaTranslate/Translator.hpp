@@ -34,10 +34,12 @@ public:
     bool AddStream(const RtpStream* stream, uint32_t mappedSsrc);
     bool RemoveStream(uint32_t ssrc);
     void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
-    const std::string& GetId() const;
+    const std::string& GetId() const { return _producerId; }
     void AddConsumer(Consumer* consumer);
     void RemoveConsumer(Consumer* consumer);
-    void UpdateProducerLanguage();
+    void SetProducerPaused(bool paused);
+    void SetProducerLanguageId(const std::string& languageId);
+    std::string GetProducerLanguageId() const;
     void UpdateConsumerLanguageOrVoice(Consumer* consumer);
 private:
     Translator(const Producer* producer,
@@ -55,7 +57,7 @@ private:
     // impl. of TranslatorEndPointFactory
     std::shared_ptr<TranslatorEndPoint> CreateEndPoint() final;
 private:
-    const Producer* const _producer;
+    const std::string _producerId;
 #ifndef NO_TRANSLATION_SERVICE
     const WebsocketFactory* const _websocketFactory;
 #endif
@@ -65,6 +67,8 @@ private:
     // websocket or file end-point, valid for 1st created instance, just for debug
     mutable std::weak_ptr<TranslatorEndPoint> _nonStubEndPointRef;
 #endif
+    std::atomic_bool _producerPaused = false;
+    ProtectedObj<std::string> _producerLanguageId;
     // key is original SSRC
     ProtectedObj<StreamMap<std::unique_ptr<TranslatorSource>>> _originalSsrcToStreams;
     // key is mapped SSRC

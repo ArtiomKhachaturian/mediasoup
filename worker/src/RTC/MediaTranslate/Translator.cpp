@@ -24,13 +24,16 @@ Translator::Translator(const Producer* producer,
                        RtpPacketsCollector* output,
                        const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<TranslatorEndPointFactory>(allocator)
-    , _producer(producer)
+    , _producerId(producer->id)
 #ifndef NO_TRANSLATION_SERVICE
     , _websocketFactory(websocketFactory)
 #endif
     , _rtpPacketsPlayer(rtpPacketsPlayer)
     , _output(output)
+    , _producerPaused(producer->IsPaused())
+    , _producerLanguageId(producer->GetLanguageId())
 {
+    MS_ASSERT(!_producerLanguageId->empty(), "empty producer language ID");
 }
 
 Translator::~Translator()
@@ -74,9 +77,9 @@ bool Translator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
             if (it == _originalSsrcToStreams->end()) {
                 auto source = TranslatorSource::Create(stream, mappedSsrc, this,
                                                        _rtpPacketsPlayer,  _output,
-                                                       _producer->id, GetAllocator());
+                                                       GetId(), GetAllocator());
                 if (source) {
-                    source->SetInputLanguage(_producer->GetLanguageId());
+                    source->SetInputLanguage(GetProducerLanguageId());
                     AddConsumersToSource(source.get());
                     _originalSsrcToStreams->insert({stream->GetSsrc(), std::move(source)});
                     ok = true;
@@ -125,7 +128,7 @@ bool Translator::RemoveStream(uint32_t ssrc)
 
 void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
-    if (packet && !_producer->IsPaused()) {
+    if (packet && !_producerPaused) {
         if (const auto ssrc = packet->GetSsrc()) {
             LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
             auto it = _originalSsrcToStreams->find(ssrc);
@@ -141,11 +144,6 @@ void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
             }
         }
     }
-}
-
-const std::string& Translator::GetId() const
-{
-    return _producer->id;
 }
 
 void Translator::AddConsumer(Consumer* consumer)
@@ -179,12 +177,33 @@ void Translator::RemoveConsumer(Consumer* consumer)
     }
 }
 
-void Translator::UpdateProducerLanguage()
+void Translator::SetProducerPaused(bool paused)
 {
-    LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
-    for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
-        it->second->SetInputLanguage(_producer->GetLanguageId());
+    _producerPaused = paused;
+}
+
+void Translator::SetProducerLanguageId(const std::string& languageId)
+{
+    bool changed = false;
+    if (!languageId.empty()) {
+        LOCK_WRITE_PROTECTED_OBJ(_producerLanguageId);
+        if (_producerLanguageId.ConstRef() != languageId) {
+            _producerLanguageId = languageId;
+            changed = true;
+        }
     }
+    if (changed) {
+        LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
+        for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
+            it->second->SetInputLanguage(languageId);
+        }
+    }
+}
+
+std::string Translator::GetProducerLanguageId() const
+{
+    LOCK_READ_PROTECTED_OBJ(_producerLanguageId);
+    return _producerLanguageId.ConstRef();
 }
 
 void Translator::UpdateConsumerLanguageOrVoice(Consumer* consumer)

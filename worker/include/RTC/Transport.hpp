@@ -120,6 +120,8 @@ namespace RTC
             virtual void OnTransportListenServerClosed(RTC::Transport* transport) = 0;
             virtual void OnTransportProducerRtpPacketTranslationRequired(
                   RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
+            virtual void OnTransportProducerLanguageIdChanged(
+                RTC::Transport* transport, RTC::Producer* producer) = 0;
         };
 
     public:
@@ -247,7 +249,8 @@ namespace RTC
         void OnProducerSendRtcpPacket(RTC::Producer* producer, RTC::RTCP::Packet* packet) override;
         void OnProducerNeedWorstRemoteFractionLost(
           RTC::Producer* producer, uint32_t mappedSsrc, uint8_t& worstRemoteFractionLost) override;
-
+        void OnProducerLanguageIdChanged(RTC::Producer* producer) override;
+        
         /* Pure virtual methods inherited from RTC::Consumer::Listener. */
     public:
         void OnConsumerSendRtpPacket(RTC::Consumer* consumer, RTC::RtpPacket* packet) override;
