@@ -5,7 +5,6 @@
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
 #include "MediaSoupErrors.hpp"
-#include "Utils.hpp"
 
 namespace RTC
 {
@@ -449,11 +448,6 @@ namespace RTC
     {
         MS_TRACE();
         this->voiceId = voiceId;
-    }
-
-    size_t Consumer::GetLanguageVoiceKey() const
-    {
-        return Utils::HashCombine(GetLanguageId(), GetVoiceId());
     }
 
 	void Consumer::ProducerRtpStreamScores(const std::vector<uint8_t>* scores)
