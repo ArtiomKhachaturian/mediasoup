@@ -90,23 +90,31 @@ void ConsumersManager::AddConsumer(Consumer* consumer)
         if (!_consumerToEndpointId->count(consumer)) {
             if (const auto key = GetLanguageVoiceKey(consumer)) {
                 std::shared_ptr<EndPointInfo> endPoint;
-                LOCK_WRITE_PROTECTED_OBJ(_endpoints);
-                for (auto it = _endpoints->begin(); it != _endpoints->end(); ++it) {
-                    if (it->second->GetOutputLanguageAndVoiceIdKey() == key) {
-                        endPoint = it->second;
-                        break;
+                {
+                    LOCK_WRITE_PROTECTED_OBJ(_endpoints);
+                    for (auto it = _endpoints->begin(); it != _endpoints->end(); ++it) {
+                        if (it->second->GetOutputLanguageAndVoiceIdKey() == key) {
+                            endPoint = it->second;
+                            break;
+                        }
                     }
-                }
-                if (!endPoint) {
-                    endPoint = CreateEndPoint();
-                    if (endPoint) {
-                        endPoint->SetOutputLanguageAndVoiceId(key, consumer);
-                        _endpoints->insert(std::make_pair(endPoint->GetId(), endPoint));
+                    if (!endPoint) {
+                        endPoint = CreateEndPoint();
+                        if (endPoint) {
+                            endPoint->SetOutputLanguageAndVoiceId(key, consumer);
+                            _endpoints->insert(std::make_pair(endPoint->GetId(), endPoint));
+                        }
                     }
                 }
                 if (endPoint) {
                     _consumerToEndpointId->insert(std::make_pair(consumer, endPoint->GetId()));
                 }
+                else {
+                    // TODO: add error log
+                }
+            }
+            else {
+                // TODO: add error log
             }
         }
     }
