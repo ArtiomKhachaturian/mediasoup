@@ -28,12 +28,12 @@ public:
     bool SetVoiceId(std::string voiceId);
     // impl. of ConsumerTranslator
     uint64_t GetId() const final { return _id; }
-    std::string GetLanguageId() const final;
-    std::string GetVoiceId() const final;
+    std::string GetLanguageId() const final { return _languageId; }
+    std::string GetVoiceId() const final { return _voiceId; }
 private:
     const uint64_t _id;
-    ProtectedObj<std::string> _languageId;
-    ProtectedObj<std::string> _voiceId;
+    std::string _languageId;
+    std::string _voiceId;
 };
 
 Translator::Translator(const Producer* producer,
@@ -51,17 +51,12 @@ Translator::Translator(const Producer* producer,
     , _producerPaused(producer->IsPaused())
     , _producerLanguageId(producer->GetLanguageId())
 {
-    MS_ASSERT(!_producerLanguageId->empty(), "empty producer language ID");
 }
 
 Translator::~Translator()
 {
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_consumers);
-        _consumers->clear();
-    }
-    LOCK_WRITE_PROTECTED_OBJ(_originalSsrcToStreams);
-    _originalSsrcToStreams->clear();
+    _consumers.clear();
+    _originalSsrcToStreams.clear();
     _mappedSsrcToOriginal.clear();
 }
 
@@ -90,17 +85,16 @@ bool Translator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
     if (stream && mappedSsrc) {
         const auto& mime = stream->GetMimeType();
         if (mime.IsAudioCodec()) {
-            LOCK_WRITE_PROTECTED_OBJ(_originalSsrcToStreams);
-            const auto it = _originalSsrcToStreams->find(stream->GetSsrc());
-            if (it == _originalSsrcToStreams->end()) {
+            const auto it = _originalSsrcToStreams.find(stream->GetSsrc());
+            if (it == _originalSsrcToStreams.end()) {
                 auto source = TranslatorSource::Create(stream, mappedSsrc, this,
                                                        _rtpPacketsPlayer,  _output,
                                                        GetId(), GetAllocator());
                 if (source) {
                     source->SetInputLanguage(GetProducerLanguageId());
-                    source->SetPaused(_producerPaused.load());
+                    source->SetPaused(_producerPaused);
                     AddConsumersToSource(source.get());
-                    _originalSsrcToStreams->insert({stream->GetSsrc(), std::move(source)});
+                    _originalSsrcToStreams.insert({stream->GetSsrc(), std::move(source)});
                     ok = true;
                 }
                 else {
@@ -126,19 +120,18 @@ bool Translator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
 bool Translator::RemoveStream(uint32_t ssrc)
 {
     if (ssrc) {
-        LOCK_WRITE_PROTECTED_OBJ(_originalSsrcToStreams);
-        auto it = _originalSsrcToStreams->find(ssrc);
-        if (it == _originalSsrcToStreams->end()) {
+        auto it = _originalSsrcToStreams.find(ssrc);
+        if (it == _originalSsrcToStreams.end()) {
             // maybe SSRC is mangled
             const auto itm = _mappedSsrcToOriginal.find(ssrc);
             if (itm != _mappedSsrcToOriginal.end()) {
                 ssrc = itm->second;
                 _mappedSsrcToOriginal.erase(itm);
-                it = _originalSsrcToStreams->find(ssrc);
+                it = _originalSsrcToStreams.find(ssrc);
             }
         }
-        if (it != _originalSsrcToStreams->end()) {
-            _originalSsrcToStreams->erase(ssrc);
+        if (it != _originalSsrcToStreams.end()) {
+            _originalSsrcToStreams.erase(ssrc);
             return true;
         }
     }
@@ -149,16 +142,15 @@ void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     if (packet) {
         if (const auto ssrc = packet->GetSsrc()) {
-            LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
-            auto it = _originalSsrcToStreams->find(ssrc);
-            if (it == _originalSsrcToStreams->end()) {
+            auto it = _originalSsrcToStreams.find(ssrc);
+            if (it == _originalSsrcToStreams.end()) {
                 // maybe SSRC is mangled
                 const auto itm = _mappedSsrcToOriginal.find(ssrc);
                 if (itm != _mappedSsrcToOriginal.end()) {
-                    it = _originalSsrcToStreams->find(itm->second);
+                    it = _originalSsrcToStreams.find(itm->second);
                 }
             }
-            if (it != _originalSsrcToStreams->end()) {
+            if (it != _originalSsrcToStreams.end()) {
                 it->second->AddOriginalRtpPacketForTranslation(packet);
             }
         }
@@ -170,15 +162,14 @@ void Translator::AddConsumer(const Consumer* consumer)
     if (consumer && Media::Kind::AUDIO == consumer->GetKind()) {
         MS_ASSERT(consumer->producerId == GetId(), "wrong producer ID");
         const auto id = consumer->GetId();
-        LOCK_WRITE_PROTECTED_OBJ(_consumers);
-        if (!_consumers->count(id)) {
+        if (!_consumers.count(id)) {
             auto translator = std::make_shared<ConsumerTranslatorImpl>(id, consumer->GetLanguageId(),
                                                                        consumer->GetVoiceId());
-            LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
-            for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
+            for (auto it = _originalSsrcToStreams.begin();
+                 it != _originalSsrcToStreams.end(); ++it) {
                 it->second->AddConsumer(translator);
             }
-            _consumers->insert(std::make_pair(id, std::move(translator)));
+            _consumers.insert(std::make_pair(id, std::move(translator)));
         }
     }
 }
@@ -186,63 +177,47 @@ void Translator::AddConsumer(const Consumer* consumer)
 void Translator::RemoveConsumer(const Consumer* consumer)
 {
     if (consumer) {
-        LOCK_WRITE_PROTECTED_OBJ(_consumers);
-        const auto itc = _consumers->find(consumer->GetId());
-        if (itc != _consumers->end()) {
-            LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
-            for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
+        const auto itc = _consumers.find(consumer->GetId());
+        if (itc != _consumers.end()) {
+            for (auto it = _originalSsrcToStreams.begin();
+                 it != _originalSsrcToStreams.end(); ++it) {
                 it->second->RemoveConsumer(itc->second);
             }
-            _consumers->erase(itc);
+            _consumers.erase(itc);
         }
     }
 }
 
 void Translator::SetProducerPaused(bool paused)
 {
-    if (paused != _producerPaused.exchange(paused)) {
-        LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
-        for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
+    if (_producerPaused != paused) {
+        _producerPaused = paused;
+        for (auto it = _originalSsrcToStreams.begin(); it != _originalSsrcToStreams.end(); ++it) {
             it->second->SetPaused(paused);
         }
     }
 }
 
-void Translator::SetProducerLanguageId(const std::string& languageId)
+void Translator::SetProducerLanguageId(std::string languageId)
 {
-    bool changed = false;
-    if (!languageId.empty()) {
-        LOCK_WRITE_PROTECTED_OBJ(_producerLanguageId);
-        if (_producerLanguageId.ConstRef() != languageId) {
-            _producerLanguageId = languageId;
-            changed = true;
+    if (_producerLanguageId != languageId) {
+        _producerLanguageId = std::move(languageId);
+        for (auto it = _originalSsrcToStreams.begin(); it != _originalSsrcToStreams.end(); ++it) {
+            it->second->SetInputLanguage(GetProducerLanguageId());
         }
     }
-    if (changed) {
-        LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
-        for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
-            it->second->SetInputLanguage(languageId);
-        }
-    }
-}
-
-std::string Translator::GetProducerLanguageId() const
-{
-    LOCK_READ_PROTECTED_OBJ(_producerLanguageId);
-    return _producerLanguageId.ConstRef();
 }
 
 void Translator::UpdateConsumerLanguageOrVoice(const Consumer* consumer)
 {
     if (consumer) {
-        LOCK_READ_PROTECTED_OBJ(_consumers);
-        const auto itc = _consumers->find(consumer->GetId());
-        if (itc != _consumers->end()) {
+        const auto itc = _consumers.find(consumer->GetId());
+        if (itc != _consumers.end()) {
             const auto& translator = itc->second;
             if (translator->SetLanguageId(consumer->GetLanguageId()) ||
                 translator->SetVoiceId(consumer->GetVoiceId())) {
-                LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
-                for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
+                for (auto it = _originalSsrcToStreams.begin();
+                     it != _originalSsrcToStreams.end(); ++it) {
                     it->second->UpdateConsumer(translator);
                 }
             }
@@ -253,8 +228,7 @@ void Translator::UpdateConsumerLanguageOrVoice(const Consumer* consumer)
 void Translator::AddConsumersToSource(TranslatorSource* source) const
 {
     if (source) {
-        LOCK_READ_PROTECTED_OBJ(_consumers);
-        for (auto it = _consumers->begin(); it != _consumers->end(); ++it) {
+        for (auto it = _consumers.begin(); it != _consumers.end(); ++it) {
             source->AddConsumer(it->second);
         }
     }
@@ -329,8 +303,7 @@ Translator::ConsumerTranslatorImpl::ConsumerTranslatorImpl(uint64_t id,
 
 bool Translator::ConsumerTranslatorImpl::SetLanguageId(std::string languageId)
 {
-    LOCK_WRITE_PROTECTED_OBJ(_languageId);
-    if (_languageId.ConstRef() != languageId) {
+    if (_languageId != languageId) {
         _languageId = std::move(languageId);
         return true;
     }
@@ -339,24 +312,11 @@ bool Translator::ConsumerTranslatorImpl::SetLanguageId(std::string languageId)
 
 bool Translator::ConsumerTranslatorImpl::SetVoiceId(std::string voiceId)
 {
-    LOCK_WRITE_PROTECTED_OBJ(_voiceId);
-    if (_voiceId.ConstRef() != voiceId) {
+    if (_voiceId != voiceId) {
         _voiceId = std::move(voiceId);
         return true;
     }
     return false;
-}
-
-std::string Translator::ConsumerTranslatorImpl::GetLanguageId() const
-{
-    LOCK_READ_PROTECTED_OBJ(_languageId);
-    return _languageId.ConstRef();
-}
-
-std::string Translator::ConsumerTranslatorImpl::GetVoiceId() const
-{
-    LOCK_READ_PROTECTED_OBJ(_voiceId);
-    return _voiceId.ConstRef();
 }
 
 } // namespace RTC
