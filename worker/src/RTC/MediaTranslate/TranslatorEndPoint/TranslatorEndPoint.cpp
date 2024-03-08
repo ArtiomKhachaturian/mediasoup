@@ -181,6 +181,13 @@ std::string TranslatorEndPoint::GetDescription() const
     return "<anonymous end-point>";
 }
 
+bool TranslatorEndPoint::IsInputMediaSourcePaused() const
+{
+    LOCK_READ_PROTECTED_OBJ(_inputMediaSource);
+    const auto inputMediaSource = _inputMediaSource.ConstRef();
+    return inputMediaSource && inputMediaSource->IsPaused();
+}
+
 nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLanguageId,
                                                      const std::string& outputLanguageId,
                                                      const std::string& outputVoiceId)

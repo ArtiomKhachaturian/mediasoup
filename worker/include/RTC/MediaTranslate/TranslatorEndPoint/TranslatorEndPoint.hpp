@@ -47,6 +47,7 @@ protected:
     void NotifyThatConnectionEstablished(bool connected);
     uint64_t NotifyThatTranslationReceived(const std::shared_ptr<Buffer>& media);
     std::string GetDescription() const;
+    bool IsInputMediaSourcePaused() const;
     virtual void Connect() = 0;
     virtual void Disconnect() = 0;
     virtual bool SendBinary(const std::shared_ptr<Buffer>& buffer) const = 0;

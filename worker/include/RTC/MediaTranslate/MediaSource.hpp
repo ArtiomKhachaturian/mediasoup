@@ -10,6 +10,7 @@ class MediaSource : public ObjectId
 {
 public:
     virtual ~MediaSource() = default;
+    virtual bool IsPaused() const = 0;
     virtual bool AddSink(MediaSink* sink) = 0;
     virtual bool RemoveSink(MediaSink* sink) = 0;
     virtual void RemoveAllSinks() = 0;
