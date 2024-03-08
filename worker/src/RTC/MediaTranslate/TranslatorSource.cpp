@@ -195,21 +195,19 @@ void TranslatorSource::OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId, 
     _consumersManager.EndPacketsSending(mediaId, mediaSourceId);
 }
 
-void TranslatorSource::NotifyThatConnectionEstablished(const ObjectId& endPoint,
-                                                       bool connected)
+void TranslatorSource::NotifyThatConnectionEstablished(uint64_t endPointId, bool connected)
 {
-    TranslatorEndPointSink::NotifyThatConnectionEstablished(endPoint, connected);
-    _consumersManager.NotifyThatConnected(endPoint.GetId(), connected);
+    TranslatorEndPointSink::NotifyThatConnectionEstablished(endPointId, connected);
+    _consumersManager.NotifyThatConnected(endPointId, connected);
     if (!connected) {
-        _rtpPacketsPlayer->Stop(GetOriginalSsrc(), endPoint.GetId());
+        _rtpPacketsPlayer->Stop(GetOriginalSsrc(), endPointId);
     }
 }
 
-void TranslatorSource::WriteMediaPayload(const ObjectId& endPoint,
-                                         const std::shared_ptr<Buffer>& buffer)
+void TranslatorSource::WriteMediaPayload(uint64_t endPointId, const std::shared_ptr<Buffer>& buffer)
 {
     if (buffer) {
-        _rtpPacketsPlayer->Play(GetOriginalSsrc(), endPoint.GetId(), buffer);
+        _rtpPacketsPlayer->Play(GetOriginalSsrc(), endPointId, buffer);
     }
 }
 

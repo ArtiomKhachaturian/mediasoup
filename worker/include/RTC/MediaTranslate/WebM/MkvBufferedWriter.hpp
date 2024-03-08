@@ -1,5 +1,4 @@
 #pragma once
-#include "RTC/ObjectId.hpp"
 #include "RTC/Buffers/BufferAllocations.hpp"
 #include <absl/container/flat_hash_map.h>
 #include <mkvmuxer/mkvmuxer.h>
@@ -15,14 +14,13 @@ class AudioFrameConfig;
 class VideoFrameConfig;
 
 // https://www.webmproject.org/docs/container/#muxer-guidelines
-class MkvBufferedWriter : public BufferAllocations<ObjectId>,
-                          private mkvmuxer::IMkvWriter
+class MkvBufferedWriter : private BufferAllocations<mkvmuxer::IMkvWriter>
 {
     enum class EnqueueResult;
     class MkvFrameMemory;
     class MkvBufferView;
 public:
-    MkvBufferedWriter(MediaSink* sink, const char* app,
+    MkvBufferedWriter(uint64_t senderId, MediaSink* sink, const char* app,
                       const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~MkvBufferedWriter() final;
     bool IsInitialized() const { return _initialized; }
@@ -56,6 +54,7 @@ private:
     void ElementStartNotify(mkvmuxer::uint64 /*elementId*/, mkvmuxer::int64 /*position*/) final {}
 private:
     static inline constexpr size_t _bufferInitialCapacity = 1024U; // 1kb chunk reserved
+    const uint64_t _senderId;
     MediaSink* const _sink;
     mkvmuxer::Segment _segment;
     const bool _initialized;

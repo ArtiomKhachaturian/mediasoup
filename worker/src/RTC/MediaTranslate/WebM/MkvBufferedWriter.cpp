@@ -51,9 +51,10 @@ private:
     const size_t _size;
 };
 
-MkvBufferedWriter::MkvBufferedWriter(MediaSink* sink, const char* app,
+MkvBufferedWriter::MkvBufferedWriter(uint64_t senderId, MediaSink* sink, const char* app,
                                      const std::shared_ptr<BufferAllocator>& allocator)
-    : BufferAllocations<ObjectId>(allocator)
+    : BufferAllocations<mkvmuxer::IMkvWriter>(allocator)
+    , _senderId(senderId)
     , _sink(sink)
     , _initialized(_segment.Init(this))
 {
@@ -74,7 +75,7 @@ MkvBufferedWriter::~MkvBufferedWriter()
         _segment.Finalize();
         WriteMediaPayloadToSink();
         if (_startMediaSinkWriting) {
-            _sink->EndMediaWriting(*this);
+            _sink->EndMediaWriting(_senderId);
         }
     }
 }
@@ -277,7 +278,7 @@ bool MkvBufferedWriter::WriteFrames(uint64_t mkvTimestamp)
         for (const auto& mkvFrame : _mkvFrames) {
             if (mkvFrame.timestamp() <= mkvTimestamp) {
                 if (!HadWroteMedia() && !_startMediaSinkWriting) {
-                    _sink->StartMediaWriting(*this);
+                    _sink->StartMediaWriting(_senderId);
                     _startMediaSinkWriting = true;
                 }
                 ok = _segment.AddGenericFrame(&mkvFrame);
@@ -321,7 +322,7 @@ void MkvBufferedWriter::WriteMediaPayloadToSink()
 {
     if (_buffer) {
         const auto buffer = std::make_shared<MkvBufferView>(std::move(_buffer), _bufferOffset);
-        _sink->WriteMediaPayload(*this, buffer);
+        _sink->WriteMediaPayload(_senderId, buffer);
         _bufferOffset = 0U;
     }
 }

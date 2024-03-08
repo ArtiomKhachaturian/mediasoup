@@ -71,9 +71,9 @@ private:
     template <class Method, typename... Args>
     void InvokeOutputMediaSinks(const Method& method, Args&&... args) const;
     // impl. of MediaSink
-    void StartMediaWriting(const ObjectId& sender) final;
-    void WriteMediaPayload(const ObjectId& sender, const std::shared_ptr<Buffer>& buffer) final;
-    void EndMediaWriting(const ObjectId& sender) final;
+    void StartMediaWriting(uint64_t senderId) final;
+    void WriteMediaPayload(uint64_t senderId, const std::shared_ptr<Buffer>& buffer) final;
+    void EndMediaWriting(uint64_t senderId) final;
 private:
     const std::unique_ptr<InputSliceBuffer> _inputSlice;
     const std::string _ownerId;

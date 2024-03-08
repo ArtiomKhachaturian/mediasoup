@@ -75,8 +75,8 @@ private:
     void OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet) final;
     void OnPlayFinished(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc) final;
     // impl. of TranslatorEndPointSink
-    void NotifyThatConnectionEstablished(const ObjectId& endPoint, bool connected) final;
-    void WriteMediaPayload(const ObjectId& endPoint, const std::shared_ptr<Buffer>& buffer) final;
+    void NotifyThatConnectionEstablished(uint64_t endPointId, bool connected) final;
+    void WriteMediaPayload(uint64_t endPointId, const std::shared_ptr<Buffer>& buffer) final;
 private:
     const uint32_t _originalSsrc;
     const uint32_t _mappedSsrc;
