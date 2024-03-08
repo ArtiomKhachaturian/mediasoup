@@ -21,8 +21,8 @@ std::unique_ptr<RtpDepacketizer> RtpDepacketizer::Create(const RtpCodecMimeType&
                                                          const std::shared_ptr<BufferAllocator>& allocator)
 {
     switch (mime.GetSubtype()) {
-        case RtpCodecMimeType::Subtype::MULTIOPUS:
-            break; // not yet tested
+        case RtpCodecMimeType::Subtype::MULTIOPUS: // not yet tested
+            return std::make_unique<RtpDepacketizerOpus>(clockRate, true, allocator);
         case RtpCodecMimeType::Subtype::OPUS:
             return std::make_unique<RtpDepacketizerOpus>(clockRate, false, allocator);
         case RtpCodecMimeType::Subtype::VP8:
@@ -100,7 +100,7 @@ RtpVideoDepacketizer::RtpVideoDepacketizer(RtpCodecMimeType::Subtype type, uint3
                                            const std::shared_ptr<BufferAllocator>& allocator)
     : RtpDepacketizer(RtpCodecMimeType(RtpCodecMimeType::Type::VIDEO, type), clockRate, allocator)
 {
-    MS_ASSERT(GetMime().IsAudioCodec(), "invalid video codec: %s", GetMime().ToString().c_str());
+    MS_ASSERT(GetMime().IsVideoCodec(), "invalid video codec: %s", GetMime().ToString().c_str());
 }
 
 } // namespace RTC

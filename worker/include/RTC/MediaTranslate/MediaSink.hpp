@@ -5,15 +5,14 @@ namespace RTC
 {
 
 class Buffer;
-class ObjectId;
 
 class MediaSink
 {
 public:
     virtual ~MediaSink() = default;
-    virtual void StartMediaWriting(const ObjectId& /*sender*/) {}
-    virtual void WriteMediaPayload(const ObjectId& sender, const std::shared_ptr<Buffer>& buffer) = 0;
-    virtual void EndMediaWriting(const ObjectId& /*sender*/) {}
+    virtual void StartMediaWriting(uint64_t /*senderId*/) {}
+    virtual void WriteMediaPayload(uint64_t senderId, const std::shared_ptr<Buffer>& buffer) = 0;
+    virtual void EndMediaWriting(uint64_t /*senderId*/) {}
 };
 
 } // namespace RTC

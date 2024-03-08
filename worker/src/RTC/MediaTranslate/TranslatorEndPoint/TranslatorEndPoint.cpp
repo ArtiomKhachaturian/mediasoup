@@ -135,7 +135,12 @@ bool TranslatorEndPoint::HasInput() const
 
 bool TranslatorEndPoint::HasValidTranslationSettings() const
 {
-    return HasOutputLanguageId() && HasOutputLanguageId() && HasOutputVoiceId();
+    if (HasOutputVoiceId()) {
+        const auto input = GetInputLanguageId();
+        const auto output = GetOutputLanguageId();
+        return !input.empty() && !output.empty() && input != output;
+    }
+    return false;
 }
 
 void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
@@ -335,19 +340,18 @@ bool TranslatorEndPoint::WriteBinary(const std::shared_ptr<Buffer>& buffer) cons
 template <class Method, typename... Args>
 void TranslatorEndPoint::InvokeOutputMediaSinks(const Method& method, Args&&... args) const
 {
-    _outputMediaSinks.InvokeMethod(method, *this, std::forward<Args>(args)...);
+    _outputMediaSinks.InvokeMethod(method, GetId(), std::forward<Args>(args)...);
 }
 
-void TranslatorEndPoint::StartMediaWriting(const ObjectId& sender)
+void TranslatorEndPoint::StartMediaWriting(uint64_t senderId)
 {
-    MediaSink::StartMediaWriting(sender);
+    MediaSink::StartMediaWriting(senderId);
     if (_inputSlice) {
         _inputSlice->Reset(true);
     }
 }
 
-void TranslatorEndPoint::WriteMediaPayload(const ObjectId& /*sender*/,
-                                           const std::shared_ptr<Buffer>& buffer)
+void TranslatorEndPoint::WriteMediaPayload(uint64_t, const std::shared_ptr<Buffer>& buffer)
 {
     if (buffer && !buffer->IsEmpty() && IsConnected()) {
         if (_inputSlice) {
@@ -359,9 +363,9 @@ void TranslatorEndPoint::WriteMediaPayload(const ObjectId& /*sender*/,
     }
 }
 
-void TranslatorEndPoint::EndMediaWriting(const ObjectId& sender)
+void TranslatorEndPoint::EndMediaWriting(uint64_t senderId)
 {
-    MediaSink::EndMediaWriting(sender);
+    MediaSink::EndMediaWriting(senderId);
     if (_inputSlice) {
         _inputSlice->Reset(false);
     }

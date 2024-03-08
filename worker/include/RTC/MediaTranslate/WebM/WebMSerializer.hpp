@@ -14,7 +14,8 @@ public:
 protected:
     // impl. of MediaFrameSerializer
     std::string_view GetFileExtension() const final { return "webm"; }
-    std::unique_ptr<MediaFrameWriter> CreateWriter(MediaSink* sink);
+    std::unique_ptr<MediaFrameWriter> CreateWriter(uint64_t senderId,
+                                                   MediaSink* sink) final;
 };
 
 } // namespace RTC

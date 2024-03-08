@@ -4,6 +4,7 @@
 #include "RTC/MediaTranslate/MediaFrameWriter.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
+#include "RTC/MediaTranslate/MediaSink.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -18,6 +19,7 @@ class MediaFrameSerializer::SinkWriter
 public:
     SinkWriter(std::unique_ptr<RtpDepacketizer> depacketizer,
                std::unique_ptr<MediaFrameWriter> impl);
+    ~SinkWriter();
     bool Write(const RtpPacket* packet);
 private:
     bool Write(const MediaFrame& mediaFrame);
@@ -128,12 +130,13 @@ std::string_view MediaFrameSerializer::GetFileExtension() const
 std::unique_ptr<MediaFrameSerializer::SinkWriter> MediaFrameSerializer::
     CreateSinkWriter(MediaSink* sink)
 {
-    std::unique_ptr<SinkWriter> sinkWriter;
-    if (auto impl = CreateWriter(sink)) {
+    std::unique_ptr<SinkWriter> writer;
+    if (auto impl = CreateWriter(GetId(), sink)) {
         if (auto depacketizer = RtpDepacketizer::Create(GetMime(),
                                                         GetClockRate(),
                                                         GetAllocator())) {
-            sinkWriter = std::make_unique<SinkWriter>(std::move(depacketizer), std::move(impl));
+            writer = std::make_unique<SinkWriter>(std::move(depacketizer),
+                                                  std::move(impl));
         }
         else {
             MS_ERROR_STD("failed create of RTP depacketizer [%s], clock rate %u Hz",
@@ -143,7 +146,7 @@ std::unique_ptr<MediaFrameSerializer::SinkWriter> MediaFrameSerializer::
     else {
         MS_ERROR_STD("failed create of media sink writer [%s]", GetMimeText().c_str());
     }
-    return sinkWriter;
+    return writer;
 }
 
 void MediaFrameSerializer::WriteToTestSink(const RtpPacket* packet) const
@@ -161,6 +164,10 @@ MediaFrameSerializer::SinkWriter::SinkWriter(std::unique_ptr<RtpDepacketizer> de
                                              std::unique_ptr<MediaFrameWriter> impl)
     : _depacketizer(std::move(depacketizer))
     , _impl(std::move(impl))
+{
+}
+
+MediaFrameSerializer::SinkWriter::~SinkWriter()
 {
 }
 

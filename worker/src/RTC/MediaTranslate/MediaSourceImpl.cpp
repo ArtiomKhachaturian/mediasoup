@@ -38,19 +38,19 @@ void MediaSourceImpl::Commit(const std::shared_ptr<Buffer>& buffer)
 
 void MediaSourceImpl::StartMediaSinksWriting()
 {
-    _sinks.InvokeMethod(&MediaSink::StartMediaWriting, *this);
+    _sinks.InvokeMethod(&MediaSink::StartMediaWriting, GetId());
 }
 
 void MediaSourceImpl::WriteMediaSinksPayload(const std::shared_ptr<Buffer>& buffer)
 {
     if (buffer) {
-        _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, *this, buffer);
+        _sinks.InvokeMethod(&MediaSink::WriteMediaPayload, GetId(), buffer);
     }
 }
 
 void MediaSourceImpl::EndMediaSinksWriting()
 {
-    _sinks.InvokeMethod(&MediaSink::EndMediaWriting, *this);
+    _sinks.InvokeMethod(&MediaSink::EndMediaWriting, GetId());
 }
 
 

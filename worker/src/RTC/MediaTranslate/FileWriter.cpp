@@ -73,9 +73,9 @@ bool FileWriter::Flush()
     return handle && 0 == ::fflush(handle.get());
 }
 
-void FileWriter::StartMediaWriting(const ObjectId& sender)
+void FileWriter::StartMediaWriting(uint64_t senderId)
 {
-    MediaSink::StartMediaWriting(sender);
+    MediaSink::StartMediaWriting(senderId);
     if (const auto handle = GetHandle()) { // truncate file
 #ifdef _WIN32
         const auto result = ::_chsize_s(_fileno(handle.get()), 0LL);
@@ -91,7 +91,7 @@ void FileWriter::StartMediaWriting(const ObjectId& sender)
     }
 }
 
-void FileWriter::WriteMediaPayload(const ObjectId&, const std::shared_ptr<Buffer>& buffer)
+void FileWriter::WriteMediaPayload(uint64_t, const std::shared_ptr<Buffer>& buffer)
 {
     if (const auto handle = GetHandle()) {
         if (buffer && !buffer->IsEmpty()) {
@@ -106,9 +106,9 @@ void FileWriter::WriteMediaPayload(const ObjectId&, const std::shared_ptr<Buffer
     }
 }
 
-void FileWriter::EndMediaWriting(const ObjectId& sender)
+void FileWriter::EndMediaWriting(uint64_t senderId)
 {
-    MediaSink::EndMediaWriting(sender);
+    MediaSink::EndMediaWriting(senderId);
     Flush();
 }
 
