@@ -15,7 +15,6 @@ class FileWriter;
 #endif
 class BufferAllocator;
 class MediaFrameSerializer;
-class RtpDepacketizer;
 class RtpPacket;
 class RtpCodecMimeType;
 class RtpStream;
@@ -60,7 +59,6 @@ private:
 	TranslatorSource(uint32_t clockRate, uint32_t originalSsrc,
                      uint32_t mappedSsrc, uint8_t payloadType,
                  	 std::unique_ptr<MediaFrameSerializer> serializer,
-                 	 std::unique_ptr<RtpDepacketizer> depacketizer,
                  	 TranslatorEndPointFactory* endPointsFactory,
 	                 RtpPacketsPlayer* rtpPacketsPlayer,
                  	 RtpPacketsCollector* output,
@@ -84,7 +82,6 @@ private:
     const uint32_t _mappedSsrc;
     const uint8_t _payloadType;
     const std::unique_ptr<MediaFrameSerializer> _serializer;
-    const std::unique_ptr<RtpDepacketizer> _depacketizer;
     RtpPacketsPlayer* const _rtpPacketsPlayer;
     RtpPacketsCollector* const _output;
 #ifdef WRITE_PRODUCER_RECV_TO_FILE

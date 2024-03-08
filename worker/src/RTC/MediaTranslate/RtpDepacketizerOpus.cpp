@@ -9,6 +9,16 @@
 #include "Logger.hpp"
 #include <absl/container/flat_hash_map.h>
 
+namespace {
+
+using namespace RTC;
+
+inline RtpCodecMimeType::Subtype GetType(bool multiopus) {
+    return multiopus ? RtpCodecMimeType::Subtype::MULTIOPUS : RtpCodecMimeType::Subtype::OPUS;
+}
+
+}
+
 namespace RTC
 {
 
@@ -28,9 +38,9 @@ private:
     Codecs::Opus::OpusHead _head;
 };
 
-RtpDepacketizerOpus::RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+RtpDepacketizerOpus::RtpDepacketizerOpus(uint32_t clockRate, bool multiopus,
                                          const std::shared_ptr<BufferAllocator>& allocator)
-    : RtpDepacketizer(mimeType, clockRate, allocator)
+    : RtpAudioDepacketizer(GetType(multiopus), clockRate, allocator)
 {
     _config.SetBitsPerSample(_bitsPerSample);
 }

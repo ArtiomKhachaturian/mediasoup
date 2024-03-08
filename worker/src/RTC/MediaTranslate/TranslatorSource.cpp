@@ -19,7 +19,6 @@ namespace RTC
 TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc,
                                    uint32_t mappedSsrc, uint8_t payloadType,
                                    std::unique_ptr<MediaFrameSerializer> serializer,
-                                   std::unique_ptr<RtpDepacketizer> depacketizer,
                                    TranslatorEndPointFactory* endPointsFactory,
                                    RtpPacketsPlayer* rtpPacketsPlayer,
                                    RtpPacketsCollector* output,
@@ -28,14 +27,13 @@ TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc,
     , _mappedSsrc(mappedSsrc)
     , _payloadType(payloadType)
     , _serializer(std::move(serializer))
-    , _depacketizer(std::move(depacketizer))
     , _rtpPacketsPlayer(rtpPacketsPlayer)
     , _output(output)
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     , _fileWriter(CreateFileWriter(GetOriginalSsrc(), producerId, _serializer.get()))
 #endif
     , _consumersManager(endPointsFactory, _serializer.get(), GetMediaReceiver(),
-                        mappedSsrc, clockRate, _serializer->GetMimeType())
+                        mappedSsrc, clockRate, _serializer->GetMime())
 {
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
     if (_fileWriter && !_serializer->AddTestSink(_fileWriter.get())) {
@@ -76,18 +74,11 @@ std::unique_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeTyp
         MS_ASSERT(originalSsrc, "original SSRC must be greater than zero");
         MS_ASSERT(mappedSsrc, "mapped SSRC must be greater than zero");
         MS_ASSERT(payloadType, "payload type must be greater than zero");
-        if (auto depacketizer = RtpDepacketizer::Create(mime, clockRate, allocator)) {
-            auto serializer = std::make_unique<WebMSerializer>(mime, allocator);
-            source.reset(new TranslatorSource(clockRate, originalSsrc, mappedSsrc,
-                                              payloadType, std::move(serializer),
-                                              std::move(depacketizer),
-                                              endPointsFactory, rtpPacketsPlayer,
-                                              output, producerId));
-        }
-        else {
-            MS_ERROR_STD("failed to create depacketizer for %s",
-                         GetStreamInfoString(mime, originalSsrc).c_str());
-        }
+        auto serializer = std::make_unique<WebMSerializer>(mime, clockRate, allocator);
+        source.reset(new TranslatorSource(clockRate, originalSsrc, mappedSsrc,
+                                          payloadType, std::move(serializer),
+                                          endPointsFactory, rtpPacketsPlayer,
+                                          output, producerId));
     }
     return source;
 }
@@ -109,12 +100,12 @@ std::unique_ptr<TranslatorSource> TranslatorSource::Create(const RtpStream* stre
 
 const RtpCodecMimeType& TranslatorSource::GetMime() const
 {
-    return _depacketizer->GetMimeType();
+    return _serializer->GetMime();
 }
 
 uint32_t TranslatorSource::GetClockRate() const
 {
-    return _depacketizer->GetClockRate();
+    return _serializer->GetClockRate();
 }
 
 void TranslatorSource::SetPaused(bool paused)
@@ -128,20 +119,7 @@ void TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
     if (packet) {
         _consumersManager.DispatchOriginalPacket(packet, _output);
         if (_serializer->IsReadyToWrite()) {
-            const auto makeDeepCopyOfPayload = _serializer->IsAsyncSerialization();
-            bool configWasChanged = false;
-            if (auto frame = _depacketizer->AddPacket(packet, makeDeepCopyOfPayload,
-                                                      &configWasChanged)) {
-                if (configWasChanged) {
-                    if (_depacketizer->GetMimeType().IsAudioCodec()) {
-                        _serializer->SetConfig(_depacketizer->GetAudioConfig(packet));
-                    }
-                    else if (_depacketizer->GetMimeType().IsVideoCodec()) {
-                        _serializer->SetConfig(_depacketizer->GetVideoConfig(packet));
-                    }
-                }
-                _serializer->Write(frame.value());
-            }
+            _serializer->Write(packet);
         }
     }
 }

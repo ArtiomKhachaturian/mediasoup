@@ -5,11 +5,11 @@
 namespace RTC
 {
 
-class RtpDepacketizerOpus : public RtpDepacketizer
+class RtpDepacketizerOpus : public RtpAudioDepacketizer
 {
     class OpusHeadBuffer;
 public:
-    RtpDepacketizerOpus(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+    RtpDepacketizerOpus(uint32_t clockRate, bool multiopus = false,
                         const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~RtpDepacketizerOpus() final;
     // impl. of RtpDepacketizer
