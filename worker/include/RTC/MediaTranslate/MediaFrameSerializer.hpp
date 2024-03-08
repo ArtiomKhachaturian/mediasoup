@@ -46,7 +46,8 @@ public:
 protected:
     MediaFrameSerializer(const RtpCodecMimeType& mime, uint32_t clockRate,
                          const std::shared_ptr<BufferAllocator>& allocator = nullptr);
-    virtual std::unique_ptr<MediaFrameWriter> CreateWriter(MediaSink* sink) = 0;
+    virtual std::unique_ptr<MediaFrameWriter> CreateWriter(uint64_t senderId,
+                                                           MediaSink* sink) = 0;
 private:
     std::unique_ptr<SinkWriter> CreateSinkWriter(MediaSink* sink);
     void WriteToTestSink(const RtpPacket* packet) const;

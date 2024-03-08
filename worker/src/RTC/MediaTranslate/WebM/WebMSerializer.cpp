@@ -32,10 +32,11 @@ WebMSerializer::WebMSerializer(const RtpCodecMimeType& mime, uint32_t clockRate,
     MS_ASSERT(WebMCodecs::IsSupported(mime), "WebM not available for this MIME %s", mime.ToString().c_str());
 }
 
-std::unique_ptr<MediaFrameWriter> WebMSerializer::CreateWriter(MediaSink* sink)
+std::unique_ptr<MediaFrameWriter> WebMSerializer::CreateWriter(uint64_t senderId,
+                                                               MediaSink* sink)
 {
     if (sink) {
-        auto writer = std::make_unique<Writer>(GetMime(), GetId(), sink, GetAllocator());
+        auto writer = std::make_unique<Writer>(GetMime(), senderId, sink, GetAllocator());
         if (writer->IsInitialized()) {
             return writer;
         }
