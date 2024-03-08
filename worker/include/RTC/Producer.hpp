@@ -50,7 +50,8 @@ namespace RTC
 			  RTC::Producer* producer, RTC::RtpStreamRecv* rtpStream, bool first)                     = 0;
 			virtual void OnProducerSendRtcpPacket(RTC::Producer* producer, RTC::RTCP::Packet* packet) = 0;
 			virtual void OnProducerNeedWorstRemoteFractionLost(
-			  RTC::Producer* producer, uint32_t mappedSsrc, uint8_t& worstRemoteFractionLost) = 0;
+			  RTC::Producer* producer, uint32_t mappedSsrc, uint8_t& worstRemoteFractionLost)         = 0;
+            virtual void OnProducerLanguageIdChanged(RTC::Producer* producer)                         = 0;
 		};
 
 	private:

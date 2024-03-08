@@ -606,9 +606,13 @@ namespace RTC
         this->mapProducerRtpObservers->erase(mapProducerRtpObserversIt);
     }
 
-    inline void Router::OnTransportProducerPaused(RTC::Transport* /*transport*/, RTC::Producer* producer)
+    inline void Router::OnTransportProducerPaused(RTC::Transport* transport, RTC::Producer* producer)
     {
         MS_TRACE();
+        
+        if (const auto translator = GetTranslator(producer, transport)) {
+            translator->SetProducerPaused(true);
+        }
         
         {
             LOCK_READ_PROTECTED_OBJ(this->mapProducerConsumers);
@@ -633,9 +637,13 @@ namespace RTC
         }
     }
 
-    inline void Router::OnTransportProducerResumed(RTC::Transport* /*transport*/, RTC::Producer* producer)
+    inline void Router::OnTransportProducerResumed(RTC::Transport* transport, RTC::Producer* producer)
     {
         MS_TRACE();
+        
+        if (const auto translator = GetTranslator(producer, transport)) {
+            translator->SetProducerPaused(false);
+        }
 
         {
             LOCK_READ_PROTECTED_OBJ(this->mapProducerConsumers);
@@ -660,14 +668,14 @@ namespace RTC
     }
 
     inline void Router::OnTransportProducerNewRtpStream(
-      RTC::Transport* /*transport*/,
+      RTC::Transport* transport,
       RTC::Producer* producer,
       RTC::RtpStreamRecv* rtpStream,
       uint32_t mappedSsrc)
     {
         MS_TRACE();
         
-        if (const auto translator = GetTranslator(producer)) {
+        if (const auto translator = GetTranslator(producer, transport)) {
             translator->AddStream(rtpStream, mappedSsrc);
         }
         
@@ -1145,14 +1153,21 @@ namespace RTC
                                                                  RTC::Producer* producer,
                                                                  RTC::RtpPacket* packet)
     {
-        if (transport && producer && packet) {
-            const auto itt = this->mapTransportTranslators.find(transport);
-            if (itt != this->mapTransportTranslators.end()) {
-                const auto it = itt->second.find(producer);
-                if (it != itt->second.end()) {
-                    it->second->AddOriginalRtpPacketForTranslation(packet);
-                }
+        MS_TRACE();
+        
+        if (packet) {
+            if (const auto translator = GetTranslator(producer, transport)) {
+                translator->AddOriginalRtpPacketForTranslation(packet);
             }
+        }
+    }
+
+    void Router::OnTransportProducerLanguageIdChanged(RTC::Transport* transport, RTC::Producer* producer)
+    {
+        MS_TRACE();
+        
+        if (const auto translator = GetTranslator(producer, transport)) {
+            translator->SetProducerLanguageId(producer->GetLanguageId());
         }
     }
 
@@ -1170,18 +1185,33 @@ namespace RTC
         this->mapProducerRtpObservers.Ref()[producer].erase(rtpObserver);
     }
 
-    Translator* Router::GetTranslator(const RTC::Producer* producer) const
+    Translator* Router::GetTranslator(const RTC::Producer* producer, const RTC::Transport* transport) const
     {
-        return producer ? GetTranslator(producer->id) : nullptr;
+        if (producer) {
+            if (transport) {
+                const auto itt = this->mapTransportTranslators.find(transport);
+                if (itt != this->mapTransportTranslators.end()) {
+                    return GetTranslator(producer, itt->second);
+                }
+            }
+            else {
+                for (auto itt = this->mapTransportTranslators.begin();
+                     itt != this->mapTransportTranslators.end(); ++itt) {
+                    if (const auto translator = GetTranslator(producer, itt->second)) {
+                        return translator;
+                    }
+                }
+            }
+        }
+        return nullptr;
     }
 
-    Translator* Router::GetTranslator(const std::string& producerId) const
+    Translator* Router::GetTranslator(const RTC::Producer* producer, const TranslatorsMap& map)
     {
-        for (auto itt = this->mapTransportTranslators.begin(); itt != this->mapTransportTranslators.end(); ++itt) {
-            for (auto it = itt->second.begin(); it != itt->second.end(); ++it) {
-                if (it->second->GetId() == producerId) {
-                    return it->second.get();
-                }
+        if (producer && !map.empty()) {
+            const auto itp = map.find(producer);
+            if (itp != map.end()) {
+                return itp->second.get();
             }
         }
         return nullptr;

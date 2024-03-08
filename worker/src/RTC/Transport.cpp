@@ -2510,6 +2510,13 @@ namespace RTC
           this, producer, mappedSsrc, worstRemoteFractionLost);
     }
 
+    void Transport::OnProducerLanguageIdChanged(RTC::Producer* producer)
+    {
+        MS_TRACE();
+        
+        this->listener->OnTransportProducerLanguageIdChanged(this, producer);
+    }
+
     inline void Transport::OnConsumerSendRtpPacket(RTC::Consumer* consumer, RTC::RtpPacket* packet)
     {
         MS_TRACE();

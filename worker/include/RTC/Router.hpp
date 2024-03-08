@@ -30,7 +30,7 @@ namespace RTC
                    public RTC::RtpObserver::Listener,
                    public Channel::ChannelSocket::RequestHandler
     {
-        using TranslatorsMap = absl::flat_hash_map<RTC::Producer*, std::unique_ptr<Translator>>;
+        using TranslatorsMap = absl::flat_hash_map<const RTC::Producer*, std::unique_ptr<Translator>>;
     public:
         class Listener
         {
@@ -116,6 +116,7 @@ namespace RTC
         void OnTransportListenServerClosed(RTC::Transport* transport) override;
         void OnTransportProducerRtpPacketTranslationRequired(
           RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) override;
+        void OnTransportProducerLanguageIdChanged(RTC::Transport* transport, RTC::Producer* producer) override;
 
         /* Pure virtual methods inherited from RTC::RtpObserver::Listener. */
     public:
@@ -128,8 +129,8 @@ namespace RTC
         const std::string id;
         
     private:
-        Translator* GetTranslator(const RTC::Producer* producer) const;
-        Translator* GetTranslator(const std::string& producerId) const;
+        Translator* GetTranslator(const RTC::Producer* producer, const RTC::Transport* transport = nullptr) const;
+        static Translator* GetTranslator(const RTC::Producer* producer, const TranslatorsMap& map);
 
     private:
         // Passed by argument.
@@ -141,7 +142,7 @@ namespace RTC
         absl::flat_hash_map<std::string, RTC::Transport*> mapTransports;
         absl::flat_hash_map<std::string, RTC::RtpObserver*> mapRtpObservers;
         // Others.
-        absl::flat_hash_map<RTC::Transport*, TranslatorsMap> mapTransportTranslators;
+        absl::flat_hash_map<const RTC::Transport*, TranslatorsMap> mapTransportTranslators;
         ProtectedObj<absl::flat_hash_map<RTC::Producer*, absl::flat_hash_set<RTC::Consumer*>>> mapProducerConsumers;
         absl::flat_hash_map<RTC::Consumer*, RTC::Producer*> mapConsumerProducer;
         ProtectedObj<absl::flat_hash_map<RTC::Producer*, absl::flat_hash_set<RTC::RtpObserver*>>> mapProducerRtpObservers;
