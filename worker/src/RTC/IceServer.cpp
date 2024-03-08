@@ -75,35 +75,10 @@ namespace RTC
 	  const std::string& usernameFragment,
 	  const std::string& password,
 	  uint8_t consentTimeoutSec)
-	  : listener(listener), usernameFragment(usernameFragment), password(password)
+	  : listener(listener), consentTimeoutMs(GetConsentTimeoutMs(consentTimeoutSec)),
+        usernameFragment(usernameFragment), password(password)
 	{
 		MS_TRACE();
-
-		if (consentTimeoutSec == 0u)
-		{
-			// 0 means disabled so it's a valid value.
-		}
-		else if (consentTimeoutSec < ConsentCheckMinTimeoutSec)
-		{
-			MS_WARN_TAG(
-			  ice,
-			  "consentTimeoutSec cannot be lower than %" PRIu8 " seconds, fixing it",
-			  ConsentCheckMinTimeoutSec);
-
-			consentTimeoutSec = ConsentCheckMinTimeoutSec;
-		}
-		else if (consentTimeoutSec > ConsentCheckMaxTimeoutSec)
-		{
-			MS_WARN_TAG(
-			  ice,
-			  "consentTimeoutSec cannot be higher than %" PRIu8 " seconds, fixing it",
-			  ConsentCheckMaxTimeoutSec);
-
-			consentTimeoutSec = ConsentCheckMaxTimeoutSec;
-		}
-
-		this->consentTimeoutMs = consentTimeoutSec * 1000;
-
 		// Notify the listener.
 		this->listener->OnIceServerLocalUsernameFragmentAdded(this, usernameFragment);
 	}
@@ -892,6 +867,35 @@ namespace RTC
 
 		this->consentCheckTimer->Stop();
 	}
+
+    uint16_t IceServer::GetConsentTimeoutMs(uint8_t consentTimeoutSec)
+    {
+        MS_TRACE();
+        if (consentTimeoutSec == 0u)
+        {
+            // 0 means disabled so it's a valid value.
+        }
+        else if (consentTimeoutSec < ConsentCheckMinTimeoutSec)
+        {
+            MS_WARN_TAG(
+              ice,
+              "consentTimeoutSec cannot be lower than %" PRIu8 " seconds, fixing it",
+              ConsentCheckMinTimeoutSec);
+
+            consentTimeoutSec = ConsentCheckMinTimeoutSec;
+        }
+        else if (consentTimeoutSec > ConsentCheckMaxTimeoutSec)
+        {
+            MS_WARN_TAG(
+              ice,
+              "consentTimeoutSec cannot be higher than %" PRIu8 " seconds, fixing it",
+              ConsentCheckMaxTimeoutSec);
+
+            consentTimeoutSec = ConsentCheckMaxTimeoutSec;
+        }
+
+        return consentTimeoutSec * 1000;
+    }
 
 	inline void IceServer::OnTimer(TimerHandle* timer)
 	{

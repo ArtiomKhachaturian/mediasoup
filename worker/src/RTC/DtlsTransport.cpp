@@ -802,7 +802,6 @@ namespace RTC
 		{
 			SSL_free(this->ssl);
 
-			this->ssl               = nullptr;
 			this->sslBioFromNetwork = nullptr;
 			this->sslBioToNetwork   = nullptr;
 		}

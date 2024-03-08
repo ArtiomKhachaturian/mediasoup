@@ -9,11 +9,15 @@
 #include "RTC/RtpProbationGenerator.hpp"
 #include "RTC/TrendCalculator.hpp"
 #include "handles/TimerHandle.hpp"
+#include "ProtectedObj.hpp"
 #include <libwebrtc/api/transport/goog_cc_factory.h>
 #include <libwebrtc/api/transport/network_types.h>
 #include <libwebrtc/call/rtp_transport_controller_send.h>
 #include <libwebrtc/modules/pacing/packet_router.h>
+#include <atomic>
 #include <deque>
+
+#define USE_TREND_CALCULATOR
 
 namespace RTC
 {
@@ -26,13 +30,13 @@ namespace RTC
 	public:
 		struct Bitrates
 		{
-			uint32_t desiredBitrate{ 0u };
-			uint32_t effectiveDesiredBitrate{ 0u };
-			uint32_t minBitrate{ 0u };
-			uint32_t maxBitrate{ 0u };
-			uint32_t startBitrate{ 0u };
-			uint32_t maxPaddingBitrate{ 0u };
-			uint32_t availableBitrate{ 0u };
+            std::atomic<uint32_t> desiredBitrate{ 0u };
+            std::atomic<uint32_t> effectiveDesiredBitrate{ 0u };
+            std::atomic<uint32_t> minBitrate{ 0u };
+            std::atomic<uint32_t> maxBitrate{ 0u };
+            std::atomic<uint32_t> startBitrate{ 0u };
+            std::atomic<uint32_t> maxPaddingBitrate{ 0u };
+            std::atomic<uint32_t> availableBitrate{ 0u };
 		};
 
 	public:
@@ -67,7 +71,7 @@ namespace RTC
 		}
 		void TransportConnected();
 		void TransportDisconnected();
-		void InsertPacket(webrtc::RtpPacketSendInfo& packetInfo);
+		void InsertPacket(const webrtc::RtpPacketSendInfo& packetInfo);
 		webrtc::PacedPacketInfo GetPacingInfo();
 		void PacketSent(const webrtc::RtpPacketSendInfo& packetInfo, int64_t nowMs);
 		void ReceiveEstimatedBitrate(uint32_t bitrate);
@@ -88,9 +92,7 @@ namespace RTC
 		void MayEmitAvailableBitrateEvent(uint32_t previousAvailableBitrate);
 		void UpdatePacketLoss(double packetLoss);
 		void ApplyBitrateUpdates();
-
-		void InitializeController();
-		void DestroyController();
+        static std::unique_ptr<webrtc::NetworkControllerFactoryInterface> CreateControllerFactory();
 
 		// jmillan: missing.
 		// void OnRemoteNetworkEstimate(NetworkStateEstimate estimate) override;
@@ -110,23 +112,26 @@ namespace RTC
 
 	private:
 		// Passed by argument.
-		Listener* listener{ nullptr };
-		// Allocated by this.
-		webrtc::NetworkControllerFactoryInterface* controllerFactory{ nullptr };
-		webrtc::RtpTransportControllerSend* rtpTransportControllerSend{ nullptr };
-		RTC::RtpProbationGenerator* probationGenerator{ nullptr };
-		TimerHandle* processTimer{ nullptr };
+		Listener* const listener;
+        const RTC::BweType bweType;
+        const uint32_t initialAvailableBitrate;
+        // Allocated by this.
+        const std::unique_ptr<webrtc::NetworkControllerFactoryInterface> controllerFactory;
+        ProtectedUniquePtr<webrtc::RtpTransportControllerSend> rtpTransportControllerSend;
+        // probationGenerator & processTimer under protection of rtpTransportControllerSend
+        std::unique_ptr<RTC::RtpProbationGenerator> probationGenerator;
+        std::unique_ptr<TimerHandle> processTimer;
 		// Others.
-		RTC::BweType bweType;
-		uint32_t initialAvailableBitrate{ 0u };
-		uint32_t maxOutgoingBitrate{ 0u };
-		uint32_t minOutgoingBitrate{ 0u };
+        std::atomic<uint32_t> maxOutgoingBitrate{ 0u };
+        std::atomic<uint32_t> minOutgoingBitrate{ 0u };
 		Bitrates bitrates;
-		bool availableBitrateEventCalled{ false };
-		uint64_t lastAvailableBitrateEventAtMs{ 0u };
-		RTC::TrendCalculator desiredBitrateTrend;
-		std::deque<double> packetLossHistory;
-		double packetLoss{ 0 };
+		std::atomic_bool availableBitrateEventCalled{ false };
+        std::atomic<uint64_t> lastAvailableBitrateEventAtMs{ 0u };
+#ifdef USE_TREND_CALCULATOR
+        RTC::TrendCalculator desiredBitrateTrend;
+#endif
+        ProtectedObj<std::deque<double>> packetLossHistory;
+        std::atomic<double> packetLoss{ 0 };
 	};
 } // namespace RTC
 

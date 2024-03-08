@@ -1,7 +1,5 @@
 #define MS_CLASS "RTC::TransportCongestionControlClient"
 // #define MS_LOG_DEV_LEVEL 3
-#define USE_TREND_CALCULATOR
-
 #include "RTC/TransportCongestionControlClient.hpp"
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
@@ -31,81 +29,64 @@ namespace RTC
 	  : listener(listener), bweType(bweType),
 	    initialAvailableBitrate(std::max<uint32_t>(
 	      initialAvailableBitrate, RTC::TransportCongestionControlMinOutgoingBitrate)),
-	    maxOutgoingBitrate(maxOutgoingBitrate), minOutgoingBitrate(minOutgoingBitrate)
+	    maxOutgoingBitrate(maxOutgoingBitrate), minOutgoingBitrate(minOutgoingBitrate),
+        controllerFactory(CreateControllerFactory())
 	{
 		MS_TRACE();
-
-		webrtc::GoogCcFactoryConfig config;
-
-		// Provide RTCP feedback as well as Receiver Reports.
-		config.feedback_only = true;
-
-		this->controllerFactory = new webrtc::GoogCcNetworkControllerFactory(std::move(config));
 	}
 
 	TransportCongestionControlClient::~TransportCongestionControlClient()
 	{
 		MS_TRACE();
 
-		delete this->controllerFactory;
-		this->controllerFactory = nullptr;
-
-		DestroyController();
+        LOCK_WRITE_PROTECTED_OBJ(this->rtpTransportControllerSend);
+        this->rtpTransportControllerSend->reset();
+        this->probationGenerator.reset();
+        processTimer.reset();
 	}
 
-	void TransportCongestionControlClient::InitializeController()
-	{
-		MS_ASSERT(this->rtpTransportControllerSend == nullptr, "transport controller already initialized");
-
-		webrtc::BitrateConstraints bitrateConfig;
-		bitrateConfig.start_bitrate_bps = static_cast<int>(this->initialAvailableBitrate);
-
-		this->rtpTransportControllerSend =
-		  new webrtc::RtpTransportControllerSend(this, nullptr, this->controllerFactory, bitrateConfig);
-
-		this->rtpTransportControllerSend->RegisterTargetTransferRateObserver(this);
-
-		this->probationGenerator = new RTC::RtpProbationGenerator();
-
-		// This makes sure that periodic probing is used when the application is send
-		// less bitrate than needed to measure the bandwidth estimation.  (f.e. when
-		// videos are muted or using screensharing with still images)
-		this->rtpTransportControllerSend->EnablePeriodicAlrProbing(true);
-
-		this->processTimer = new TimerHandle(this);
-
-		// clang-format off
-		this->processTimer->Start(std::min(
-			// Depends on probation being done and WebRTC-Pacer-MinPacketLimitMs field trial.
-			this->rtpTransportControllerSend->packet_sender()->TimeUntilNextProcess(),
-			// Fixed value (25ms), libwebrtc/api/transport/goog_cc_factory.cc.
-			this->controllerFactory->GetProcessInterval().ms()
-		));
-		// clang-format on
-	}
-
-	void TransportCongestionControlClient::DestroyController()
-	{
-		delete this->rtpTransportControllerSend;
-		this->rtpTransportControllerSend = nullptr;
-
-		delete this->probationGenerator;
-		this->probationGenerator = nullptr;
-
-		delete this->processTimer;
-		this->processTimer = nullptr;
-	}
+    std::unique_ptr<webrtc::NetworkControllerFactoryInterface> TransportCongestionControlClient::CreateControllerFactory()
+    {
+        webrtc::GoogCcFactoryConfig config;
+        // Provide RTCP feedback as well as Receiver Reports.
+        config.feedback_only = true;
+        return std::make_unique<webrtc::GoogCcNetworkControllerFactory>(std::move(config));
+    }
 
 	void TransportCongestionControlClient::TransportConnected()
 	{
 		MS_TRACE();
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->rtpTransportControllerSend);
+        if (!this->rtpTransportControllerSend.ConstRef()) {
+            webrtc::BitrateConstraints bitrateConfig;
+            bitrateConfig.start_bitrate_bps = static_cast<int>(this->initialAvailableBitrate);
+            auto tc = std::make_unique<webrtc::RtpTransportControllerSend>(this, nullptr,
+                                                                           this->controllerFactory.get(),
+                                                                           bitrateConfig);
+            tc->RegisterTargetTransferRateObserver(this);
+            this->probationGenerator = std::make_unique<RTC::RtpProbationGenerator>();
+            // This makes sure that periodic probing is used when the application is send
+            // less bitrate than needed to measure the bandwidth estimation.  (f.e. when
+            // videos are muted or using screensharing with still images)
+            tc->EnablePeriodicAlrProbing(true);
+            
+            this->processTimer = std::make_unique<TimerHandle>(this);
 
-		if (this->rtpTransportControllerSend == nullptr)
-		{
-			InitializeController();
-		}
-
-		this->rtpTransportControllerSend->OnNetworkAvailability(true);
+            // clang-format off
+            this->processTimer->Start(std::min(
+                // Depends on probation being done and WebRTC-Pacer-MinPacketLimitMs field trial.
+                tc->packet_sender()->TimeUntilNextProcess(),
+                // Fixed value (25ms), libwebrtc/api/transport/goog_cc_factory.cc.
+                this->controllerFactory->GetProcessInterval().ms()
+            ));
+            
+            this->rtpTransportControllerSend = std::move(tc);
+        }
+        
+        if (const auto& transportController = this->rtpTransportControllerSend.ConstRef()) {
+            transportController->OnNetworkAvailability(true);
+        }
 	}
 
 	void TransportCongestionControlClient::TransportDisconnected()
@@ -122,91 +103,79 @@ namespace RTC
 #ifdef USE_TREND_CALCULATOR
 		this->desiredBitrateTrend.ForceUpdate(0u, nowMs);
 #endif
-
-		this->rtpTransportControllerSend->OnNetworkAvailability(false);
+        LOCK_WRITE_PROTECTED_OBJ(this->rtpTransportControllerSend);
+        if (const auto& transportController = this->rtpTransportControllerSend.ConstRef()) {
+            transportController->OnNetworkAvailability(false);
+        }
 	}
 
-	void TransportCongestionControlClient::InsertPacket(webrtc::RtpPacketSendInfo& packetInfo)
+	void TransportCongestionControlClient::InsertPacket(const webrtc::RtpPacketSendInfo& packetInfo)
 	{
 		MS_TRACE();
-
-		if (this->rtpTransportControllerSend == nullptr)
-		{
-			return;
-		}
-
-		this->rtpTransportControllerSend->packet_sender()->InsertPacket(packetInfo.length);
-		this->rtpTransportControllerSend->OnAddPacket(packetInfo);
+        LOCK_WRITE_PROTECTED_OBJ(this->rtpTransportControllerSend);
+        if (const auto& transportController = this->rtpTransportControllerSend.ConstRef()) {
+            transportController->packet_sender()->InsertPacket(packetInfo.length);
+            transportController->OnAddPacket(packetInfo);
+        }
 	}
 
 	webrtc::PacedPacketInfo TransportCongestionControlClient::GetPacingInfo()
 	{
 		MS_TRACE();
-
-		if (this->rtpTransportControllerSend == nullptr)
-		{
-			return {};
-		}
-
-		return this->rtpTransportControllerSend->packet_sender()->GetPacingInfo();
+        LOCK_WRITE_PROTECTED_OBJ(this->rtpTransportControllerSend);
+        if (const auto& transportController = this->rtpTransportControllerSend.ConstRef()) {
+            return transportController->packet_sender()->GetPacingInfo();
+        }
+        return {};
 	}
 
 	void TransportCongestionControlClient::PacketSent(
 	  const webrtc::RtpPacketSendInfo& packetInfo, int64_t nowMs)
 	{
 		MS_TRACE();
-
-		if (this->rtpTransportControllerSend == nullptr)
-		{
-			return;
-		}
-
-		// Notify the transport feedback adapter about the sent packet.
-		rtc::SentPacket const sentPacket(packetInfo.transport_sequence_number, nowMs);
-		this->rtpTransportControllerSend->OnSentPacket(sentPacket, packetInfo.length);
+        LOCK_WRITE_PROTECTED_OBJ(this->rtpTransportControllerSend);
+        if (const auto& transportController = this->rtpTransportControllerSend.ConstRef()) {
+            // Notify the transport feedback adapter about the sent packet.
+            rtc::SentPacket const sentPacket(packetInfo.transport_sequence_number, nowMs);
+            transportController->OnSentPacket(sentPacket, packetInfo.length);
+        }
 	}
 
 	void TransportCongestionControlClient::ReceiveEstimatedBitrate(uint32_t bitrate)
 	{
 		MS_TRACE();
-
-		if (this->rtpTransportControllerSend == nullptr)
-		{
-			return;
-		}
-
-		this->rtpTransportControllerSend->OnReceivedEstimatedBitrate(bitrate);
+        LOCK_WRITE_PROTECTED_OBJ(this->rtpTransportControllerSend);
+        if (const auto& transportController = this->rtpTransportControllerSend.ConstRef()) {
+            transportController->OnReceivedEstimatedBitrate(bitrate);
+        }
 	}
 
 	void TransportCongestionControlClient::ReceiveRtcpReceiverReport(
 	  RTC::RTCP::ReceiverReportPacket* packet, float rtt, int64_t nowMs)
 	{
 		MS_TRACE();
+        LOCK_WRITE_PROTECTED_OBJ(this->rtpTransportControllerSend);
+        if (const auto& transportController = this->rtpTransportControllerSend.ConstRef()) {
+            webrtc::ReportBlockList reportBlockList;
 
-		webrtc::ReportBlockList reportBlockList;
+            for (auto it = packet->Begin(); it != packet->End(); ++it)
+            {
+                auto& report = *it;
 
-		for (auto it = packet->Begin(); it != packet->End(); ++it)
-		{
-			auto& report = *it;
+                reportBlockList.emplace_back(
+                  packet->GetSsrc(),
+                  report->GetSsrc(),
+                  report->GetFractionLost(),
+                  report->GetTotalLost(),
+                  report->GetLastSeq(),
+                  report->GetJitter(),
+                  report->GetLastSenderReport(),
+                  report->GetDelaySinceLastSenderReport());
+            }
 
-			reportBlockList.emplace_back(
-			  packet->GetSsrc(),
-			  report->GetSsrc(),
-			  report->GetFractionLost(),
-			  report->GetTotalLost(),
-			  report->GetLastSeq(),
-			  report->GetJitter(),
-			  report->GetLastSenderReport(),
-			  report->GetDelaySinceLastSenderReport());
-		}
-
-		if (this->rtpTransportControllerSend == nullptr)
-		{
-			return;
-		}
-
-		this->rtpTransportControllerSend->OnReceivedRtcpReceiverReport(
-		  reportBlockList, static_cast<int64_t>(rtt), nowMs);
+            transportController->OnReceivedRtcpReceiverReport(
+              reportBlockList, static_cast<int64_t>(rtt), nowMs);
+        }
 	}
 
 	void TransportCongestionControlClient::ReceiveRtcpTransportFeedback(
@@ -230,47 +199,49 @@ namespace RTC
 		{
 			this->UpdatePacketLoss(static_cast<double>(lostPackets) / expectedPackets);
 		}
-
-		if (this->rtpTransportControllerSend == nullptr)
-		{
-			return;
-		}
-
-		this->rtpTransportControllerSend->OnTransportFeedback(*feedback);
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->rtpTransportControllerSend);
+        if (const auto& transportController = this->rtpTransportControllerSend.ConstRef()) {
+            transportController->OnTransportFeedback(*feedback);
+        }
 	}
 
 	void TransportCongestionControlClient::UpdatePacketLoss(double packetLoss)
 	{
-		// Add the score into the histogram.
-		if (this->packetLossHistory.size() == PacketLossHistogramLength)
-		{
-			this->packetLossHistory.pop_front();
-		}
-
-		this->packetLossHistory.push_back(packetLoss);
-
-		/*
-		 * Scoring mechanism is a weighted average.
-		 *
-		 * The more recent the score is, the more weight it has.
-		 * The oldest score has a weight of 1 and subsequent scores weight is
-		 * increased by one sequentially.
-		 *
-		 * Ie:
-		 * - scores: [1,2,3,4]
-		 * - this->scores = ((1) + (2+2) + (3+3+3) + (4+4+4+4)) / 10 = 2.8 => 3
-		 */
-
-		size_t weight{ 0 };
-		size_t samples{ 0 };
-		double totalPacketLoss{ 0 };
-
-		for (auto packetLossEntry : this->packetLossHistory)
-		{
-			weight++;
-			samples += weight;
-			totalPacketLoss += weight * packetLossEntry;
-		}
+        size_t samples{ 0 };
+        double totalPacketLoss{ 0 };
+        
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->packetLossHistory);
+            // Add the score into the histogram.
+            if (this->packetLossHistory->size() == PacketLossHistogramLength)
+            {
+                this->packetLossHistory->pop_front();
+            }
+            
+            this->packetLossHistory->push_back(packetLoss);
+            
+            /*
+             * Scoring mechanism is a weighted average.
+             *
+             * The more recent the score is, the more weight it has.
+             * The oldest score has a weight of 1 and subsequent scores weight is
+             * increased by one sequentially.
+             *
+             * Ie:
+             * - scores: [1,2,3,4]
+             * - this->scores = ((1) + (2+2) + (3+3+3) + (4+4+4+4)) / 10 = 2.8 => 3
+             */
+            
+            size_t weight{ 0 };
+            
+            for (auto packetLossEntry : this->packetLossHistory.ConstRef())
+            {
+                weight++;
+                samples += weight;
+                totalPacketLoss += weight * packetLossEntry;
+            }
+        }
 
 		// clang-tidy "thinks" that this can lead to division by zero but we are
 		// smarter.
@@ -280,25 +251,25 @@ namespace RTC
 
 	void TransportCongestionControlClient::SetMaxOutgoingBitrate(uint32_t maxBitrate)
 	{
-		this->maxOutgoingBitrate = maxBitrate;
+        if (maxBitrate != this->maxOutgoingBitrate.exchange(maxBitrate)) {
+            ApplyBitrateUpdates();
 
-		ApplyBitrateUpdates();
+            if (maxBitrate > 0u)
+            {
+                this->bitrates.availableBitrate = std::min<uint32_t>(maxBitrate, this->bitrates.availableBitrate);
+            }
 
-		if (this->maxOutgoingBitrate > 0u)
-		{
-			this->bitrates.availableBitrate =
-			  std::min<uint32_t>(this->maxOutgoingBitrate, this->bitrates.availableBitrate);
-		}
+        }
 	}
 
 	void TransportCongestionControlClient::SetMinOutgoingBitrate(uint32_t minBitrate)
 	{
-		this->minOutgoingBitrate = minBitrate;
+        if (minBitrate != this->minOutgoingBitrate.exchange(minBitrate)) {
+            ApplyBitrateUpdates();
 
-		ApplyBitrateUpdates();
-
-		this->bitrates.minBitrate = std::max<uint32_t>(
-		  this->minOutgoingBitrate, RTC::TransportCongestionControlMinOutgoingBitrate);
+            this->bitrates.minBitrate = std::max<uint32_t>(minBitrate,
+                                                           RTC::TransportCongestionControlMinOutgoingBitrate);
+        }
 	}
 
 	void TransportCongestionControlClient::SetDesiredBitrate(uint32_t desiredBitrate, bool force)
@@ -342,7 +313,7 @@ namespace RTC
 
 	void TransportCongestionControlClient::ApplyBitrateUpdates()
 	{
-		auto currentMaxBitrate = this->bitrates.maxBitrate;
+		uint32_t currentMaxBitrate = this->bitrates.maxBitrate;
 		uint32_t newMaxBitrate = 0;
 
 #ifdef USE_TREND_CALCULATOR
@@ -391,29 +362,27 @@ namespace RTC
 		MS_DEBUG_DEV(
 		  "[desiredBitrate:%" PRIu32 ", desiredBitrateTrend:%" PRIu32 ", startBitrate:%" PRIu32
 		  ", minBitrate:%" PRIu32 ", maxBitrate:%" PRIu32 ", maxPaddingBitrate:%" PRIu32 "]",
-		  this->bitrates.desiredBitrate,
+		  this->bitrates.desiredBitrate.load(),
 		  this->desiredBitrateTrend.GetValue(),
-		  this->bitrates.startBitrate,
-		  this->bitrates.minBitrate,
-		  this->bitrates.maxBitrate,
-		  this->bitrates.maxPaddingBitrate);
+		  this->bitrates.startBitrate.load(),
+		  this->bitrates.minBitrate.load(),
+		  this->bitrates.maxBitrate.load(),
+		  this->bitrates.maxPaddingBitrate.load());
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->rtpTransportControllerSend);
+        if (const auto& transportController = this->rtpTransportControllerSend.ConstRef()) {
+            transportController->SetAllocatedSendBitrateLimits(
+              this->bitrates.minBitrate, this->bitrates.maxPaddingBitrate, this->bitrates.maxBitrate);
 
-		if (this->rtpTransportControllerSend == nullptr)
-		{
-			return;
-		}
+            webrtc::TargetRateConstraints constraints;
 
-		this->rtpTransportControllerSend->SetAllocatedSendBitrateLimits(
-		  this->bitrates.minBitrate, this->bitrates.maxPaddingBitrate, this->bitrates.maxBitrate);
+            constraints.at_time       = webrtc::Timestamp::ms(DepLibUV::GetTimeMs());
+            constraints.min_data_rate = webrtc::DataRate::bps(this->bitrates.minBitrate.load());
+            constraints.max_data_rate = webrtc::DataRate::bps(this->bitrates.maxBitrate.load());
+            constraints.starting_rate = webrtc::DataRate::bps(this->bitrates.startBitrate.load());
 
-		webrtc::TargetRateConstraints constraints;
-
-		constraints.at_time       = webrtc::Timestamp::ms(DepLibUV::GetTimeMs());
-		constraints.min_data_rate = webrtc::DataRate::bps(this->bitrates.minBitrate);
-		constraints.max_data_rate = webrtc::DataRate::bps(this->bitrates.maxBitrate);
-		constraints.starting_rate = webrtc::DataRate::bps(this->bitrates.startBitrate);
-
-		this->rtpTransportControllerSend->SetClientBitratePreferences(constraints);
+            transportController->SetClientBitratePreferences(constraints);
+        }
 	}
 
 	uint32_t TransportCongestionControlClient::GetAvailableBitrate() const
@@ -455,10 +424,8 @@ namespace RTC
 		}
 
 		// Emit if this is the first valid event.
-		if (!this->availableBitrateEventCalled)
+		if (!this->availableBitrateEventCalled.exchange(true))
 		{
-			this->availableBitrateEventCalled = true;
-
 			notify = true;
 		}
 		// Emit event if AvailableBitrateEventInterval elapsed.
@@ -473,7 +440,7 @@ namespace RTC
 			  bwe,
 			  "high BWE value decrease detected, notifying the listener [now:%" PRIu32 ", before:%" PRIu32
 			  "]",
-			  this->bitrates.availableBitrate,
+			  this->bitrates.availableBitrate.load(),
 			  previousAvailableBitrate);
 
 			notify = true;
@@ -485,7 +452,7 @@ namespace RTC
 			  bwe,
 			  "high BWE value increase detected, notifying the listener [now:%" PRIu32 ", before:%" PRIu32
 			  "]",
-			  this->bitrates.availableBitrate,
+			  this->bitrates.availableBitrate.load(),
 			  previousAvailableBitrate);
 
 			notify = true;
@@ -495,7 +462,7 @@ namespace RTC
 		{
 			MS_DEBUG_DEV(
 			  "notifying the listener with new available bitrate:%" PRIu32,
-			  this->bitrates.availableBitrate);
+			  this->bitrates.availableBitrate.load());
 
 			this->lastAvailableBitrateEventAtMs = nowMs;
 
@@ -520,7 +487,7 @@ namespace RTC
 			return;
 		}
 
-		auto previousAvailableBitrate = this->bitrates.availableBitrate;
+		uint32_t previousAvailableBitrate = this->bitrates.availableBitrate;
 
 		// Update availableBitrate.
 		// NOTE: Just in case.
@@ -533,7 +500,7 @@ namespace RTC
 			this->bitrates.availableBitrate = static_cast<uint32_t>(targetTransferRate.target_rate.bps());
 		}
 
-		MS_DEBUG_DEV("new available bitrate:%" PRIu32, this->bitrates.availableBitrate);
+		MS_DEBUG_DEV("new available bitrate:%" PRIu32, this->bitrates.availableBitrate.load());
 
 		MayEmitAvailableBitrateEvent(previousAvailableBitrate);
 	}
@@ -551,6 +518,7 @@ namespace RTC
 	RTC::RtpPacket* TransportCongestionControlClient::GeneratePadding(size_t size)
 	{
 		MS_TRACE();
+        LOCK_READ_PROTECTED_OBJ(rtpTransportControllerSend);
 		MS_ASSERT(this->probationGenerator, "probation generator not initialized")
 
 		return this->probationGenerator->GetNextPacket(size);
@@ -559,25 +527,32 @@ namespace RTC
 	void TransportCongestionControlClient::OnTimer(TimerHandle* timer)
 	{
 		MS_TRACE();
-
-		if (timer == this->processTimer)
-		{
-			// Time to call RtpTransportControllerSend::Process().
-			this->rtpTransportControllerSend->Process();
-
-			// Time to call PacedSender::Process().
-			this->rtpTransportControllerSend->packet_sender()->Process();
-
-			/* clang-format off */
-			this->processTimer->Start(std::min<uint64_t>(
-				// Depends on probation being done and WebRTC-Pacer-MinPacketLimitMs field trial.
-				this->rtpTransportControllerSend->packet_sender()->TimeUntilNextProcess(),
-				// Fixed value (25ms), libwebrtc/api/transport/goog_cc_factory.cc.
-				this->controllerFactory->GetProcessInterval().ms()
-			));
-			/* clang-format on */
-
-			MayEmitAvailableBitrateEvent(this->bitrates.availableBitrate);
-		}
+        bool ok = false;
+        {
+            LOCK_WRITE_PROTECTED_OBJ(rtpTransportControllerSend);
+            if (const auto& transportController = this->rtpTransportControllerSend.ConstRef()) {
+                if (timer == this->processTimer.get())
+                {
+                    // Time to call RtpTransportControllerSend::Process().
+                    transportController->Process();
+                    
+                    // Time to call PacedSender::Process().
+                    transportController->packet_sender()->Process();
+                    
+                    /* clang-format off */
+                    this->processTimer->Start(std::min<uint64_t>(
+                        // Depends on probation being done and WebRTC-Pacer-MinPacketLimitMs field trial.
+                        transportController->packet_sender()->TimeUntilNextProcess(),
+                        // Fixed value (25ms), libwebrtc/api/transport/goog_cc_factory.cc.
+                        this->controllerFactory->GetProcessInterval().ms()
+                     ));
+                    /* clang-format on */
+                    ok = true;
+                }
+            }
+        }
+        if (ok) {
+            MayEmitAvailableBitrateEvent(this->bitrates.availableBitrate);
+        }
 	}
 } // namespace RTC

@@ -55,7 +55,7 @@ namespace RTC
 				}
 			}
 
-			this->retransmissionBuffer = new RTC::RtpRetransmissionBuffer(
+			this->retransmissionBuffer = std::make_unique<RTC::RtpRetransmissionBuffer>(
 			  RetransmissionBufferMaxItems, maxRetransmissionDelayMs, params.clockRate);
 		}
 	}
@@ -63,26 +63,22 @@ namespace RTC
 	RtpStreamSend::~RtpStreamSend()
 	{
 		MS_TRACE();
-
 		// Delete retransmission buffer.
-		delete this->retransmissionBuffer;
-		this->retransmissionBuffer = nullptr;
+        LOCK_WRITE_PROTECTED_OBJ(this->retransmissionBuffer);
+		this->retransmissionBuffer->reset();
 	}
 
 	flatbuffers::Offset<FBS::RtpStream::Stats> RtpStreamSend::FillBufferStats(
 	  flatbuffers::FlatBufferBuilder& builder)
 	{
 		MS_TRACE();
-
-		const uint64_t nowMs = DepLibUV::GetTimeMs();
-
-		auto baseStats = RTC::RtpStream::FillBufferStats(builder);
-		auto stats     = FBS::RtpStream::CreateSendStats(
-      builder,
-      baseStats,
-      this->transmissionCounter.GetPacketCount(),
-      this->transmissionCounter.GetBytes(),
-      this->transmissionCounter.GetBitrate(nowMs));
+        
+        const uint64_t nowMs = DepLibUV::GetTimeMs();
+        auto stats  = FBS::RtpStream::CreateSendStats(builder,
+                                                      RTC::RtpStream::FillBufferStats(builder),
+                                                      this->transmissionCounter.GetPacketCount(),
+                                                      this->transmissionCounter.GetBytes(),
+                                                      this->transmissionCounter.GetBitrate(nowMs));
 
 		return FBS::RtpStream::CreateStats(builder, FBS::RtpStream::StatsData::SendStats, stats.Union());
 	}
@@ -110,18 +106,15 @@ namespace RTC
 		}
 
 		// If NACK is enabled, store the packet into the buffer.
-		if (this->retransmissionBuffer)
-		{
-			StorePacket(packet, sharedPacket);
-		}
+        StorePacket(packet, sharedPacket);
 
-		// Increase transmission counter.
+        // Increase transmission counter.
 		this->transmissionCounter.Update(packet->GetSize());
 
 		return true;
 	}
 
-	void RtpStreamSend::ReceiveNack(RTC::RTCP::FeedbackRtpNackPacket* nackPacket)
+	void RtpStreamSend::ReceiveNack(const RTC::RTCP::FeedbackRtpNackPacket* nackPacket)
 	{
 		MS_TRACE();
 
@@ -202,7 +195,7 @@ namespace RTC
 		}
 	}
 
-	void RtpStreamSend::ReceiveRtcpReceiverReport(RTC::RTCP::ReceiverReport* report)
+	void RtpStreamSend::ReceiveRtcpReceiverReport(const RTC::RTCP::ReceiverReport* report)
 	{
 		MS_TRACE();
 
@@ -247,7 +240,7 @@ namespace RTC
 		UpdateScore(report);
 	}
 
-	void RtpStreamSend::ReceiveRtcpXrReceiverReferenceTime(RTC::RTCP::ReceiverReferenceTime* report)
+	void RtpStreamSend::ReceiveRtcpXrReceiverReferenceTime(const RTC::RTCP::ReceiverReferenceTime* report)
 	{
 		MS_TRACE();
 
@@ -259,31 +252,29 @@ namespace RTC
 	RTC::RTCP::SenderReport* RtpStreamSend::GetRtcpSenderReport(uint64_t nowMs)
 	{
 		MS_TRACE();
+        
+        if (const auto packetCount = this->transmissionCounter.GetPacketCount()) {
+            auto report = new RTC::RTCP::SenderReport();
+            report->SetPacketCount(packetCount);
+            report->SetOctetCount(this->transmissionCounter.GetBytes());
+            auto ntp = Utils::Time::TimeMs2Ntp(nowMs);
+            // Calculate TS difference between now and maxPacketMs.
+            auto diffMs = nowMs - this->maxPacketMs;
+            auto diffTs = diffMs * GetClockRate() / 1000;
 
-		if (this->transmissionCounter.GetPacketCount() == 0u)
-		{
-			return nullptr;
-		}
+            report->SetSsrc(GetSsrc());
+            report->SetNtpSec(ntp.seconds);
+            report->SetNtpFrac(ntp.fractions);
+            report->SetRtpTs(this->maxPacketTs + diffTs);
 
-		auto ntp     = Utils::Time::TimeMs2Ntp(nowMs);
-		auto* report = new RTC::RTCP::SenderReport();
-
-		// Calculate TS difference between now and maxPacketMs.
-		auto diffMs = nowMs - this->maxPacketMs;
-		auto diffTs = diffMs * GetClockRate() / 1000;
-
-		report->SetSsrc(GetSsrc());
-		report->SetPacketCount(this->transmissionCounter.GetPacketCount());
-		report->SetOctetCount(this->transmissionCounter.GetBytes());
-		report->SetNtpSec(ntp.seconds);
-		report->SetNtpFrac(ntp.fractions);
-		report->SetRtpTs(this->maxPacketTs + diffTs);
-
-		// Update info about last Sender Report.
-		this->lastSenderReportNtpMs = nowMs;
-		this->lastSenderReportTs    = this->maxPacketTs + diffTs;
-
-		return report;
+            // Update info about last Sender Report.
+            this->lastSenderReportNtpMs = nowMs;
+            this->lastSenderReportTs    = this->maxPacketTs + diffTs;
+            
+            return report;
+        }
+        
+        return nullptr;
 	}
 
 	RTC::RTCP::DelaySinceLastRr::SsrcInfo* RtpStreamSend::GetRtcpXrDelaySinceLastRrSsrcInfo(uint64_t nowMs)
@@ -330,16 +321,21 @@ namespace RTC
 		MS_TRACE();
 
 		// Clear retransmission buffer.
-		if (this->retransmissionBuffer)
-		{
-			this->retransmissionBuffer->Clear();
-		}
+        LOCK_WRITE_PROTECTED_OBJ(this->retransmissionBuffer);
+        if (const auto& retransmissionBuffer = this->retransmissionBuffer.ConstRef()) {
+            retransmissionBuffer->Clear();
+        }
 	}
 
 	void RtpStreamSend::Resume()
 	{
 		MS_TRACE();
 	}
+
+    uint32_t RtpStreamSend::GetBitrate(uint64_t nowMs)
+    {
+        return this->transmissionCounter.GetBitrate(nowMs);
+    }
 
 	uint32_t RtpStreamSend::GetBitrate(
 	  uint64_t /*nowMs*/, uint8_t /*spatialLayer*/, uint8_t /*temporalLayer*/)
@@ -379,8 +375,10 @@ namespace RTC
 
 			return;
 		}
-
-		this->retransmissionBuffer->Insert(packet, sharedPacket);
+        LOCK_WRITE_PROTECTED_OBJ(this->retransmissionBuffer);
+        if (const auto& retransmissionBuffer = this->retransmissionBuffer.ConstRef()) {
+            retransmissionBuffer->Insert(packet, sharedPacket);
+        }
 	}
 
 	// This method looks for the requested RTP packets and inserts them into the
@@ -401,8 +399,9 @@ namespace RTC
 		// Ensure the container's first element is 0.
 		RetransmissionContainer[0] = nullptr;
 
+        LOCK_READ_PROTECTED_OBJ(this->retransmissionBuffer);
 		// If NACK is not supported, exit.
-		if (!this->retransmissionBuffer)
+		if (!this->retransmissionBuffer.ConstRef())
 		{
 			MS_WARN_TAG(rtx, "NACK not supported");
 
@@ -429,7 +428,7 @@ namespace RTC
 
 			if (requested)
 			{
-				auto* item = this->retransmissionBuffer->Get(currentSeq);
+				auto* item = this->retransmissionBuffer->get()->Get(currentSeq);
 				std::shared_ptr<RTC::RtpPacket> packet{ nullptr };
 
 				// Calculate the elapsed time between the max timestamp seen and the
@@ -538,19 +537,20 @@ namespace RTC
 		RetransmissionContainer[containerIdx] = nullptr;
 	}
 
-	void RtpStreamSend::UpdateScore(RTC::RTCP::ReceiverReport* report)
+	void RtpStreamSend::UpdateScore(const RTC::RTCP::ReceiverReport* report)
 	{
 		MS_TRACE();
+        
+        auto totalSent =  this->transmissionCounter.GetPacketCount();
 
 		// Calculate number of packets sent in this interval.
-		auto totalSent = this->transmissionCounter.GetPacketCount();
 		auto sent      = totalSent - this->sentPriorScore;
 
 		this->sentPriorScore = totalSent;
 
 		// Calculate number of packets lost in this interval.
-		const uint32_t totalLost = report->GetTotalLost() > 0 ? report->GetTotalLost() : 0;
-		uint32_t lost;
+		const size_t totalLost = report->GetTotalLost() > 0 ? report->GetTotalLost() : 0;
+		uint32_t lost, oldLostPriorScore;
 
 		if (totalLost < this->lostPriorScore)
 		{
@@ -645,9 +645,9 @@ namespace RTC
 		MS_TRACE();
 
 		// Clear retransmission buffer.
-		if (this->retransmissionBuffer)
-		{
-			this->retransmissionBuffer->Clear();
-		}
+        LOCK_WRITE_PROTECTED_OBJ(this->retransmissionBuffer);
+        if (const auto& retransmissionBuffer = this->retransmissionBuffer.ConstRef()) {
+            retransmissionBuffer->Clear();
+        }
 	}
 } // namespace RTC

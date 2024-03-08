@@ -118,11 +118,10 @@ namespace RTC
 		const uint16_t seq = packet->GetSequenceNumber();
 
 		// If this is the first packet seen, initialize stuff.
-		if (!this->started)
+		if (!this->started.exchange(true))
 		{
 			InitSeq(seq);
 
-			this->started     = true;
 			this->maxSeq      = seq - 1;
 			this->maxPacketTs = packet->GetTimestamp();
 			this->maxPacketMs = DepLibUV::GetTimeMs();

@@ -9,6 +9,7 @@
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <absl/container/flat_hash_map.h>
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -192,14 +193,14 @@ namespace RTC
 
 	private:
 		// Passed by argument.
-		Listener* listener{ nullptr };
+		Listener* const listener;
 		// Allocated by this.
-		SSL* ssl{ nullptr };
+		SSL* const ssl;
 		BIO* sslBioFromNetwork{ nullptr }; // The BIO from which ssl reads.
 		BIO* sslBioToNetwork{ nullptr };   // The BIO in which ssl writes.
 		TimerHandle* timer{ nullptr };
 		// Others.
-		DtlsState state{ DtlsState::NEW };
+		std::atomic<DtlsState> state{ DtlsState::NEW };
 		std::optional<Role> localRole;
 		std::optional<Fingerprint> remoteFingerprint;
 		bool handshakeDone{ false };

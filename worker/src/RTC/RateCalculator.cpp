@@ -7,21 +7,52 @@
 
 namespace RTC
 {
+    RateCalculator::RateCalculator(
+      size_t windowSizeMs,
+      float scale,
+      uint16_t windowItems)
+      : windowSizeMs(windowSizeMs), scale(scale), windowItems(std::max<size_t>(1, windowItems)),
+        itemSizeMs(std::max<size_t>(windowSizeMs / this->windowItems, 1))
+    {
+        this->buffer.resize(this->windowItems);
+    }
+
+    RateCalculator::RateCalculator(RateCalculator&& other)
+        : windowSizeMs(other.windowSizeMs)
+        , scale(other.scale)
+        , windowItems(other.windowItems)
+        , itemSizeMs(other.itemSizeMs)
+        , bytes(other.bytes.load())
+    {
+        this->buffer = std::move(other.buffer);
+        this->newestItemStartTime = other.newestItemStartTime;
+        this->newestItemIndex = other.newestItemIndex;
+        this->oldestItemStartTime = other.oldestItemStartTime;
+        this->oldestItemIndex = other.oldestItemIndex;
+        this->totalCount = other.totalCount;
+        this->lastRate = other.lastRate;
+        this->lastTime = other.lastTime;
+    }
+
 	void RateCalculator::Update(size_t size, uint64_t nowMs)
 	{
 		MS_TRACE();
 
-		// Ignore too old data. Should never happen.
-		if (nowMs < this->oldestItemStartTime)
-		{
-			return;
-		}
+        {
+            const std::lock_guard<std::mutex> guard(this->mutex);
+            // Ignore too old data. Should never happen.
+            if (nowMs < this->oldestItemStartTime)
+            {
+                return;
+            }
+        }
 
 		// Increase bytes.
-		this->bytes += size;
+		this->bytes.fetch_add(size);
 
 		RemoveOldData(nowMs);
 
+        const std::lock_guard<std::mutex> guard(this->mutex);
 		// If the elapsed time from the newest item start time is greater than the
 		// item size (in milliseconds), increase the item index.
 		if (this->newestItemIndex < 0 || nowMs - this->newestItemStartTime >= this->itemSizeMs)
@@ -68,26 +99,38 @@ namespace RTC
 	uint32_t RateCalculator::GetRate(uint64_t nowMs)
 	{
 		MS_TRACE();
-
-		if (nowMs == this->lastTime)
-		{
-			return this->lastRate;
-		}
+        
+        {
+            const std::lock_guard<std::mutex> guard(this->mutex);
+            
+            if (nowMs == this->lastTime)
+            {
+                return this->lastRate;
+            }
+        }
 
 		RemoveOldData(nowMs);
 
 		const float scale = this->scale / this->windowSizeMs;
 
+        const std::lock_guard<std::mutex> guard(this->mutex);
+        
 		this->lastTime = nowMs;
 		this->lastRate = static_cast<uint32_t>(std::trunc(this->totalCount * scale + 0.5f));
 
 		return this->lastRate;
 	}
 
+    size_t RateCalculator::GetBytes() const
+    {
+        return this->bytes;
+    }
+
 	inline void RateCalculator::RemoveOldData(uint64_t nowMs)
 	{
 		MS_TRACE();
-
+        
+        std::unique_lock<std::mutex> guard(this->mutex);
 		// No item set.
 		if (this->newestItemIndex < 0 || this->oldestItemIndex < 0)
 		{
@@ -105,6 +148,8 @@ namespace RTC
 		// A whole window size time has elapsed since last entry. Reset the buffer.
 		if (newOldestTime >= this->newestItemStartTime)
 		{
+            guard.unlock();
+            
 			Reset();
 
 			return;
@@ -126,6 +171,28 @@ namespace RTC
 			this->oldestItemStartTime       = newOldestItem.time;
 		}
 	}
+
+    void RateCalculator::Reset()
+    {
+        const std::lock_guard<std::mutex> guard(this->mutex);
+        
+        std::memset(static_cast<void*>(&this->buffer.front()), 0, sizeof(BufferItem) * this->buffer.size());
+
+        this->newestItemStartTime = 0u;
+        this->newestItemIndex     = -1;
+        this->oldestItemStartTime = 0u;
+        this->oldestItemIndex     = -1;
+        this->totalCount          = 0u;
+        this->lastRate            = 0u;
+        this->lastTime            = 0u;
+    }
+
+
+    RtpDataCounter::RtpDataCounter(RtpDataCounter&& other)
+        : rate(std::move(other.rate))
+        , packets(other.GetPacketCount())
+    {
+    }
 
 	void RtpDataCounter::Update(size_t packetSize)
 	{

@@ -2,6 +2,7 @@
 #define TREND_CALCULATOR_HPP
 
 #include "common.hpp"
+#include <shared_mutex>
 
 namespace RTC
 {
@@ -14,15 +15,13 @@ namespace RTC
 		explicit TrendCalculator(float decreaseFactor = DecreaseFactor);
 
 	public:
-		uint32_t GetValue() const
-		{
-			return this->value;
-		}
+        uint32_t GetValue() const;
 		void Update(uint32_t value, uint64_t nowMs);
 		void ForceUpdate(uint32_t value, uint64_t nowMs);
 
 	private:
-		float decreaseFactor{ DecreaseFactor };
+		const float decreaseFactor;
+        mutable std::shared_mutex mutex;
 		uint32_t value{ 0u };
 		uint32_t highestValue{ 0u };
 		uint64_t highestValueUpdatedAtMs{ 0u };

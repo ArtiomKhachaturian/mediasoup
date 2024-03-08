@@ -7,6 +7,7 @@
 #include "RTC/StunPacket.hpp"
 #include "RTC/TransportTuple.hpp"
 #include "handles/TimerHandle.hpp"
+#include <atomic>
 #include <list>
 #include <string>
 
@@ -119,6 +120,7 @@ namespace RTC
 		void StartConsentCheck();
 		void RestartConsentCheck();
 		void StopConsentCheck();
+        static uint16_t GetConsentTimeoutMs(uint8_t consentTimeoutSec);
 
 		/* Pure virtual methods inherited from TimerHandle::Listener. */
 	public:
@@ -126,14 +128,14 @@ namespace RTC
 
 	private:
 		// Passed by argument.
-		Listener* listener{ nullptr };
+		Listener* const listener;
+        const uint16_t consentTimeoutMs;
 		std::string usernameFragment;
 		std::string password;
-		uint16_t consentTimeoutMs{ 30000u };
 		// Others.
 		std::string oldUsernameFragment;
 		std::string oldPassword;
-		IceState state{ IceState::NEW };
+		std::atomic<IceState> state{ IceState::NEW };
 		uint32_t remoteNomination{ 0u };
 		std::list<RTC::TransportTuple> tuples;
 		RTC::TransportTuple* selectedTuple{ nullptr };

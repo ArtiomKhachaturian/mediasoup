@@ -14,7 +14,8 @@ namespace RTC
 		{
 		public:
 			using Iterator = typename std::vector<Item*>::iterator;
-
+            using ConstIterator = typename std::vector<Item*>::const_iterator;
+            
 		public:
 			static FeedbackRtpItemsPacket<Item>* Parse(const uint8_t* data, size_t len);
 
@@ -39,14 +40,24 @@ namespace RTC
 			{
 				this->items.push_back(item);
 			}
+            
 			Iterator Begin()
 			{
 				return this->items.begin();
 			}
+            ConstIterator Begin() const
+            {
+                return this->items.begin();
+            }
+            
 			Iterator End()
 			{
 				return this->items.end();
 			}
+            ConstIterator End() const
+            {
+                return this->items.end();
+            }
 
 			/* Virtual methods inherited from FeedbackItem. */
 		public:

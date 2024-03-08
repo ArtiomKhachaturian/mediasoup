@@ -28,21 +28,21 @@ namespace RTC
 
 	public:
 		TransportTuple(RTC::UdpSocket* udpSocket, const struct sockaddr* udpRemoteAddr)
-		  : udpSocket(udpSocket), udpRemoteAddr((struct sockaddr*)udpRemoteAddr), protocol(Protocol::UDP)
+		  : protocol(Protocol::UDP), udpSocket(udpSocket), udpRemoteAddr((struct sockaddr*)udpRemoteAddr)
 		{
 			SetHash();
 		}
 
 		explicit TransportTuple(RTC::TcpConnection* tcpConnection)
-		  : tcpConnection(tcpConnection), protocol(Protocol::TCP)
+		  : protocol(Protocol::TCP), tcpConnection(tcpConnection)
 		{
 			SetHash();
 		}
 
 		explicit TransportTuple(const TransportTuple* tuple)
-		  : hash(tuple->hash), udpSocket(tuple->udpSocket), udpRemoteAddr(tuple->udpRemoteAddr),
-		    tcpConnection(tuple->tcpConnection), localAnnouncedAddress(tuple->localAnnouncedAddress),
-		    protocol(tuple->protocol)
+		  : protocol(tuple->protocol), tcpConnection(tuple->tcpConnection),
+            udpSocket(tuple->udpSocket), udpRemoteAddr(tuple->udpRemoteAddr),
+            hash(tuple->hash), localAnnouncedAddress(tuple->localAnnouncedAddress)
 		{
 			if (protocol == TransportTuple::Protocol::UDP)
 			{
@@ -51,6 +51,7 @@ namespace RTC
 		}
 
 	public:
+        uint64_t GetHash() const { return this->hash; }
 		void Close()
 		{
 			if (this->protocol == Protocol::UDP)
@@ -235,20 +236,16 @@ namespace RTC
 			}
 		}
 
-	public:
-		uint64_t hash{ 0u };
-
 	private:
 		// Passed by argument.
-		RTC::UdpSocket* udpSocket{ nullptr };
-		struct sockaddr* udpRemoteAddr{ nullptr };
-		RTC::TcpConnection* tcpConnection{ nullptr };
+        const Protocol protocol;
+        RTC::TcpConnection* const tcpConnection = nullptr;
+		RTC::UdpSocket* const udpSocket = nullptr;
+        sockaddr* udpRemoteAddr = nullptr;
+        // Others.
+        struct sockaddr_storage udpRemoteAddrStorage;
+        uint64_t hash{ 0u };
 		std::string localAnnouncedAddress;
-		// Others.
-		struct sockaddr_storage udpRemoteAddrStorage
-		{
-		};
-		Protocol protocol;
 	};
 } // namespace RTC
 

@@ -16,6 +16,7 @@
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "RTC/RtxStream.hpp"
+#include <atomic>
 #include <string>
 #include <vector>
 #include <memory>
@@ -227,7 +228,7 @@ namespace RTC
 		uint8_t score{ 0u };
 		std::vector<uint8_t> scores;
 		// Whether at least a RTP packet has been received.
-		bool started{ false };
+		std::atomic_bool started{ false };
 		// Last time since the stream is active.
 		uint64_t activeSinceMs{ 0u };
 	};

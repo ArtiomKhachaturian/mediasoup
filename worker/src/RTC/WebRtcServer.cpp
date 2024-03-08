@@ -377,7 +377,7 @@ namespace RTC
 		}
 
 		// First try doing lookup in the tuples table.
-		auto it1 = this->mapTupleWebRtcTransport.find(tuple->hash);
+		auto it1 = this->mapTupleWebRtcTransport.find(tuple->GetHash());
 
 		if (it1 != this->mapTupleWebRtcTransport.end())
 		{
@@ -415,7 +415,7 @@ namespace RTC
 	{
 		MS_TRACE();
 
-		auto it = this->mapTupleWebRtcTransport.find(tuple->hash);
+		auto it = this->mapTupleWebRtcTransport.find(tuple->GetHash());
 
 		if (it == this->mapTupleWebRtcTransport.end())
 		{
@@ -482,14 +482,14 @@ namespace RTC
 	{
 		MS_TRACE();
 
-		if (this->mapTupleWebRtcTransport.find(tuple->hash) != this->mapTupleWebRtcTransport.end())
+		if (this->mapTupleWebRtcTransport.find(tuple->GetHash()) != this->mapTupleWebRtcTransport.end())
 		{
 			MS_WARN_TAG(ice, "tuple hash already exists in the table");
 
 			return;
 		}
 
-		this->mapTupleWebRtcTransport[tuple->hash] = webRtcTransport;
+		this->mapTupleWebRtcTransport[tuple->GetHash()] = webRtcTransport;
 	}
 
 	inline void WebRtcServer::OnWebRtcTransportTransportTupleRemoved(
@@ -497,14 +497,14 @@ namespace RTC
 	{
 		MS_TRACE();
 
-		if (this->mapTupleWebRtcTransport.find(tuple->hash) == this->mapTupleWebRtcTransport.end())
+		if (this->mapTupleWebRtcTransport.find(tuple->GetHash()) == this->mapTupleWebRtcTransport.end())
 		{
 			MS_DEBUG_TAG(ice, "tuple hash not found in the table");
 
 			return;
 		}
 
-		this->mapTupleWebRtcTransport.erase(tuple->hash);
+		this->mapTupleWebRtcTransport.erase(tuple->GetHash());
 	}
 
 	inline void WebRtcServer::OnUdpSocketPacketReceived(
@@ -528,7 +528,7 @@ namespace RTC
 		// mapTupleWebRtcTransport because this event may be called after the tuple
 		// was removed from it.
 
-		auto it = this->mapTupleWebRtcTransport.find(tuple.hash);
+		auto it = this->mapTupleWebRtcTransport.find(tuple.GetHash());
 
 		if (it == this->mapTupleWebRtcTransport.end())
 		{

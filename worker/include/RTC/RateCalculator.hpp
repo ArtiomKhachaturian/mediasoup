@@ -3,6 +3,8 @@
 
 #include "common.hpp"
 #include "DepLibUV.hpp"
+#include <atomic>
+#include <mutex>
 
 namespace RTC
 {
@@ -19,34 +21,15 @@ namespace RTC
 		explicit RateCalculator(
 		  size_t windowSizeMs  = DefaultWindowSize,
 		  float scale          = DefaultBpsScale,
-		  uint16_t windowItems = DefaultWindowItems)
-		  : windowSizeMs(windowSizeMs), scale(scale), windowItems(windowItems)
-		{
-			this->itemSizeMs = std::max(windowSizeMs / windowItems, static_cast<size_t>(1));
-			this->buffer.resize(windowItems);
-		}
+          uint16_t windowItems = DefaultWindowItems);
+        RateCalculator(RateCalculator&& other);
 		void Update(size_t size, uint64_t nowMs);
 		uint32_t GetRate(uint64_t nowMs);
-		size_t GetBytes() const
-		{
-			return this->bytes;
-		}
+        size_t GetBytes() const;
 
 	private:
 		void RemoveOldData(uint64_t nowMs);
-		void Reset()
-		{
-			std::memset(
-			  static_cast<void*>(&this->buffer.front()), 0, sizeof(BufferItem) * this->buffer.size());
-
-			this->newestItemStartTime = 0u;
-			this->newestItemIndex     = -1;
-			this->oldestItemStartTime = 0u;
-			this->oldestItemIndex     = -1;
-			this->totalCount          = 0u;
-			this->lastRate            = 0u;
-			this->lastTime            = 0u;
-		}
+        void Reset();
 
 	private:
 		struct BufferItem
@@ -57,13 +40,17 @@ namespace RTC
 
 	private:
 		// Window Size (in milliseconds).
-		size_t windowSizeMs{ DefaultWindowSize };
+		const size_t windowSizeMs;
 		// Scale in which the rate is represented.
-		float scale{ DefaultBpsScale };
-		// Window Size (number of items).
-		uint16_t windowItems{ DefaultWindowItems };
-		// Item Size (in milliseconds), calculated as: windowSizeMs / windowItems.
-		size_t itemSizeMs{ 0u };
+		const float scale;
+        // Window Size (number of items).
+        const uint16_t windowItems;
+        // Item Size (in milliseconds), calculated as: windowSizeMs / windowItems.
+        const size_t itemSizeMs;
+        // to protect below declared members
+        mutable std::mutex mutex;
+        // Total bytes transmitted.
+        std::atomic<size_t> bytes{ 0u };
 		// Buffer to keep data.
 		std::vector<BufferItem> buffer;
 		// Time (in milliseconds) for last item in the time window.
@@ -76,8 +63,6 @@ namespace RTC
 		int32_t oldestItemIndex{ -1 };
 		// Total count in the time window.
 		size_t totalCount{ 0u };
-		// Total bytes transmitted.
-		size_t bytes{ 0u };
 		// Last value calculated by GetRate().
 		uint32_t lastRate{ 0u };
 		// Last time GetRate() was called.
@@ -90,7 +75,7 @@ namespace RTC
 		explicit RtpDataCounter(size_t windowSizeMs = 2500) : rate(windowSizeMs)
 		{
 		}
-
+        RtpDataCounter(RtpDataCounter&& other);
 	public:
 		void Update(size_t packetSize);
 		uint32_t GetBitrate(uint64_t nowMs)
@@ -108,7 +93,7 @@ namespace RTC
 
 	private:
 		RateCalculator rate;
-		size_t packets{ 0u };
+		std::atomic<size_t> packets{ 0u };
 	};
 } // namespace RTC
 

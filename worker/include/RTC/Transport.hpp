@@ -31,6 +31,7 @@
 #include "handles/TimerHandle.hpp"
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -205,12 +206,6 @@ namespace RTC
         void SendRtcp(uint64_t nowMs);
         virtual void SendRtcpPacket(RTC::RTCP::Packet* packet)                 = 0;
         virtual void SendRtcpCompoundPacket(RTC::RTCP::CompoundPacket* packet) = 0;
-        virtual void SendMessage(
-          RTC::DataConsumer* dataConsumer,
-          const uint8_t* msg,
-          size_t len,
-          uint32_t ppid,
-          onQueuedCallback* = nullptr)                             = 0;
         virtual void SendSctpData(const uint8_t* data, size_t len) = 0;
         virtual void RecvStreamClosed(uint32_t ssrc)               = 0;
         virtual void SendStreamClosed(uint32_t ssrc)               = 0;
@@ -223,6 +218,10 @@ namespace RTC
         void CheckNoDataConsumer(const std::string& dataConsumerId) const;
         void ApplyHeaderExtensions(RTC::RtpPacket* packet);
         void DispatchReceivedRtpPacket(RTC::Producer* producer, RTC::RtpPacket* packet);
+        static size_t GetMaxMessageSize(const FBS::Transport::Options* options) noexcept(false);
+        static std::unique_ptr<RTC::SctpAssociation> CreateSctp(const FBS::Transport::Options* options,
+                                                                RTC::SctpAssociation::Listener* listener,
+                                                                size_t maxMessageSize) noexcept(false);
 
         /* Pure virtual methods inherited from RTC::Producer::Listener. */
     public:
@@ -334,30 +333,38 @@ namespace RTC
         const std::string id;
 
     protected:
-        RTC::Shared* shared{ nullptr };
-        size_t maxMessageSize{ 262144u };
-        // Allocated by this.
-        RTC::SctpAssociation* sctpAssociation{ nullptr };
+        RTC::Shared* const shared;
+        
+    protected:
+        virtual void SendMessage(
+          RTC::DataConsumer* dataConsumer,
+          const uint8_t* msg,
+          size_t len,
+          uint32_t ppid,
+          onQueuedCallback* qb = nullptr);
 
     private:
         // Passed by argument.
-        Listener* listener{ nullptr };
+        Listener* const listener;
+        const bool direct; // Whether this Transport allows direct communication.
+        const uint32_t initialAvailableOutgoingBitrate;
+        const size_t maxMessageSize;
         // Allocated by this.
+        const std::unique_ptr<RTC::SctpAssociation> sctpAssociation;
+        const std::unique_ptr<TimerHandle> rtcpTimer;
         absl::flat_hash_map<std::string, RTC::Producer*> mapProducers;
         absl::flat_hash_map<std::string, RTC::Consumer*> mapConsumers;
         absl::flat_hash_map<std::string, RTC::DataProducer*> mapDataProducers;
         absl::flat_hash_map<std::string, RTC::DataConsumer*> mapDataConsumers;
         absl::flat_hash_map<uint32_t, RTC::Consumer*> mapSsrcConsumer;
         absl::flat_hash_map<uint32_t, RTC::Consumer*> mapRtxSsrcConsumer;
-        TimerHandle* rtcpTimer{ nullptr };
         std::shared_ptr<RTC::TransportCongestionControlClient> tccClient{ nullptr };
         std::shared_ptr<RTC::TransportCongestionControlServer> tccServer{ nullptr };
 #ifdef ENABLE_RTC_SENDER_BANDWIDTH_ESTIMATOR
         std::shared_ptr<RTC::SenderBandwidthEstimator> senderBwe{ nullptr };
 #endif
         // Others.
-        bool direct{ false }; // Whether this Transport allows direct communication.
-        bool destroying{ false };
+        std::atomic_bool destroying{ false };
         struct RTC::RtpHeaderExtensionIds recvRtpHeaderExtensionIds;
         ProtectedObj<RTC::RtpListener> rtpListener;
         RTC::SctpListener sctpListener;
@@ -368,11 +375,10 @@ namespace RTC
         RTC::RtpDataCounter recvRtxTransmission;
         RTC::RtpDataCounter sendRtxTransmission;
         RTC::RtpDataCounter sendProbationTransmission;
-        uint16_t transportWideCcSeq{ 0u };
-        uint32_t initialAvailableOutgoingBitrate{ 600000u };
-        uint32_t maxIncomingBitrate{ 0u };
-        uint32_t maxOutgoingBitrate{ 0u };
-        uint32_t minOutgoingBitrate{ 0u };
+        std::atomic<uint16_t> transportWideCcSeq{ 0u };
+        std::atomic<uint32_t> maxIncomingBitrate{ 0u };
+        std::atomic<uint32_t> maxOutgoingBitrate{ 0u };
+        std::atomic<uint32_t> minOutgoingBitrate{ 0u };
         struct TraceEventTypes traceEventTypes;
     };
 } // namespace RTC

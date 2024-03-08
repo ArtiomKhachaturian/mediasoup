@@ -40,76 +40,16 @@ namespace RTC
       const std::string& id,
       RTC::Transport::Listener* listener,
       const FBS::Transport::Options* options)
-      : id(id), shared(shared), listener(listener), recvRtxTransmission(1000u),
+      : id(id), shared(shared), listener(listener),
+        direct(options->direct()),
+        initialAvailableOutgoingBitrate(options->initialAvailableOutgoingBitrate().value_or(600000u)),
+        maxMessageSize(GetMaxMessageSize(options)),
+        sctpAssociation(CreateSctp(options, this, this->maxMessageSize)),
+        rtcpTimer(std::make_unique<TimerHandle>(this)), // Create the RTCP timer.
+        recvRtxTransmission(1000u),
         sendRtxTransmission(1000u), sendProbationTransmission(100u)
     {
         MS_TRACE();
-
-        if (options->direct())
-        {
-            this->direct = true;
-
-            if (options->maxMessageSize().has_value())
-            {
-                this->maxMessageSize = options->maxMessageSize().value();
-            }
-        }
-
-        if (options->initialAvailableOutgoingBitrate().has_value())
-        {
-            this->initialAvailableOutgoingBitrate = options->initialAvailableOutgoingBitrate().value();
-        }
-
-        if (options->enableSctp())
-        {
-            if (this->direct)
-            {
-                MS_THROW_TYPE_ERROR("cannot enable SCTP in a direct Transport");
-            }
-
-            // numSctpStreams is mandatory.
-            if (!flatbuffers::IsFieldPresent(options, FBS::Transport::Options::VT_NUMSCTPSTREAMS))
-            {
-                MS_THROW_TYPE_ERROR("numSctpStreams missing");
-            }
-
-            // maxSctpMessageSize is mandatory.
-            if (!flatbuffers::IsFieldPresent(options, FBS::Transport::Options::VT_MAXSCTPMESSAGESIZE))
-            {
-                MS_THROW_TYPE_ERROR("maxSctpMessageSize missing");
-            }
-
-            this->maxMessageSize = options->maxSctpMessageSize();
-
-            size_t sctpSendBufferSize;
-
-            // sctpSendBufferSize is optional.
-            if (flatbuffers::IsFieldPresent(options, FBS::Transport::Options::VT_SCTPSENDBUFFERSIZE))
-            {
-                if (options->sctpSendBufferSize() > MaxSctpSendBufferSize)
-                {
-                    MS_THROW_TYPE_ERROR("wrong sctpSendBufferSize (maximum value exceeded)");
-                }
-
-                sctpSendBufferSize = options->sctpSendBufferSize();
-            }
-            else
-            {
-                sctpSendBufferSize = DefaultSctpSendBufferSize;
-            }
-
-            // This may throw.
-            this->sctpAssociation = new RTC::SctpAssociation(
-              this,
-              options->numSctpStreams()->os(),
-              options->numSctpStreams()->mis(),
-              this->maxMessageSize,
-              sctpSendBufferSize,
-              options->isDataChannel());
-        }
-
-        // Create the RTCP timer.
-        this->rtcpTimer = new TimerHandle(this);
     }
 
     Transport::~Transport()
@@ -155,14 +95,6 @@ namespace RTC
             delete dataConsumer;
         }
         this->mapDataConsumers.clear();
-
-        // Delete SCTP association.
-        delete this->sctpAssociation;
-        this->sctpAssociation = nullptr;
-
-        // Delete the RTCP timer.
-        delete this->rtcpTimer;
-        this->rtcpTimer = nullptr;
     }
 
     void Transport::CloseProducersAndConsumers()
@@ -527,7 +459,8 @@ namespace RTC
 
                 this->maxIncomingBitrate = body->maxIncomingBitrate();
 
-                MS_DEBUG_TAG(bwe, "maximum incoming bitrate set to %" PRIu32, this->maxIncomingBitrate);
+                MS_DEBUG_TAG(bwe, "maximum incoming bitrate set to %" PRIu32,
+                             this->maxIncomingBitrate.load());
 
                 request->Accept();
 
@@ -554,7 +487,7 @@ namespace RTC
                 {
                     MS_THROW_TYPE_ERROR(
                       "bitrate must be >= current min outgoing bitrate (%" PRIu32 ") or 0 (unlimited)",
-                      this->minOutgoingBitrate);
+                      this->minOutgoingBitrate.load());
                 }
 
                 if (this->tccClient)
@@ -564,7 +497,8 @@ namespace RTC
                     this->tccClient->SetMaxOutgoingBitrate(bitrate);
                     this->maxOutgoingBitrate = bitrate;
 
-                    MS_DEBUG_TAG(bwe, "maximum outgoing bitrate set to %" PRIu32, this->maxOutgoingBitrate);
+                    MS_DEBUG_TAG(bwe, "maximum outgoing bitrate set to %" PRIu32,
+                                 this->maxOutgoingBitrate.load());
 
                     ComputeOutgoingDesiredBitrate();
                 }
@@ -593,7 +527,7 @@ namespace RTC
                 {
                     MS_THROW_TYPE_ERROR(
                       "bitrate must be <= current max outgoing bitrate (%" PRIu32 ") or 0 (unlimited)",
-                      this->maxOutgoingBitrate);
+                      this->maxOutgoingBitrate.load());
                 }
 
                 if (this->tccClient)
@@ -603,7 +537,8 @@ namespace RTC
                     this->tccClient->SetMinOutgoingBitrate(bitrate);
                     this->minOutgoingBitrate = bitrate;
 
-                    MS_DEBUG_TAG(bwe, "minimum outgoing bitrate set to %" PRIu32, this->minOutgoingBitrate);
+                    MS_DEBUG_TAG(bwe, "minimum outgoing bitrate set to %" PRIu32,
+                                 this->minOutgoingBitrate.load());
 
                     ComputeOutgoingDesiredBitrate();
                 }
@@ -1163,7 +1098,7 @@ namespace RTC
                   this->shared,
                   dataConsumerId,
                   dataProducerId,
-                  this->sctpAssociation,
+                  this->sctpAssociation.get(),
                   this,
                   body,
                   this->maxMessageSize);
@@ -1735,6 +1670,71 @@ namespace RTC
         MS_TRACE();
         
         this->listener->OnTransportProducerRtpPacketReceived(this, producer, packet);
+    }
+
+    size_t Transport::GetMaxMessageSize(const FBS::Transport::Options* options)
+    {
+        MS_TRACE();
+        
+        size_t maxMessageSize = 262144u;
+        if (options->direct()) {
+            if (options->maxMessageSize().has_value()) {
+                maxMessageSize = options->maxMessageSize().value();
+            }
+        }
+        if (options->enableSctp()) {
+            if (options->direct()) {
+                MS_THROW_TYPE_ERROR("cannot enable SCTP in a direct Transport");
+            }
+            maxMessageSize = options->maxSctpMessageSize();
+        }
+        return maxMessageSize;
+    }
+
+    std::unique_ptr<RTC::SctpAssociation> Transport::CreateSctp(const FBS::Transport::Options* options,
+                                                                RTC::SctpAssociation::Listener* listener,
+                                                                size_t maxMessageSize)
+    {
+        MS_TRACE();
+        
+        if (options->enableSctp())
+        {
+            // numSctpStreams is mandatory.
+            if (!flatbuffers::IsFieldPresent(options, FBS::Transport::Options::VT_NUMSCTPSTREAMS))
+            {
+                MS_THROW_TYPE_ERROR("numSctpStreams missing");
+            }
+
+            // maxSctpMessageSize is mandatory.
+            if (!flatbuffers::IsFieldPresent(options, FBS::Transport::Options::VT_MAXSCTPMESSAGESIZE))
+            {
+                MS_THROW_TYPE_ERROR("maxSctpMessageSize missing");
+            }
+
+            size_t sctpSendBufferSize;
+
+            // sctpSendBufferSize is optional.
+            if (flatbuffers::IsFieldPresent(options, FBS::Transport::Options::VT_SCTPSENDBUFFERSIZE))
+            {
+                if (options->sctpSendBufferSize() > MaxSctpSendBufferSize)
+                {
+                    MS_THROW_TYPE_ERROR("wrong sctpSendBufferSize (maximum value exceeded)");
+                }
+
+                sctpSendBufferSize = options->sctpSendBufferSize();
+            }
+            else
+            {
+                sctpSendBufferSize = DefaultSctpSendBufferSize;
+            }
+
+            // This may throw.
+            return std::make_unique<RTC::SctpAssociation>(listener, options->numSctpStreams()->os(),
+                                                          options->numSctpStreams()->mis(),
+                                                          maxMessageSize, sctpSendBufferSize,
+                                                          options->isDataChannel());
+        }
+        return nullptr;
     }
 
     RTC::Producer* Transport::GetProducerById(const std::string& producerId) const
@@ -3142,7 +3142,7 @@ namespace RTC
         MS_TRACE();
 
         // RTCP timer.
-        if (timer == this->rtcpTimer)
+        if (timer == this->rtcpTimer.get())
         {
             auto interval        = static_cast<uint64_t>(RTC::RTCP::MaxVideoIntervalMs);
             const uint64_t nowMs = DepLibUV::GetTimeMs();
@@ -3157,6 +3157,15 @@ namespace RTC
             interval *= static_cast<float>(Utils::Crypto::GetRandomUInt(10, 15)) / 10;
 
             this->rtcpTimer->Start(interval);
+        }
+    }
+
+    void Transport::SendMessage(RTC::DataConsumer* dataConsumer, const uint8_t* msg,
+                                size_t len, uint32_t ppid, onQueuedCallback* qb)
+    {
+        MS_TRACE();
+        if (this->sctpAssociation) {
+            this->sctpAssociation->SendSctpMessage(dataConsumer, msg, len, ppid, qb);
         }
     }
 } // namespace RTC

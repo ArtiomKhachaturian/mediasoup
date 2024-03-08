@@ -847,14 +847,6 @@ namespace RTC
         RTC::Transport::DataSent(len);
     }
 
-    void PlainTransport::SendMessage(
-      RTC::DataConsumer* dataConsumer, const uint8_t* msg, size_t len, uint32_t ppid, onQueuedCallback* cb)
-    {
-        MS_TRACE();
-
-        this->sctpAssociation->SendSctpMessage(dataConsumer, msg, len, ppid, cb);
-    }
-
     void PlainTransport::SendSctpData(const uint8_t* data, size_t len)
     {
         MS_TRACE();

@@ -3,6 +3,7 @@
 
 #include "common.hpp"
 #include "FBS/srtpParameters.h"
+#include <mutex>
 #include <srtp.h>
 
 namespace RTC
@@ -42,12 +43,10 @@ namespace RTC
 		bool DecryptSrtp(uint8_t* data, size_t* len);
 		bool EncryptRtcp(const uint8_t** data, size_t* len);
 		bool DecryptSrtcp(uint8_t* data, size_t* len);
-		void RemoveStream(uint32_t ssrc)
-		{
-			srtp_stream_remove(this->session, uint32_t{ htonl(ssrc) });
-		}
+        void RemoveStream(uint32_t ssrc);
 
 	private:
+        std::mutex mutex;
 		// Allocated by this.
 		srtp_t session{ nullptr };
 	};

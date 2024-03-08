@@ -45,10 +45,7 @@ uint32_t RtpPacketsTimeline::GetTimestamp() const
 
 void RtpPacketsTimeline::SetSeqNumber(uint16_t seqNumber)
 {
-    const auto previous = _seqNumber.exchange(seqNumber);
-    if (previous != seqNumber) {
-        MS_ASSERT(0U == seqNumber || seqNumber >= previous, "incorrect sequence numbers order");
-    }
+    _seqNumber = seqNumber;
 }
 
 uint16_t RtpPacketsTimeline::GetSeqNumber() const

@@ -180,7 +180,12 @@ namespace RTC
 
 		if (this->session != nullptr)
 		{
-			const srtp_err_status_t err = srtp_dealloc(this->session);
+            srtp_err_status_t err = srtp_err_status_ok;
+            
+            {
+                const std::lock_guard<std::mutex> lock(this->mutex);
+                err = srtp_dealloc(this->session);
+            }
 
 			if (DepLibSRTP::IsError(err))
 			{
@@ -223,8 +228,13 @@ namespace RTC
 #endif
 
 		std::memcpy(encryptBuffer, *data, *len);
-
-		const srtp_err_status_t err = srtp_protect(this->session, encryptBuffer, len);
+        
+        srtp_err_status_t err = srtp_err_status_ok;
+        
+        {
+            const std::lock_guard<std::mutex> lock(this->mutex);
+            err = srtp_protect(this->session, encryptBuffer, len);
+        }
 
 		if (DepLibSRTP::IsError(err))
 		{
@@ -242,8 +252,13 @@ namespace RTC
 	bool SrtpSession::DecryptSrtp(uint8_t* data, size_t* len)
 	{
 		MS_TRACE();
-
-		const srtp_err_status_t err = srtp_unprotect(this->session, data, len);
+        
+        srtp_err_status_t err = srtp_err_status_ok;
+        
+        {
+            const std::lock_guard<std::mutex> lock(this->mutex);
+            err = srtp_unprotect(this->session, data, len);
+        }
 
 		if (DepLibSRTP::IsError(err))
 		{
@@ -268,8 +283,13 @@ namespace RTC
 		}
 
 		std::memcpy(EncryptBuffer, *data, *len);
+        
+        srtp_err_status_t err = srtp_err_status_ok;
 
-		const srtp_err_status_t err = srtp_protect_rtcp(this->session, EncryptBuffer, len);
+        {
+            const std::lock_guard<std::mutex> lock(this->mutex);
+            err = srtp_protect_rtcp(this->session, EncryptBuffer, len);
+        }
 
 		if (DepLibSRTP::IsError(err))
 		{
@@ -288,7 +308,12 @@ namespace RTC
 	{
 		MS_TRACE();
 
-		const srtp_err_status_t err = srtp_unprotect_rtcp(this->session, data, len);
+        srtp_err_status_t err = srtp_err_status_ok;
+        
+        {
+            const std::lock_guard<std::mutex> lock(this->mutex);
+            err = srtp_unprotect_rtcp(this->session, data, len);
+        }
 
 		if (DepLibSRTP::IsError(err))
 		{
@@ -299,4 +324,12 @@ namespace RTC
 
 		return true;
 	}
+
+    void SrtpSession::RemoveStream(uint32_t ssrc)
+    {
+        MS_TRACE();
+        
+        const std::lock_guard<std::mutex> lock(this->mutex);
+        srtp_stream_remove(this->session, uint32_t{ htonl(ssrc) });
+    }
 } // namespace RTC
