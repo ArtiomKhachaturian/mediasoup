@@ -143,7 +143,7 @@ void FileEndPoint::TimerCallback::OnEvent(uint64_t /*timerId*/)
         NotifyThatConnected();
     }
     if (WebsocketState::Connected == GetState()) {
-        if (HasWrittenInputMedia()) {
+        if (HasWrittenInputMedia() && !_owner->IsInputMediaSourcePaused()) {
             if (const auto media = ReadMediaFromFile()) {
                 NotifyAboutReceivedMedia(media);
                 StartTimer(StartMode::IfStopped);

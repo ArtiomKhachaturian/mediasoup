@@ -98,6 +98,7 @@ bool Translator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
                                                        GetId(), GetAllocator());
                 if (source) {
                     source->SetInputLanguage(GetProducerLanguageId());
+                    source->SetPaused(_producerPaused.load());
                     AddConsumersToSource(source.get());
                     _originalSsrcToStreams->insert({stream->GetSsrc(), std::move(source)});
                     ok = true;
@@ -146,7 +147,7 @@ bool Translator::RemoveStream(uint32_t ssrc)
 
 void Translator::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
-    if (packet && !_producerPaused) {
+    if (packet) {
         if (const auto ssrc = packet->GetSsrc()) {
             LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
             auto it = _originalSsrcToStreams->find(ssrc);
@@ -199,7 +200,12 @@ void Translator::RemoveConsumer(const Consumer* consumer)
 
 void Translator::SetProducerPaused(bool paused)
 {
-    _producerPaused = paused;
+    if (paused != _producerPaused.exchange(paused)) {
+        LOCK_READ_PROTECTED_OBJ(_originalSsrcToStreams);
+        for (auto it = _originalSsrcToStreams->begin(); it != _originalSsrcToStreams->end(); ++it) {
+            it->second->SetPaused(paused);
+        }
+    }
 }
 
 void Translator::SetProducerLanguageId(const std::string& languageId)

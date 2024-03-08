@@ -117,6 +117,11 @@ uint32_t TranslatorSource::GetClockRate() const
     return _depacketizer->GetClockRate();
 }
 
+void TranslatorSource::SetPaused(bool paused)
+{
+    _serializer->SetPaused(paused);
+}
+
 void TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     if (packet) {

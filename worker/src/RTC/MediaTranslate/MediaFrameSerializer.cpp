@@ -42,7 +42,7 @@ MediaFrameSerializer::~MediaFrameSerializer()
 bool MediaFrameSerializer::Write(const MediaFrame& mediaFrame)
 {
     bool ok = false;
-    if (mediaFrame.GetMimeType() == GetMimeType()) {
+    if (!IsPaused() && mediaFrame.GetMimeType() == GetMimeType()) {
         WriteToTestSink(mediaFrame);
         LOCK_READ_PROTECTED_OBJ(_writers);
         if (!_writers->empty()) {

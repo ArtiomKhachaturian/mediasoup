@@ -50,6 +50,7 @@ public:
     uint8_t GetPayloadType() const { return _payloadType; }
     uint32_t GetOriginalSsrc() const { return _originalSsrc; }
     uint32_t GetMappedSsrc() const { return _mappedSsrc; }
+    void SetPaused(bool paused);
     void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
     void SetInputLanguage(const std::string& languageId);
     bool AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
