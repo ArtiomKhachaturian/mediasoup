@@ -40,6 +40,8 @@ namespace RTC
 			virtual void OnConsumerNeedBitrateChange(RTC::Consumer* consumer)                      = 0;
 			virtual void OnConsumerNeedZeroBitrate(RTC::Consumer* consumer)                        = 0;
 			virtual void OnConsumerProducerClosed(RTC::Consumer* consumer)                         = 0;
+            virtual void OnConsumerLanguageIdChanged(RTC::Consumer* consumer)                      = 0;
+            virtual void OnConsumerVoiceIdChanged(RTC::Consumer* consumer)                         = 0;
 		};
 
 	public:
