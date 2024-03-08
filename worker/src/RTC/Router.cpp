@@ -1134,14 +1134,18 @@ namespace RTC
         }
     }
 
-    void Router::OnTransportConsumerLanguageIdChanged(RTC::Transport* transport, RTC::Consumer* consumer)
+    void Router::OnTransportConsumerLanguageIdChanged(RTC::Transport* /*transport*/,
+                                                      RTC::Consumer* consumer)
     {
         MS_TRACE();
+        UpdateConsumerLanguageOrVoice(consumer);
     }
     
-    void Router::OnTransportConsumerVoiceIdChanged(RTC::Transport* transport, RTC::Consumer* consumer)
+    void Router::OnTransportConsumerVoiceIdChanged(RTC::Transport* /*transport*/,
+                                                   RTC::Consumer* consumer)
     {
         MS_TRACE();
+        UpdateConsumerLanguageOrVoice(consumer);
     }
 
     void Router::OnRtpObserverAddProducer(RTC::RtpObserver* rtpObserver, RTC::Producer* producer)
@@ -1186,6 +1190,19 @@ namespace RTC
             }
         }
         return nullptr;
+    }
+
+    void Router::UpdateConsumerLanguageOrVoice(RTC::Consumer* consumer) const
+    {
+        MS_TRACE();
+        if (consumer) {
+            const auto it = this->mapConsumerProducer.find(consumer);
+            if (it != this->mapConsumerProducer.end()) {
+                if (const auto translator = GetTranslator(it->second)) {
+                    translator->UpdateConsumerLanguageOrVoice(consumer);
+                }
+            }
+        }
     }
 
     RTC::Producer* Router::RtpObserverGetProducer(
