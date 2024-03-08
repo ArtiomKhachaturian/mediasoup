@@ -133,6 +133,7 @@ namespace RTC
     private:
         Translator* GetTranslator(const RTC::Producer* producer, const RTC::Transport* transport = nullptr) const;
         static Translator* GetTranslator(const RTC::Producer* producer, const TranslatorsMap& map);
+        void UpdateConsumerLanguageOrVoice(RTC::Consumer* consumer) const;
 
     private:
         // Passed by argument.
