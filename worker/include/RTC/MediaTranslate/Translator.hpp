@@ -24,6 +24,7 @@ class Translator : private BufferAllocations<TranslatorEndPointFactory>
 {
     template <typename K, typename V> using Map = std::unordered_map<K, V>;
     template <typename V> using StreamMap = Map<uint32_t, V>;
+    class ConsumerTranslatorImpl;
 public:
     ~Translator() final;
     static std::unique_ptr<Translator> Create(const Producer* producer,
@@ -34,12 +35,12 @@ public:
     bool AddStream(const RtpStream* stream, uint32_t mappedSsrc);
     bool RemoveStream(uint32_t ssrc);
     void AddOriginalRtpPacketForTranslation(RtpPacket* packet);
-    void AddConsumer(Consumer* consumer);
-    void RemoveConsumer(Consumer* consumer);
+    void AddConsumer(const Consumer* consumer);
+    void RemoveConsumer(const Consumer* consumer);
     void SetProducerPaused(bool paused);
     void SetProducerLanguageId(const std::string& languageId);
     std::string GetProducerLanguageId() const;
-    void UpdateConsumerLanguageOrVoice(Consumer* consumer);
+    void UpdateConsumerLanguageOrVoice(const Consumer* consumer);
 private:
     Translator(const Producer* producer,
                const WebsocketFactory* websocketFactory,
@@ -73,7 +74,8 @@ private:
     ProtectedObj<StreamMap<std::unique_ptr<TranslatorSource>>> _originalSsrcToStreams;
     // key is mapped SSRC
     StreamMap<uint32_t> _mappedSsrcToOriginal;
-    ProtectedObj<std::list<Consumer*>> _consumers;
+    // key is consumer integer ID
+    ProtectedObj<Map<uint64_t, std::shared_ptr<ConsumerTranslatorImpl>>> _consumers;
 };
 
 } // namespace RTC

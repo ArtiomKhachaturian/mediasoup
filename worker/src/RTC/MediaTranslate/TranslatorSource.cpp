@@ -145,17 +145,17 @@ void TranslatorSource::SetInputLanguage(const std::string& languageId)
     _consumersManager.SetInputLanguage(languageId);
 }
 
-void TranslatorSource::AddConsumer(Consumer* consumer)
+void TranslatorSource::AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     _consumersManager.AddConsumer(consumer);
 }
 
-void TranslatorSource::UpdateConsumer(Consumer* consumer)
+void TranslatorSource::UpdateConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     _consumersManager.UpdateConsumer(consumer);
 }
 
-void TranslatorSource::RemoveConsumer(Consumer* consumer)
+void TranslatorSource::RemoveConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     _consumersManager.RemoveConsumer(consumer);
 }

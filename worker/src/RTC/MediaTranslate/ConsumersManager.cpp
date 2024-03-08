@@ -3,8 +3,8 @@
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPoint.hpp"
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointFactory.hpp"
 #include "RTC/MediaTranslate/RtpPacketsTimeline.hpp"
+#include "RTC/MediaTranslate/ConsumerTranslator.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
-#include "RTC/Consumer.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "Utils.hpp"
 #include "Logger.hpp"
@@ -34,7 +34,7 @@ public:
                                      const std::string& languageId,
                                      const std::string& voiceId);
     void SetOutputLanguageAndVoiceId(size_t languageAndVoiceIdKey,
-                                     const Consumer* consumer);
+                                     const std::shared_ptr<ConsumerTranslator>& consumer);
     size_t GetOutputLanguageAndVoiceIdKey() const { return _outputLanguageAndVoiceIdKey.load(); }
 private:
     const std::shared_ptr<TranslatorEndPoint> _endPoint;
@@ -83,7 +83,7 @@ std::string ConsumersManager::GetInputLanguage() const
     return _inputLanguageId.ConstRef();
 }
 
-void ConsumersManager::AddConsumer(Consumer* consumer)
+void ConsumersManager::AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     if (consumer) {
         LOCK_WRITE_PROTECTED_OBJ(_consumerToEndpointId);
@@ -120,7 +120,7 @@ void ConsumersManager::AddConsumer(Consumer* consumer)
     }
 }
 
-void ConsumersManager::UpdateConsumer(Consumer* consumer)
+void ConsumersManager::UpdateConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     if (consumer) {
         /*const auto it = _consumersInfo.find(consumer);
@@ -130,7 +130,7 @@ void ConsumersManager::UpdateConsumer(Consumer* consumer)
     }
 }
 
-bool ConsumersManager::RemoveConsumer(Consumer* consumer)
+bool ConsumersManager::RemoveConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     if (consumer) {
         LOCK_WRITE_PROTECTED_OBJ(_consumerToEndpointId);
@@ -258,7 +258,8 @@ std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::GetEndPoint(ui
     return nullptr;
 }
 
-std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::GetEndPoint(Consumer* consumer) const
+std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::
+    GetEndPoint(const std::shared_ptr<ConsumerTranslator>& consumer) const
 {
     if (consumer) {
         LOCK_READ_PROTECTED_OBJ(_consumerToEndpointId);
@@ -285,7 +286,7 @@ std::unordered_set<uint64_t> ConsumersManager::GetConsumers(uint64_t endPointId,
 }
 
 
-size_t ConsumersManager::GetLanguageVoiceKey(const Consumer* consumer)
+size_t ConsumersManager::GetLanguageVoiceKey(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     if (consumer) {
         const auto languageId = consumer->GetLanguageId();
@@ -399,7 +400,7 @@ void ConsumersManager::EndPointInfo::SetOutputLanguageAndVoiceId(size_t language
 }
 
 void ConsumersManager::EndPointInfo::SetOutputLanguageAndVoiceId(size_t languageAndVoiceIdKey,
-                                                                 const Consumer* consumer)
+                                                                 const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     if (consumer) {
         SetOutputLanguageAndVoiceId(languageAndVoiceIdKey,
