@@ -6,11 +6,11 @@
 namespace RTC
 {
 
-class RtpDepacketizerVpx : public RtpDepacketizer
+class RtpDepacketizerVpx : public RtpVideoDepacketizer
 {
     class RtpAssembly;
 public:
-    RtpDepacketizerVpx(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+    RtpDepacketizerVpx(uint32_t clockRate, bool vp8,
                        const std::shared_ptr<BufferAllocator>& allocator);
     ~RtpDepacketizerVpx() final;
     // impl. of RtpDepacketizer
@@ -18,6 +18,9 @@ public:
                                         bool makeDeepCopyOfPayload,
                                         bool* configWasChanged) final;
     VideoFrameConfig GetVideoConfig(const RtpPacket* packet) const final;
+private:
+    static bool ParseVp8VideoConfig(const RtpPacket* packet, VideoFrameConfig& applyTo);
+    static bool ParseVp9VideoConfig(const RtpPacket* packet, VideoFrameConfig& applyTo);
 private:
     absl::flat_hash_map<uint32_t, std::unique_ptr<RtpAssembly>> _assemblies;
 };

@@ -22,13 +22,13 @@ public:
                                                 bool* configWasChanged = nullptr) = 0;
     virtual AudioFrameConfig GetAudioConfig(const RtpPacket*) const { return AudioFrameConfig(); }
     virtual VideoFrameConfig GetVideoConfig(const RtpPacket*) const { return VideoFrameConfig(); }
-    const RtpCodecMimeType& GetMimeType() const { return _mimeType; }
+    const RtpCodecMimeType& GetMime() const { return _mime; }
     uint32_t GetClockRate() const { return _clockRate; }
-    static std::unique_ptr<RtpDepacketizer> Create(const RtpCodecMimeType& mimeType,
+    static std::unique_ptr<RtpDepacketizer> Create(const RtpCodecMimeType& mime,
                                                    uint32_t clockRate,
                                                    const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 protected:
-    RtpDepacketizer(const RtpCodecMimeType& mimeType, uint32_t clockRate,
+    RtpDepacketizer(const RtpCodecMimeType& mime, uint32_t clockRate,
                     const std::shared_ptr<BufferAllocator>& allocator);
     MediaFrame CreateMediaFrame() const;
     // factory method - for single-packet frames
@@ -40,11 +40,23 @@ protected:
                           MediaFrame* frame, bool makeDeepCopyOfPayload = true);
     // null_opt if no descriptor for the packet
     static std::optional<size_t> GetPayloadDescriptorSize(const RtpPacket* packet);
-    static bool ParseVp8VideoConfig(const RtpPacket* packet, VideoFrameConfig& applyTo);
-    static bool ParseVp9VideoConfig(const RtpPacket* packet, VideoFrameConfig& applyTo);
 private:
-    const RtpCodecMimeType _mimeType;
+    const RtpCodecMimeType _mime;
     const uint32_t _clockRate;
+};
+
+class RtpAudioDepacketizer : public RtpDepacketizer
+{
+protected:
+    RtpAudioDepacketizer(RtpCodecMimeType::Subtype type, uint32_t clockRate,
+                         const std::shared_ptr<BufferAllocator>& allocator);
+};
+
+class RtpVideoDepacketizer : public RtpDepacketizer
+{
+protected:
+    RtpVideoDepacketizer(RtpCodecMimeType::Subtype type, uint32_t clockRate,
+                         const std::shared_ptr<BufferAllocator>& allocator);
 };
 
 } // namespace RTC

@@ -3,6 +3,7 @@
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/MediaTranslate/MediaFrameWriter.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
+#include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
@@ -15,22 +16,28 @@ namespace RTC
 class MediaFrameSerializer::SinkWriter
 {
 public:
-    SinkWriter(std::unique_ptr<MediaFrameWriter> impl);
-    bool Write(const MediaFrame& mediaFrame);
-    void SetConfig(const AudioFrameConfig& config);
-    void SetConfig(const VideoFrameConfig& config);
+    SinkWriter(std::unique_ptr<RtpDepacketizer> depacketizer,
+               std::unique_ptr<MediaFrameWriter> impl);
+    bool Write(const RtpPacket* packet);
 private:
+    bool Write(const MediaFrame& mediaFrame);
+    std::optional<MediaFrame> CreateFrame(const RtpPacket* packet);
     const webrtc::TimeDelta& Update(const Timestamp& timestamp);
     bool IsAccepted(const Timestamp& timestamp) const;
 private:
+    const std::unique_ptr<RtpDepacketizer> _depacketizer;
     const std::unique_ptr<MediaFrameWriter> _impl;
     // TODO: think about thread-safety for these members
     std::optional<Timestamp> _lastTimestamp;
     webrtc::TimeDelta _offset = webrtc::TimeDelta::Zero();
 };
 
-MediaFrameSerializer::MediaFrameSerializer(const RtpCodecMimeType& mime)
-    : _mime(mime)
+MediaFrameSerializer::MediaFrameSerializer(const RtpCodecMimeType& mime,
+                                           uint32_t clockRate,
+                                           const std::shared_ptr<BufferAllocator>& allocator)
+    :  BufferAllocations<MediaSource>(allocator)
+    , _mime(mime)
+    , _clockRate(clockRate)
 {
 }
 
@@ -39,36 +46,17 @@ MediaFrameSerializer::~MediaFrameSerializer()
     MediaFrameSerializer::RemoveAllSinks();
 }
 
-bool MediaFrameSerializer::Write(const MediaFrame& mediaFrame)
+void MediaFrameSerializer::Write(const RtpPacket* packet)
 {
-    bool ok = false;
-    if (!IsPaused() && mediaFrame.GetMimeType() == GetMimeType()) {
-        WriteToTestSink(mediaFrame);
+    if (packet && !IsPaused()) {
+        WriteToTestSink(packet);
         LOCK_READ_PROTECTED_OBJ(_writers);
-        if (!_writers->empty()) {
-            for (auto it = _writers->begin(); it != _writers->end(); ++it) {
-                if (it->second->Write(mediaFrame)) {
-                    ok = true;
-                }
-            }
-            if (!ok) {
-                MS_ERROR_STD("unable to write media frame [%s]", GetMimeType().ToString().c_str());
+        for (auto it = _writers->begin(); it != _writers->end(); ++it) {
+            if (!it->second->Write(packet)) {
+                MS_ERROR_STD("unable to write media frame [%s]", GetMimeText().c_str());
             }
         }
     }
-    return ok;
-}
-
-void MediaFrameSerializer::SetConfig(const AudioFrameConfig& config)
-{
-    MS_ASSERT(GetMimeType().IsAudioCodec(), "audio config is not suitable");
-    SetMediaConfig(config);
-}
-
-void MediaFrameSerializer::SetConfig(const VideoFrameConfig& config)
-{
-    MS_ASSERT(GetMimeType().IsVideoCodec(), "video config is not suitable");
-    SetMediaConfig(config);
 }
 
 bool MediaFrameSerializer::AddTestSink(MediaSink* sink)
@@ -134,45 +122,54 @@ bool MediaFrameSerializer::HasSinks() const
 
 std::string_view MediaFrameSerializer::GetFileExtension() const
 {
-    return MimeSubTypeToString(GetMimeType().GetSubtype());
+    return MimeSubTypeToString(GetMime().GetSubtype());
 }
 
-std::unique_ptr<MediaFrameSerializer::SinkWriter> MediaFrameSerializer::CreateSinkWriter(MediaSink* sink)
+std::unique_ptr<MediaFrameSerializer::SinkWriter> MediaFrameSerializer::
+    CreateSinkWriter(MediaSink* sink)
 {
+    std::unique_ptr<SinkWriter> sinkWriter;
     if (auto impl = CreateWriter(sink)) {
-        return std::make_unique<SinkWriter>(std::move(impl));
+        if (auto depacketizer = RtpDepacketizer::Create(GetMime(),
+                                                        GetClockRate(),
+                                                        GetAllocator())) {
+            sinkWriter = std::make_unique<SinkWriter>(std::move(depacketizer), std::move(impl));
+        }
+        else {
+            MS_ERROR_STD("failed create of RTP depacketizer [%s], clock rate %u Hz",
+                         GetMimeText().c_str(), GetClockRate());
+        }
     }
-    return nullptr;
+    else {
+        MS_ERROR_STD("failed create of media sink writer [%s]", GetMimeText().c_str());
+    }
+    return sinkWriter;
 }
 
-void MediaFrameSerializer::WriteToTestSink(const MediaFrame& mediaFrame) const
+void MediaFrameSerializer::WriteToTestSink(const RtpPacket* packet) const
 {
     LOCK_READ_PROTECTED_OBJ(_testWriter);
     if (const auto& testWriter = _testWriter.ConstRef()) {
-        if (!testWriter->Write(mediaFrame)) {
-            // TODO: log warning, maybe at debug level
+        if (!testWriter->Write(packet)) {
+            MS_ERROR_STD("unable write media frame [%s] to test sink",
+                         GetMimeText().c_str());
         }
     }
 }
 
-template<class TConfig>
-void MediaFrameSerializer::SetMediaConfig(const TConfig& config)
+MediaFrameSerializer::SinkWriter::SinkWriter(std::unique_ptr<RtpDepacketizer> depacketizer,
+                                             std::unique_ptr<MediaFrameWriter> impl)
+    : _depacketizer(std::move(depacketizer))
+    , _impl(std::move(impl))
 {
-    {
-        LOCK_READ_PROTECTED_OBJ(_writers);
-        for (auto it = _writers->begin(); it != _writers->end(); ++it) {
-            it->second->SetConfig(config);
-        }
-    }
-    LOCK_READ_PROTECTED_OBJ(_testWriter);
-    if (const auto& testWriter = _testWriter.ConstRef()) {
-        testWriter->SetConfig(config);
-    }
 }
 
-MediaFrameSerializer::SinkWriter::SinkWriter(std::unique_ptr<MediaFrameWriter> impl)
-    : _impl(std::move(impl))
+bool MediaFrameSerializer::SinkWriter::Write(const RtpPacket* packet)
 {
+    if (auto frame = CreateFrame(packet)) {
+        return Write(frame.value());
+    }
+    return false;
 }
 
 bool MediaFrameSerializer::SinkWriter::Write(const MediaFrame& mediaFrame)
@@ -184,14 +181,25 @@ bool MediaFrameSerializer::SinkWriter::Write(const MediaFrame& mediaFrame)
     return false;
 }
 
-void MediaFrameSerializer::SinkWriter::SetConfig(const AudioFrameConfig& config)
+std::optional<MediaFrame> MediaFrameSerializer::SinkWriter::CreateFrame(const RtpPacket* packet)
 {
-    _impl->SetConfig(config);
-}
-
-void MediaFrameSerializer::SinkWriter::SetConfig(const VideoFrameConfig& config)
-{
-    _impl->SetConfig(config);
+    if (packet) {
+        bool configChanged = false;
+        if (auto frame = _depacketizer->AddPacket(packet, _impl->IsAsync(), &configChanged)) {
+            if (configChanged) {
+                switch (_depacketizer->GetMime().GetType()) {
+                    case RtpCodecMimeType::Type::AUDIO:
+                        _impl->SetConfig(_depacketizer->GetAudioConfig(packet));
+                        break;
+                    case RtpCodecMimeType::Type::VIDEO:
+                        _impl->SetConfig(_depacketizer->GetVideoConfig(packet));
+                        break;
+                }
+            }
+            return frame;
+        }
+    }
+    return std::nullopt;
 }
 
 const webrtc::TimeDelta& MediaFrameSerializer::SinkWriter::Update(const Timestamp& timestamp)
