@@ -92,19 +92,19 @@ void TranslatorEndPoint::RemoveAllOutputMediaSinks()
     }
 }
 
-void TranslatorEndPoint::SetInputLanguageId(const std::string& languageId)
+void TranslatorEndPoint::SetInputLanguageId(std::string languageId)
 {
-    ChangeTranslationSettings(languageId, _inputLanguageId);
+    ChangeTranslationSettings(std::move(languageId), _inputLanguageId);
 }
 
-void TranslatorEndPoint::SetOutputLanguageId(const std::string& languageId)
+void TranslatorEndPoint::SetOutputLanguageId(std::string languageId)
 {
-    ChangeTranslationSettings(languageId, _outputLanguageId);
+    ChangeTranslationSettings(std::move(languageId), _outputLanguageId);
 }
 
-void TranslatorEndPoint::SetOutputVoiceId(const std::string& voiceId)
+void TranslatorEndPoint::SetOutputVoiceId(std::string voiceId)
 {
-    ChangeTranslationSettings(voiceId, _outputVoiceId);
+    ChangeTranslationSettings(std::move(voiceId), _outputVoiceId);
 }
 
 std::string TranslatorEndPoint::GetInputLanguageId() const
@@ -197,14 +197,13 @@ nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLan
     return command;
 }
 
-void TranslatorEndPoint::ChangeTranslationSettings(const std::string& to,
-                                                   ProtectedObj<std::string>& object)
+void TranslatorEndPoint::ChangeTranslationSettings(std::string to, ProtectedObj<std::string>& object)
 {
     bool changed = false;
     {
         LOCK_WRITE_PROTECTED_OBJ(object);
         if (to != object.ConstRef()) {
-            object = to;
+            object = std::move(to);
             changed = true;
         }
     }

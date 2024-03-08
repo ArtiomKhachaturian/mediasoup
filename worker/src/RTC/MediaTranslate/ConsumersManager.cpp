@@ -10,6 +10,16 @@
 #include "Logger.hpp"
 #include <atomic>
 
+namespace {
+
+enum class RemoveResult {
+    Failed,
+    Succeeded,
+    SucceededNoMoreConsumers
+};
+
+}
+
 namespace RTC
 {
 
@@ -24,23 +34,28 @@ public:
     void BeginMediaPlay(uint64_t mediaId, const RtpPacketsTimeline& timeline);
     void EndMediaPlay(uint64_t mediaId);
     bool IsPlaying() const;
+    std::unordered_set<uint64_t> GetConsumers() const;
+    size_t GetConsumersCount() const;
+    size_t GetLanguageVoiceKey() const;
+    // return true if consumer language/voice ID is matched to this end-point
+    bool AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
+    RemoveResult RemoveConsumer(const std::shared_ptr<ConsumerTranslator>& consumer);
+    bool HasConsumer(const std::shared_ptr<ConsumerTranslator>& consumer) const;
     bool AdvanceTranslatedPacket(const Timestamp& offset, RtpPacket* packet);
     bool AdvanceTranslatedPacket(uint32_t offset, RtpPacket* packet);
     std::unique_ptr<RtpPacket> MapOriginalPacket(uint32_t offset, RtpPacket* packet);
     bool IsConnected() const { return _endPoint->IsConnected(); }
     uint64_t GetId() const { return _endPoint->GetId(); }
-    void SetInputLanguageId(const std::string& languageId);
-    void SetOutputLanguageAndVoiceId(size_t languageAndVoiceIdKey,
-                                     const std::string& languageId,
-                                     const std::string& voiceId);
-    void SetOutputLanguageAndVoiceId(size_t languageAndVoiceIdKey,
-                                     const std::shared_ptr<ConsumerTranslator>& consumer);
-    size_t GetOutputLanguageAndVoiceIdKey() const { return _outputLanguageAndVoiceIdKey.load(); }
+    void SetInput(std::string languageId);
+    void SetOutput(std::string languageId, std::string voiceId);
+    static size_t GetLanguageVoiceKey(const std::shared_ptr<ConsumerTranslator>& consumer);
+    static size_t GetLanguageVoiceKey(const std::string& languageId, const std::string& voiceId);
 private:
     const std::shared_ptr<TranslatorEndPoint> _endPoint;
     ProtectedUniquePtr<RtpPacketsTimeline> _timeline;
     ProtectedObj<PlayInfo> _playInfo;
-    std::atomic<size_t> _outputLanguageAndVoiceIdKey = 0U;
+    ProtectedObj<std::unordered_set<uint64_t>> _consumers;
+    size_t _languageVoiceKey = 0U; // under protection of [_consumers]
 };
 
 ConsumersManager::ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
@@ -59,19 +74,25 @@ ConsumersManager::ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
 
 ConsumersManager::~ConsumersManager()
 {
-    LOCK_WRITE_PROTECTED_OBJ(_endpoints);
-    _endpoints->clear();
+    LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+    _endPoints->clear();
 }
 
 void ConsumersManager::SetInputLanguage(const std::string& languageId)
 {
     if (!languageId.empty()) {
-        LOCK_WRITE_PROTECTED_OBJ(_inputLanguageId);
-        if (_inputLanguageId.ConstRef() != languageId) {
-            _inputLanguageId = languageId;
-            LOCK_READ_PROTECTED_OBJ(_endpoints);
-            for (auto it = _endpoints->begin(); it != _endpoints->end(); ++it) {
-                it->second->SetInputLanguageId(languageId);
+        bool changed = false;
+        {
+            LOCK_WRITE_PROTECTED_OBJ(_inputLanguageId);
+            if (_inputLanguageId.ConstRef() != languageId) {
+                _inputLanguageId = languageId;
+                changed = true;
+            }
+        }
+        if (changed) {
+            LOCK_READ_PROTECTED_OBJ(_endPoints);
+            for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+                it->second->SetInput(languageId);
             }
         }
     }
@@ -83,71 +104,69 @@ std::string ConsumersManager::GetInputLanguage() const
     return _inputLanguageId.ConstRef();
 }
 
-void ConsumersManager::AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
+bool ConsumersManager::AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     if (consumer) {
-        LOCK_WRITE_PROTECTED_OBJ(_consumerToEndpointId);
-        if (!_consumerToEndpointId->count(consumer)) {
-            if (const auto key = GetLanguageVoiceKey(consumer)) {
-                std::shared_ptr<EndPointInfo> endPoint;
-                {
-                    LOCK_WRITE_PROTECTED_OBJ(_endpoints);
-                    for (auto it = _endpoints->begin(); it != _endpoints->end(); ++it) {
-                        if (it->second->GetOutputLanguageAndVoiceIdKey() == key) {
-                            endPoint = it->second;
-                            break;
-                        }
-                    }
-                    if (!endPoint) {
-                        endPoint = CreateEndPoint();
-                        if (endPoint) {
-                            endPoint->SetOutputLanguageAndVoiceId(key, consumer);
-                            _endpoints->insert(std::make_pair(endPoint->GetId(), endPoint));
-                        }
-                    }
-                }
-                if (endPoint) {
-                    _consumerToEndpointId->insert(std::make_pair(consumer, endPoint->GetId()));
-                }
-                else {
-                    // TODO: add error log
-                }
-            }
-            else {
-                // TODO: add error log
+        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+        for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+            if (it->second->AddConsumer(consumer)) {
+                return true; // done, language & voice ID was matched
             }
         }
+        return AddNewEndPointFor(consumer);
     }
+    return false;
 }
 
-void ConsumersManager::UpdateConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
+bool ConsumersManager::UpdateConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     if (consumer) {
-        /*const auto it = _consumersInfo.find(consumer);
-        if (it != _consumersInfo.end()) {
-            UpdateConsumer(consumer, it->second);
-        }*/
+        bool deprecated = false;
+        auto languageId = consumer->GetLanguageId();
+        auto voiceId = consumer->GetVoiceId();
+        const auto key = EndPointInfo::GetLanguageVoiceKey(languageId, voiceId);
+        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+        for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+            if (key != it->second->GetLanguageVoiceKey()) {
+                switch (it->second->RemoveConsumer(consumer)) {
+                    case RemoveResult::Succeeded:
+                        deprecated = true;
+                        break;
+                    case RemoveResult::SucceededNoMoreConsumers:
+                        it->second->SetOutput(languageId, voiceId);
+                        // add consumer again
+                        MS_ASSERT(it->second->AddConsumer(consumer), "failed add consumer to updated end-point");
+                        return true; // done
+                    default:
+                        break;
+                }
+            }
+        }
+        if (deprecated) {
+            for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+                if (it->second->AddConsumer(consumer)) {
+                    return true;
+                }
+            }
+            // no more suitable end-points found
+            return AddNewEndPointFor(consumer, std::move(languageId), std::move(voiceId));
+        }
     }
+    return false;
 }
 
 bool ConsumersManager::RemoveConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     if (consumer) {
-        LOCK_WRITE_PROTECTED_OBJ(_consumerToEndpointId);
-        const auto itc = _consumerToEndpointId->find(consumer);
-        if (itc != _consumerToEndpointId->end()) {
-            size_t endPointUsersCount = 0UL;
-            for (auto it = _consumerToEndpointId->begin(); it != _consumerToEndpointId->end(); ++it) {
-                if (it != itc && it->second == itc->second) {
-                    ++endPointUsersCount;
+        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+        for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+            const auto result = it->second->RemoveConsumer(consumer);
+            if (RemoveResult::Failed != result) {
+                if (RemoveResult::SucceededNoMoreConsumers == result) {
+                    _endPoints->erase(it);
                 }
+                return true;
             }
-            if (!endPointUsersCount) {
-                LOCK_WRITE_PROTECTED_OBJ(_endpoints);
-                _endpoints->erase(itc->second);
-            }
-            _consumerToEndpointId->erase(itc);
-            return true;
         }
     }
     return false;
@@ -160,9 +179,9 @@ void ConsumersManager::DispatchOriginalPacket(RtpPacket* packet, RtpPacketsColle
         _originalTimeline.SetSeqNumber(packet->GetSequenceNumber());
         std::unordered_set<uint64_t> rejectedConsumers;
         {
-            LOCK_READ_PROTECTED_OBJ(_endpoints);
-            if (!_endpoints->empty()) {
-                for (auto it = _endpoints->begin(); it != _endpoints->end(); ++it) {
+            LOCK_READ_PROTECTED_OBJ(_endPoints);
+            if (!_endPoints->empty()) {
+                for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
                     if (it->second->IsPlaying()) {
                         rejectedConsumers.merge(GetMyConsumers(it->first));
                     }
@@ -230,6 +249,39 @@ void ConsumersManager::EndPacketsSending(uint64_t mediaId, uint64_t endPointId)
     }
 }
 
+bool ConsumersManager::AddNewEndPointFor(const std::shared_ptr<ConsumerTranslator>& consumer)
+{
+    return consumer && AddNewEndPointFor(consumer, consumer->GetLanguageId(), consumer->GetVoiceId());
+}
+
+bool ConsumersManager::AddNewEndPointFor(const std::shared_ptr<ConsumerTranslator>& consumer,
+                                         std::string consumerLanguageId,
+                                         std::string consumerVoiceId)
+{
+    bool added = false;
+    if (consumer) {
+        if (auto endPoint = CreateEndPoint()) {
+            const auto endPointId = endPoint->GetId();
+            endPoint->SetOutput(std::move(consumerLanguageId), std::move(consumerVoiceId));
+            added = endPoint->AddConsumer(consumer);
+            if (added) {
+                _endPoints->insert(std::make_pair(endPointId, std::move(endPoint)));
+            }
+            else {
+                MS_ERROR_STD("failed add consumer to new end-point for language [%s] & voice [%s]",
+                             consumerLanguageId.c_str(),
+                             consumerVoiceId.c_str());
+            }
+        }
+        else {
+            MS_ERROR_STD("failed create of new end-point for language [%s] & voice [%s]",
+                         consumerLanguageId.c_str(),
+                         consumerVoiceId.c_str());
+        }
+    }
+    return added;
+}
+
 std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::CreateEndPoint() const
 {
     if (auto endPoint = _endPointsFactory->CreateEndPoint()) {
@@ -249,23 +301,10 @@ std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::CreateEndPoint
 std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::GetEndPoint(uint64_t endPointId) const
 {
     if (endPointId) {
-        LOCK_READ_PROTECTED_OBJ(_endpoints);
-        const auto it = _endpoints->find(endPointId);
-        if (it != _endpoints->end()) {
+        LOCK_READ_PROTECTED_OBJ(_endPoints);
+        const auto it = _endPoints->find(endPointId);
+        if (it != _endPoints->end()) {
             return it->second;
-        }
-    }
-    return nullptr;
-}
-
-std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::
-    GetEndPoint(const std::shared_ptr<ConsumerTranslator>& consumer) const
-{
-    if (consumer) {
-        LOCK_READ_PROTECTED_OBJ(_consumerToEndpointId);
-        const auto it = _consumerToEndpointId->find(consumer);
-        if (it != _consumerToEndpointId->end()) {
-            return GetEndPoint(it->second);
         }
     }
     return nullptr;
@@ -275,29 +314,22 @@ std::unordered_set<uint64_t> ConsumersManager::GetConsumers(uint64_t endPointId,
 {
     std::unordered_set<uint64_t> consumers;
     if (endPointId) {
-        LOCK_READ_PROTECTED_OBJ(_consumerToEndpointId);
-        for (auto it = _consumerToEndpointId->begin(); it != _consumerToEndpointId->end(); ++it) {
-            if (alien ? it->second != endPointId : it->second == endPointId) {
-                consumers.insert(it->first->GetId());
+        LOCK_READ_PROTECTED_OBJ(_endPoints);
+        if (alien) {
+            for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+                if (it->first != endPointId) {
+                    consumers.merge(it->second->GetConsumers());
+                }
+            }
+        }
+        else {
+            const auto it = _endPoints->find(endPointId);
+            if (it != _endPoints->end()) {
+                consumers = it->second->GetConsumers();
             }
         }
     }
     return consumers;
-}
-
-
-size_t ConsumersManager::GetLanguageVoiceKey(const std::shared_ptr<ConsumerTranslator>& consumer)
-{
-    if (consumer) {
-        const auto languageId = consumer->GetLanguageId();
-        if (!languageId.empty()) {
-            const auto voiceId = consumer->GetVoiceId();
-            if (!voiceId.empty()) {
-                return Utils::HashCombine(languageId, voiceId);
-            }
-        }
-    }
-    return 0U;
 }
 
 ConsumersManager::EndPointInfo::EndPointInfo(std::shared_ptr<TranslatorEndPoint> endPoint)
@@ -365,6 +397,65 @@ bool ConsumersManager::EndPointInfo::IsPlaying() const
     return 0U != _playInfo->first;
 }
 
+std::unordered_set<uint64_t> ConsumersManager::EndPointInfo::GetConsumers() const
+{
+    LOCK_READ_PROTECTED_OBJ(_consumers);
+    return _consumers.ConstRef();
+}
+
+size_t ConsumersManager::EndPointInfo::GetConsumersCount() const
+{
+    LOCK_READ_PROTECTED_OBJ(_consumers);
+    return _consumers->size();
+}
+
+size_t ConsumersManager::EndPointInfo::GetLanguageVoiceKey() const
+{
+    LOCK_READ_PROTECTED_OBJ(_consumers);
+    return _languageVoiceKey;
+}
+
+bool ConsumersManager::EndPointInfo::AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
+{
+    if (consumer) {
+        if (const auto id = consumer->GetId()) {
+            LOCK_WRITE_PROTECTED_OBJ(_consumers);
+            if (GetLanguageVoiceKey(consumer) == _languageVoiceKey) {
+                _consumers->insert(id);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+RemoveResult ConsumersManager::EndPointInfo::RemoveConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
+{
+    if (consumer) {
+        if (const auto id = consumer->GetId()) {
+            LOCK_WRITE_PROTECTED_OBJ(_consumers);
+            if (_consumers->erase(id)) {
+                if (_consumers->empty()) {
+                    return RemoveResult::SucceededNoMoreConsumers;
+                }
+                return RemoveResult::Succeeded;
+            }
+        }
+    }
+    return RemoveResult::Failed;
+}
+
+bool ConsumersManager::EndPointInfo::HasConsumer(const std::shared_ptr<ConsumerTranslator>& consumer) const
+{
+    if (consumer) {
+        if (const auto id = consumer->GetId()) {
+            LOCK_READ_PROTECTED_OBJ(_consumers);
+            return _consumers->count(id) > 0U;
+        }
+    }
+    return false;
+}
+
 std::unique_ptr<RtpPacket> ConsumersManager::EndPointInfo::MapOriginalPacket(uint32_t offset,
                                                                              RtpPacket* packet)
 {
@@ -382,31 +473,38 @@ std::unique_ptr<RtpPacket> ConsumersManager::EndPointInfo::MapOriginalPacket(uin
     return nullptr;
 }
 
-void ConsumersManager::EndPointInfo::SetInputLanguageId(const std::string& languageId)
+void ConsumersManager::EndPointInfo::SetInput(std::string languageId)
 {
-    _endPoint->SetInputLanguageId(languageId);
+    _endPoint->SetInputLanguageId(std::move(languageId));
 }
 
-void ConsumersManager::EndPointInfo::SetOutputLanguageAndVoiceId(size_t languageAndVoiceIdKey,
-                                                                 const std::string& languageId,
-                                                                 const std::string& voiceId)
+void ConsumersManager::EndPointInfo::SetOutput(std::string languageId, std::string voiceId)
 {
-    if (!languageId.empty() && !voiceId.empty()) {
-        if (languageAndVoiceIdKey != _outputLanguageAndVoiceIdKey.exchange(languageAndVoiceIdKey)) {
-            _endPoint->SetOutputLanguageId(languageId);
-            _endPoint->SetOutputVoiceId(voiceId);
-        }
+    const auto languageVoiceKey = GetLanguageVoiceKey(languageId, voiceId);
+    LOCK_WRITE_PROTECTED_OBJ(_consumers);
+    if (languageVoiceKey != _languageVoiceKey) {
+        _languageVoiceKey = languageVoiceKey;
+        _endPoint->SetOutputLanguageId(std::move(languageId));
+        _endPoint->SetOutputVoiceId(std::move(voiceId));
     }
 }
 
-void ConsumersManager::EndPointInfo::SetOutputLanguageAndVoiceId(size_t languageAndVoiceIdKey,
-                                                                 const std::shared_ptr<ConsumerTranslator>& consumer)
+size_t ConsumersManager::EndPointInfo::GetLanguageVoiceKey(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     if (consumer) {
-        SetOutputLanguageAndVoiceId(languageAndVoiceIdKey,
-                                    consumer->GetLanguageId(),
-                                    consumer->GetVoiceId());
+        return GetLanguageVoiceKey(consumer->GetLanguageId(), consumer->GetVoiceId());
     }
+    return 0U;
 }
+
+size_t ConsumersManager::EndPointInfo::GetLanguageVoiceKey(const std::string& languageId,
+                                                           const std::string& voiceId)
+{
+    if (!languageId.empty() && !voiceId.empty()) {
+        return Utils::HashCombine(languageId, voiceId);
+    }
+    return 0U;
+}
+
 
 } // namespace RTC

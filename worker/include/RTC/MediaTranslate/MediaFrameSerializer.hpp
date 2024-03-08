@@ -31,6 +31,7 @@ public:
     bool AddTestSink(MediaSink* sink);
     void RemoveTestSink();
     bool HasTestSink() const;
+    bool IsReadyToWrite() const { return HasTestSink() || HasSinks(); }
     const RtpCodecMimeType& GetMimeType() const { return _mime; }
     // impl. of MediaSource
     bool AddSink(MediaSink* sink) final;

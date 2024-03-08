@@ -27,9 +27,9 @@ public:
     void RemoveAllOutputMediaSinks();
     bool HasOutputMediaSinks() const { return !_outputMediaSinks.IsEmpty(); }
     // language settings
-    void SetInputLanguageId(const std::string& languageId);
-    void SetOutputVoiceId(const std::string& voiceId);
-    void SetOutputLanguageId(const std::string& languageId);
+    void SetInputLanguageId(std::string languageId);
+    void SetOutputVoiceId(std::string voiceId);
+    void SetOutputLanguageId(std::string languageId);
     std::string GetInputLanguageId() const;
     std::string GetOutputLanguageId() const;
     std::string GetOutputVoiceId() const;
@@ -55,7 +55,7 @@ private:
     static nlohmann::json TargetLanguageCmd(const std::string& inputLanguageId,
                                             const std::string& outputLanguageId,
                                             const std::string& outputVoiceId);
-    void ChangeTranslationSettings(const std::string& to, ProtectedObj<std::string>& object);
+    void ChangeTranslationSettings(std::string to, ProtectedObj<std::string>& object);
     bool CanConnect() const;
     bool HasInputLanguageId() const;
     bool HasOutputLanguageId() const;
