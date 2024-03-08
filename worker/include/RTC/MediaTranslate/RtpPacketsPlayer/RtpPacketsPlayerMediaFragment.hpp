@@ -31,6 +31,8 @@ public:
     size_t GetTracksCount() const;
     std::optional<RtpCodecMimeType> GetTrackMimeType(size_t trackIndex) const;
     void Start(size_t trackIndex, uint32_t clockRate, RtpPacketsPlayerStreamCallback* callback);
+    void Stop();
+    void Pause(bool pause);
 private:
     const std::shared_ptr<RtpPacketsPlayerMediaFragmentQueue> _queue;
 };

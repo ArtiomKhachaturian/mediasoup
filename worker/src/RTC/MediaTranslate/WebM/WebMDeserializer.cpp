@@ -31,7 +31,7 @@ public:
     void Reset();
     StreamState GetState() const;
     // impl. of MediaFrameDeserializedTrack
-    std::optional<MediaFrame> NextFrame(size_t payloadOffset) final;
+    std::optional<MediaFrame> NextFrame(size_t payloadOffset, bool skipPayload) final;
 private:
     TrackInfo(RtpCodecMimeType::Type type,
               RtpCodecMimeType::Subtype subType,
@@ -138,7 +138,8 @@ void WebMDeserializer::TrackInfo::Reset()
     _currentBlockFrameIndex = 0;
 }
 
-std::optional<MediaFrame> WebMDeserializer::TrackInfo::NextFrame(size_t payloadOffset)
+std::optional<MediaFrame> WebMDeserializer::TrackInfo::NextFrame(size_t payloadOffset,
+                                                                 bool skipPayload)
 {
     std::optional<MediaFrame> mediaFrame;
     MkvReadResult mkvResult = MkvReadResult::Success;
@@ -152,24 +153,28 @@ std::optional<MediaFrame> WebMDeserializer::TrackInfo::NextFrame(size_t payloadO
         if (MaybeOk(mkvResult) && _currentBlockEntry) {
             const auto block = _currentBlockEntry->GetBlock();
             const auto& frame = block->GetFrame(_currentBlockFrameIndex++);
-            const auto frameLen = static_cast<size_t>(frame.len);
+            const size_t frameLen = skipPayload ? 0U : static_cast<size_t>(frame.len);
             const auto buffer = AllocateBuffer(payloadOffset + frameLen);
-            if (buffer) {
-                mkvResult = ToMkvReadResult(frame.Read(_segment->m_pReader,
-                                                       buffer->GetData() + payloadOffset));
-                if (MaybeOk(mkvResult)) {
-                    mediaFrame = std::make_optional<MediaFrame>(_mime, GetClockRate(), GetAllocator());
-                    mediaFrame->AddPayload(buffer);
-                    mediaFrame->SetKeyFrame(block->IsKey());
-                    const auto ts = GetBlockTime(block);
-                    if (ts.has_value()) {
-                        mediaFrame->SetTimestamp(ts.value());
-                    }
-                    SetLastPayloadSize(frameLen);
+            if (!skipPayload) { // read frame content
+                if (buffer) {
+                    const auto payloadAddr = buffer->GetData() + payloadOffset;
+                    const auto res = frame.Read(_segment->m_pReader, payloadAddr);
+                    mkvResult = ToMkvReadResult(res);
+                }
+                else {
+                    mkvResult = MkvReadResult::OutOfMemory;
+                    MS_ERROR_STD("allocation of [%zu bytes] buffer failed", payloadOffset + frameLen);
                 }
             }
-            else {
-                MS_ERROR_STD("allocation of [%zu bytes] buffer failed", payloadOffset + frameLen);
+            if (MaybeOk(mkvResult)) {
+                mediaFrame = std::make_optional<MediaFrame>(_mime, GetClockRate(), GetAllocator());
+                mediaFrame->SetKeyFrame(block->IsKey());
+                mediaFrame->AddPayload(buffer);
+                const auto ts = GetBlockTime(block);
+                if (ts.has_value()) {
+                    mediaFrame->SetTimestamp(ts.value());
+                }
+                SetLastPayloadSize(frameLen);
             }
         }
     }

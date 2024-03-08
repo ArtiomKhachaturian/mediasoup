@@ -131,6 +131,11 @@ void RtpPacketsPlayerMediaFragmentQueue::Stop()
     _framesTimeout = 0U;
 }
 
+void RtpPacketsPlayerMediaFragmentQueue::Pause(bool pause)
+{
+    _skipPayload = pause;
+}
+
 size_t RtpPacketsPlayerMediaFragmentQueue::GetTracksCount() const
 {
     LOCK_READ_PROTECTED_OBJ(_deserializer);
@@ -268,7 +273,7 @@ bool RtpPacketsPlayerMediaFragmentQueue::ReadNextFrame(StartTask* startTask, boo
         const auto trackIndex = startTask->GetTrackIndex();
         MediaFrameDeserializeResult result = MediaFrameDeserializeResult::Success;
         LOCK_WRITE_PROTECTED_OBJ(_deserializer);
-        if (auto packet = _deserializer->get()->NextPacket(trackIndex)) {
+        if (auto packet = _deserializer->get()->NextPacket(trackIndex, _skipPayload.load())) {
             if (enque) {
                 Enque(std::make_unique<MediaFrameTask>(std::move(packet)));
             }

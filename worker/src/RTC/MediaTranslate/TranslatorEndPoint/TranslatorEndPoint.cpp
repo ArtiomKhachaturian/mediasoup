@@ -14,18 +14,20 @@ namespace RTC
 class TranslatorEndPoint::InputSliceBuffer
 {
 public:
-    InputSliceBuffer(uint32_t timeSliceMs);
-    void Add(const std::shared_ptr<Buffer>& buffer, TranslatorEndPoint* endPoint);
+    InputSliceBuffer(TranslatorEndPoint* owner, uint32_t timeSliceMs);
+    void Add(const std::shared_ptr<Buffer>& buffer);
     void Reset(bool start);
-    static std::unique_ptr<InputSliceBuffer> Create(uint32_t timeSliceMs);
+    static std::unique_ptr<InputSliceBuffer> Create(TranslatorEndPoint* owner,
+                                                    uint32_t timeSliceMs);
 private:
+    TranslatorEndPoint* const _owner;
     const uint32_t _timeSliceMs;
     uint64_t _sliceOriginTimestamp = 0ULL;
     ProtectedObj<SimpleBuffer> _impl;
 };
 
 TranslatorEndPoint::TranslatorEndPoint(std::string ownerId, std::string name, uint32_t timeSliceMs)
-    : _inputSlice(InputSliceBuffer::Create(timeSliceMs))
+    : _inputSlice(InputSliceBuffer::Create(this, timeSliceMs))
     , _ownerId(std::move(ownerId))
     , _name(std::move(name))
 {
@@ -349,7 +351,7 @@ void TranslatorEndPoint::WriteMediaPayload(const ObjectId& /*sender*/,
 {
     if (buffer && !buffer->IsEmpty() && IsConnected()) {
         if (_inputSlice) {
-            _inputSlice->Add(buffer, this);
+            _inputSlice->Add(buffer);
         }
         else {
             WriteBinary(buffer);
@@ -365,15 +367,16 @@ void TranslatorEndPoint::EndMediaWriting(const ObjectId& sender)
     }
 }
 
-TranslatorEndPoint::InputSliceBuffer::InputSliceBuffer(uint32_t timeSliceMs)
-    : _timeSliceMs(timeSliceMs)
+TranslatorEndPoint::InputSliceBuffer::InputSliceBuffer(TranslatorEndPoint* owner,
+                                                       uint32_t timeSliceMs)
+    : _owner(owner)
+    , _timeSliceMs(timeSliceMs)
 {
 }
 
-void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<Buffer>& buffer,
-                                               TranslatorEndPoint* endPoint)
+void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<Buffer>& buffer)
 {
-    if (buffer && endPoint) {
+    if (buffer) {
         std::shared_ptr<Buffer> outputBuffer;
         {
             LOCK_WRITE_PROTECTED_OBJ(_impl);
@@ -389,7 +392,7 @@ void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<Buffer>& bu
             }
         }
         if (outputBuffer) {
-            endPoint->WriteBinary(outputBuffer);
+            _owner->WriteBinary(outputBuffer);
         }
     }
 }
@@ -407,10 +410,10 @@ void TranslatorEndPoint::InputSliceBuffer::Reset(bool start)
 }
 
 std::unique_ptr<TranslatorEndPoint::InputSliceBuffer> TranslatorEndPoint::InputSliceBuffer::
-    Create(uint32_t timeSliceMs)
+    Create(TranslatorEndPoint* owner, uint32_t timeSliceMs)
 {
-    if (timeSliceMs) {
-        return std::make_unique<InputSliceBuffer>(timeSliceMs);
+    if (owner && timeSliceMs) {
+        return std::make_unique<InputSliceBuffer>(owner, timeSliceMs);
     }
     return nullptr;
 }

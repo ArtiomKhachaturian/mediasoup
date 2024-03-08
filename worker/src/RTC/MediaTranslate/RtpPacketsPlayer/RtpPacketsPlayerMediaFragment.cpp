@@ -15,12 +15,22 @@ RtpPacketsPlayerMediaFragment::RtpPacketsPlayerMediaFragment(std::shared_ptr<Rtp
 
 RtpPacketsPlayerMediaFragment::~RtpPacketsPlayerMediaFragment()
 {
-    _queue->Stop();
+    Stop();
 }
 
 void RtpPacketsPlayerMediaFragment::Start(size_t trackIndex, uint32_t clockRate, RtpPacketsPlayerStreamCallback* callback)
 {
     _queue->Start(trackIndex, clockRate, callback);
+}
+
+void RtpPacketsPlayerMediaFragment::Stop()
+{
+    _queue->Stop();
+}
+
+void RtpPacketsPlayerMediaFragment::Pause(bool pause)
+{
+    _queue->Pause(pause);
 }
 
 uint64_t RtpPacketsPlayerMediaFragment::GetMediaId() const

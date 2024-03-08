@@ -53,6 +53,7 @@ void RtpPacketsPlayerSimpleStream::Play(uint64_t mediaSourceId,
                                                                  GetAllocator())) {
             const auto trackIndex = GetTrackIndex(fragment.get());
             if (trackIndex.has_value()) {
+                fragment->Pause(_paused.load());
                 LOCK_WRITE_PROTECTED_OBJ(_activeMedia);
                 if (!_activeMedia.ConstRef()) {
                     ActivateMedia(trackIndex.value(), std::move(fragment));
@@ -79,6 +80,24 @@ bool RtpPacketsPlayerSimpleStream::IsPlaying() const
 {
     LOCK_READ_PROTECTED_OBJ(_activeMedia);
     return nullptr != _activeMedia.ConstRef();
+}
+
+void RtpPacketsPlayerSimpleStream::Pause(bool pause)
+{
+    if (pause != _paused.exchange(pause)) {
+        {
+            LOCK_READ_PROTECTED_OBJ(_activeMedia);
+            if (const auto& activeMedia = _activeMedia.ConstRef()) {
+                activeMedia->Pause(pause);
+            }
+        }
+        LOCK_READ_PROTECTED_OBJ(_pendingMedias);
+        for (auto it = _pendingMedias->begin(); it != _pendingMedias->end(); ++it) {
+            for (auto itm = it->second.begin(); itm != it->second.end(); ++itm) {
+                itm->second.first->Pause(pause);
+            }
+        }
+    }
 }
 
 void RtpPacketsPlayerSimpleStream::ActivateMedia(size_t trackIndex,

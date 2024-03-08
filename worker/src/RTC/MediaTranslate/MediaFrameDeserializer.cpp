@@ -32,12 +32,13 @@ void MediaFrameDeserializer::Clear()
     _tracks.clear();
 }
 
-std::optional<RtpTranslatedPacket> MediaFrameDeserializer::NextPacket(size_t trackIndex)
+std::optional<RtpTranslatedPacket> MediaFrameDeserializer::NextPacket(size_t trackIndex,
+                                                                      bool skipPayload)
 {
     if (trackIndex < _tracks.size()) {
         auto& ti = _tracks.at(trackIndex);
         const auto payloadOffset = ti.first->GetPayloadOffset();
-        if (auto frame = ti.second->NextFrame(payloadOffset)) {
+        if (auto frame = ti.second->NextFrame(payloadOffset, skipPayload)) {
             const auto payloadSize = ti.second->GetLastPayloadSize();
             return ti.first->Add(payloadOffset, payloadSize, std::move(frame.value()));
         }

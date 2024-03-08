@@ -24,12 +24,13 @@ public:
               const std::shared_ptr<MediaTimer> timer) final;
     void Stop(uint64_t mediaSourceId, uint64_t mediaId) final;
     bool IsPlaying() const final;
+    void Pause(bool pause) final;
 private:
     RtpPacketsPlayerMainLoopStream(std::unique_ptr<Impl> impl,
-                                  std::unique_ptr<RtpPacketsPlayerStream> simpleStream);
+                                  std::unique_ptr<RtpPacketsPlayerStream> stream);
 private:
     const std::unique_ptr<Impl> _impl;
-    const std::unique_ptr<RtpPacketsPlayerStream> _simpleStream;
+    const std::unique_ptr<RtpPacketsPlayerStream> _stream;
 };
 
 
