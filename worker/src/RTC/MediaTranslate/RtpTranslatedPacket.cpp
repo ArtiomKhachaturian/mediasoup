@@ -17,7 +17,7 @@ RtpTranslatedPacket::RtpTranslatedPacket(const RtpCodecMimeType& mime,
 {
     MS_ASSERT(buffer, "buffer must not be null");
     MS_ASSERT(buffer->GetData(), "buffer data must not be null");
-    MS_ASSERT(buffer->GetSize() > sizeof(RtpPacketHeader), "buffer size is too small");
+    MS_ASSERT(buffer->GetSize() >= sizeof(RtpPacketHeader), "buffer size is too small");
     MS_ASSERT(payloadOffset >= sizeof(RtpPacketHeader), "payload offset is too small");
     const auto data = buffer->GetData();
     // workaround for fix issue with memory corruption in direct usage of RtpMemoryBufferPacket

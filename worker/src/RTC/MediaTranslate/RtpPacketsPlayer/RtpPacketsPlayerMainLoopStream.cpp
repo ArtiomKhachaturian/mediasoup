@@ -110,9 +110,9 @@ private:
 };
 
 RtpPacketsPlayerMainLoopStream::RtpPacketsPlayerMainLoopStream(std::unique_ptr<Impl> impl,
-                                                               std::unique_ptr<RtpPacketsPlayerStream> simpleStream)
+                                                               std::unique_ptr<RtpPacketsPlayerStream> stream)
     : _impl(std::move(impl))
-    , _simpleStream(std::move(simpleStream))
+    , _stream(std::move(stream))
 {
 }
 
@@ -128,33 +128,39 @@ std::unique_ptr<RtpPacketsPlayerStream> RtpPacketsPlayerMainLoopStream::
            RtpPacketsPlayerCallback* callback,
            const std::shared_ptr<BufferAllocator>& allocator)
 {
-    std::unique_ptr<RtpPacketsPlayerStream> stream;
     if (callback) {
         auto impl = std::make_unique<Impl>(callback);
-        if (auto simpleStream = RtpPacketsPlayerSimpleStream::Create(ssrc, clockRate,
-                                                                     payloadType, mime,
-                                                                     impl.get(), allocator)) {
-            stream.reset(new RtpPacketsPlayerMainLoopStream(std::move(impl), std::move(simpleStream)));
+        if (auto stream = RtpPacketsPlayerSimpleStream::Create(ssrc, clockRate,
+                                                               payloadType, mime,
+                                                               impl.get(), allocator)) {
+            const auto mainLoopStream = new RtpPacketsPlayerMainLoopStream(std::move(impl),
+                                                                           std::move(stream));
+            return std::unique_ptr<RtpPacketsPlayerStream>(mainLoopStream);
         }
     }
-    return stream;
+    return nullptr;
 }
 
 void RtpPacketsPlayerMainLoopStream::Play(uint64_t mediaSourceId,
                                           const std::shared_ptr<Buffer>& media,
                                           const std::shared_ptr<MediaTimer> timer)
 {
-    _simpleStream->Play(mediaSourceId, media, timer);
+    _stream->Play(mediaSourceId, media, timer);
 }
 
 void RtpPacketsPlayerMainLoopStream::Stop(uint64_t mediaSourceId, uint64_t mediaId)
 {
-    _simpleStream->Stop(mediaSourceId, mediaId);
+    _stream->Stop(mediaSourceId, mediaId);
 }
 
 bool RtpPacketsPlayerMainLoopStream::IsPlaying() const
 {
-    return _simpleStream->IsPlaying();
+    return _stream->IsPlaying();
+}
+
+void RtpPacketsPlayerMainLoopStream::Pause(bool pause)
+{
+    _stream->Pause(pause);
 }
 
 RtpPacketsPlayerMainLoopStream::Impl::Impl(RtpPacketsPlayerCallback* callback)

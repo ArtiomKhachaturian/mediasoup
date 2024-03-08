@@ -29,6 +29,7 @@ public:
     uint64_t GetMediaSourceId() const { return _mediaSourceId; }
     void Start(size_t trackIndex, uint32_t clockRate, RtpPacketsPlayerStreamCallback* callback);
     void Stop();
+    void Pause(bool pause);
     size_t GetTracksCount() const;
     std::optional<RtpCodecMimeType> GetTrackType(size_t trackIndex) const;
     // impl. of MediaTimerCallback
@@ -51,10 +52,11 @@ private:
     const uint64_t _mediaSourceId;
     const std::weak_ptr<MediaTimer> _timerRef;
     const ProtectedUniquePtr<MediaFrameDeserializer> _deserializer;
-    ProtectedUniquePtr<StartTask> _startTask;
+    std::atomic_bool _skipPayload = false;
     std::atomic<uint64_t> _timerId = 0;
     // used for adjust of timer interval
     std::atomic<uint32_t> _framesTimeout = 0U;
+    ProtectedUniquePtr<StartTask> _startTask;
     ProtectedObj<std::queue<std::unique_ptr<Task>>> _tasks;
 };
 

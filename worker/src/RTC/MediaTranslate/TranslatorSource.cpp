@@ -120,6 +120,7 @@ uint32_t TranslatorSource::GetClockRate() const
 void TranslatorSource::SetPaused(bool paused)
 {
     _serializer->SetPaused(paused);
+    _rtpPacketsPlayer->Pause(GetOriginalSsrc(), paused);
 }
 
 void TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)

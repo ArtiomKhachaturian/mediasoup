@@ -24,7 +24,7 @@ std::optional<RtpTranslatedPacket> RtpPacketizer::Create(Timestamp timestampOffs
                                                          size_t payloadOffset,
                                                          size_t payloadLength) const
 {
-    if (buffer && payloadOffset + payloadLength) {
+    if (buffer) {
         return std::make_optional<RtpTranslatedPacket>(GetType(),
                                                        std::move(timestampOffset),
                                                        std::move(buffer),

@@ -4,6 +4,7 @@
 #include "RTC/Buffers/BufferAllocations.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "ProtectedObj.hpp"
+#include <atomic>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -37,6 +38,7 @@ public:
               const std::shared_ptr<MediaTimer> timer) final;
     void Stop(uint64_t mediaSourceId, uint64_t mediaId) final;
     bool IsPlaying() const final;
+    void Pause(bool pause) final;
 private:
     RtpPacketsPlayerSimpleStream(uint32_t ssrc, uint32_t clockRate,
                                  uint8_t payloadType,
@@ -61,6 +63,7 @@ private:
     RtpPacketsPlayerCallback* const _callback;
     ProtectedUniquePtr<RtpPacketsPlayerMediaFragment> _activeMedia;
     ProtectedObj<PendingMediasMap> _pendingMedias;
+    std::atomic_bool _paused = false;
 };
 
 } // namespace RTC
