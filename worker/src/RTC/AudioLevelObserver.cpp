@@ -82,24 +82,18 @@ namespace RTC
 	void AudioLevelObserver::ReceiveRtpPacket(RTC::Producer* producer, RTC::RtpPacket* packet)
 	{
 		MS_TRACE();
-
-		if (IsPaused())
-		{
-			return;
-		}
-
-		uint8_t volume;
-		bool voice;
-
-		if (!packet->ReadSsrcAudioLevel(volume, voice))
-		{
-			return;
-		}
-
-		auto& dBovs = this->mapProducerDBovs.at(producer);
-
-		dBovs.totalSum += volume;
-		dBovs.count++;
+        
+        if (!IsPaused()) {
+            const auto dBovs = this->mapProducerDBovs.find(producer);
+            if (dBovs != this->mapProducerDBovs.end()) {
+                uint8_t volume;
+                bool voice;
+                if (packet->ReadSsrcAudioLevel(volume, voice)) {
+                    dBovs->second.totalSum += volume;
+                    dBovs->second.count++;
+                }
+            }
+        }
 	}
 
 	void AudioLevelObserver::ProducerPaused(RTC::Producer* producer)
