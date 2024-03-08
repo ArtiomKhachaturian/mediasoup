@@ -55,8 +55,8 @@ private:
 private:
     const RtpCodecMimeType _mime;
     const uint32_t _clockRate;
-    ProtectedObj<std::unordered_map<MediaSink*, std::unique_ptr<SinkWriter>>> _writers;
-    ProtectedUniquePtr<SinkWriter> _testWriter;
+    ProtectedObj<std::unordered_map<MediaSink*, std::unique_ptr<SinkWriter>>, std::mutex> _writers;
+    ProtectedUniquePtr<SinkWriter, std::mutex> _testWriter;
     std::atomic_bool _paused = false;
 };
 

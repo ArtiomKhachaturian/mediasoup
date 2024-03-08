@@ -104,6 +104,9 @@ private:
 class MediaTimerHandleFactoryUV::Impl : public TimerCommandManager
 {
     using CommandsQueue = std::queue<TimerCommand>;
+    using Timers = std::unordered_map<uint64_t, std::unique_ptr<TimerWrapper>>;
+    template <typename T>
+    using Protected = ProtectedObj<T, std::mutex>;
 public:
     Impl(UVLoop loop);
     ~Impl() final;
@@ -126,8 +129,8 @@ private:
     const UVLoop _loop;
     const UVAsyncHandle _commandEvent;
     const UVAsyncHandle _stopEvent;
-    ProtectedObj<std::unordered_map<uint64_t, std::unique_ptr<TimerWrapper>>> _timers;
-    ProtectedObj<CommandsQueue> _commands;
+    Protected<Timers> _timers;
+    Protected<CommandsQueue> _commands;
 };
 
 MediaTimerHandleUV::MediaTimerHandleUV(const std::shared_ptr<MediaTimerCallback>& callback,

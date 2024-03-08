@@ -17,7 +17,9 @@ class MediaSource;
 class TranslatorEndPoint : public ObjectId, private MediaSink
 {
     class InputSliceBuffer;
-    using ProtectedString = ProtectedObj<std::string>;
+    template <typename T>
+    using Protected = ProtectedObj<T, std::mutex>;
+    using ProtectedString = Protected<std::string>;
 public:
     virtual ~TranslatorEndPoint() override;
     // in/out media connections
@@ -56,7 +58,7 @@ private:
     static nlohmann::json TargetLanguageCmd(const std::string& inputLanguageId,
                                             const std::string& outputLanguageId,
                                             const std::string& outputVoiceId);
-    void ChangeTranslationSettings(std::string to, ProtectedObj<std::string>& object);
+    void ChangeTranslationSettings(std::string to, ProtectedString& object);
     bool CanConnect() const;
     bool HasInputLanguageId() const;
     bool HasOutputLanguageId() const;
@@ -81,7 +83,7 @@ private:
     ProtectedString _inputLanguageId;
     ProtectedString _outputLanguageId;
     ProtectedString _outputVoiceId;
-    ProtectedObj<MediaSource*> _inputMediaSource = nullptr;
+    Protected<MediaSource*> _inputMediaSource = nullptr;
     Listeners<TranslatorEndPointSink*> _outputMediaSinks;
     std::atomic_bool _notifyedThatConnected = false; // for logs
     std::atomic<uint64_t> _translationsCount = 0ULL;

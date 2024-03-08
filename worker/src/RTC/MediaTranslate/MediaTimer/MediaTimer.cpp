@@ -57,13 +57,11 @@ private:
     Impl(std::unique_ptr<MediaTimerHandleFactory> factory, std::string timerName);
     std::shared_ptr<MediaTimerHandle> GetHandle(uint64_t timerId) const;
     static std::unique_ptr<MediaTimerHandleFactory> CreateFactory(const std::string& timerName);
-    //static MediaTimerHandle* GetHandle(uint64_t timerId) { return reinterpret_cast<MediaTimerHandle*>(timerId); }
-    //static uint64_t GetTimerId(const MediaTimerHandle* handle) { return handle ? handle->GetId() : 0ULL; }
 private:
     const std::unique_ptr<MediaTimerHandleFactory> _factory;
     const std::string _timerName;
     // key is timer ID
-    ProtectedObj<HandlesMap> _handles;
+    ProtectedObj<HandlesMap, std::mutex> _handles;
 };
 
 MediaTimer::MediaTimer(std::string timerName)

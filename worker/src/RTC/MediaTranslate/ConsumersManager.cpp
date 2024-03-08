@@ -52,9 +52,9 @@ public:
     static size_t GetLanguageVoiceKey(const std::string& languageId, const std::string& voiceId);
 private:
     const std::shared_ptr<TranslatorEndPoint> _endPoint;
-    ProtectedUniquePtr<RtpPacketsTimeline> _timeline;
-    ProtectedObj<PlayInfo> _playInfo;
-    ProtectedObj<std::unordered_set<uint64_t>> _consumers;
+    Protected<std::unique_ptr<RtpPacketsTimeline>> _timeline;
+    Protected<PlayInfo> _playInfo;
+    Protected<std::unordered_set<uint64_t>> _consumers;
     size_t _languageVoiceKey = 0U; // under protection of [_consumers]
 };
 

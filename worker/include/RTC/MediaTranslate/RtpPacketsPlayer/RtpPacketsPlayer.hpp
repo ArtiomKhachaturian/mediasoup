@@ -1,7 +1,7 @@
 #pragma once
 #include "RTC/Buffers/BufferAllocations.hpp"
 #include "ProtectedObj.hpp"
-#include "absl/container/flat_hash_map.h"
+#include <unordered_map>
 
 namespace RTC
 {
@@ -14,6 +14,7 @@ class RtpPacketsPlayerStream;
 
 class RtpPacketsPlayer : public BufferAllocations<void>
 {
+    using Streams = std::unordered_map<uint32_t, std::unique_ptr<RtpPacketsPlayerStream>>;
 public:
     RtpPacketsPlayer(const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~RtpPacketsPlayer();
@@ -27,7 +28,7 @@ public:
     const std::shared_ptr<MediaTimer>& GetTimer() const { return _timer; }
 private:
     const std::shared_ptr<MediaTimer> _timer;
-    ProtectedObj<absl::flat_hash_map<uint32_t, std::unique_ptr<RtpPacketsPlayerStream>>> _streams;
+    ProtectedObj<Streams, std::mutex> _streams;
 };
 
 } // namespace RTC

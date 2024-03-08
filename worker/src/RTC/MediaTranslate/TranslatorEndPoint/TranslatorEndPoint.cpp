@@ -211,7 +211,7 @@ nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLan
     return command;
 }
 
-void TranslatorEndPoint::ChangeTranslationSettings(std::string to, ProtectedObj<std::string>& object)
+void TranslatorEndPoint::ChangeTranslationSettings(std::string to, ProtectedString& object)
 {
     bool changed = false;
     {
