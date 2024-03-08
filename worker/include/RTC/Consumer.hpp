@@ -138,9 +138,9 @@ namespace RTC
 		void ProducerPaused();
 		void ProducerResumed();
         const std::string& GetLanguageId() const { return this->languageId; }
-        void SetLanguageId(const std::string& languageId);
+        void SetLanguageId(std::string languageId);
         const std::string& GetVoiceId() const { return this->voiceId; }
-        void SetVoiceId(const std::string& voiceId);
+        void SetVoiceId(std::string voiceId);
 		virtual void ProducerRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc)    = 0;
 		virtual void ProducerNewRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc) = 0;
 		void ProducerRtpStreamScores(const std::vector<uint8_t>* scores);

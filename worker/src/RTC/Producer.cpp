@@ -830,10 +830,13 @@ namespace RTC
 		this->keyFrameRequestManager->KeyFrameNeeded(ssrc);
 	}
 
-    void Producer::SetLanguageId(const std::string& languageId)
+    void Producer::SetLanguageId(std::string languageId)
     {
         MS_TRACE();
-        this->languageId = languageId;
+        if (this->languageId != languageId) {
+            this->languageId = std::move(languageId);
+            this->listener->OnProducerLanguageIdChanged(this);
+        }
     }
 
 	RTC::RtpStreamRecv* Producer::GetRtpStream(RTC::RtpPacket* packet)

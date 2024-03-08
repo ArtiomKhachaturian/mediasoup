@@ -141,7 +141,7 @@ namespace RTC
 		bool GetRtcp(RTC::RTCP::CompoundPacket* packet, uint64_t nowMs);
 		void RequestKeyFrame(uint32_t mappedSsrc);
         const std::string& GetLanguageId() const { return this->languageId; }
-        void SetLanguageId(const std::string& languageId);
+        void SetLanguageId(std::string languageId);
         bool MangleRtpPacket(RTC::RtpPacket* packet, uint32_t mappedSsrc) const;
         bool MangleRtpPacket(RTC::RtpPacket* packet, RTC::RtpStreamRecv* rtpStream) const;
         void PostProcessRtpPacket(const RTC::RtpPacket* packet);
