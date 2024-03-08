@@ -46,6 +46,7 @@ private:
     std::unordered_set<Consumer*> GetConsumers(uint64_t endPointId, bool alien) const;
     auto GetMyConsumers(uint64_t endPointId) const { return GetConsumers(endPointId, false); }
     auto GetAlienConsumers(uint64_t endPointId) const { return GetConsumers(endPointId, true); }
+    static size_t GetLanguageVoiceKey(const Consumer* consumer);
 private:
     TranslatorEndPointFactory* const _endPointsFactory;
     MediaSource* const _translationsInput;
