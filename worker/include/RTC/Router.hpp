@@ -116,6 +116,8 @@ namespace RTC
         void OnTransportProducerRtpPacketTranslationRequired(
           RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) override;
         void OnTransportProducerLanguageIdChanged(RTC::Transport* transport, RTC::Producer* producer) override;
+        void OnTransportConsumerLanguageIdChanged(RTC::Transport* transport, RTC::Consumer* consumer) override;
+        void OnTransportConsumerVoiceIdChanged(RTC::Transport* transport, RTC::Consumer* consumer) override;
 
         /* Pure virtual methods inherited from RTC::RtpObserver::Listener. */
     public:

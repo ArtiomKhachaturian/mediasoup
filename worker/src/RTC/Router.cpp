@@ -1134,6 +1134,16 @@ namespace RTC
         }
     }
 
+    void Router::OnTransportConsumerLanguageIdChanged(RTC::Transport* transport, RTC::Consumer* consumer)
+    {
+        MS_TRACE();
+    }
+    
+    void Router::OnTransportConsumerVoiceIdChanged(RTC::Transport* transport, RTC::Consumer* consumer)
+    {
+        MS_TRACE();
+    }
+
     void Router::OnRtpObserverAddProducer(RTC::RtpObserver* rtpObserver, RTC::Producer* producer)
     {
         // Add to the map.
