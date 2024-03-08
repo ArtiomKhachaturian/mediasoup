@@ -122,6 +122,10 @@ namespace RTC
                   RTC::Transport* transport, RTC::Producer* producer, RTC::RtpPacket* packet) = 0;
             virtual void OnTransportProducerLanguageIdChanged(
                 RTC::Transport* transport, RTC::Producer* producer) = 0;
+            virtual void OnTransportConsumerLanguageIdChanged(RTC::Transport* transport,
+                                                              RTC::Consumer* consumer) = 0;
+            virtual void OnTransportConsumerVoiceIdChanged(RTC::Transport* transport,
+                                                           RTC::Consumer* consumer) = 0;
         };
 
     public:
@@ -259,6 +263,8 @@ namespace RTC
         void OnConsumerNeedBitrateChange(RTC::Consumer* consumer) override;
         void OnConsumerNeedZeroBitrate(RTC::Consumer* consumer) override;
         void OnConsumerProducerClosed(RTC::Consumer* consumer) override;
+        void OnConsumerLanguageIdChanged(RTC::Consumer* consumer) override;
+        void OnConsumerVoiceIdChanged(RTC::Consumer* consumer) override;
 
         /* Pure virtual methods inherited from RTC::DataProducer::Listener. */
     public:
