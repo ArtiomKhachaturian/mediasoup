@@ -354,32 +354,22 @@ namespace RTC
         }
 	}
 
-    std::string Consumer::GetLanguageId() const
-    {
-        LOCK_READ_PROTECTED_OBJ(this->languageId);
-        return this->languageId.ConstRef();
-    }
-
     void Consumer::SetLanguageId(std::string languageId)
     {
         MS_TRACE();
-        
-        LOCK_WRITE_PROTECTED_OBJ(this->languageId);
-        this->languageId = std::move(languageId);
-    }
-
-    std::string Consumer::GetVoiceId() const
-    {
-        LOCK_READ_PROTECTED_OBJ(this->voiceId);
-        return this->voiceId.ConstRef();
+        if (this->languageId != languageId) {
+            this->languageId = std::move(languageId);
+            this->listener->OnConsumerLanguageIdChanged(this);
+        }
     }
 
     void Consumer::SetVoiceId(std::string voiceId)
     {
         MS_TRACE();
-        
-        LOCK_WRITE_PROTECTED_OBJ(this->voiceId);
-        this->voiceId = std::move(voiceId);
+        if (this->voiceId != voiceId) {
+            this->voiceId = std::move(voiceId);
+            this->listener->OnConsumerVoiceIdChanged(this);
+        }
     }
 
 	void Consumer::ProducerRtpStreamScores(const std::vector<uint8_t>* scores)

@@ -142,7 +142,7 @@ namespace RTC
 		void ReceiveRtcpXrDelaySinceLastRr(RTC::RTCP::DelaySinceLastRr::SsrcInfo* ssrcInfo);
 		bool GetRtcp(RTC::RTCP::CompoundPacket* packet, uint64_t nowMs);
 		void RequestKeyFrame(uint32_t mappedSsrc);
-        std::string GetLanguageId() const;
+        const std::string& GetLanguageId() const { return this->languageId; }
         void SetLanguageId(std::string languageId);
         bool MangleRtpPacket(RTC::RtpPacket* packet, uint32_t mappedSsrc) const;
         bool MangleRtpPacket(RTC::RtpPacket* packet, RTC::RtpStreamRecv* rtpStream) const;
@@ -194,12 +194,12 @@ namespace RTC
         const RTC::RtpParameters rtpParameters;
         const RTC::RtpParameters::Type type;
         const uint16_t maxRtcpInterval;
-        ProtectedObj<std::string> languageId;
+        std::string languageId;
 		// Allocated by this.
 		absl::flat_hash_map<uint32_t, RTC::RtpStreamRecv*> mapSsrcRtpStream;
 		RTC::KeyFrameRequestManager* keyFrameRequestManager{ nullptr };
 		// Others.
-		ProtectedObj<struct RtpMapping> rtpMapping;
+        ProtectedObj<struct RtpMapping> rtpMapping;
 		std::vector<RTC::RtpStreamRecv*> rtpStreamByEncodingIdx;
 		std::vector<uint8_t> rtpStreamScores;
 		absl::flat_hash_map<uint32_t, RTC::RtpStreamRecv*> mapRtxSsrcRtpStream;

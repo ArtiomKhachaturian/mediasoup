@@ -19,7 +19,6 @@
 #include "RTC/RtpStreamSend.hpp"
 #include "RTC/Shared.hpp"
 #include "RTC/ObjectId.hpp"
-#include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_set.h>
 #include <atomic>
 #include <string>
@@ -139,9 +138,9 @@ namespace RTC
 		}
 		void ProducerPaused();
 		void ProducerResumed();
-        std::string GetLanguageId() const;
+        const std::string& GetLanguageId() const { return this->languageId; }
         void SetLanguageId(std::string languageId);
-        std::string GetVoiceId() const;
+        const std::string& GetVoiceId() const { return this->voiceId; }
         void SetVoiceId(std::string voiceId);
 		virtual void ProducerRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc)    = 0;
 		virtual void ProducerNewRtpStream(RTC::RtpStreamRecv* rtpStream, uint32_t mappedSsrc) = 0;
@@ -226,8 +225,8 @@ namespace RTC
         std::atomic_bool producerClosed{ false };
         // both language & voice should be defined explictly for translation service,
         // otherwise translation is not available
-        ProtectedObj<std::string> languageId;
-        ProtectedObj<std::string> voiceId;
+        std::string languageId;
+        std::string voiceId;
 	};
 } // namespace RTC
 

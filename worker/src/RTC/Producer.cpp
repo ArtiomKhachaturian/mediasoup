@@ -816,18 +816,12 @@ namespace RTC
 		this->keyFrameRequestManager->KeyFrameNeeded(ssrc);
 	}
 
-    std::string Producer::GetLanguageId() const
-    {
-        LOCK_READ_PROTECTED_OBJ(this->languageId);
-        return this->languageId.ConstRef();
-    }
-
     void Producer::SetLanguageId(std::string languageId)
     {
         MS_TRACE();
-        if (!languageId.empty()) {
-            LOCK_WRITE_PROTECTED_OBJ(this->languageId);
+        if (this->languageId != languageId) {
             this->languageId = std::move(languageId);
+            this->listener->OnProducerLanguageIdChanged(this);
         }
     }
 
