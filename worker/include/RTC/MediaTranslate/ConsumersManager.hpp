@@ -25,10 +25,17 @@ class ConsumersManager
     template <typename T>
     using Protected = ProtectedObj<T, std::mutex>;
 public:
+    enum class MixerMode {
+        DropOriginalDuringPlay,
+        DropOriginalDuringConnection
+    };
+public:
     ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                      MediaSource* translationsInput,
                      TranslatorEndPointSink* translationsOutput,
-                     uint32_t mappedSsrc, uint32_t clockRate, const RtpCodecMimeType& mime);
+                     uint32_t mappedSsrc, uint32_t clockRate,
+                     const RtpCodecMimeType& mime,
+                     MixerMode mode = MixerMode::DropOriginalDuringPlay);
     ~ConsumersManager();
     void SetInputLanguage(const std::string& languageId);
     std::string GetInputLanguage() const;
@@ -55,6 +62,7 @@ private:
     MediaSource* const _translationsInput;
     TranslatorEndPointSink* const _translationsOutput;
     const uint32_t _mappedSsrc;
+    const MixerMode _mode;
     RtpPacketsTimeline _originalTimeline;
     Protected<std::string> _inputLanguageId;
     // key is end-point ID, value - end-point wrapper

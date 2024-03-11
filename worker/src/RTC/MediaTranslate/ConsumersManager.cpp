@@ -32,8 +32,9 @@ public:
                  std::shared_ptr<TranslatorEndPoint> endPoint);
     ~EndPointInfo();
     bool IsStub() const { return _endPoint->IsStub(); }
-    void BeginMediaPlay(uint64_t mediaId, const RtpPacketsTimeline& timeline);
-    void EndMediaPlay(uint64_t mediaId);
+    void SetTimeline(const RtpPacketsTimeline& timeline);
+    bool BeginMediaPlay(uint64_t mediaId);
+    bool EndMediaPlay(uint64_t mediaId);
     bool IsPlaying() const;
     std::unordered_set<uint64_t> GetConsumers() const;
     size_t GetConsumersCount() const;
@@ -63,11 +64,13 @@ ConsumersManager::ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                                    MediaSource* translationsInput,
                                    TranslatorEndPointSink* translationsOutput,
                                    uint32_t mappedSsrc,
-                                   uint32_t clockRate, const RtpCodecMimeType& mime)
+                                   uint32_t clockRate, const RtpCodecMimeType& mime,
+                                   MixerMode mode)
     : _endPointsFactory(endPointsFactory)
     , _translationsInput(translationsInput)
     , _translationsOutput(translationsOutput)
     , _mappedSsrc(mappedSsrc)
+    , _mode(mode)
     , _originalTimeline(clockRate, mime)
     , _inputLanguageId("auto")
 {
@@ -185,25 +188,38 @@ void ConsumersManager::DispatchOriginalPacket(RtpPacket* packet, RtpPacketsColle
         _originalTimeline.SetTimestamp(packet->GetTimestamp());
         _originalTimeline.SetSeqNumber(packet->GetSequenceNumber());
         std::unordered_set<uint64_t> rejectedConsumers;
+        std::list<std::unique_ptr<RtpPacket>> mappedPackets;
         {
             LOCK_READ_PROTECTED_OBJ(_endPoints);
             if (!_endPoints->empty()) {
                 for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
-                    if (it->second->IsPlaying()) {
+                    bool dropPacket = false;
+                    switch (_mode) {
+                        case MixerMode::DropOriginalDuringPlay:
+                            dropPacket = it->second->IsPlaying();
+                            break;
+                        case MixerMode::DropOriginalDuringConnection:
+                            dropPacket = it->second->IsConnected() || it->second->IsPlaying();
+                            break;
+                    }
+                    if (dropPacket) {
                         rejectedConsumers.merge(it->second->GetConsumers());
                     }
                     else {
                         const auto delta = _originalTimeline.GetTimestampDelta();
-                        if (auto mapped = it->second->MapOriginalPacket(delta, packet)) {
+                        if (auto mappedPacket = it->second->MapOriginalPacket(delta, packet)) {
                             rejectedConsumers.merge(it->second->GetConsumers());
-                            mapped->SetRejectedConsumers(GetAlienConsumers(it->first));
+                            mappedPacket->SetRejectedConsumers(GetAlienConsumers(it->first));
                             if (collector) {
-                                collector->AddPacket(mapped.release(), _mappedSsrc, true);
+                                mappedPackets.push_back(std::move(mappedPacket));
                             }
                         }
                     }
                 }
             }
+        }
+        for (auto& mappedPacket : mappedPackets) {
+            collector->AddPacket(mappedPacket.release(), _mappedSsrc, true);
         }
         packet->SetRejectedConsumers(std::move(rejectedConsumers));
     }
@@ -212,22 +228,21 @@ void ConsumersManager::DispatchOriginalPacket(RtpPacket* packet, RtpPacketsColle
 void ConsumersManager::NotifyThatConnected(uint64_t endPointId, bool connected)
 {
     const auto endPoint = GetEndPoint(endPointId);
-    if (endPoint && endPoint->IsStub()) {
-        // fake media ID
-        if (connected) {
-            endPoint->BeginMediaPlay(1U, _originalTimeline);
-        }
-        else {
-            endPoint->EndMediaPlay(1U);
-        }
+    if (endPoint && connected && (MixerMode::DropOriginalDuringConnection == _mode
+                                  || endPoint->IsStub())) {
+        endPoint->SetTimeline(_originalTimeline);
     }
 }
 
 void ConsumersManager::BeginPacketsSending(uint64_t mediaId, uint64_t endPointId)
 {
-    const auto endPoint = GetEndPoint(endPointId);
-    if (endPoint && !endPoint->IsStub()) {
-        endPoint->BeginMediaPlay(mediaId, _originalTimeline);
+    if (const auto endPoint = GetEndPoint(endPointId)) {
+        if (MixerMode::DropOriginalDuringPlay == _mode) {
+            endPoint->SetTimeline(_originalTimeline);
+        }
+        if (!endPoint->BeginMediaPlay(mediaId)) {
+            MS_ERROR_STD("failed to begin of RTP media play");
+        }
     }
 }
 
@@ -251,8 +266,8 @@ void ConsumersManager::SendPacket(uint64_t mediaId, uint64_t endPointId,
 void ConsumersManager::EndPacketsSending(uint64_t mediaId, uint64_t endPointId)
 {
     const auto endPoint = GetEndPoint(endPointId);
-    if (endPoint && !endPoint->IsStub()) {
-        endPoint->EndMediaPlay(mediaId);
+    if (endPoint && !endPoint->EndMediaPlay(mediaId)) {
+        MS_ERROR_STD("failed to end of RTP media play");
     }
 }
 
@@ -342,26 +357,37 @@ ConsumersManager::EndPointInfo::~EndPointInfo()
     _endPoint->RemoveAllOutputMediaSinks();
 }
 
-void ConsumersManager::EndPointInfo::BeginMediaPlay(uint64_t mediaId, const RtpPacketsTimeline& timeline)
+void ConsumersManager::EndPointInfo::SetTimeline(const RtpPacketsTimeline& timeline)
 {
-    LOCK_WRITE_PROTECTED_OBJ(_playInfo);
-    if (0U == _playInfo->first) {
-        LOCK_WRITE_PROTECTED_OBJ(_timeline);
-        if (!_timeline->get()) {
-            _timeline = std::make_unique<RtpPacketsTimeline>(timeline);
-        }
-        _playInfo->first = mediaId;
-        _playInfo->second = _timeline->get()->GetTimestamp();
+    LOCK_WRITE_PROTECTED_OBJ(_timeline);
+    if (!_timeline->get()) {
+        _timeline = std::make_unique<RtpPacketsTimeline>(timeline);
     }
 }
 
-void ConsumersManager::EndPointInfo::EndMediaPlay(uint64_t mediaId)
+bool ConsumersManager::EndPointInfo::BeginMediaPlay(uint64_t mediaId)
+{
+    LOCK_WRITE_PROTECTED_OBJ(_playInfo);
+    if (0U == _playInfo->first) {
+        LOCK_READ_PROTECTED_OBJ(_timeline);
+        if (const auto& timeline = _timeline.ConstRef()) {
+            _playInfo->first = mediaId;
+            _playInfo->second = _timeline->get()->GetTimestamp();
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ConsumersManager::EndPointInfo::EndMediaPlay(uint64_t mediaId)
 {
     LOCK_WRITE_PROTECTED_OBJ(_playInfo);
     if (_playInfo->first == mediaId) {
         _playInfo->first = 0U;
         _playInfo->second = 0U;
+        return true;
     }
+    return false;
 }
 
 bool ConsumersManager::EndPointInfo::AdvanceTranslatedPacket(const Timestamp& offset,
