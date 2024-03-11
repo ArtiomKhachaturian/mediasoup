@@ -22,10 +22,8 @@ class RtpCodecMimeType;
 class ConsumersManager
 {
     class EndPointInfo;
-    template<typename K, typename V>
-    using ProtectedMap = ProtectedObj<std::unordered_map<K, V>>;
-    template<typename V>
-    using ProtectedU64Map = ProtectedMap<uint64_t, V>;
+    template <typename T>
+    using Protected = ProtectedObj<T, std::mutex>;
 public:
     ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                      MediaSource* translationsInput,
@@ -48,8 +46,9 @@ private:
     bool AddNewEndPointFor(const std::shared_ptr<ConsumerTranslator>& consumer,
                            std::string consumerLanguageId,
                            std::string consumerVoiceId);
-    std::shared_ptr<EndPointInfo> CreateEndPoint() const;
+    std::shared_ptr<EndPointInfo> CreateEndPoint(const std::shared_ptr<ConsumerTranslator>& consumer) const;
     std::shared_ptr<EndPointInfo> GetEndPoint(uint64_t endPointId) const;
+    // note: this method makes iteration by [_endPoints] without lock/unlock of protection
     std::unordered_set<uint64_t> GetAlienConsumers(uint64_t endPointId) const;
 private:
     TranslatorEndPointFactory* const _endPointsFactory;
@@ -57,9 +56,9 @@ private:
     TranslatorEndPointSink* const _translationsOutput;
     const uint32_t _mappedSsrc;
     RtpPacketsTimeline _originalTimeline;
-    ProtectedObj<std::string> _inputLanguageId;
+    Protected<std::string> _inputLanguageId;
     // key is end-point ID, value - end-point wrapper
-    ProtectedU64Map<std::shared_ptr<EndPointInfo>> _endPoints;
+    Protected<std::unordered_map<uint64_t, std::shared_ptr<EndPointInfo>>> _endPoints;
 };
 
 } // namespace RTC
