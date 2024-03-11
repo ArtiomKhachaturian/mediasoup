@@ -107,10 +107,12 @@ std::string ConsumersManager::GetInputLanguage() const
 bool ConsumersManager::AddConsumer(const std::shared_ptr<ConsumerTranslator>& consumer)
 {
     if (consumer) {
-        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
-        for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
-            if (it->second->AddConsumer(consumer)) {
-                return true; // done, language & voice ID was matched
+        {
+            LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+            for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+                if (it->second->AddConsumer(consumer)) {
+                    return true; // done, language & voice ID was matched
+                }
             }
         }
         return AddNewEndPointFor(consumer);
@@ -125,29 +127,33 @@ bool ConsumersManager::UpdateConsumer(const std::shared_ptr<ConsumerTranslator>&
         auto languageId = consumer->GetLanguageId();
         auto voiceId = consumer->GetVoiceId();
         const auto key = EndPointInfo::GetLanguageVoiceKey(languageId, voiceId);
-        LOCK_WRITE_PROTECTED_OBJ(_endPoints);
-        for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
-            if (key != it->second->GetLanguageVoiceKey()) {
-                switch (it->second->RemoveConsumer(consumer)) {
-                    case RemoveResult::Succeeded:
-                        deprecated = true;
-                        break;
-                    case RemoveResult::SucceededNoMoreConsumers:
-                        it->second->SetOutput(languageId, voiceId);
-                        // add consumer again
-                        MS_ASSERT(it->second->AddConsumer(consumer), "failed add consumer to updated end-point");
-                        return true; // done
-                    default:
-                        break;
+        {
+            LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+            for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+                if (key != it->second->GetLanguageVoiceKey()) {
+                    switch (it->second->RemoveConsumer(consumer)) {
+                        case RemoveResult::Succeeded:
+                            deprecated = true;
+                            break;
+                        case RemoveResult::SucceededNoMoreConsumers:
+                            it->second->SetOutput(languageId, voiceId);
+                            // add consumer again
+                            MS_ASSERT(it->second->AddConsumer(consumer), "failed add consumer to updated end-point");
+                            return true; // done
+                        default:
+                            break;
+                    }
+                }
+            }
+            if (deprecated) {
+                for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
+                    if (it->second->AddConsumer(consumer)) {
+                        return true;
+                    }
                 }
             }
         }
         if (deprecated) {
-            for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
-                if (it->second->AddConsumer(consumer)) {
-                    return true;
-                }
-            }
             // no more suitable end-points found
             return AddNewEndPointFor(consumer, std::move(languageId), std::move(voiceId));
         }
