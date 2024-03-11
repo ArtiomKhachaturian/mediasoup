@@ -28,7 +28,8 @@ class ConsumersManager::EndPointInfo
     // 1st is media ID, 2nd - timestamp in start moment
     using PlayInfo = std::pair<uint64_t, uint32_t>;
 public:
-    EndPointInfo(std::shared_ptr<TranslatorEndPoint> endPoint);
+    EndPointInfo(const std::shared_ptr<ConsumerTranslator>& initialConsumer,
+                 std::shared_ptr<TranslatorEndPoint> endPoint);
     ~EndPointInfo();
     bool IsStub() const { return _endPoint->IsStub(); }
     void BeginMediaPlay(uint64_t mediaId, const RtpPacketsTimeline& timeline);
@@ -266,18 +267,12 @@ bool ConsumersManager::AddNewEndPointFor(const std::shared_ptr<ConsumerTranslato
 {
     bool added = false;
     if (consumer) {
-        if (auto endPoint = CreateEndPoint()) {
-            const auto endPointId = endPoint->GetId();
+        if (auto endPoint = CreateEndPoint(consumer)) {
+            {
+                LOCK_WRITE_PROTECTED_OBJ(_endPoints);
+                _endPoints->insert(std::make_pair(endPoint->GetId(), endPoint));
+            }
             endPoint->SetOutput(std::move(consumerLanguageId), std::move(consumerVoiceId));
-            added = endPoint->AddConsumer(consumer);
-            if (added) {
-                _endPoints->insert(std::make_pair(endPointId, std::move(endPoint)));
-            }
-            else {
-                MS_ERROR_STD("failed add consumer to new end-point for language [%s] & voice [%s]",
-                             consumerLanguageId.c_str(),
-                             consumerVoiceId.c_str());
-            }
         }
         else {
             MS_ERROR_STD("failed create of new end-point for language [%s] & voice [%s]",
@@ -288,17 +283,20 @@ bool ConsumersManager::AddNewEndPointFor(const std::shared_ptr<ConsumerTranslato
     return added;
 }
 
-std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::CreateEndPoint() const
+std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::
+    CreateEndPoint(const std::shared_ptr<ConsumerTranslator>& consumer) const
 {
-    if (auto endPoint = _endPointsFactory->CreateEndPoint()) {
-        if (!endPoint->AddOutputMediaSink(_translationsOutput)) {
-            // TODO: log error
-        }
-        else {
-            endPoint->SetInputMediaSource(_translationsInput);
-            endPoint->SetInputLanguageId(GetInputLanguage());
-            endPoint->AddOutputMediaSink(_translationsOutput);
-            return std::make_shared<EndPointInfo>(std::move(endPoint));
+    if (consumer) {
+        if (auto endPoint = _endPointsFactory->CreateEndPoint()) {
+            if (!endPoint->AddOutputMediaSink(_translationsOutput)) {
+                MS_ERROR_STD("failed add output media sink to translation end-point");
+            }
+            else {
+                endPoint->SetInputMediaSource(_translationsInput);
+                endPoint->SetInputLanguageId(GetInputLanguage());
+                endPoint->AddOutputMediaSink(_translationsOutput);
+                return std::make_shared<EndPointInfo>(consumer, std::move(endPoint));
+            }
         }
     }
     return nullptr;
@@ -330,11 +328,13 @@ std::unordered_set<uint64_t> ConsumersManager::GetAlienConsumers(uint64_t endPoi
     return consumers;
 }
 
-ConsumersManager::EndPointInfo::EndPointInfo(std::shared_ptr<TranslatorEndPoint> endPoint)
+ConsumersManager::EndPointInfo::EndPointInfo(const std::shared_ptr<ConsumerTranslator>& initialConsumer,
+                                             std::shared_ptr<TranslatorEndPoint> endPoint)
     : _endPoint(std::move(endPoint))
     , _playInfo(0U, 0U)
 {
-    _consumers->reserve(1U);
+    _consumers->reserve(2U);
+    _consumers->insert(initialConsumer->GetId());
 }
 
 ConsumersManager::EndPointInfo::~EndPointInfo()

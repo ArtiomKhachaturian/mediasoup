@@ -46,7 +46,7 @@ private:
     bool AddNewEndPointFor(const std::shared_ptr<ConsumerTranslator>& consumer,
                            std::string consumerLanguageId,
                            std::string consumerVoiceId);
-    std::shared_ptr<EndPointInfo> CreateEndPoint() const;
+    std::shared_ptr<EndPointInfo> CreateEndPoint(const std::shared_ptr<ConsumerTranslator>& consumer) const;
     std::shared_ptr<EndPointInfo> GetEndPoint(uint64_t endPointId) const;
     // note: this method makes iteration by [_endPoints] without lock/unlock of protection
     std::unordered_set<uint64_t> GetAlienConsumers(uint64_t endPointId) const;
