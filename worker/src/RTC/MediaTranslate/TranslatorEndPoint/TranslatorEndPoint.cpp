@@ -164,7 +164,7 @@ uint64_t TranslatorEndPoint::NotifyThatTranslationReceived(const std::shared_ptr
 {
     if (media) {
         const auto number = _translationsCount.fetch_add(1U) + 1U;
-        MS_DEBUG_DEV_STD("Received translation #%" PRIu64 "at %s from %s", number,
+        MS_DEBUG_DEV_STD("Received translation #%" PRIu64 " at %s from %s", number,
                          GetCurrentTime().c_str(),
                          GetDescription().c_str());
         InvokeOutputMediaSinks(&MediaSink::StartMediaWriting);
