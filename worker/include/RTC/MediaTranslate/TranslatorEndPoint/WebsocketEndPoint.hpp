@@ -11,10 +11,12 @@ class WebsocketFactory;
 class WebsocketEndPoint : public TranslatorEndPoint, private WebsocketListener
 {
 public:
-    WebsocketEndPoint(std::unique_ptr<Websocket> socket, std::string ownerId = std::string());
+    WebsocketEndPoint(std::unique_ptr<Websocket> socket, std::string ownerId = std::string(),
+                      const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~WebsocketEndPoint() final;
     static std::shared_ptr<WebsocketEndPoint> Create(const WebsocketFactory* factory,
-                                                     std::string ownerId = std::string());
+                                                     std::string ownerId = std::string(),
+                                                     const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     static uint64_t GetInstancesCount() { return _instances.load(); }
     // impl. of TranslatorEndPoint
     bool IsConnected() const final;

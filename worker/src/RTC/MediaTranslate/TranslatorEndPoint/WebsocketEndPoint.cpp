@@ -21,8 +21,9 @@ inline std::string GetUrl(const std::unique_ptr<RTC::Websocket>& socket) {
 namespace RTC
 {
 
-WebsocketEndPoint::WebsocketEndPoint(std::unique_ptr<Websocket> socket, std::string ownerId)
-    : TranslatorEndPoint(std::move(ownerId), GetUrl(socket))
+WebsocketEndPoint::WebsocketEndPoint(std::unique_ptr<Websocket> socket, std::string ownerId,
+                                     const std::shared_ptr<BufferAllocator>& allocator)
+    : TranslatorEndPoint(std::move(ownerId), GetUrl(socket), allocator)
     , _socket(std::move(socket))
 {
     MS_ASSERT(_socket, "websocket must not be null");
@@ -31,12 +32,15 @@ WebsocketEndPoint::WebsocketEndPoint(std::unique_ptr<Websocket> socket, std::str
 }
 
 std::shared_ptr<WebsocketEndPoint> WebsocketEndPoint::Create(const WebsocketFactory* factory,
-                                                             std::string ownerId)
+                                                             std::string ownerId,
+                                                             const std::shared_ptr<BufferAllocator>& allocator)
 {
     std::shared_ptr<WebsocketEndPoint> endPoint;
     if (factory) {
         if (auto socket = factory->Create()) {
-            endPoint = std::make_shared<WebsocketEndPoint>(std::move(socket), std::move(ownerId));
+            endPoint = std::make_shared<WebsocketEndPoint>(std::move(socket),
+                                                           std::move(ownerId),
+                                                           allocator);
         }
         else {
             MS_ERROR_STD("failed to create websocket");

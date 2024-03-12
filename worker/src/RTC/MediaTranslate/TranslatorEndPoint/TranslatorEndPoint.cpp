@@ -3,7 +3,7 @@
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointSink.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
-#include "RTC/Buffers/SimpleBuffer.hpp"
+#include "RTC/Buffers/SegmentsBuffer.hpp"
 #include "Logger.hpp"
 #include <chrono>
 #include <inttypes.h>
@@ -15,20 +15,24 @@ class TranslatorEndPoint::InputSliceBuffer
 {
     using SliceTimestamp = std::chrono::time_point<std::chrono::system_clock>;
 public:
-    InputSliceBuffer(TranslatorEndPoint* owner, uint32_t timeSliceMs);
+    InputSliceBuffer(TranslatorEndPoint* owner, uint32_t timeSliceMs,
+                     const std::shared_ptr<BufferAllocator>& allocator);
     void Add(const std::shared_ptr<Buffer>& buffer);
     void Reset(bool start);
     static std::unique_ptr<InputSliceBuffer> Create(TranslatorEndPoint* owner,
-                                                    uint32_t timeSliceMs);
+                                                    uint32_t timeSliceMs,
+                                                    const std::shared_ptr<BufferAllocator>& allocator);
 private:
     TranslatorEndPoint* const _owner;
     const std::chrono::milliseconds _timeSliceMs;
+    ProtectedObj<SegmentsBuffer, std::mutex> _impl;
     SliceTimestamp _sliceOriginTimestamp;
-    ProtectedObj<SimpleBuffer, std::mutex> _impl;
 };
 
-TranslatorEndPoint::TranslatorEndPoint(std::string ownerId, std::string name, uint32_t timeSliceMs)
-    : _inputSlice(InputSliceBuffer::Create(this, timeSliceMs))
+TranslatorEndPoint::TranslatorEndPoint(std::string ownerId, std::string name,
+                                       const std::shared_ptr<BufferAllocator>& allocator,
+                                       uint32_t timeSliceMs)
+    : _inputSlice(InputSliceBuffer::Create(this, timeSliceMs, allocator))
     , _ownerId(std::move(ownerId))
     , _name(std::move(name))
 {
@@ -373,9 +377,11 @@ void TranslatorEndPoint::EndMediaWriting(uint64_t senderId)
 }
 
 TranslatorEndPoint::InputSliceBuffer::InputSliceBuffer(TranslatorEndPoint* owner,
-                                                       uint32_t timeSliceMs)
+                                                       uint32_t timeSliceMs,
+                                                       const std::shared_ptr<BufferAllocator>& allocator)
     : _owner(owner)
     , _timeSliceMs(timeSliceMs)
+    , _impl(allocator)
 {
 }
 
@@ -385,7 +391,7 @@ void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<Buffer>& bu
         std::shared_ptr<Buffer> outputBuffer;
         {
             LOCK_WRITE_PROTECTED_OBJ(_impl);
-            if (_impl->Append(buffer)) {
+            if (SegmentsBuffer::Result::Failed != _impl->Push(buffer)) {
                 auto now = std::chrono::system_clock::now();
                 if (now > _sliceOriginTimestamp + _timeSliceMs) {
                     _sliceOriginTimestamp = std::move(now);
@@ -415,10 +421,11 @@ void TranslatorEndPoint::InputSliceBuffer::Reset(bool start)
 }
 
 std::unique_ptr<TranslatorEndPoint::InputSliceBuffer> TranslatorEndPoint::InputSliceBuffer::
-    Create(TranslatorEndPoint* owner, uint32_t timeSliceMs)
+    Create(TranslatorEndPoint* owner, uint32_t timeSliceMs,
+           const std::shared_ptr<BufferAllocator>& allocator)
 {
     if (owner && timeSliceMs) {
-        return std::make_unique<InputSliceBuffer>(owner, timeSliceMs);
+        return std::make_unique<InputSliceBuffer>(owner, timeSliceMs, allocator);
     }
     return nullptr;
 }

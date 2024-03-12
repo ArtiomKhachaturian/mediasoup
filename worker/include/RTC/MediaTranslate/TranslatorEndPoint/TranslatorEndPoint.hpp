@@ -11,6 +11,7 @@
 namespace RTC
 {
 
+class BufferAllocator;
 class TranslatorEndPointSink;
 class MediaSource;
 
@@ -41,6 +42,7 @@ public:
 protected:
     TranslatorEndPoint(std::string ownerId = std::string(),
                        std::string name = std::string(),
+                       const std::shared_ptr<BufferAllocator>& allocator = nullptr,
                        uint32_t timeSliceMs = 400U);
     bool HasInput() const;
     bool HasValidTranslationSettings() const;
