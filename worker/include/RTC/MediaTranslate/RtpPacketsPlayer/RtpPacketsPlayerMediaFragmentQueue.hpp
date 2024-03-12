@@ -20,6 +20,8 @@ class RtpPacketsPlayerMediaFragmentQueue : public MediaTimerCallback
     class Task;
     class StartTask;
     class MediaFrameTask;
+    template <typename T>
+    using Protected = ProtectedObj<T, std::mutex>;
 public:
     static std::shared_ptr<RtpPacketsPlayerMediaFragmentQueue> Create(uint64_t mediaId, uint64_t mediaSourceId,
                                                                       const std::weak_ptr<MediaTimer>& timerRef,
@@ -56,8 +58,8 @@ private:
     std::atomic<uint64_t> _timerId = 0;
     // used for adjust of timer interval
     std::atomic<uint32_t> _framesTimeout = 0U;
-    ProtectedUniquePtr<StartTask> _startTask;
-    ProtectedObj<std::queue<std::unique_ptr<Task>>> _tasks;
+    Protected<std::unique_ptr<StartTask>> _startTask;
+    Protected<std::queue<std::unique_ptr<Task>>> _tasks;
 };
 
 } // namespace RTC
