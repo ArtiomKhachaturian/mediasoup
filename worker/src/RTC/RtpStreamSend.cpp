@@ -550,7 +550,7 @@ namespace RTC
 
 		// Calculate number of packets lost in this interval.
 		const size_t totalLost = report->GetTotalLost() > 0 ? report->GetTotalLost() : 0;
-		uint32_t lost, oldLostPriorScore;
+		uint32_t lost;
 
 		if (totalLost < this->lostPriorScore)
 		{

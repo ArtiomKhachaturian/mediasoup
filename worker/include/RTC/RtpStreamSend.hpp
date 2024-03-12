@@ -64,7 +64,7 @@ namespace RTC
 		uint32_t sentPriorScore{ 0u };
         uint16_t rtxSeq{ 0u };
         RTC::RtpDataCounter transmissionCounter;
-		ProtectedUniquePtr<RTC::RtpRetransmissionBuffer> retransmissionBuffer{ nullptr };
+		ProtectedUniquePtr<RTC::RtpRetransmissionBuffer, std::mutex> retransmissionBuffer{ nullptr };
 		// The middle 32 bits out of 64 in the NTP timestamp received in the most
 		// recent receiver reference timestamp.
 		std::atomic<uint32_t> lastRrTimestamp{ 0u };

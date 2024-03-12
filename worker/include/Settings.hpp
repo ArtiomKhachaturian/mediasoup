@@ -50,9 +50,9 @@ public:
         void SetLibwebrtcFieldTrials(std::string libwebrtcFieldTrials);
         std::string GetLibwebrtcFieldTrials() const;
     private:
-		RTC::ProtectedObj<std::string> dtlsCertificateFile;
-        RTC::ProtectedObj<std::string> dtlsPrivateKeyFile;
-        RTC::ProtectedObj<std::string> libwebrtcFieldTrials{ "WebRTC-Bwe-AlrLimitedBackoff/Enabled/" };
+		RTC::ProtectedObj<std::string, std::mutex> dtlsCertificateFile;
+        RTC::ProtectedObj<std::string, std::mutex> dtlsPrivateKeyFile;
+        RTC::ProtectedObj<std::string, std::mutex> libwebrtcFieldTrials{ "WebRTC-Bwe-AlrLimitedBackoff/Enabled/" };
 	};
 
 public:
@@ -69,8 +69,8 @@ public:
 	static struct Configuration configuration;
 
 private:
-	static absl::flat_hash_map<std::string, LogLevel> String2LogLevel; // NOLINT(readability-identifier-naming)
-	static absl::flat_hash_map<LogLevel, std::string> LogLevel2String; // NOLINT(readability-identifier-naming)
+	static const absl::flat_hash_map<std::string, LogLevel> String2LogLevel; // NOLINT(readability-identifier-naming)
+	static const absl::flat_hash_map<LogLevel, std::string> LogLevel2String; // NOLINT(readability-identifier-naming)
 };
 
 #endif
