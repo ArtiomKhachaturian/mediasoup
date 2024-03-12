@@ -242,7 +242,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
     if (0U == FileEndPoint::GetInstancesCount()) {
         return CreateMaybeFileEndPoint();
     }
-    return std::make_shared<StubEndPoint>(GetId(), _rtpPacketsPlayer->GetTimer());
+    return std::make_shared<StubEndPoint>(GetId(), GetAllocator(), _rtpPacketsPlayer->GetTimer());
 #else
     return CreateMaybeFileEndPoint();
 #endif
@@ -261,7 +261,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
         _nonStubEndPointRef = fileEndPoint;
         return fileEndPoint;
     }
-    return std::make_shared<StubEndPoint>(GetId(), _rtpPacketsPlayer->GetTimer());
+    return std::make_shared<StubEndPoint>(GetId(), GetAllocator(), _rtpPacketsPlayer->GetTimer());
 }
 
 #else
@@ -270,15 +270,16 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeStubEndPoint() const
 {
 #ifdef SINGLE_TRANSLATION_POINT_CONNECTION
     if (0 == WebsocketEndPoint::GetInstancesCount()) {
-        const auto socketEndPoint = WebsocketEndPoint::Create(_websocketFactory, GetId());
+        const auto socketEndPoint = WebsocketEndPoint::Create(_websocketFactory,
+                                                              GetId(), GetAllocator());
         if (socketEndPoint) {
             _nonStubEndPointRef = socketEndPoint;
             return socketEndPoint;
         }
     }
-    return std::make_shared<StubEndPoint>(GetId(), _rtpPacketsPlayer->GetTimer());
+    return std::make_shared<StubEndPoint>(GetId(), GetAllocator(), _rtpPacketsPlayer->GetTimer());
 #else
-    return WebsocketEndPoint::Create(_websocketFactory, GetId());
+    return WebsocketEndPoint::Create(_websocketFactory, GetId(), GetAllocator());
 #endif
 }
 #endif

@@ -12,6 +12,7 @@ class StubEndPoint : public TranslatorEndPoint
 {
 public:
     StubEndPoint(std::string ownerId = std::string(),
+                 const std::shared_ptr<BufferAllocator>& allocator = nullptr,
                  const std::shared_ptr<MediaTimer>& timer = nullptr);
     ~StubEndPoint() final;
     // impl. of TranslatorEndPoint

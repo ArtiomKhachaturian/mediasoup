@@ -5,18 +5,18 @@
 #include "RTC/Listeners.hpp"
 #include <nlohmann/json.hpp>
 #include <memory>
-#include <optional>
 #include <string>
 
 namespace RTC
 {
 
+class BufferAllocator;
 class TranslatorEndPointSink;
 class MediaSource;
 
 class TranslatorEndPoint : public ObjectId, private MediaSink
 {
-    class InputSliceBuffer;
+    class InputSlice;
     template <typename T>
     using Protected = ProtectedObj<T, std::mutex>;
     using ProtectedString = Protected<std::string>;
@@ -43,6 +43,7 @@ public:
 protected:
     TranslatorEndPoint(std::string ownerId = std::string(),
                        std::string name = std::string(),
+                       const std::shared_ptr<BufferAllocator>& allocator = nullptr,
                        uint32_t timeSliceMs = 400U);
     bool HasInput() const;
     bool HasValidTranslationSettings() const;
@@ -63,7 +64,7 @@ private:
     bool HasInputLanguageId() const;
     bool HasOutputLanguageId() const;
     bool HasOutputVoiceId() const;
-    std::optional<nlohmann::json> TargetLanguageCmd() const;
+    nlohmann::json TargetLanguageCmd() const;
     void ConnectToMediaInput(bool connect);
     void ConnectToMediaInput(MediaSource* input, bool connect);
     void UpdateTranslationChanges();
@@ -77,7 +78,7 @@ private:
     void WriteMediaPayload(uint64_t senderId, const std::shared_ptr<Buffer>& buffer) final;
     void EndMediaWriting(uint64_t senderId) final;
 private:
-    const std::unique_ptr<InputSliceBuffer> _inputSlice;
+    const std::unique_ptr<InputSlice> _inputSlice;
     const std::string _ownerId;
     const std::string _name;
     ProtectedString _inputLanguageId;

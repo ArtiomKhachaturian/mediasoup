@@ -9,8 +9,11 @@ namespace RTC
 {
 
 StubEndPoint::StubEndPoint(std::string ownerId,
+                           const std::shared_ptr<BufferAllocator>& allocator,
                            const std::shared_ptr<MediaTimer>& timer)
-    : TranslatorEndPoint(std::move(ownerId), "StubEndPoint #" + std::to_string(_instances.fetch_add(1U) + 1U))
+    : TranslatorEndPoint(std::move(ownerId),
+                         "StubEndPoint #" + std::to_string(_instances.fetch_add(1U) + 1U),
+                         allocator)
 #if defined(MOCK_CONNECTION_DELAY_MS) || defined(MOCK_DISCONNECT_AFTER_MS)
     , _timer(timer)
 #endif
