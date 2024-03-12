@@ -5,6 +5,7 @@
 #include "handles/TimerHandle.hpp"
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
 #include "DepLibUV.hpp"
+#include <chrono>
 #include <mutex>
 #include <shared_mutex>
 #endif
@@ -62,6 +63,7 @@ private:
 #ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
 class HeapChunk : public MemoryChunk
 {
+    using Rep = std::chrono::time_point<std::chrono::system_clock>::duration::rep;
 public:
     // in milliseconds
     uint64_t GetAge() const;
@@ -71,7 +73,9 @@ protected:
     void OnAcquired() final;
     void OnReleased() final;
 private:
-    std::atomic<uint64_t> _lastReleaseTime = 0ULL;
+    static Rep GetNow() { return std::chrono::system_clock::now().time_since_epoch().count(); }
+private:
+    std::atomic<Rep> _lastReleaseTime = 0;
 };
 
 class RegularHeapChunk : public HeapChunk
@@ -514,7 +518,7 @@ void MemoryChunk::Release()
 uint64_t HeapChunk::GetAge() const
 {
     if (const auto lastReleaseTime = _lastReleaseTime.load()) {
-        return DepLibUV::GetTimeMs() - lastReleaseTime;
+        return std::chrono::milliseconds(GetNow() - lastReleaseTime).count();
     }
     return 0ULL;
 }
@@ -522,13 +526,13 @@ uint64_t HeapChunk::GetAge() const
 void HeapChunk::OnAcquired()
 {
     MemoryChunk::OnAcquired();
-    _lastReleaseTime = 0ULL;
+    _lastReleaseTime = 0;
 }
 
 void HeapChunk::OnReleased()
 {
     MemoryChunk::OnReleased();
-    _lastReleaseTime = DepLibUV::GetTimeMs();
+    _lastReleaseTime = GetNow();
 }
 
 RegularHeapChunk::RegularHeapChunk(uint8_t* memory, size_t size)

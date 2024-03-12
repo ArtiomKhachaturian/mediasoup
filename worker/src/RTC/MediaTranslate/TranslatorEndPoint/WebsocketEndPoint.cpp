@@ -22,7 +22,7 @@ namespace RTC
 {
 
 WebsocketEndPoint::WebsocketEndPoint(std::unique_ptr<Websocket> socket, std::string ownerId)
-    : TranslatorEndPoint(std::move(ownerId), GetUrl(socket), _defaultTimeSliceMs)
+    : TranslatorEndPoint(std::move(ownerId), GetUrl(socket))
     , _socket(std::move(socket))
 {
     MS_ASSERT(_socket, "websocket must not be null");

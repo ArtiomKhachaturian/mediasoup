@@ -4,8 +4,8 @@
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "RTC/Buffers/SimpleBuffer.hpp"
-#include "DepLibUV.hpp"
 #include "Logger.hpp"
+#include <chrono>
 #include <inttypes.h>
 
 namespace RTC
@@ -13,6 +13,7 @@ namespace RTC
 
 class TranslatorEndPoint::InputSliceBuffer
 {
+    using SliceTimestamp = std::chrono::time_point<std::chrono::system_clock>;
 public:
     InputSliceBuffer(TranslatorEndPoint* owner, uint32_t timeSliceMs);
     void Add(const std::shared_ptr<Buffer>& buffer);
@@ -21,9 +22,9 @@ public:
                                                     uint32_t timeSliceMs);
 private:
     TranslatorEndPoint* const _owner;
-    const uint32_t _timeSliceMs;
-    uint64_t _sliceOriginTimestamp = 0ULL;
-    ProtectedObj<SimpleBuffer> _impl;
+    const std::chrono::milliseconds _timeSliceMs;
+    SliceTimestamp _sliceOriginTimestamp;
+    ProtectedObj<SimpleBuffer, std::mutex> _impl;
 };
 
 TranslatorEndPoint::TranslatorEndPoint(std::string ownerId, std::string name, uint32_t timeSliceMs)
@@ -385,9 +386,9 @@ void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<Buffer>& bu
         {
             LOCK_WRITE_PROTECTED_OBJ(_impl);
             if (_impl->Append(buffer)) {
-                const auto now = DepLibUV::GetTimeMs();
+                auto now = std::chrono::system_clock::now();
                 if (now > _sliceOriginTimestamp + _timeSliceMs) {
-                    _sliceOriginTimestamp = now;
+                    _sliceOriginTimestamp = std::move(now);
                     outputBuffer = _impl->Take();
                 }
             }
@@ -406,10 +407,10 @@ void TranslatorEndPoint::InputSliceBuffer::Reset(bool start)
     LOCK_WRITE_PROTECTED_OBJ(_impl);
     _impl->Clear();
     if (start) {
-        _sliceOriginTimestamp = DepLibUV::GetTimeMs();
+        _sliceOriginTimestamp = std::chrono::system_clock::now();
     }
     else {
-        _sliceOriginTimestamp = 0ULL;
+        _sliceOriginTimestamp = SliceTimestamp();
     }
 }
 
