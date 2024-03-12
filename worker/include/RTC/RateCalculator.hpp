@@ -3,6 +3,7 @@
 
 #include "common.hpp"
 #include "DepLibUV.hpp"
+#include <cstring>
 
 namespace RTC
 {

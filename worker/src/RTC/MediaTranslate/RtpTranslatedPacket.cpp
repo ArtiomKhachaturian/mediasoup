@@ -1,7 +1,6 @@
 #define MS_CLASS "RTC::RtpTranslatedPacket"
 #include "RTC/MediaTranslate/RtpTranslatedPacket.hpp"
 #include "RTC/Codecs/Tools.hpp"
-#include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
 
 namespace RTC

@@ -1,6 +1,7 @@
 #pragma once
 #include "RTC/Timestamp.hpp"
 #include "RTC/Buffers/Buffer.hpp"
+#include "RTC/RtpPacket.hpp"
 #include <memory>
 
 namespace RTC
@@ -8,7 +9,6 @@ namespace RTC
 
 class BufferAllocator;
 class RtpCodecMimeType;
-class RtpPacket;
 
 class RtpTranslatedPacket
 {
