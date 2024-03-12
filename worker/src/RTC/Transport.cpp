@@ -639,7 +639,7 @@ namespace RTC
                     throw;
                 }
 #ifdef MEDIA_TRANSLATIONS_TEST
-                producer->SetLanguageId("ru");
+                producer->SetLanguageId(PRODUCER_LANGUAGE_ID);
 #else
                 producer->SetLanguageId(body->languageId()->c_str());
 #endif
@@ -831,8 +831,8 @@ namespace RTC
                     }
                 }
 #ifdef MEDIA_TRANSLATIONS_TEST
-                consumer->SetLanguageId("en");
-                consumer->SetVoiceId("Male");
+                consumer->SetLanguageId(CONSUMER_LANGUAGE_ID);
+                consumer->SetVoiceId(CONSUMER_VOICE_ID);
 #else
                 consumer->SetLanguageId(body->languageId()->c_str());
                 consumer->SetVoiceId(body->voiceId()->c_str());
