@@ -35,7 +35,7 @@ public:
                      TranslatorEndPointSink* translationsOutput,
                      uint32_t mappedSsrc, uint32_t clockRate,
                      const RtpCodecMimeType& mime,
-                     MixerMode mode = MixerMode::DropOriginalDuringPlay);
+                     MixerMode mode = MixerMode::DropOriginalDuringConnection);
     ~ConsumersManager();
     void SetInputLanguage(const std::string& languageId);
     std::string GetInputLanguage() const;

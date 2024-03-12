@@ -43,7 +43,7 @@ public:
 protected:
     TranslatorEndPoint(std::string ownerId = std::string(),
                        std::string name = std::string(),
-                       uint32_t timeSliceMs = 0U);
+                       uint32_t timeSliceMs = 400U);
     bool HasInput() const;
     bool HasValidTranslationSettings() const;
     void NotifyThatConnectionEstablished(bool connected);
