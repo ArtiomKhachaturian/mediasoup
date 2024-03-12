@@ -18,8 +18,7 @@ public:
     RtpTranslatedPacket(RtpTranslatedPacket&& tmp);
     // [timestampOffset] from beginning of media stream, zero for 1st frame
     // [buffer] included RTP header + data
-    RtpTranslatedPacket(const RtpCodecMimeType& mime,
-                        Timestamp timestampOffset,
+    RtpTranslatedPacket(Timestamp timestampOffset,
                         std::shared_ptr<Buffer> buffer,
                         size_t payloadOffset,
                         size_t payloadLength,

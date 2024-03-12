@@ -1,13 +1,11 @@
 #define MS_CLASS "RTC::RtpTranslatedPacket"
 #include "RTC/MediaTranslate/RtpTranslatedPacket.hpp"
-#include "RTC/Codecs/Tools.hpp"
 #include "Logger.hpp"
 
 namespace RTC
 {
 
-RtpTranslatedPacket::RtpTranslatedPacket(const RtpCodecMimeType& mime,
-                                         Timestamp timestampOffset,
+RtpTranslatedPacket::RtpTranslatedPacket(Timestamp timestampOffset,
                                          std::shared_ptr<Buffer> buffer,
                                          size_t payloadOffset,
                                          size_t payloadLength,
@@ -25,7 +23,6 @@ RtpTranslatedPacket::RtpTranslatedPacket(const RtpCodecMimeType& mime,
     RtpPacket packet(RtpPacketHeader::Init(data), nullptr, data + payloadOffset,
                      payloadLength, 0U, payloadOffset + payloadLength, allocator);
     _impl.reset(packet.Clone());
-    Codecs::Tools::ProcessRtpPacket(_impl.get(), mime);
 }
 
 RtpTranslatedPacket::RtpTranslatedPacket(RtpTranslatedPacket&& tmp)
