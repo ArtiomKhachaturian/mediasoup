@@ -197,19 +197,19 @@ bool TranslatorEndPoint::IsInputMediaSourcePaused() const
     return inputMediaSource && inputMediaSource->IsPaused();
 }
 
-nlohmann::json TranslatorEndPoint::TargetLanguageCmd(const std::string& inputLanguageId,
-                                                     const std::string& outputLanguageId,
-                                                     const std::string& outputVoiceId)
+nlohmann::json TranslatorEndPoint::TargetLanguageCmd(std::string inputLanguageId,
+                                                     std::string outputLanguageId,
+                                                     std::string outputVoiceId)
 {
     // language settings
     nlohmann::json languageSettings;
-    languageSettings["from"] = inputLanguageId;
-    languageSettings["to"] = outputLanguageId;
-    languageSettings["voiceID"] = outputVoiceId;
+    languageSettings["from"] = std::move(inputLanguageId);
+    languageSettings["to"] = std::move(outputLanguageId);
+    languageSettings["voiceID"] = std::move(outputVoiceId);
     // command
     nlohmann::json command;
     command["type"] = "set_target_language";
-    command["cmd"] = languageSettings;
+    command["cmd"] = std::move(languageSettings);
     return command;
 }
 
@@ -253,13 +253,13 @@ bool TranslatorEndPoint::HasOutputVoiceId() const
 
 nlohmann::json TranslatorEndPoint::TargetLanguageCmd() const
 {
-    const auto inputLanguageId = GetInputLanguageId();
-    if (!inputLanguageId.empty()) {
-        const auto outputLanguageId = GetOutputLanguageId();
-        if (!outputLanguageId.empty()) {
-            const auto outputVoiceId = GetOutputVoiceId();
-            if (!outputVoiceId.empty()) {
-                return TargetLanguageCmd(inputLanguageId, outputLanguageId, outputVoiceId);
+    auto input = GetInputLanguageId();
+    if (!input.empty()) {
+        auto output = GetOutputLanguageId();
+        if (!output.empty()) {
+            auto voice = GetOutputVoiceId();
+            if (!voice.empty()) {
+                return TargetLanguageCmd(std::move(input), std::move(output), std::move(voice));
             }
         }
     }

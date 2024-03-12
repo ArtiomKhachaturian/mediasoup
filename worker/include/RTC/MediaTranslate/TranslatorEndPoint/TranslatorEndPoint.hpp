@@ -56,9 +56,9 @@ protected:
     virtual bool SendBinary(const std::shared_ptr<Buffer>& buffer) const = 0;
     virtual bool SendText(const std::string& text) const = 0;
 private:
-    static nlohmann::json TargetLanguageCmd(const std::string& inputLanguageId,
-                                            const std::string& outputLanguageId,
-                                            const std::string& outputVoiceId);
+    static nlohmann::json TargetLanguageCmd(std::string inputLanguageId,
+                                            std::string outputLanguageId,
+                                            std::string outputVoiceId);
     void ChangeTranslationSettings(std::string to, ProtectedString& object);
     bool CanConnect() const;
     bool HasInputLanguageId() const;
