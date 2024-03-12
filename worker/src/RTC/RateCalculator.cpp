@@ -3,6 +3,7 @@
 
 #include "RTC/RateCalculator.hpp"
 #include "Logger.hpp"
+#include <cstring> // std::memset()
 #include <cmath> // std::trunc()
 
 namespace RTC

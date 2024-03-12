@@ -286,5 +286,6 @@ Use these commands for setup of your docker build:
 6. curl -s https://deb.nodesource.com/setup_18.x | bash
 7. apt install nodejs -y
 8. cd /home/mediasoup_server
-9. npm run worker:build
+9. npm install
+10. npm run worker:build
 

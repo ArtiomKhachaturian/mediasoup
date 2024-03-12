@@ -1397,7 +1397,7 @@ namespace RTC
         return MangleRtpPacket(packet, this->mapRtpStreamMappedSsrc.at(rtpStream));
     }
 
-	inline void Producer::PostProcessRtpPacket(const RTC::RtpPacket* packet)
+    void Producer::PostProcessRtpPacket(const RTC::RtpPacket* packet)
 	{
 		MS_TRACE();
 

@@ -372,7 +372,7 @@ bool ConsumersManager::EndPointInfo::BeginMediaPlay(uint64_t mediaId)
         LOCK_READ_PROTECTED_OBJ(_timeline);
         if (const auto& timeline = _timeline.ConstRef()) {
             _playInfo->first = mediaId;
-            _playInfo->second = _timeline->get()->GetTimestamp();
+            _playInfo->second = timeline->GetTimestamp();
             return true;
         }
     }
