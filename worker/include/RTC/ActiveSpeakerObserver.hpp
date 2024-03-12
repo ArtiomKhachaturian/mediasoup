@@ -20,7 +20,9 @@ namespace RTC
 	{
         class Speaker;
         class ProducerSpeaker;
-
+        template <typename T>
+        using Protected = ProtectedObj<T, std::mutex>;
+        
 	public:
 		ActiveSpeakerObserver(
 		  RTC::Shared* shared,
@@ -52,10 +54,10 @@ namespace RTC
 	private:
         static inline constexpr size_t RelativeSpeachActivitiesLen = 3u;
         const std::unique_ptr<TimerHandle> periodicTimer;
-        ProtectedObj<std::string> dominantId;
+        Protected<std::string> dominantId;
 		// Map of ProducerSpeakers indexed by Producer id.
-        ProtectedObj<absl::flat_hash_map<std::string, ProducerSpeaker*>> mapProducerSpeakers;
-        ProtectedObj<uint64_t> lastLevelIdleTime{ 0u };
+        Protected<absl::flat_hash_map<std::string, ProducerSpeaker*>> mapProducerSpeakers;
+        Protected<uint64_t> lastLevelIdleTime{ 0u };
 	};
 } // namespace RTC
 

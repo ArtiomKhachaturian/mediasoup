@@ -19,7 +19,8 @@ namespace RTC
             std::atomic<size_t> count{ 0u };      // Number of dBvos entries in totalSum.
             int8_t GetAvg() const;
 		};
-
+        using DBovsMap = absl::flat_hash_map<RTC::Producer*, std::unique_ptr<DBovs>>;
+        
 	public:
 		AudioLevelObserver(
 		  RTC::Shared* shared,
@@ -52,7 +53,7 @@ namespace RTC
 		// Allocated by this.
 		const std::unique_ptr<TimerHandle> periodicTimer;
 		// Others.
-		ProtectedObj<absl::flat_hash_map<RTC::Producer*, std::unique_ptr<DBovs>>> mapProducerDBovs;
+		ProtectedObj<DBovsMap, std::mutex> mapProducerDBovs;
 		std::atomic_bool silence{ true };
 	};
 } // namespace RTC

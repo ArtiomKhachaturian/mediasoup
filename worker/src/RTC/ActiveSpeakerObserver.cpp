@@ -128,12 +128,12 @@ namespace RTC
         std::atomic<double> immediateActivityScore{ 0 };
         std::atomic<double> mediumActivityScore{ 0 };
         std::atomic<double> longActivityScore{ 0 };
-        ProtectedObj<uint64_t> lastLevelChangeTime{ 0 };
-        ProtectedObj<MinLevelEval> minLevel;
-        ProtectedObj<std::vector<uint8_t>> immediates;
-        ProtectedObj<std::vector<uint8_t>> mediums;
-        ProtectedObj<std::vector<uint8_t>> longs;
-        ProtectedObj<std::vector<uint8_t>> levels;
+        Protected<uint64_t> lastLevelChangeTime{ 0 };
+        Protected<MinLevelEval> minLevel;
+        Protected<std::vector<uint8_t>> immediates;
+        Protected<std::vector<uint8_t>> mediums;
+        Protected<std::vector<uint8_t>> longs;
+        Protected<std::vector<uint8_t>> levels;
         size_t nextLevelIndex{ 0u }; // guarded with [levels]
     };
 
@@ -210,20 +210,22 @@ namespace RTC
 	{
 		MS_TRACE();
         
-        LOCK_WRITE_PROTECTED_OBJ(this->mapProducerSpeakers);
-
-		auto it = this->mapProducerSpeakers->find(producer->id);
-
-		if (it == this->mapProducerSpeakers->end())
-		{
-			return;
-		}
-
-		auto* producerSpeaker = it->second;
-
-		delete producerSpeaker;
-
-		this->mapProducerSpeakers->erase(producer->id);
+        {
+            LOCK_WRITE_PROTECTED_OBJ(this->mapProducerSpeakers);
+            
+            auto it = this->mapProducerSpeakers->find(producer->id);
+            
+            if (it == this->mapProducerSpeakers->end())
+            {
+                return;
+            }
+            
+            auto* producerSpeaker = it->second;
+            
+            delete producerSpeaker;
+            
+            this->mapProducerSpeakers->erase(producer->id);
+        }
         
         if (ResetDominantId(producer->id)) {
 
