@@ -114,19 +114,19 @@ private:
 };
 
 PoolAllocator::PoolAllocator()
-    : _stackChunks1byte(FillStackChunks<1U>())
-    , _stackChunks2bytes(FillStackChunks<2U>())
-    , _stackChunks4bytes(FillStackChunks<4U>())
-    , _stackChunks8bytes(FillStackChunks<8U>())
-    , _stackChunks16bytes(FillStackChunks<16U>())
-    , _stackChunks32bytes(FillStackChunks<32U>())
-    , _stackChunks64bytes(FillStackChunks<64U>())
-    , _stackChunks128bytes(FillStackChunks<128U>())
-    , _stackChunks256bytes(FillStackChunks<256U>())
-    , _stackChunks512bytes(FillStackChunks<512U>())
-    , _stackChunks1024bytes(FillStackChunks<1024U>())
-    , _stackChunks2048bytes(FillStackChunks<2048U>())
-    , _stackChunks4096bytes(FillStackChunks<4096U>())
+    : _stackChunks1byte(FillStackChunks<32U, 1U>())
+    , _stackChunks2bytes(FillStackChunks<32U, 2U>())
+    , _stackChunks4bytes(FillStackChunks<32U, 4U>())
+    , _stackChunks8bytes(FillStackChunks<32U, 8U>())
+    , _stackChunks16bytes(FillStackChunks<32U, 16U>())
+    , _stackChunks32bytes(FillStackChunks<32U, 32U>())
+    , _stackChunks64bytes(FillStackChunks<32U, 64U>())
+    , _stackChunks128bytes(FillStackChunks<32U, 128U>())
+    , _stackChunks256bytes(FillStackChunks<32U, 256U>())
+    , _stackChunks512bytes(FillStackChunks<32U, 512U>())
+    , _stackChunks1024bytes(FillStackChunks<64U, 1024U>())
+    , _stackChunks2048bytes(FillStackChunks<128U, 2048U>())
+    , _stackChunks4096bytes(FillStackChunks<32U, 4096U>())
 {
 }
 
@@ -206,11 +206,11 @@ std::shared_ptr<Buffer> PoolAllocator::AllocateAligned(size_t size, size_t align
     return BufferAllocator::AllocateAligned(size, alignedSize);
 }
 
-template<size_t size>
-PoolAllocator::StackChunks PoolAllocator::FillStackChunks()
+template<size_t count, size_t size>
+PoolAllocator::StackChunks<count> PoolAllocator::FillStackChunks()
 {
-    StackChunks chunks;
-    for (size_t i = 0U; i < chunks.size(); ++i) {
+    StackChunks<count> chunks;
+    for (size_t i = 0U; i < count; ++i) {
         chunks[i] = std::make_shared<StackChunk<size>>();
     }
     return chunks;
@@ -229,11 +229,12 @@ size_t PoolAllocator::GetCachelineSize(size_t alignedSize, size_t cachelineTop)
     return alignedSize;
 }
 
-std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::GetAcquired(const StackChunks& chunks)
+template<class TSerialChunks>
+std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::GetAcquired(const TSerialChunks& chunks)
 {
-    for (const auto& chunk : chunks) {
-        if (chunk->Acquire()) {
-            return chunk;
+    for (size_t i = 0U, end = std::size(chunks); i < end; ++i) {
+        if (chunks[i]->Acquire()) {
+            return chunks[i];
         }
     }
     return nullptr;
@@ -280,6 +281,8 @@ std::shared_ptr<PoolAllocator::HeapChunk> PoolAllocator::CreateHeapChunk(size_t 
                     break;
                 case 16U:
                     chunk = std::make_shared<PseudoHeapChunk<16U>>();
+                    break;
+                default:
                     break;
             }
         }
