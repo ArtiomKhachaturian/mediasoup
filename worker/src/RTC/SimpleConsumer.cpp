@@ -84,13 +84,14 @@ namespace RTC
 		// Add stats of our send stream.
 		rtpStreams.emplace_back(this->rtpStream->FillBufferStats(builder));
 
-        LOCK_READ_PROTECTED_OBJ(this->producerRtpStream);
-		// Add stats of our recv stream.
-        if (const auto producerRtpStream = this->producerRtpStream.ConstRef())
-		{
-			rtpStreams.emplace_back(producerRtpStream->FillBufferStats(builder));
-		}
-
+        {
+            LOCK_READ_PROTECTED_OBJ(this->producerRtpStream);
+            // Add stats of our recv stream.
+            if (const auto producerRtpStream = this->producerRtpStream.ConstRef())
+            {
+                rtpStreams.emplace_back(producerRtpStream->FillBufferStats(builder));
+            }
+        }
 		return FBS::Consumer::CreateGetStatsResponseDirect(builder, &rtpStreams);
 	}
 
@@ -103,13 +104,14 @@ namespace RTC
 
 		uint8_t producerScore{ 0 };
 
-        LOCK_READ_PROTECTED_OBJ(this->producerRtpStream);
-        
-        if (const auto producerRtpStream = this->producerRtpStream.ConstRef())
-		{
-			producerScore = producerRtpStream->GetScore();
-		}
-
+        {
+            LOCK_READ_PROTECTED_OBJ(this->producerRtpStream);
+            
+            if (const auto producerRtpStream = this->producerRtpStream.ConstRef())
+            {
+                producerScore = producerRtpStream->GetScore();
+            }
+        }
 		return FBS::Consumer::CreateConsumerScoreDirect(
 		  builder, this->rtpStream->GetScore(), producerScore, this->producerRtpStreamScores);
 	}

@@ -101,8 +101,8 @@ namespace RTC
 			public:
                 std::atomic_bool syncRequired{ false };
             private:
-                ProtectedObj<RTC::SeqManager<uint16_t, 15>> pictureIdManager;
-                ProtectedObj<RTC::SeqManager<uint8_t>> tl0PictureIndexManager;
+                ProtectedObj<RTC::SeqManager<uint16_t, 15>, std::mutex> pictureIdManager;
+                ProtectedObj<RTC::SeqManager<uint8_t>, std::mutex> tl0PictureIndexManager;
 			};
 
 		public:

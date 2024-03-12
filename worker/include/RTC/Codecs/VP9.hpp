@@ -115,7 +115,7 @@ namespace RTC
 			public:
                 std::atomic_bool syncRequired{ false };
             private:
-                ProtectedObj<RTC::SeqManager<uint16_t, 15>> pictureIdManager;
+                ProtectedObj<RTC::SeqManager<uint16_t, 15>, std::mutex> pictureIdManager;
 			};
 
 			class PayloadDescriptorHandler : public RTC::Codecs::PayloadDescriptorHandler

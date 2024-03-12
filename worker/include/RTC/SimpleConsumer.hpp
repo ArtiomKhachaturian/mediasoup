@@ -79,9 +79,9 @@ namespace RTC
 		// Allocated by this.
         const std::unique_ptr<RTC::RtpStreamSend> rtpStream;
 		// Others.
-		ProtectedObj<RTC::RtpStreamRecv*> producerRtpStream{ nullptr };
+		ProtectedObj<RTC::RtpStreamRecv*, std::mutex> producerRtpStream{ nullptr };
 		std::atomic_bool syncRequired{ false };
-        ProtectedObj<RTC::SeqManager<uint16_t>> rtpSeqManager;
+        ProtectedObj<RTC::SeqManager<uint16_t>, std::mutex> rtpSeqManager;
         std::atomic_bool managingBitrate{ false };
 	};
 } // namespace RTC
