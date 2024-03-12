@@ -75,6 +75,7 @@ std::shared_ptr<Buffer> SegmentsBuffer::Take()
         MS_ASSERT(1U == _buffers.size(), "merge operation was incorrect");
         auto buffer = std::move(_buffers.front());
         _buffers.clear();
+        _size = 0U;
         return buffer;
     }
     return nullptr;
