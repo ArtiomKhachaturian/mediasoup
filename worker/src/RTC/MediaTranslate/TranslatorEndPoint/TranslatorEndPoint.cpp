@@ -11,28 +11,25 @@
 namespace RTC
 {
 
-class TranslatorEndPoint::InputSliceBuffer
+class TranslatorEndPoint::InputSlice
 {
     using SliceTimestamp = std::chrono::time_point<std::chrono::system_clock>;
 public:
-    InputSliceBuffer(TranslatorEndPoint* owner, uint32_t timeSliceMs,
-                     const std::shared_ptr<BufferAllocator>& allocator);
-    void Add(const std::shared_ptr<Buffer>& buffer);
+    InputSlice(uint32_t timeSliceMs, const std::shared_ptr<BufferAllocator>& allocator);
+    std::shared_ptr<Buffer> Add(const std::shared_ptr<Buffer>& inputBuffer);
     void Reset(bool start);
-    static std::unique_ptr<InputSliceBuffer> Create(TranslatorEndPoint* owner,
-                                                    uint32_t timeSliceMs,
-                                                    const std::shared_ptr<BufferAllocator>& allocator);
+    static std::unique_ptr<InputSlice> Create(uint32_t timeSliceMs,
+                                              const std::shared_ptr<BufferAllocator>& allocator);
 private:
-    TranslatorEndPoint* const _owner;
     const std::chrono::milliseconds _timeSliceMs;
-    ProtectedObj<SegmentsBuffer, std::mutex> _impl;
+    Protected<SegmentsBuffer> _buffer;
     SliceTimestamp _sliceOriginTimestamp;
 };
 
 TranslatorEndPoint::TranslatorEndPoint(std::string ownerId, std::string name,
                                        const std::shared_ptr<BufferAllocator>& allocator,
                                        uint32_t timeSliceMs)
-    : _inputSlice(InputSliceBuffer::Create(this, timeSliceMs, allocator))
+    : _inputSlice(InputSlice::Create(timeSliceMs, allocator))
     , _ownerId(std::move(ownerId))
     , _name(std::move(name))
 {
@@ -254,7 +251,7 @@ bool TranslatorEndPoint::HasOutputVoiceId() const
     return !_outputVoiceId->empty();
 }
 
-std::optional<nlohmann::json> TranslatorEndPoint::TargetLanguageCmd() const
+nlohmann::json TranslatorEndPoint::TargetLanguageCmd() const
 {
     const auto inputLanguageId = GetInputLanguageId();
     if (!inputLanguageId.empty()) {
@@ -266,7 +263,7 @@ std::optional<nlohmann::json> TranslatorEndPoint::TargetLanguageCmd() const
             }
         }
     }
-    return std::nullopt;
+    return {};
 }
 
 void TranslatorEndPoint::ConnectToMediaInput(bool connect)
@@ -282,7 +279,10 @@ void TranslatorEndPoint::ConnectToMediaInput(MediaSource* input, bool connect)
 {
     if (input) {
         if (connect) {
-            input->AddSink(this);
+            if (!input->AddSink(this)) {
+                MS_ERROR_STD("unable connect translation service %s to media input",
+                             GetDescription().c_str());
+            }
         }
         else {
             input->RemoveSink(this);
@@ -308,8 +308,9 @@ void TranslatorEndPoint::UpdateTranslationChanges()
 bool TranslatorEndPoint::SendTranslationChanges()
 {
     if (IsConnected()) {
-        if (const auto cmd = TargetLanguageCmd()) {
-            return WriteJson(cmd.value());
+        const auto cmd = TargetLanguageCmd();
+        if (!cmd.empty()) {
+            return WriteJson(cmd);
         }
     }
     return false;
@@ -360,7 +361,9 @@ void TranslatorEndPoint::WriteMediaPayload(uint64_t, const std::shared_ptr<Buffe
 {
     if (buffer && !buffer->IsEmpty() && IsConnected()) {
         if (_inputSlice) {
-            _inputSlice->Add(buffer);
+            if (const auto outputBuffer = _inputSlice->Add(buffer)) {
+                WriteBinary(outputBuffer);
+            }
         }
         else {
             WriteBinary(buffer);
@@ -376,42 +379,37 @@ void TranslatorEndPoint::EndMediaWriting(uint64_t senderId)
     }
 }
 
-TranslatorEndPoint::InputSliceBuffer::InputSliceBuffer(TranslatorEndPoint* owner,
-                                                       uint32_t timeSliceMs,
-                                                       const std::shared_ptr<BufferAllocator>& allocator)
-    : _owner(owner)
-    , _timeSliceMs(timeSliceMs)
-    , _impl(allocator)
+TranslatorEndPoint::InputSlice::InputSlice(uint32_t timeSliceMs,
+                                           const std::shared_ptr<BufferAllocator>& allocator)
+    : _timeSliceMs(timeSliceMs)
+    , _buffer(allocator)
 {
 }
 
-void TranslatorEndPoint::InputSliceBuffer::Add(const std::shared_ptr<Buffer>& buffer)
+std::shared_ptr<Buffer> TranslatorEndPoint::InputSlice::Add(const std::shared_ptr<Buffer>& inputBuffer)
 {
-    if (buffer) {
-        std::shared_ptr<Buffer> outputBuffer;
-        {
-            LOCK_WRITE_PROTECTED_OBJ(_impl);
-            if (SegmentsBuffer::Result::Failed != _impl->Push(buffer)) {
-                auto now = std::chrono::system_clock::now();
-                if (now > _sliceOriginTimestamp + _timeSliceMs) {
-                    _sliceOriginTimestamp = std::move(now);
-                    outputBuffer = _impl->Take();
-                }
-            }
-            else {
-                MS_ERROR_STD("unable to add memory buffer (%zu bytes) to input slice", buffer->GetSize());
+    std::shared_ptr<Buffer> outputBuffer;
+    if (inputBuffer) {
+        LOCK_WRITE_PROTECTED_OBJ(_buffer);
+        if (SegmentsBuffer::Result::Failed != _buffer->Push(inputBuffer)) {
+            auto now = std::chrono::system_clock::now();
+            if (now > _sliceOriginTimestamp + _timeSliceMs) {
+                _sliceOriginTimestamp = std::move(now);
+                outputBuffer = _buffer->Take();
             }
         }
-        if (outputBuffer) {
-            _owner->WriteBinary(outputBuffer);
+        else {
+            MS_ERROR_STD("unable to add memory buffer (%zu bytes) to input slice",
+                         inputBuffer->GetSize());
         }
     }
+    return outputBuffer;
 }
 
-void TranslatorEndPoint::InputSliceBuffer::Reset(bool start)
+void TranslatorEndPoint::InputSlice::Reset(bool start)
 {
-    LOCK_WRITE_PROTECTED_OBJ(_impl);
-    _impl->Clear();
+    LOCK_WRITE_PROTECTED_OBJ(_buffer);
+    _buffer->Clear();
     if (start) {
         _sliceOriginTimestamp = std::chrono::system_clock::now();
     }
@@ -420,12 +418,11 @@ void TranslatorEndPoint::InputSliceBuffer::Reset(bool start)
     }
 }
 
-std::unique_ptr<TranslatorEndPoint::InputSliceBuffer> TranslatorEndPoint::InputSliceBuffer::
-    Create(TranslatorEndPoint* owner, uint32_t timeSliceMs,
-           const std::shared_ptr<BufferAllocator>& allocator)
+std::unique_ptr<TranslatorEndPoint::InputSlice> TranslatorEndPoint::InputSlice::
+    Create(uint32_t timeSliceMs, const std::shared_ptr<BufferAllocator>& allocator)
 {
-    if (owner && timeSliceMs) {
-        return std::make_unique<InputSliceBuffer>(owner, timeSliceMs, allocator);
+    if (timeSliceMs) {
+        return std::make_unique<InputSlice>(timeSliceMs, allocator);
     }
     return nullptr;
 }

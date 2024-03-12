@@ -5,7 +5,6 @@
 #include "RTC/Listeners.hpp"
 #include <nlohmann/json.hpp>
 #include <memory>
-#include <optional>
 #include <string>
 
 namespace RTC
@@ -17,8 +16,10 @@ class MediaSource;
 
 class TranslatorEndPoint : public ObjectId, private MediaSink
 {
-    class InputSliceBuffer;
-    using ProtectedString = ProtectedObj<std::string>;
+    class InputSlice;
+    template <typename T>
+    using Protected = ProtectedObj<T, std::mutex>;
+    using ProtectedString = Protected<std::string>;
 public:
     virtual ~TranslatorEndPoint() override;
     // in/out media connections
@@ -63,7 +64,7 @@ private:
     bool HasInputLanguageId() const;
     bool HasOutputLanguageId() const;
     bool HasOutputVoiceId() const;
-    std::optional<nlohmann::json> TargetLanguageCmd() const;
+    nlohmann::json TargetLanguageCmd() const;
     void ConnectToMediaInput(bool connect);
     void ConnectToMediaInput(MediaSource* input, bool connect);
     void UpdateTranslationChanges();
@@ -77,13 +78,13 @@ private:
     void WriteMediaPayload(uint64_t senderId, const std::shared_ptr<Buffer>& buffer) final;
     void EndMediaWriting(uint64_t senderId) final;
 private:
-    const std::unique_ptr<InputSliceBuffer> _inputSlice;
+    const std::unique_ptr<InputSlice> _inputSlice;
     const std::string _ownerId;
     const std::string _name;
     ProtectedString _inputLanguageId;
     ProtectedString _outputLanguageId;
     ProtectedString _outputVoiceId;
-    ProtectedObj<MediaSource*> _inputMediaSource = nullptr;
+    Protected<MediaSource*> _inputMediaSource = nullptr;
     Listeners<TranslatorEndPointSink*> _outputMediaSinks;
     std::atomic_bool _notifyedThatConnected = false; // for logs
     std::atomic<uint64_t> _translationsCount = 0ULL;
