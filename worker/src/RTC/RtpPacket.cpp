@@ -406,7 +406,7 @@ namespace RTC
 		}
 
 		// Add wideSequenceNumber.
-		uint16_t wideSequenceNumber;
+		uint16_t wideSequenceNumber = 0U;
 		bool wideSequenceNumberSet = false;
 
 		if (this->transportWideCc01ExtensionId != 0u)
