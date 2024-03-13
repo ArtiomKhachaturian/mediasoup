@@ -4,7 +4,7 @@
 #include <array>
 #include <list>
 #include <map>
-#include <shared_mutex>
+#include <mutex>
 
 namespace RTC
 {
@@ -22,9 +22,8 @@ class PoolAllocator : public BufferAllocator, private TimerHandle::Listener
     using StackChunks = std::array<std::shared_ptr<MemoryChunk>, count>;
     // key is allocated size
     using HeapChunksMap = std::multimap<size_t, std::shared_ptr<HeapChunk>>;
-    using MutexType = std::shared_mutex;
-    using WriteMutexLock = std::unique_lock<MutexType>;
-    using ReadMutexLock = std::shared_lock<MutexType>;
+    using MutexType = std::mutex;
+    using MutexLock = std::lock_guard<MutexType>;
 public:
     PoolAllocator(const PoolAllocator&) = delete;
     PoolAllocator(PoolAllocator&&) = delete;

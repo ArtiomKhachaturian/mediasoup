@@ -138,7 +138,7 @@ PoolAllocator::~PoolAllocator()
 bool PoolAllocator::RunGarbageCollector()
 {
     if (BufferAllocator::RunGarbageCollector()) {
-        const WriteMutexLock lock(_heapChunksMtx);
+        const MutexLock lock(_heapChunksMtx);
         if (!_garbageCollectorTimer) {
             if (DepLibUV::GetLoop()) {
                 const auto intervalMs = POOL_MEMORY_ALLOCATOR_HEAP_CHUNKS_LIFETIME_MS;
@@ -157,7 +157,7 @@ void PoolAllocator::PurgeGarbage(uint32_t maxBufferAgeMs)
     BufferAllocator::PurgeGarbage(maxBufferAgeMs);
     //size_t deallocated = 0U, still = 0U;
     {
-        const WriteMutexLock lock(_heapChunksMtx);
+        const MutexLock lock(_heapChunksMtx);
         if (maxBufferAgeMs) {
             // TODO: change to https://en.cppreference.com/w/cpp/container/multimap/erase_if on C++20
             for (auto it = _heapChunks.begin(); it != _heapChunks.end();) {
@@ -188,7 +188,7 @@ void PoolAllocator::PurgeGarbage(uint32_t maxBufferAgeMs)
 void PoolAllocator::StopGarbageCollector()
 {
     BufferAllocator::StopGarbageCollector();
-    const WriteMutexLock lock(_heapChunksMtx);
+    const MutexLock lock(_heapChunksMtx);
     _garbageCollectorTimer.reset();
 }
 
@@ -342,23 +342,20 @@ std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::AcquireHeapChunk(size
 {
     std::shared_ptr<MemoryChunk> chunk;
     {
-        const ReadMutexLock lock(_heapChunksMtx);
+        const MutexLock lock(_heapChunksMtx);
         chunk = GetAcquired(alignedSize, _heapChunks);
         if (!chunk) {
             chunk = GetAcquired(_heapChunks.upper_bound(alignedSize), _heapChunks.end());
         }
-    }
-    if (!chunk) {
-        auto heapChunk = CreateHeapChunk(alignedSize);
-        if (heapChunk && heapChunk->Acquire()) {
-            {
-                const WriteMutexLock lock(_heapChunksMtx);
+        if (!chunk) {
+            auto heapChunk = CreateHeapChunk(alignedSize);
+            if (heapChunk && heapChunk->Acquire()) {
                 _heapChunks.insert({alignedSize, heapChunk});
                 if (alignedSize != heapChunk->GetSize()) {
                     _heapChunks.insert({heapChunk->GetSize(), heapChunk});
                 }
+                chunk = std::move(heapChunk);
             }
-            chunk = std::move(heapChunk);
         }
     }
     return chunk;
@@ -441,7 +438,7 @@ uint8_t* PoolAllocator::BufferImpl::GetData()
 
 bool PoolAllocator::BufferImpl::Resize(size_t size)
 {
-    if (size <= _chunk->GetSize() && _chunk->IsAcquired()) {
+    if (size <= _chunk->GetSize()) {
         _size = size;
         return true;
     }
