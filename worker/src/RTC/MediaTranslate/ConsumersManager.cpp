@@ -4,6 +4,7 @@
 #include "RTC/MediaTranslate/TranslatorEndPoint/TranslatorEndPointFactory.hpp"
 #include "RTC/MediaTranslate/RtpPacketsTimeline.hpp"
 #include "RTC/MediaTranslate/ConsumerTranslator.hpp"
+#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #include "RTC/RtpPacketsCollector.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "Utils.hpp"
@@ -60,17 +61,26 @@ private:
     size_t _languageVoiceKey = 0U; // under protection of [_consumers]
 };
 
+// TODO: remove it for production, after selection of appropriate mode
+enum class ConsumersManager::MixerMode {
+    DropOriginalDuringPlay,
+    DropOriginalDuringConnection
+};
+
 ConsumersManager::ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                                    MediaSource* translationsInput,
                                    TranslatorEndPointSink* translationsOutput,
                                    uint32_t mappedSsrc,
-                                   uint32_t clockRate, const RtpCodecMimeType& mime,
-                                   MixerMode mode)
+                                   uint32_t clockRate, const RtpCodecMimeType& mime)
     : _endPointsFactory(endPointsFactory)
     , _translationsInput(translationsInput)
     , _translationsOutput(translationsOutput)
     , _mappedSsrc(mappedSsrc)
-    , _mode(mode)
+#ifdef ALLOW_PRODUCER_AUDIO_BETWEEEN_TRANSLATIONS
+    , _mode(MixerMode::DropOriginalDuringPlay)
+#else
+    , _mode(MixerMode::DropOriginalDuringConnection)
+#endif
     , _originalTimeline(clockRate, mime)
     , _inputLanguageId("auto")
 {

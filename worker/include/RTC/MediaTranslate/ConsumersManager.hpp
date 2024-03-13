@@ -22,20 +22,15 @@ class RtpCodecMimeType;
 class ConsumersManager
 {
     class EndPointInfo;
+    enum class MixerMode;
     template <typename T>
     using Protected = ProtectedObj<T, std::mutex>;
-public:
-    enum class MixerMode {
-        DropOriginalDuringPlay,
-        DropOriginalDuringConnection
-    };
 public:
     ConsumersManager(TranslatorEndPointFactory* endPointsFactory,
                      MediaSource* translationsInput,
                      TranslatorEndPointSink* translationsOutput,
                      uint32_t mappedSsrc, uint32_t clockRate,
-                     const RtpCodecMimeType& mime,
-                     MixerMode mode = MixerMode::DropOriginalDuringConnection);
+                     const RtpCodecMimeType& mime);
     ~ConsumersManager();
     void SetInputLanguage(const std::string& languageId);
     std::string GetInputLanguage() const;
