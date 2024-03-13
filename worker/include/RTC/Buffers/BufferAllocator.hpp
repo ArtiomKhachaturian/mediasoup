@@ -13,7 +13,7 @@ public:
     std::shared_ptr<Buffer> Allocate(size_t size);
     std::shared_ptr<Buffer> Allocate(size_t size, const void* data);
     std::shared_ptr<Buffer> Allocate(size_t size, const void* data, size_t dataSize);
-    virtual bool RunGarbageCollector() { return true; }
+    virtual bool RunGarbageCollector(uint32_t /*intervalMs*/) { return true; }
     virtual void PurgeGarbage(uint32_t /*maxBufferAgeMs*/ = 0U) {}
     virtual void StopGarbageCollector() {}
 protected:

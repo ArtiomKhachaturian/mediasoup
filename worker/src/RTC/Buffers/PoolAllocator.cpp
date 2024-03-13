@@ -1,6 +1,5 @@
 #define MS_CLASS "RTC::PoolAllocator"
 #include "RTC/Buffers/PoolAllocator.hpp"
-#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #include "Logger.hpp"
 #include "handles/TimerHandle.hpp"
 #include "DepLibUV.hpp"
@@ -135,13 +134,12 @@ PoolAllocator::~PoolAllocator()
     PurgeGarbage(0U);
 }
 
-bool PoolAllocator::RunGarbageCollector()
+bool PoolAllocator::RunGarbageCollector(uint32_t intervalMs)
 {
-    if (BufferAllocator::RunGarbageCollector()) {
+    if (BufferAllocator::RunGarbageCollector(intervalMs)) {
         const MutexLock lock(_heapChunksMtx);
         if (!_garbageCollectorTimer) {
             if (DepLibUV::GetLoop()) {
-                const auto intervalMs = POOL_MEMORY_ALLOCATOR_HEAP_CHUNKS_LIFETIME_MS;
                 TimerHandle::Listener* const listener = this;
                 _garbageCollectorTimer = std::make_unique<TimerHandle>(listener);
                 _garbageCollectorTimer->Start(intervalMs, intervalMs);

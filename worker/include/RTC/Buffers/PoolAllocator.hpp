@@ -32,7 +32,7 @@ public:
     PoolAllocator& operator = (const PoolAllocator&) = delete;
     PoolAllocator& operator = (PoolAllocator&&) = delete;
     // overrides of BufferAllocator
-    bool RunGarbageCollector() final;
+    bool RunGarbageCollector(uint32_t intervalMs) final;
     void PurgeGarbage(uint32_t maxBufferAgeMs) final;
     void StopGarbageCollector() final;
 protected:

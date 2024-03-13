@@ -13,8 +13,23 @@
 #include "Settings.hpp"
 #include "RTC/Buffers/PoolAllocator.hpp"
 #include "Channel/ChannelNotifier.hpp"
+#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #include "FBS/response.h"
 #include "FBS/worker.h"
+
+namespace {
+
+#ifdef USE_POOL_MEMORY_ALLOCATOR
+inline std::shared_ptr<RTC::PoolAllocator> CreateAllocator() {
+    return std::make_shared<RTC::PoolAllocator>();
+}
+#else
+inline std::shared_ptr<RTC::PoolAllocator> CreateAllocator() {
+    return nullptr;
+}
+#endif
+
+}
 
 /* Instance methods. */
 
@@ -33,7 +48,7 @@ Worker::Worker(::Channel::ChannelSocket* channel)
 	this->shared = new RTC::Shared(
 	  /*channelMessageRegistrator*/ new ChannelMessageRegistrator(),
 	  /*channelNotifier*/ new Channel::ChannelNotifier(this->channel),
-      /*allocator*/std::make_shared<RTC::PoolAllocator>());
+      /*allocator*/CreateAllocator());
 
 #ifdef MS_EXECUTABLE
 	{
@@ -577,7 +592,7 @@ void Worker::IncreaseBuffersPoolUsers(bool increase)
         if (increase) {
             // at least one WEBRTC server will created immediatelly after start
             if (2ULL == buffersPoolUsersCount) {
-                if (allocator->RunGarbageCollector()) {
+                if (allocator->RunGarbageCollector(MEMORY_ALLOCATOR_HEAP_CHUNKS_LIFETIME_MS)) {
                     MS_DEBUG_DEV("Automatic garbage collector was started");
                 }
                 else {

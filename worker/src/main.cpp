@@ -9,40 +9,8 @@
 static constexpr int ConsumerChannelFd{ 3 };
 static constexpr int ProducerChannelFd{ 4 };
 
-#include "RTC/Buffers/PoolAllocator.hpp"
-#include <iostream>
-#include <chrono>
-#include <cstdlib> // Для генерации случайных чисел
-#include <ctime>   // Для инициализации генератора случайных чисел
-
 int main(int argc, char* argv[])
 {
-    RTC::PoolAllocator manager;
-
-    std::srand(static_cast<unsigned>(std::time(nullptr)));
-
-    const size_t numAllocations = 1000000;
-    auto start = std::chrono::high_resolution_clock::now();
-    size_t summarySize = 0U;
-    for (size_t i = 0; i < numAllocations; ++i) {
-        const size_t size = std::rand() % 28000 + 1;
-        auto ptr = manager.Allocate(size);
-        summarySize += size;
-    }
-    auto end = std::chrono::high_resolution_clock::now();
-
-    // Вычисляем время выполнения в микросекундах
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-
-    std::cout << "Allocated " << summarySize << " bytes: " << duration << " milliseconds" << std::endl;
-    
-    start = std::chrono::high_resolution_clock::now();
-    manager.PurgeGarbage();
-    end = std::chrono::high_resolution_clock::now();
-    duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    std::cout << "Purge time: " << duration << " milliseconds" << std::endl;
-
-
 	// Ensure we are called by our Node library.
 	if (!std::getenv("MEDIASOUP_VERSION"))
 	{
