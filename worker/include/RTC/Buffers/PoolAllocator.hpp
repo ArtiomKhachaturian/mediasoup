@@ -34,7 +34,7 @@ public:
     PoolAllocator& operator = (PoolAllocator&&) = delete;
     // overrides of BufferAllocator
     bool RunGarbageCollector() final;
-    void PurgeGarbage(uint32_t maxBufferAgeMs = 0U) final;
+    void PurgeGarbage(uint32_t maxBufferAgeMs) final;
     void StopGarbageCollector() final;
 protected:
     // overrides of BufferAllocator
