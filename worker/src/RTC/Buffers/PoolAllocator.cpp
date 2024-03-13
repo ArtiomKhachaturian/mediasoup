@@ -1,22 +1,15 @@
 #define MS_CLASS "RTC::PoolAllocator"
 #include "RTC/Buffers/PoolAllocator.hpp"
-#include "RTC/MediaTranslate/TranslatorDefines.hpp"
 #include "Logger.hpp"
 #include "handles/TimerHandle.hpp"
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
 #include "DepLibUV.hpp"
-#include <chrono>
-#include <mutex>
-#include <shared_mutex>
-#endif
-#include <array>
 #include <atomic>
-#include <list>
-#include <map>
+#include <chrono>
 
-namespace {
+namespace RTC
+{
 
-class MemoryChunk
+class PoolAllocator::MemoryChunk
 {
 public:
     virtual ~MemoryChunk() = default;
@@ -35,7 +28,7 @@ private:
 };
 
 template<size_t size>
-class StackChunk : public MemoryChunk
+class PoolAllocator::StackChunk : public MemoryChunk
 {
 public:
     StackChunk() = default;
@@ -48,7 +41,7 @@ private:
 };
 
 template<>
-class StackChunk<1U> : public MemoryChunk
+class PoolAllocator::StackChunk<1U> : public MemoryChunk
 {
 public:
     StackChunk<1U>() = default;
@@ -60,8 +53,7 @@ private:
     uint8_t _byte;
 };
 
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-class HeapChunk : public MemoryChunk
+class PoolAllocator::HeapChunk : public MemoryChunk
 {
     using Rep = std::chrono::time_point<std::chrono::system_clock>::duration::rep;
 public:
@@ -78,7 +70,7 @@ private:
     std::atomic<Rep> _lastReleaseTime = 0;
 };
 
-class RegularHeapChunk : public HeapChunk
+class PoolAllocator::RegularHeapChunk : public HeapChunk
 {
 public:
     RegularHeapChunk(uint8_t* memory, size_t size);
@@ -93,7 +85,7 @@ private:
 };
 
 template<size_t size>
-class PseudoHeapChunk : public HeapChunk
+class PoolAllocator::PseudoHeapChunk : public HeapChunk
 {
 public:
     PseudoHeapChunk() = default;
@@ -105,24 +97,10 @@ private:
     alignas(size) std::array<uint8_t, size> _memory;
 };
 
-
-using HeapChunkPtr = std::shared_ptr<HeapChunk>;
-using HeapChunksMap = std::multimap<size_t, HeapChunkPtr>;
-#endif
-
-using MemoryChunkPtr = std::shared_ptr<MemoryChunk>;
-using MemoryChunks = std::list<MemoryChunkPtr>;
-using StackChunksMap = std::map<size_t, MemoryChunks>;
-
-}
-
-namespace RTC
-{
-
 class PoolAllocator::BufferImpl : public Buffer
 {
 public:
-    BufferImpl(MemoryChunkPtr chunk, size_t size);
+    BufferImpl(std::shared_ptr<MemoryChunk> chunk, size_t size);
     ~BufferImpl() final;
     // impl. of Buffer
     size_t GetSize() const final { return _size.load(); }
@@ -130,173 +108,54 @@ public:
     uint8_t* GetData() final;
     bool Resize(size_t size) final;
 private:
-    const MemoryChunkPtr _chunk;
+    const std::shared_ptr<MemoryChunk> _chunk;
     std::atomic<size_t> _size;
 };
 
-class PoolAllocator::AllocatorImpl : public TimerHandle::Listener
-{
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-    using MutexType = std::shared_mutex;
-    using WriteMutexLock = std::unique_lock<MutexType>;
-    using ReadMutexLock = std::shared_lock<MutexType>;
-#endif
-public:
-    AllocatorImpl();
-    ~AllocatorImpl();
-    MemoryChunkPtr Allocate(size_t alignedSize);
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-    bool RunGarbageCollector();
-    void PurgeGarbage(uint32_t maxBufferAgeMs);
-    void StopGarbageCollector();
-#endif
-private:
-    MemoryChunkPtr GetStackChunk(size_t alignedSize) const;
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-    MemoryChunkPtr AcquireHeapChunk(size_t alignedSize);
-    static HeapChunkPtr CreateHeapChunk(size_t alignedSize);
-    static MemoryChunkPtr GetAcquiredExactSize(size_t size, const HeapChunksMap& chunks);
-    static MemoryChunkPtr GetAcquired(HeapChunksMap::const_iterator from,
-                                      HeapChunksMap::const_iterator to);
-#endif
-    static MemoryChunkPtr GetAcquired(const MemoryChunks& chunks);
-    template<size_t count, size_t size>
-    static void FillStackChunks(StackChunksMap& chunks);
-    static StackChunksMap CreateStackChunks();
-    static size_t GetCachelineSize(size_t alignedSize, size_t cachelineTop);
-    // impl. of TimerHandle::Listener
-    void OnTimer(TimerHandle* timer) final;
-private:
-    // for replacement of small heap allocations (by performance reason)
-    static inline constexpr size_t _maxEffectiveStackChunkSize = 16U;
-    static inline constexpr size_t _maxStackChunkSize = 4096U;
-    // key is allocated size
-    const StackChunksMap _stackChunks;
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-    MutexType _heapChunksMtx;
-    std::unique_ptr<TimerHandle> _garbageCollectorTimer;
-    HeapChunksMap _heapChunks;
-#endif
-};
-
 PoolAllocator::PoolAllocator()
-    : _impl(std::make_unique<AllocatorImpl>())
+    : _stackChunks1byte(FillStackChunks<32U, 1U>())
+    , _stackChunks2bytes(FillStackChunks<32U, 2U>())
+    , _stackChunks4bytes(FillStackChunks<32U, 4U>())
+    , _stackChunks8bytes(FillStackChunks<32U, 8U>())
+    , _stackChunks16bytes(FillStackChunks<32U, 16U>())
+    , _stackChunks32bytes(FillStackChunks<32U, 32U>())
+    , _stackChunks64bytes(FillStackChunks<32U, 64U>())
+    , _stackChunks128bytes(FillStackChunks<32U, 128U>())
+    , _stackChunks256bytes(FillStackChunks<32U, 256U>())
+    , _stackChunks512bytes(FillStackChunks<32U, 512U>())
+    , _stackChunks1024bytes(FillStackChunks<64U, 1024U>())
+    , _stackChunks2048bytes(FillStackChunks<128U, 2048U>())
+    , _stackChunks4096bytes(FillStackChunks<32U, 4096U>())
 {
 }
 
 PoolAllocator::~PoolAllocator()
 {
+    PurgeGarbage(0U);
 }
 
-bool PoolAllocator::RunGarbageCollector()
+bool PoolAllocator::RunGarbageCollector(uint32_t intervalMs)
 {
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-    return _impl->RunGarbageCollector();
-#endif
-    return BufferAllocator::RunGarbageCollector();
+    if (BufferAllocator::RunGarbageCollector(intervalMs)) {
+        const MutexLock lock(_heapChunksMtx);
+        if (!_garbageCollectorTimer) {
+            if (DepLibUV::GetLoop()) {
+                TimerHandle::Listener* const listener = this;
+                _garbageCollectorTimer = std::make_unique<TimerHandle>(listener);
+                _garbageCollectorTimer->Start(intervalMs, intervalMs);
+            }
+        }
+        return nullptr != _garbageCollectorTimer;
+    }
+    return false;
 }
 
 void PoolAllocator::PurgeGarbage(uint32_t maxBufferAgeMs)
 {
     BufferAllocator::PurgeGarbage(maxBufferAgeMs);
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-    _impl->PurgeGarbage(maxBufferAgeMs);
-#endif
-}
-
-void PoolAllocator::StopGarbageCollector()
-{
-    BufferAllocator::StopGarbageCollector();
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-    _impl->StopGarbageCollector();
-#endif
-}
-
-std::shared_ptr<Buffer> PoolAllocator::AllocateAligned(size_t size, size_t alignedSize)
-{
-    if (size) {
-        if (auto chunk = _impl->Allocate(alignedSize)) {
-            return std::make_shared<BufferImpl>(std::move(chunk), size);
-        }
-    }
-    return BufferAllocator::AllocateAligned(size, alignedSize);
-}
-
-PoolAllocator::BufferImpl::BufferImpl(MemoryChunkPtr chunk, size_t size)
-    : _chunk(chunk)
-    , _size(size)
-{
-}
-
-PoolAllocator::BufferImpl::~BufferImpl()
-{
-    _chunk->Release();
-}
-
-const uint8_t* PoolAllocator::BufferImpl::GetData() const
-{
-    return IsEmpty() ? nullptr : _chunk->GetData();
-}
-
-uint8_t* PoolAllocator::BufferImpl::GetData()
-{
-    return IsEmpty() ? nullptr : _chunk->GetData();
-}
-
-bool PoolAllocator::BufferImpl::Resize(size_t size)
-{
-    if (size <= _chunk->GetSize() && _chunk->IsAcquired()) {
-        _size = size;
-        return true;
-    }
-    return false;
-}
-
-PoolAllocator::AllocatorImpl::AllocatorImpl()
-    : _stackChunks(CreateStackChunks())
-{
-}
-
-PoolAllocator::AllocatorImpl::~AllocatorImpl()
-{
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-    PurgeGarbage(0U);
-#endif
-}
-
-MemoryChunkPtr PoolAllocator::AllocatorImpl::Allocate(size_t alignedSize)
-{
-    if (alignedSize) {
-        auto chunk = GetStackChunk(alignedSize);
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-        if (!chunk) {
-            chunk = AcquireHeapChunk(alignedSize);
-        }
-#endif
-        return chunk;
-    }
-    return nullptr;
-}
-
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-bool PoolAllocator::AllocatorImpl::RunGarbageCollector()
-{
-    const WriteMutexLock lock(_heapChunksMtx);
-    if (!_garbageCollectorTimer) {
-        if (DepLibUV::GetLoop()) {
-            const auto intervalMs = POOL_MEMORY_ALLOCATOR_HEAP_CHUNKS_LIFETIME_MS;
-            _garbageCollectorTimer = std::make_unique<TimerHandle>(this);
-            _garbageCollectorTimer->Start(intervalMs, intervalMs);
-        }
-    }
-    return nullptr != _garbageCollectorTimer;
-}
-
-void PoolAllocator::AllocatorImpl::PurgeGarbage(uint32_t maxBufferAgeMs)
-{
     //size_t deallocated = 0U, still = 0U;
     {
-        const WriteMutexLock lock(_heapChunksMtx);
+        const MutexLock lock(_heapChunksMtx);
         if (maxBufferAgeMs) {
             // TODO: change to https://en.cppreference.com/w/cpp/container/multimap/erase_if on C++20
             for (auto it = _heapChunks.begin(); it != _heapChunks.end();) {
@@ -324,62 +183,85 @@ void PoolAllocator::AllocatorImpl::PurgeGarbage(uint32_t maxBufferAgeMs)
     }*/
 }
 
-void PoolAllocator::AllocatorImpl::StopGarbageCollector()
+void PoolAllocator::StopGarbageCollector()
 {
-    const WriteMutexLock lock(_heapChunksMtx);
+    BufferAllocator::StopGarbageCollector();
+    const MutexLock lock(_heapChunksMtx);
     _garbageCollectorTimer.reset();
 }
-#endif
 
-MemoryChunkPtr PoolAllocator::AllocatorImpl::GetStackChunk(size_t alignedSize) const
+std::shared_ptr<Buffer> PoolAllocator::AllocateAligned(size_t size, size_t alignedSize)
 {
-    MemoryChunkPtr chunk;
-    if (alignedSize && alignedSize <= _maxStackChunkSize) {
-        // trying exact shooting to cached chunks
-        if (alignedSize > 1U && alignedSize < _maxStackChunkSize) {
-            // find appropriate cache line for avoiding of cache miss
-            alignedSize = GetCachelineSize(alignedSize, _maxStackChunkSize);
-        }
-        // switch to next cache lines non-effective from mem usage point of view,
-        // only exact match
-        auto itc = _stackChunks.find(alignedSize);
-        if (itc != _stackChunks.end()) {
-            chunk = GetAcquired(itc->second);
-        }
-    }
-    return chunk;
-}
-
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-MemoryChunkPtr PoolAllocator::AllocatorImpl::AcquireHeapChunk(size_t alignedSize)
-{
-    MemoryChunkPtr chunk;
-    {
-        const ReadMutexLock lock(_heapChunksMtx);
-        chunk = GetAcquiredExactSize(alignedSize, _heapChunks);
+    if (size) {
+        auto chunk = GetStackChunk(alignedSize);
         if (!chunk) {
-            chunk = GetAcquired(_heapChunks.upper_bound(alignedSize), _heapChunks.end());
+            chunk = AcquireHeapChunk(alignedSize);
+        }
+        if (chunk) {
+            return std::make_shared<BufferImpl>(std::move(chunk), size);
         }
     }
-    if (!chunk) {
-        auto heapChunk = CreateHeapChunk(alignedSize);
-        if (heapChunk && heapChunk->Acquire()) {
-            {
-                const WriteMutexLock lock(_heapChunksMtx);
-                _heapChunks.insert({alignedSize, heapChunk});
-                if (alignedSize != heapChunk->GetSize()) {
-                    _heapChunks.insert({heapChunk->GetSize(), heapChunk});
-                }
-            }
-            chunk = std::move(heapChunk);
-        }
-    }
-    return chunk;
+    return BufferAllocator::AllocateAligned(size, alignedSize);
 }
 
-HeapChunkPtr PoolAllocator::AllocatorImpl::CreateHeapChunk(size_t alignedSize)
+template<size_t count, size_t size>
+PoolAllocator::StackChunks<count> PoolAllocator::FillStackChunks()
 {
-    HeapChunkPtr chunk;
+    StackChunks<count> chunks;
+    for (size_t i = 0U; i < count; ++i) {
+        chunks[i] = std::make_shared<StackChunk<size>>();
+    }
+    return chunks;
+}
+
+size_t PoolAllocator::GetCachelineSize(size_t alignedSize, size_t cachelineTop)
+{
+    size_t target = cachelineTop;
+    while (target) {
+        if (1U == target / alignedSize) {
+            alignedSize = target;
+            break;
+        }
+        target = target >> 1;
+    }
+    return alignedSize;
+}
+
+template<class TSerialChunks>
+std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::GetAcquired(const TSerialChunks& chunks)
+{
+    for (size_t i = 0U, end = std::size(chunks); i < end; ++i) {
+        if (chunks[i]->Acquire()) {
+            return chunks[i];
+        }
+    }
+    return nullptr;
+}
+
+std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::GetAcquired(size_t size,
+                                                                       const HeapChunksMap& chunks)
+{
+    if (size) {
+        const auto exact = chunks.equal_range(size);
+        return GetAcquired(exact.first, exact.second);
+    }
+    return nullptr;
+}
+
+std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::
+    GetAcquired(HeapChunksMap::const_iterator from, HeapChunksMap::const_iterator to)
+{
+    for (auto it = from; it != to; ++it) {
+        if (it->second->Acquire()) {
+            return it->second;
+        }
+    }
+    return nullptr;
+}
+
+std::shared_ptr<PoolAllocator::HeapChunk> PoolAllocator::CreateHeapChunk(size_t alignedSize)
+{
+    std::shared_ptr<HeapChunk> chunk;
     if (alignedSize) {
         if (alignedSize <= _maxEffectiveStackChunkSize) {
             switch (GetCachelineSize(alignedSize, _maxEffectiveStackChunkSize)) {
@@ -398,6 +280,8 @@ HeapChunkPtr PoolAllocator::AllocatorImpl::CreateHeapChunk(size_t alignedSize)
                 case 16U:
                     chunk = std::make_shared<PseudoHeapChunk<16U>>();
                     break;
+                default:
+                    break;
             }
         }
         if (!chunk) {
@@ -409,96 +293,80 @@ HeapChunkPtr PoolAllocator::AllocatorImpl::CreateHeapChunk(size_t alignedSize)
     return chunk;
 }
 
-MemoryChunkPtr PoolAllocator::AllocatorImpl::GetAcquiredExactSize(size_t size,
-                                                                  const HeapChunksMap& chunks)
+std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::GetStackChunk(size_t alignedSize) const
 {
-    if (size) {
-        const auto exact = chunks.equal_range(size);
-        return GetAcquired(exact.first, exact.second);
-    }
-    return nullptr;
-}
-
-MemoryChunkPtr PoolAllocator::AllocatorImpl::GetAcquired(HeapChunksMap::const_iterator from,
-                                                         HeapChunksMap::const_iterator to)
-{
-    for (auto it = from; it != to; ++it) {
-        if (it->second->Acquire()) {
-            return it->second;
+    if (alignedSize && alignedSize <= _maxStackChunkSize) {
+        // trying exact shooting to cached chunks
+        if (alignedSize > 1U && alignedSize < _maxStackChunkSize) {
+            // find appropriate cache line for avoiding of cache miss
+            alignedSize = GetCachelineSize(alignedSize, _maxStackChunkSize);
+        }
+        // switch to next cache lines non-effective from mem usage point of view, only exact match
+        switch (alignedSize) {
+            case 1U:
+                return GetAcquired(_stackChunks1byte);
+            case 2U:
+                return GetAcquired(_stackChunks2bytes);
+            case 4U:
+                return GetAcquired(_stackChunks4bytes);
+            case 8U:
+                return GetAcquired(_stackChunks8bytes);
+            case 16U:
+                return GetAcquired(_stackChunks16bytes);
+            case 32U:
+                return GetAcquired(_stackChunks32bytes);
+            case 64U:
+                return GetAcquired(_stackChunks64bytes);
+            case 128U:
+                return GetAcquired(_stackChunks128bytes);
+            case 256U:
+                return GetAcquired(_stackChunks256bytes);
+            case 512U:
+                return GetAcquired(_stackChunks512bytes);
+            case 1024U:
+                return GetAcquired(_stackChunks1024bytes);
+            case 2048U:
+                return GetAcquired(_stackChunks2048bytes);
+            case 4096U:
+                return GetAcquired(_stackChunks4096bytes);
+            default:
+                break;
         }
     }
     return nullptr;
 }
-#endif
 
-MemoryChunkPtr PoolAllocator::AllocatorImpl::GetAcquired(const MemoryChunks& chunks)
+std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::AcquireHeapChunk(size_t alignedSize)
 {
-    for (const auto& chunk : chunks) {
-        if (chunk->Acquire()) {
-            return chunk;
+    std::shared_ptr<MemoryChunk> chunk;
+    {
+        const MutexLock lock(_heapChunksMtx);
+        chunk = GetAcquired(alignedSize, _heapChunks);
+        if (!chunk) {
+            chunk = GetAcquired(_heapChunks.upper_bound(alignedSize), _heapChunks.end());
+        }
+        if (!chunk) {
+            auto heapChunk = CreateHeapChunk(alignedSize);
+            if (heapChunk && heapChunk->Acquire()) {
+                _heapChunks.insert({alignedSize, heapChunk});
+                if (alignedSize != heapChunk->GetSize()) {
+                    _heapChunks.insert({heapChunk->GetSize(), heapChunk});
+                }
+                chunk = std::move(heapChunk);
+            }
         }
     }
-    return nullptr;
+    return chunk;
 }
 
-template<size_t count, size_t size>
-void PoolAllocator::AllocatorImpl::FillStackChunks(StackChunksMap& map)
+void PoolAllocator::OnTimer(TimerHandle* timer)
 {
-    MemoryChunks chunks;
-    for (size_t i = 0U; i < count; ++i) {
-        chunks.push_back(std::make_shared<StackChunk<size>>());
-    }
-    map[size] = std::move(chunks);
-}
-
-StackChunksMap PoolAllocator::AllocatorImpl::CreateStackChunks()
-{
-    StackChunksMap stackChunks;
-    //stackChunks.reserve(13U);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 1U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 2U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 4U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 8U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 16U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 32U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 64U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 128U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 256U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 512U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 1024U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 2048U>(stackChunks);
-    FillStackChunks<PoolAllocator::_countOfStackBlocks, 4096U>(stackChunks);
-    return stackChunks;
-}
-
-size_t PoolAllocator::AllocatorImpl::GetCachelineSize(size_t alignedSize, size_t cachelineTop)
-{
-    size_t target = cachelineTop;
-    while (target) {
-        if (1U == target / alignedSize) {
-            alignedSize = target;
-            break;
-        }
-        target = target >> 1;
-    }
-    return alignedSize;
-}
-
-void PoolAllocator::AllocatorImpl::OnTimer(TimerHandle* timer)
-{
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
     if (timer == _garbageCollectorTimer.get()) {
         PurgeGarbage(static_cast<uint32_t>(timer->GetTimeout()));
     }
-#endif
 }
 
-} // namespace RTC
-
-namespace {
-
-
-bool MemoryChunk::Acquire()
+bool PoolAllocator::MemoryChunk::Acquire()
 {
     if (!_acquired.exchange(true)) {
         OnAcquired();
@@ -507,15 +375,14 @@ bool MemoryChunk::Acquire()
     return false;
 }
 
-void MemoryChunk::Release()
+void PoolAllocator::MemoryChunk::Release()
 {
     if (_acquired.exchange(false)) {
         OnReleased();
     }
 }
 
-#ifdef ENABLE_HEAP_CHUNKS_IN_POOL_MEMORY_ALLOCATOR
-uint64_t HeapChunk::GetAge() const
+uint64_t PoolAllocator::HeapChunk::GetAge() const
 {
     if (const auto lastReleaseTime = _lastReleaseTime.load()) {
         return std::chrono::milliseconds(GetNow() - lastReleaseTime).count();
@@ -523,28 +390,57 @@ uint64_t HeapChunk::GetAge() const
     return 0ULL;
 }
 
-void HeapChunk::OnAcquired()
+void PoolAllocator::HeapChunk::OnAcquired()
 {
     MemoryChunk::OnAcquired();
     _lastReleaseTime = 0;
 }
 
-void HeapChunk::OnReleased()
+void PoolAllocator::HeapChunk::OnReleased()
 {
     MemoryChunk::OnReleased();
     _lastReleaseTime = GetNow();
 }
 
-RegularHeapChunk::RegularHeapChunk(uint8_t* memory, size_t size)
+PoolAllocator::RegularHeapChunk::RegularHeapChunk(uint8_t* memory, size_t size)
     : _memory(memory)
     , _size(size)
 {
 }
 
-RegularHeapChunk::~RegularHeapChunk()
+PoolAllocator::RegularHeapChunk::~RegularHeapChunk()
 {
     delete [] _memory;
 }
-#endif
 
+PoolAllocator::BufferImpl::BufferImpl(std::shared_ptr<MemoryChunk> chunk, size_t size)
+    : _chunk(chunk)
+    , _size(size)
+{
 }
+
+PoolAllocator::BufferImpl::~BufferImpl()
+{
+    _chunk->Release();
+}
+
+const uint8_t* PoolAllocator::BufferImpl::GetData() const
+{
+    return IsEmpty() ? nullptr : _chunk->GetData();
+}
+
+uint8_t* PoolAllocator::BufferImpl::GetData()
+{
+    return IsEmpty() ? nullptr : _chunk->GetData();
+}
+
+bool PoolAllocator::BufferImpl::Resize(size_t size)
+{
+    if (size <= _chunk->GetSize()) {
+        _size = size;
+        return true;
+    }
+    return false;
+}
+
+} // namespace RTC
