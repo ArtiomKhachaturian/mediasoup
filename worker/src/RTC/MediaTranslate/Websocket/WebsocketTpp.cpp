@@ -390,7 +390,7 @@ void WebsocketTpp::SocketImpl<TConfig>::Close()
         LOCK_WRITE_PROTECTED_OBJ(_hdl);
         hdl = _hdl.Take();
     }
-    if (hdl.expired()) {
+    if (!hdl.expired()) {
         websocketpp::lib::error_code ec;
         _client.close(hdl, _closeCode, websocketpp::close::status::get_string(_closeCode), ec);
         _client.stop();
