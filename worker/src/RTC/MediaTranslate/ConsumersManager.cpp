@@ -169,13 +169,14 @@ bool ConsumersManager::RemoveConsumer(const std::shared_ptr<ConsumerTranslator>&
 {
     if (consumer) {
         LOCK_WRITE_PROTECTED_OBJ(_endPoints);
-        for (auto it = _endPoints->begin(); it != _endPoints->end(); ++it) {
-            const auto result = it->second->RemoveConsumer(consumer);
-            if (RemoveResult::Failed != result) {
-                if (RemoveResult::SucceededNoMoreConsumers == result) {
+        for (auto it = _endPoints->begin(   ); it != _endPoints->end(); ++it) {
+            switch (it->second->RemoveConsumer(consumer)) {
+                case RemoveResult::SucceededNoMoreConsumers:
                     _endPoints->erase(it);
-                }
-                return true;
+                case RemoveResult::Succeeded:
+                    return true;
+                default:
+                    break;
             }
         }
     }
