@@ -61,7 +61,7 @@ private:
 
 private:
 	// Passed by argument.
-	Channel::ChannelSocket* channel{ nullptr };
+	Channel::ChannelSocket* const channel;
 	// Allocated by this.
 	SignalHandle* signalHandle{ nullptr };
 	RTC::Shared* shared{ nullptr };
