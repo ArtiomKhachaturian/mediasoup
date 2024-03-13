@@ -99,7 +99,7 @@ bool Translator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
                 }
                 else {
                     const auto desc = GetStreamInfoString(mime, stream->GetSsrc());
-                    MS_ERROR_STD("depacketizer or serializer is not available for stream [%s]", desc.c_str());
+                    MS_ERROR("depacketizer or serializer is not available for stream [%s]", desc.c_str());
                 }
             }
             else {

@@ -78,12 +78,12 @@ WebsocketOptions WebsocketFactory::CreateOptions() const
 
 void WebsocketListener::OnStateChanged(uint64_t socketId, WebsocketState state)
 {
-    MS_DEBUG_DEV_STD("state changed to %s, socked ID %" PRIu64, ToString(state), socketId);
+    MS_DEBUG_DEV("state changed to %s, socked ID %" PRIu64, ToString(state), socketId);
 }
 
 void WebsocketListener::OnFailed(uint64_t socketId, WebsocketFailure failure, const std::string& what)
 {
-    MS_ERROR_STD("%s failure - %s, socked ID #%" PRIu64, ToString(failure), what.c_str(), socketId);
+    MS_ERROR("%s failure - %s, socked ID #%" PRIu64, ToString(failure), what.c_str(), socketId);
 }
 
 WebsocketListener* WebsocketListener::Create(OnStateChangedFn onStateChanged,

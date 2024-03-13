@@ -77,11 +77,11 @@ std::unique_ptr<RtpPacketsPlayerMediaFragment> RtpPacketsPlayerMediaFragment::
                 }
             }
             else {
-                MS_ERROR_STD("deserialized media buffer has no supported media tracks");
+                MS_ERROR("deserialized media buffer has no supported media tracks");
             }
         }
         else {
-            MS_ERROR_STD("media buffer deserialization was failed: %s", ToString(result));
+            MS_ERROR("media buffer deserialization was failed: %s", ToString(result));
         }
     }
     return fragment;

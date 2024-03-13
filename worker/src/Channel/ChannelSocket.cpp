@@ -2,6 +2,7 @@
 // #define MS_LOG_DEV_LEVEL 3
 
 #include "Channel/ChannelSocket.hpp"
+#include "UVAsyncHandle.hpp"
 #include "DepLibUV.hpp"
 #include "Logger.hpp"
 #include "MediaSoupErrors.hpp"
@@ -15,17 +16,12 @@ namespace Channel
 
 	/* Static methods for UV callbacks. */
 
-	inline static void onAsync(uv_handle_t* handle)
+    inline static void onAsync(uv_async_t* handle)
 	{
 		while (static_cast<ChannelSocket*>(handle->data)->CallbackRead())
 		{
 			// Read while there are new messages.
 		}
-	}
-
-	inline static void onCloseAsync(uv_handle_t* handle)
-	{
-		delete reinterpret_cast<uv_async_t*>(handle);
 	}
 
 	/* Instance methods. */
@@ -43,44 +39,24 @@ namespace Channel
 	  ChannelWriteFn channelWriteFn,
 	  ChannelWriteCtx channelWriteCtx)
 	  : channelReadFn(channelReadFn), channelReadCtx(channelReadCtx), channelWriteFn(channelWriteFn),
-	    channelWriteCtx(channelWriteCtx), uvReadHandle(new uv_async_t)
+	    channelWriteCtx(channelWriteCtx),
+        uvReadHandle(std::make_unique<UVAsyncHandle>(DepLibUV::GetLoop(), onAsync, this))
 	{
 		MS_TRACE_STD();
 
-		int err;
-
-		this->uvReadHandle->data = static_cast<void*>(this);
-
-		err =
-		  uv_async_init(DepLibUV::GetLoop(), this->uvReadHandle, reinterpret_cast<uv_async_cb>(onAsync));
-
-		if (err != 0)
-		{
-			delete this->uvReadHandle;
-			this->uvReadHandle = nullptr;
-
-			MS_THROW_ERROR_STD("uv_async_init() failed: %s", uv_strerror(err));
-		}
-
-		err = uv_async_send(this->uvReadHandle);
-
-		if (err != 0)
-		{
-			delete this->uvReadHandle;
-			this->uvReadHandle = nullptr;
-
-			MS_THROW_ERROR_STD("uv_async_send() failed: %s", uv_strerror(err));
-		}
+		const int err = uvReadHandle->Send();
+        
+        if (err != 0)
+        {
+            MS_THROW_ERROR_STD("uv_async_send() failed: %s", uv_strerror(err));
+        }
 	}
 
 	ChannelSocket::~ChannelSocket()
 	{
 		MS_TRACE_STD();
 
-		if (!this->closed)
-		{
-			Close();
-		}
+        Close();
 
 		delete this->consumerSocket;
 		delete this->producerSocket;
@@ -89,35 +65,24 @@ namespace Channel
 	void ChannelSocket::Close()
 	{
 		MS_TRACE_STD();
+        
+        if (!this->closed.exchange(true)) {
+            if (this->consumerSocket)
+            {
+                this->consumerSocket->Close();
+            }
 
-		if (this->closed)
-		{
-			return;
-		}
-
-		this->closed = true;
-
-		if (this->uvReadHandle)
-		{
-			uv_close(
-			  reinterpret_cast<uv_handle_t*>(this->uvReadHandle), static_cast<uv_close_cb>(onCloseAsync));
-		}
-
-		if (this->consumerSocket)
-		{
-			this->consumerSocket->Close();
-		}
-
-		if (this->producerSocket)
-		{
-			this->producerSocket->Close();
-		}
+            if (this->producerSocket)
+            {
+                this->producerSocket->Close();
+            }
+        }
 	}
 
 	void ChannelSocket::SetListener(Listener* listener)
 	{
 		MS_TRACE_STD();
-
+        LOCK_WRITE_PROTECTED_OBJ(this->listener);
 		this->listener = listener;
 	}
 
@@ -155,14 +120,16 @@ namespace Channel
 
 			return;
 		}
+        
+        LOCK_WRITE_PROTECTED_OBJ(this->bufferBuilder);
 
-		auto log = FBS::Log::CreateLogDirect(this->bufferBuilder, data);
+		auto log = FBS::Log::CreateLogDirect(this->bufferBuilder.Ref(), data);
 		auto message =
-		  FBS::Message::CreateMessage(this->bufferBuilder, FBS::Message::Body::Log, log.Union());
+		  FBS::Message::CreateMessage(this->bufferBuilder.Ref(), FBS::Message::Body::Log, log.Union());
 
-		this->bufferBuilder.FinishSizePrefixed(message);
-		this->Send(this->bufferBuilder.GetBufferPointer(), this->bufferBuilder.GetSize());
-		this->bufferBuilder.Reset();
+		this->bufferBuilder->FinishSizePrefixed(message);
+		this->Send(this->bufferBuilder->GetBufferPointer(), this->bufferBuilder->GetSize());
+		this->bufferBuilder->Reset();
 	}
 
 	bool ChannelSocket::CallbackRead()
@@ -180,7 +147,7 @@ namespace Channel
 
 		// Try to read next message using `channelReadFn`, message, its length and context will be
 		// stored in provided arguments.
-		auto free = this->channelReadFn(&msg, &msgLen, &msgCtx, this->uvReadHandle, this->channelReadCtx);
+		auto free = this->channelReadFn(&msg, &msgLen, &msgCtx, this->uvReadHandle.get(), this->channelReadCtx);
 
 		// Non-null free function pointer means message was successfully read above and will need to be
 		// freed later.
@@ -203,7 +170,10 @@ namespace Channel
 					request = new ChannelRequest(this, message->data_as<FBS::Request::Request>());
 
 					// Notify the listener.
-					this->listener->HandleRequest(request);
+                    LOCK_READ_PROTECTED_OBJ(this->listener);
+                    if (const auto listener = this->listener.ConstRef()) {
+                        listener->HandleRequest(request);
+                    }
 				}
 				catch (const MediaSoupTypeError& error)
 				{
@@ -225,7 +195,10 @@ namespace Channel
 					notification = new ChannelNotification(message->data_as<FBS::Notification::Notification>());
 
 					// Notify the listener.
-					this->listener->HandleNotification(notification);
+                    LOCK_READ_PROTECTED_OBJ(this->listener);
+                    if (const auto listener = this->listener.ConstRef()) {
+                        listener->HandleNotification(notification);
+                    }
 				}
 				catch (const MediaSoupError& error)
 				{
@@ -284,7 +257,10 @@ namespace Channel
 				request = new ChannelRequest(this, message->data_as<FBS::Request::Request>());
 
 				// Notify the listener.
-				this->listener->HandleRequest(request);
+                LOCK_READ_PROTECTED_OBJ(this->listener);
+                if (const auto listener = this->listener.ConstRef()) {
+                    listener->HandleRequest(request);
+                }
 			}
 			catch (const MediaSoupTypeError& error)
 			{
@@ -306,7 +282,10 @@ namespace Channel
 				notification = new ChannelNotification(message->data_as<FBS::Notification::Notification>());
 
 				// Notify the listener.
-				this->listener->HandleNotification(notification);
+                LOCK_READ_PROTECTED_OBJ(this->listener);
+                if (const auto listener = this->listener.ConstRef()) {
+                    listener->HandleNotification(notification);
+                }
 			}
 			catch (const MediaSoupError& error)
 			{
@@ -324,8 +303,11 @@ namespace Channel
 	void ChannelSocket::OnConsumerSocketClosed(ConsumerSocket* /*consumerSocket*/)
 	{
 		MS_TRACE_STD();
-
-		this->listener->OnChannelClosed(this);
+        
+        LOCK_READ_PROTECTED_OBJ(this->listener);
+        if (const auto listener = this->listener.ConstRef()) {
+            listener->OnChannelClosed(this);
+        }
 	}
 
 	/* Instance methods. */

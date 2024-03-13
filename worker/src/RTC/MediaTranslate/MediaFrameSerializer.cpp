@@ -55,7 +55,7 @@ void MediaFrameSerializer::Write(const RtpPacket* packet)
         LOCK_READ_PROTECTED_OBJ(_writers);
         for (auto it = _writers->begin(); it != _writers->end(); ++it) {
             if (!it->second->Write(packet)) {
-                MS_ERROR_STD("unable to write media frame [%s]", GetMimeText().c_str());
+                MS_ERROR("unable to write media frame [%s]", GetMimeText().c_str());
             }
         }
     }
@@ -139,12 +139,12 @@ std::unique_ptr<MediaFrameSerializer::SinkWriter> MediaFrameSerializer::
                                                   std::move(impl));
         }
         else {
-            MS_ERROR_STD("failed create of RTP depacketizer [%s], clock rate %u Hz",
-                         GetMimeText().c_str(), GetClockRate());
+            MS_ERROR("failed create of RTP depacketizer [%s], clock rate %u Hz",
+                     GetMimeText().c_str(), GetClockRate());
         }
     }
     else {
-        MS_ERROR_STD("failed create of media sink writer [%s]", GetMimeText().c_str());
+        MS_ERROR("failed create of media sink writer [%s]", GetMimeText().c_str());
     }
     return writer;
 }
@@ -154,8 +154,7 @@ void MediaFrameSerializer::WriteToTestSink(const RtpPacket* packet) const
     LOCK_READ_PROTECTED_OBJ(_testWriter);
     if (const auto& testWriter = _testWriter.ConstRef()) {
         if (!testWriter->Write(packet)) {
-            MS_ERROR_STD("unable write media frame [%s] to test sink",
-                         GetMimeText().c_str());
+            MS_ERROR("unable write media frame [%s] to test sink", GetMimeText().c_str());
         }
     }
 }

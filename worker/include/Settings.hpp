@@ -50,9 +50,9 @@ public:
         void SetLibwebrtcFieldTrials(std::string libwebrtcFieldTrials);
         std::string GetLibwebrtcFieldTrials() const;
     private:
-		RTC::ProtectedObj<std::string, std::mutex> dtlsCertificateFile;
-        RTC::ProtectedObj<std::string, std::mutex> dtlsPrivateKeyFile;
-        RTC::ProtectedObj<std::string, std::mutex> libwebrtcFieldTrials{ "WebRTC-Bwe-AlrLimitedBackoff/Enabled/" };
+		ProtectedObj<std::string, std::mutex> dtlsCertificateFile;
+        ProtectedObj<std::string, std::mutex> dtlsPrivateKeyFile;
+        ProtectedObj<std::string, std::mutex> libwebrtcFieldTrials{ "WebRTC-Bwe-AlrLimitedBackoff/Enabled/" };
 	};
 
 public:

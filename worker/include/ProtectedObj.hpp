@@ -11,9 +11,6 @@
 #define LOCK_READ_PROTECTED_OBJ(object) const auto PROTECTED_OBJ_NAME(rl)(object.GetReadGuard())
 #define LOCK_WRITE_PROTECTED_OBJ(object) const auto PROTECTED_OBJ_NAME(wl)(object.GetWriteGuard())
 
-namespace RTC
-{
-
 template<class TMutexType> struct MutextTraits {
     using MutexWriteGuard = std::lock_guard<TMutexType>;
     using MutexReadGuard = MutexWriteGuard;
@@ -109,5 +106,3 @@ ProtectedObj<T, TMutexType>& ProtectedObj<T, TMutexType>::operator=(U src)
     _obj = std::move(src);
     return *this;
 }
-
-} // RTC

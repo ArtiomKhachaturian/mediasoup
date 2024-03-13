@@ -16,7 +16,7 @@ class TranslatorEndPoint::InputSlice
     using SliceTimestamp = std::chrono::time_point<std::chrono::system_clock>;
 public:
     InputSlice(uint32_t timeSliceMs, const std::shared_ptr<BufferAllocator>& allocator);
-    std::shared_ptr<Buffer> Add(const std::shared_ptr<Buffer>& inputBuffer);
+    std::shared_ptr<Buffer> Add(const std::shared_ptr<Buffer>& input);
     void Reset(bool start);
     static std::unique_ptr<InputSlice> Create(uint32_t timeSliceMs,
                                               const std::shared_ptr<BufferAllocator>& allocator);
@@ -152,11 +152,11 @@ void TranslatorEndPoint::NotifyThatConnectionEstablished(bool connected)
             if (SendTranslationChanges()) {
                 ConnectToMediaInput(true);
             }
-            MS_DEBUG_DEV_STD("Connected to %s", GetDescription().c_str());
+            MS_DEBUG_2TAGS(rtp, info, "Connected to %s", GetDescription().c_str());
         }
         else {
             ConnectToMediaInput(false);
-            MS_DEBUG_DEV_STD("Disconnected from %s", GetDescription().c_str());
+            MS_DEBUG_2TAGS(rtp, info, "Disconnected from %s", GetDescription().c_str());
         }
         InvokeOutputMediaSinks(&TranslatorEndPointSink::NotifyThatConnectionEstablished, connected);
     }
@@ -166,9 +166,8 @@ uint64_t TranslatorEndPoint::NotifyThatTranslationReceived(const std::shared_ptr
 {
     if (media) {
         const auto number = _translationsCount.fetch_add(1U) + 1U;
-        MS_DEBUG_DEV_STD("Received translation #%" PRIu64 " at %s from %s", number,
-                         GetCurrentTime().c_str(),
-                         GetDescription().c_str());
+        MS_DEBUG_2TAGS(rtp, info, "Received translation #%" PRIu64 " at %s from %s", number,
+                       GetCurrentTime().c_str(), GetDescription().c_str());
         InvokeOutputMediaSinks(&MediaSink::StartMediaWriting);
         InvokeOutputMediaSinks(&MediaSink::WriteMediaPayload, media);
         InvokeOutputMediaSinks(&MediaSink::EndMediaWriting);
@@ -280,8 +279,8 @@ void TranslatorEndPoint::ConnectToMediaInput(MediaSource* input, bool connect)
     if (input) {
         if (connect) {
             if (!input->AddSink(this)) {
-                MS_ERROR_STD("unable connect translation service %s to media input",
-                             GetDescription().c_str());
+                MS_ERROR("unable connect translation service %s to media input",
+                         GetDescription().c_str());
             }
         }
         else {
@@ -323,8 +322,8 @@ bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
         const auto text = nlohmann::to_string(data);
         ok = SendText(text);
         if (!ok) {
-            MS_ERROR_STD("failed write JSON '%s' into translation service %s",
-                         text.c_str(), GetDescription().c_str());
+            MS_ERROR("failed write JSON '%s' into translation service %s",
+                     text.c_str(), GetDescription().c_str());
         }
     }
     return ok;
@@ -336,8 +335,8 @@ bool TranslatorEndPoint::WriteBinary(const std::shared_ptr<Buffer>& buffer) cons
     if (buffer && IsConnected()) {
         ok = SendBinary(buffer);
         if (!ok) {
-            MS_ERROR_STD("failed write binary (%zu bytes)' into translation service %s",
-                         buffer->GetSize(), GetDescription().c_str());
+            MS_ERROR("failed write binary (%zu bytes)' into translation service %s",
+                     buffer->GetSize(), GetDescription().c_str());
         }
     }
     return ok;
@@ -386,24 +385,23 @@ TranslatorEndPoint::InputSlice::InputSlice(uint32_t timeSliceMs,
 {
 }
 
-std::shared_ptr<Buffer> TranslatorEndPoint::InputSlice::Add(const std::shared_ptr<Buffer>& inputBuffer)
+std::shared_ptr<Buffer> TranslatorEndPoint::InputSlice::Add(const std::shared_ptr<Buffer>& input)
 {
-    std::shared_ptr<Buffer> outputBuffer;
-    if (inputBuffer) {
+    std::shared_ptr<Buffer> output;
+    if (input) {
         LOCK_WRITE_PROTECTED_OBJ(_buffer);
-        if (SegmentsBuffer::Result::Failed != _buffer->Push(inputBuffer)) {
+        if (SegmentsBuffer::Result::Failed != _buffer->Push(input)) {
             auto now = std::chrono::system_clock::now();
             if (now > _sliceOriginTimestamp + _timeSliceMs) {
                 _sliceOriginTimestamp = std::move(now);
-                outputBuffer = _buffer->Take();
+                output = _buffer->Take();
             }
         }
         else {
-            MS_ERROR_STD("unable to add memory buffer (%zu bytes) to input slice",
-                         inputBuffer->GetSize());
+            MS_ERROR("unable to add memory buffer (%zu bytes) to input slice", input->GetSize());
         }
     }
-    return outputBuffer;
+    return output;
 }
 
 void TranslatorEndPoint::InputSlice::Reset(bool start)

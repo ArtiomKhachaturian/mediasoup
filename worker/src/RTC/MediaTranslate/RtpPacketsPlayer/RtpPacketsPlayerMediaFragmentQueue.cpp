@@ -287,7 +287,7 @@ bool RtpPacketsPlayerMediaFragmentQueue::ReadNextFrame(StartTask* startTask, boo
             _deserializer->get()->Clear();
         }
         if (!MaybeOk(result)) {
-            MS_ERROR_STD("read of deserialized frames was failed: %s", ToString(result));
+            MS_ERROR("read of deserialized frames was failed: %s", ToString(result));
         }
     }
     return ok;

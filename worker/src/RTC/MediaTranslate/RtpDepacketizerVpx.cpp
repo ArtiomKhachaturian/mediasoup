@@ -145,12 +145,12 @@ std::optional<MediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(const RtpPa
             }
             else {
                 const auto error = GetStreamInfoString(_depacketizer->GetMime(), packet->GetSsrc());
-                MS_ERROR_STD("failed to parse video config for stream [%s]", error.c_str());
+                MS_ERROR("failed to parse video config for stream [%s]", error.c_str());
             }
         }
         else {
             const auto error = GetStreamInfoString(_depacketizer->GetMime(), packet->GetSsrc());
-            MS_ERROR_STD("failed to add payload for stream [%s]", error.c_str());
+            MS_ERROR("failed to add payload for stream [%s]", error.c_str());
         }
     }
     return std::nullopt;

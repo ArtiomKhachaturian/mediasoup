@@ -1,10 +1,7 @@
 #pragma once
+#include "MediaSoupErrors.hpp"
 #include <uv.h>
-#include <cstdio>  // std::snprintf(), std::fprintf(), stdout, stderrv
 #include <memory>
-
-namespace RTC
-{
 
 template<typename THandle, class... InitArgs>
 inline int InitHandle(THandle* handle, InitArgs&&... /*args*/) {
@@ -21,6 +18,13 @@ inline int InitHandle(uv_loop_t* handle) {
 inline int InitHandle(uv_timer_t* handle, uv_loop_t* loop) {
     if (handle && loop) {
         return uv_timer_init(loop, handle);
+    }
+    return -1;
+}
+
+inline int InitHandle(uv_pipe_t* handle, uv_loop_t* loop, int ipc) {
+    if (handle && loop) {
+        return uv_pipe_init(loop, handle, ipc);
     }
     return -1;
 }
@@ -71,7 +75,7 @@ public:
     bool IsValid() const { return nullptr != GetHandle(); }
     void Reset(THandle* handle = nullptr);
     template<class... InitArgs>
-    static UVHandle CreateInitialized(InitArgs&&... args);
+    static UVHandle CreateInitialized(InitArgs&&... args) noexcept(false);
 private:
     THandle* _handle = nullptr;
 };
@@ -115,11 +119,7 @@ UVHandle<THandle> UVHandle<THandle>::CreateInitialized(InitArgs&&... args)
     auto handle = std::make_unique<THandle>();
     const auto ret = InitHandle(handle.get(), std::forward<InitArgs>(args)...);
     if (0 != ret) {
-        std::fprintf(stderr, "initialization of UV handle failed: %s", uv_strerror(ret));
-        std::fflush(stderr);
-        handle.reset();
+        MS_THROW_ERROR_STD("initialization of UV handle failed: %s", uv_strerror(ret));
     }
     return UVHandle(handle.release());
 }
-
-} // namespace RTC

@@ -274,7 +274,7 @@ std::shared_ptr<const WebsocketTpp::Config> WebsocketTpp::Config::
             config.reset(new Config(std::move(validUri), std::move(options)));
         }
         else {
-            MS_WARN_DEV_STD("invalid web socket URI %s", uri.c_str());
+            MS_ERROR("invalid web socket URI %s", uri.c_str());
         }
     }
     return config;
@@ -480,13 +480,12 @@ void WebsocketTpp::SocketImpl<TConfig>::SetTcpSocketOption(const TOption& option
         if (const auto connection = _client.get_con_from_hdl(hdl, ec)) {
             connection->get_socket().lowest_layer().set_option(option, ec);
             if (ec) {
-                MS_ERROR_STD("failed to set %s option: %s",
-                             optionName, ec.message().c_str());
+                MS_ERROR("failed to set %s option: %s", optionName, ec.message().c_str());
             }
         }
         else {
-            MS_ERROR_STD("failed to set %s option because no client connection: %s",
-                         optionName, ec.message().c_str());
+            MS_ERROR("failed to set %s option because no client connection: %s",
+                     optionName, ec.message().c_str());
         }
     }
 }
@@ -787,13 +786,13 @@ void LogStreamBuf::Write(LogLevel level, const std::string& message)
         std::string levelDesc;
         switch (level) {
             case LogLevel::LOG_DEBUG:
-                MS_DEBUG_DEV_STD("Websocket debug: %s", message.c_str());
+                MS_DEBUG_DEV("WebsocketTpp debug: %s", message.c_str());
                 break;
             case LogLevel::LOG_WARN:
-                MS_WARN_DEV_STD("Websocket warning: %s", message.c_str());
+                MS_WARN_DEV("WebsocketTpp warning: %s", message.c_str());
                 break;
             case LogLevel::LOG_ERROR:
-                MS_ERROR_STD("Websocket error: %s", message.c_str());
+                MS_ERROR("WebsocketTpp error: %s", message.c_str());
                 break;
             default:
                 break;

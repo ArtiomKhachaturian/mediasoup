@@ -66,15 +66,15 @@ WebMSerializer::Writer::Writer(const RtpCodecMimeType& mime,
                 _trackNumber = trackNumber;
             }
             else {
-                MS_ERROR_STD("failed to set MKV codec for %s", GetStreamInfoString(mime).c_str());
+                MS_ERROR("failed to set MKV codec for %s", GetStreamInfoString(mime).c_str());
             }
         }
         else {
-            MS_ERROR_STD("failed to add MKV track for %s", GetStreamInfoString(mime).c_str());
+            MS_ERROR("failed to add MKV track for %s", GetStreamInfoString(mime).c_str());
         }
     }
     else {
-        MS_ERROR_STD("failed to initialize MKV writer for %s", GetStreamInfoString(mime).c_str());
+        MS_ERROR("failed to initialize MKV writer for %s", GetStreamInfoString(mime).c_str());
     }
 }
 

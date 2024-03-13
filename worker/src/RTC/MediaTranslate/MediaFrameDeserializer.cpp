@@ -82,7 +82,7 @@ void MediaFrameDeserializer::AddTrack(const RtpCodecMimeType& type,
                 }
                 break;
             default:
-                MS_ERROR_STD("packetizer for [%s] not yet implemented", type.ToString().c_str());
+                MS_ERROR("packetizer for [%s] not yet implemented", type.ToString().c_str());
                 break;
         }
         if (packetizer) {

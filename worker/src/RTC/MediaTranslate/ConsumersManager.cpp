@@ -242,7 +242,7 @@ void ConsumersManager::BeginPacketsSending(uint64_t mediaId, uint64_t endPointId
             endPoint->SetTimeline(_originalTimeline);
         }
         if (!endPoint->BeginMediaPlay(mediaId)) {
-            MS_ERROR_STD("failed to begin of RTP media play");
+            MS_ERROR("failed to begin of RTP media play");
         }
     }
 }
@@ -268,7 +268,7 @@ void ConsumersManager::EndPacketsSending(uint64_t mediaId, uint64_t endPointId)
 {
     const auto endPoint = GetEndPoint(endPointId);
     if (endPoint && !endPoint->EndMediaPlay(mediaId)) {
-        MS_ERROR_STD("failed to end of RTP media play");
+        MS_ERROR("failed to end of RTP media play");
     }
 }
 
@@ -291,9 +291,8 @@ bool ConsumersManager::AddNewEndPointFor(const std::shared_ptr<ConsumerTranslato
             endPoint->SetOutput(std::move(consumerLanguageId), std::move(consumerVoiceId));
         }
         else {
-            MS_ERROR_STD("failed create of new end-point for language [%s] & voice [%s]",
-                         consumerLanguageId.c_str(),
-                         consumerVoiceId.c_str());
+            MS_ERROR("failed create of new end-point for language [%s] & voice [%s]",
+                     consumerLanguageId.c_str(), consumerVoiceId.c_str());
         }
     }
     return added;
@@ -305,7 +304,7 @@ std::shared_ptr<ConsumersManager::EndPointInfo> ConsumersManager::
     if (consumer) {
         if (auto endPoint = _endPointsFactory->CreateEndPoint()) {
             if (!endPoint->AddOutputMediaSink(_translationsOutput)) {
-                MS_ERROR_STD("failed add output media sink to translation end-point");
+                MS_ERROR("failed add output media sink to translation end-point");
             }
             else {
                 endPoint->SetInputMediaSource(_translationsInput);

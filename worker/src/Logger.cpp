@@ -7,14 +7,30 @@
 /* Class variables. */
 
 const uint64_t Logger::Pid{ static_cast<uint64_t>(uv_os_getpid()) };
-thread_local Channel::ChannelSocket* Logger::channel{ nullptr };
 thread_local char Logger::buffer[Logger::BufferSize];
 
 /* Class methods. */
 
 void Logger::ClassInit(Channel::ChannelSocket* channel)
 {
-	Logger::channel = channel;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(Logger::channel);
+        Logger::channel = channel;
+    }
+    MS_TRACE();
+}
 
-	MS_TRACE();
+void Logger::ClassDestroy()
+{
+    MS_TRACE();
+    LOCK_WRITE_PROTECTED_OBJ(Logger::channel);
+    Logger::channel = nullptr;
+}
+
+void Logger::SendLog(const char* data, uint32_t dataLen)
+{
+    LOCK_READ_PROTECTED_OBJ(Logger::channel);
+    if (const auto channel = Logger::channel.ConstRef()) {
+        channel->SendLog(data, dataLen);
+    }
 }

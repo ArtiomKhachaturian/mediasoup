@@ -79,6 +79,7 @@ extern "C" int mediasoup_worker_run(
 	{
 		MS_ERROR_STD("settings error: %s", error.what());
 
+        Logger::ClassDestroy();
 		channel->Close();
 		DepLibUV::RunLoop();
 		DepLibUV::ClassDestroy();
@@ -90,10 +91,10 @@ extern "C" int mediasoup_worker_run(
 	{
 		MS_ERROR_STD("unexpected settings error: %s", error.what());
 
+        Logger::ClassDestroy();
 		channel->Close();
 		DepLibUV::RunLoop();
 		DepLibUV::ClassDestroy();
-
 		// 40 is a custom exit code to notify "unknown error" to the Node library.
 		return 40;
 	}
@@ -156,12 +157,14 @@ extern "C" int mediasoup_worker_run(
 		// process.
 		uv_sleep(200);
 #endif
+        Logger::ClassDestroy();
         return 0;
 	}
 	catch (const MediaSoupError& error)
 	{
 		MS_ERROR_STD("failure exit: %s", error.what());
 
+        Logger::ClassDestroy();
 		// 40 is a custom exit code to notify "unknown error" to the Node library.
         return 40;
 	}

@@ -163,7 +163,7 @@ std::optional<MediaFrame> WebMDeserializer::TrackInfo::NextFrame(size_t payloadO
                 }
                 else {
                     mkvResult = MkvReadResult::OutOfMemory;
-                    MS_ERROR_STD("allocation of [%zu bytes] buffer failed", payloadOffset + frameLen);
+                    MS_ERROR("allocation of [%zu bytes] buffer failed", payloadOffset + frameLen);
                 }
             }
             if (MaybeOk(mkvResult)) {
@@ -204,7 +204,7 @@ std::unique_ptr<WebMDeserializer::TrackInfo> WebMDeserializer::TrackInfo::
                     type = RtpCodecMimeType::Type::AUDIO;
                     break;
                 default:
-                    MS_WARN_TAG(rtp, "Unsupported WebM media track type: %ld", track->GetType());
+                    MS_WARN_DEV("Unsupported WebM media track type: %ld", track->GetType());
                     break;
             }
             if (type.has_value()) {
@@ -228,7 +228,7 @@ std::unique_ptr<WebMDeserializer::TrackInfo> WebMDeserializer::TrackInfo::
                     }
                 }
                 else {
-                    MS_WARN_TAG(rtp, "Unsupported WebM codec type: %s", track->GetCodecId());
+                    MS_WARN_DEV("Unsupported WebM codec type: %s", track->GetCodecId());
                 }
             }
         }
@@ -307,7 +307,7 @@ void WebMDeserializer::TrackInfo::SetNextBlockIterationResult(long result, const
         if (result < 0) {
             const auto mkvResult = ToMkvReadResult(result);
             if (MkvReadResult::BufferNotFull != mkvResult) {
-                MS_ERROR_STD("%s error: %s", operationName, MkvReadResultToString(mkvResult));
+                MS_ERROR("%s error: %s", operationName, MkvReadResultToString(mkvResult));
                 _cluster = nullptr;
             }
         }

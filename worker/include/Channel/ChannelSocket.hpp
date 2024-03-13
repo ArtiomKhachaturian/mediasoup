@@ -2,10 +2,14 @@
 #define MS_CHANNEL_SOCKET_HPP
 
 #include "common.hpp"
+#include "ProtectedObj.hpp"
 #include "Channel/ChannelNotification.hpp"
 #include "Channel/ChannelRequest.hpp"
 #include "handles/UnixStreamSocketHandle.hpp"
+#include <atomic>
 #include <string>
+
+class UVAsyncHandle;
 
 namespace Channel
 {
@@ -33,7 +37,7 @@ namespace Channel
 
 	private:
 		// Passed by argument.
-		Listener* listener{ nullptr };
+		Listener* const listener;
 	};
 
 	class ProducerSocket : public ::UnixStreamSocketHandle
@@ -106,18 +110,18 @@ namespace Channel
 		void OnConsumerSocketClosed(ConsumerSocket* consumerSocket) override;
 
 	private:
+        ConsumerSocket* const consumerSocket{ nullptr };
+        ProducerSocket* const producerSocket{ nullptr };
+        ChannelReadFn const channelReadFn{ nullptr };
+        ChannelReadCtx const channelReadCtx{ nullptr };
+        ChannelWriteFn const channelWriteFn{ nullptr };
+        ChannelWriteCtx const channelWriteCtx{ nullptr };
+        const std::unique_ptr<UVAsyncHandle> uvReadHandle;
 		// Passed by argument.
-		Listener* listener{ nullptr };
+        ProtectedObj<Listener*, std::mutex> listener{ nullptr };
 		// Others.
-		bool closed{ false };
-		ConsumerSocket* consumerSocket{ nullptr };
-		ProducerSocket* producerSocket{ nullptr };
-		ChannelReadFn channelReadFn{ nullptr };
-		ChannelReadCtx channelReadCtx{ nullptr };
-		ChannelWriteFn channelWriteFn{ nullptr };
-		ChannelWriteCtx channelWriteCtx{ nullptr };
-		uv_async_t* uvReadHandle{ nullptr };
-		flatbuffers::FlatBufferBuilder bufferBuilder{};
+		std::atomic_bool closed{ false };
+        ProtectedObj<flatbuffers::FlatBufferBuilder, std::mutex> bufferBuilder;
 	};
 } // namespace Channel
 

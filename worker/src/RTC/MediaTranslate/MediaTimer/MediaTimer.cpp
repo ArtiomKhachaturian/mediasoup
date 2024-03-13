@@ -187,7 +187,7 @@ std::shared_ptr<MediaTimer::Impl> MediaTimer::Impl::Create(std::string timerName
         impl.reset(new Impl(std::move(factory), std::move(timerName)));
     }
     else {
-        MS_ERROR_STD("failed to create handle factory for media timer %s", timerName.c_str());
+        MS_ERROR("failed to create handle factory for media timer %s", timerName.c_str());
     }
     return impl;
 }
@@ -247,7 +247,7 @@ uint64_t MediaTimer::Impl::Register(const std::shared_ptr<MediaTimerCallback>& c
             }
         }
         else {
-            MS_ERROR_STD("failed to create handle for media timer %s", _timerName.c_str());
+            MS_ERROR("failed to create handle for media timer %s", _timerName.c_str());
         }
     }
     return timerId;

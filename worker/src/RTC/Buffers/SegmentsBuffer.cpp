@@ -61,8 +61,8 @@ SegmentsBuffer::Result SegmentsBuffer::Push(const std::shared_ptr<Buffer>& buffe
             _size += bufferSize;
         }
         else {
-            MS_ERROR_STD("pushed buffer size [%zu bytes] is greater capacity [%zu bytes]",
-                         bufferSize, GetCapacity());
+            MS_ERROR("pushed buffer size [%zu bytes] is greater capacity [%zu bytes]",
+                     bufferSize, GetCapacity());
         }
     }
     return result;

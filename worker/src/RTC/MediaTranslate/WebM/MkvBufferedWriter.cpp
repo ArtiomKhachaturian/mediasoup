@@ -182,8 +182,8 @@ void MkvBufferedWriter::SetTrackSettings(uint64_t trackNumber,
         track->set_channels(config.GetChannelCount());
         track->set_bit_depth(config.GetBitsPerSample());
         if (!SetCodecSpecific(track, config.GetCodecSpecificData())) {
-            MS_ERROR_STD("failed to setup of MKV writer audio codec "
-                         "data for track #%" PRIu64, trackNumber);
+            MS_ERROR("failed to setup of MKV writer audio codec "
+                     "data for track #%" PRIu64, trackNumber);
         }
     }
 }
@@ -200,12 +200,11 @@ void MkvBufferedWriter::SetTrackSettings(uint64_t trackNumber,
             track->set_display_height(config.GetHeight());
         }
         else {
-            MS_WARN_DEV_STD("video resolution is not available or wrong "
-                            "for track #%" PRIu64, trackNumber);
+            MS_WARN_DEV("video resolution is not available or wrong for track #%" PRIu64, trackNumber);
         }
         if (!SetCodecSpecific(track, config.GetCodecSpecificData())) {
-            MS_ERROR_STD("failed to setup of MKV writer video codec "
-                         "data for track #%" PRIu64, trackNumber);
+            MS_ERROR("failed to setup of MKV writer video codec "
+                     "data for track #%" PRIu64, trackNumber);
         }
     }
 }
@@ -287,7 +286,7 @@ bool MkvBufferedWriter::WriteFrames(uint64_t mkvTimestamp)
                     ++addedCount;
                 }
                 else {
-                    MS_ERROR_STD("failed add MKV frame to segment");
+                    MS_ERROR("failed add MKV frame to segment");
                     break;
                 }
             }

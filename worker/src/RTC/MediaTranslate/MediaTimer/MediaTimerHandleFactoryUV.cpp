@@ -227,7 +227,7 @@ void MediaTimerHandleFactoryUV::Run()
 {
     if (!IsCancelled()) {
         if (!SetCurrentThreadPriority(ThreadPriority::High)) {
-            MS_WARN_DEV_STD("failed to set high prioriry for '%s' timer", _timerName.c_str());
+            MS_WARN_DEV("failed to set high prioriry for '%s' timer", _timerName.c_str());
         }
         SetCurrentThreadName(_timerName);
         _impl->RunLoop();

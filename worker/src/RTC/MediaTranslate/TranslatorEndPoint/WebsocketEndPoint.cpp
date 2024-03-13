@@ -43,7 +43,7 @@ std::shared_ptr<WebsocketEndPoint> WebsocketEndPoint::Create(const WebsocketFact
                                                            allocator);
         }
         else {
-            MS_ERROR_STD("failed to create websocket");
+            MS_ERROR("failed to create websocket");
         }
     }
     return endPoint;
@@ -66,7 +66,7 @@ void WebsocketEndPoint::Connect()
     switch (_socket->GetState()) {
         case WebsocketState::Disconnected:
             if (!_socket->Open()) {
-                MS_ERROR_STD("failed to connect with translation service %s", GetDescription().c_str());
+                MS_ERROR("failed to connect with translation service %s", GetDescription().c_str());
             }
             break;
         default:
