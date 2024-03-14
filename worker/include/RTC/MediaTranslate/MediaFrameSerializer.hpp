@@ -21,6 +21,10 @@ class MediaFrame;
 class MediaFrameWriter;
 class RtpPacket;
 
+namespace Codecs {
+class PayloadDescriptorHandler;
+}
+
 class MediaFrameSerializer : public BufferAllocations<MediaSource>
 {
     class SinkWriter;
@@ -50,7 +54,10 @@ protected:
                                                            MediaSink* sink) = 0;
 private:
     std::unique_ptr<SinkWriter> CreateSinkWriter(MediaSink* sink);
-    void WriteToTestSink(const RtpPacket* packet) const;
+    void WriteToTestSink(uint32_t ssrc, uint32_t rtpTimestamp,
+                         bool keyFrame, bool hasMarker,
+                         const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                         const std::shared_ptr<Buffer>& payload) const;
     std::string GetMimeText() const { return GetMime().ToString(); }
 private:
     const RtpCodecMimeType _mime;

@@ -6,6 +6,7 @@
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
 #include "RTC/RtpDictionaries.hpp"
+#include "RTC/RtpPacket.hpp"
 #include "api/units/time_delta.h"
 #include "api/units/timestamp.h"
 #include "Logger.hpp"
@@ -20,10 +21,16 @@ public:
     SinkWriter(std::unique_ptr<RtpDepacketizer> depacketizer,
                std::unique_ptr<MediaFrameWriter> impl);
     ~SinkWriter();
-    bool Write(const RtpPacket* packet);
+    bool Write(uint32_t ssrc, uint32_t rtpTimestamp,
+               bool keyFrame, bool hasMarker,
+               const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+               const std::shared_ptr<Buffer>& payload);
 private:
     bool Write(const MediaFrame& mediaFrame);
-    std::optional<MediaFrame> CreateFrame(const RtpPacket* packet);
+    std::optional<MediaFrame> CreateFrame(uint32_t ssrc, uint32_t rtpTimestamp,
+                                          bool keyFrame, bool hasMarker,
+                                          const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                          const std::shared_ptr<Buffer>& payload);
     const webrtc::TimeDelta& Update(const Timestamp& timestamp);
     bool IsAccepted(const Timestamp& timestamp) const;
 private:
@@ -51,10 +58,16 @@ MediaFrameSerializer::~MediaFrameSerializer()
 void MediaFrameSerializer::Write(const RtpPacket* packet)
 {
     if (packet && !IsPaused()) {
-        WriteToTestSink(packet);
+        const auto ssrc = packet->GetSsrc();
+        const auto rtpTimestamp = packet->GetTimestamp();
+        const auto keyFrame = packet->IsKeyFrame();
+        const auto hasMarker = packet->HasMarker();
+        const auto pdh = packet->GetPayloadDescriptorHandler();
+        const auto payload = AllocateBuffer(packet->GetPayloadLength(), packet->GetPayload());
+        WriteToTestSink(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload);
         LOCK_READ_PROTECTED_OBJ(_writers);
         for (auto it = _writers->begin(); it != _writers->end(); ++it) {
-            if (!it->second->Write(packet)) {
+            if (!it->second->Write(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
                 MS_ERROR("unable to write media frame [%s]", GetMimeText().c_str());
             }
         }
@@ -149,11 +162,14 @@ std::unique_ptr<MediaFrameSerializer::SinkWriter> MediaFrameSerializer::
     return writer;
 }
 
-void MediaFrameSerializer::WriteToTestSink(const RtpPacket* packet) const
+void MediaFrameSerializer::WriteToTestSink(uint32_t ssrc, uint32_t rtpTimestamp,
+                                           bool keyFrame, bool hasMarker,
+                                           const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                           const std::shared_ptr<Buffer>& payload) const
 {
     LOCK_READ_PROTECTED_OBJ(_testWriter);
     if (const auto& testWriter = _testWriter.ConstRef()) {
-        if (!testWriter->Write(packet)) {
+        if (!testWriter->Write(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
             MS_ERROR("unable write media frame [%s] to test sink", GetMimeText().c_str());
         }
     }
@@ -170,9 +186,12 @@ MediaFrameSerializer::SinkWriter::~SinkWriter()
 {
 }
 
-bool MediaFrameSerializer::SinkWriter::Write(const RtpPacket* packet)
+bool MediaFrameSerializer::SinkWriter::Write(uint32_t ssrc, uint32_t rtpTimestamp,
+                                             bool keyFrame, bool hasMarker,
+                                             const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                             const std::shared_ptr<Buffer>& payload)
 {
-    if (auto frame = CreateFrame(packet)) {
+    if (auto frame = CreateFrame(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
         return Write(frame.value());
     }
     return false;
@@ -187,23 +206,26 @@ bool MediaFrameSerializer::SinkWriter::Write(const MediaFrame& mediaFrame)
     return false;
 }
 
-std::optional<MediaFrame> MediaFrameSerializer::SinkWriter::CreateFrame(const RtpPacket* packet)
+std::optional<MediaFrame> MediaFrameSerializer::SinkWriter::CreateFrame(uint32_t ssrc, uint32_t rtpTimestamp,
+                                                                        bool keyFrame, bool hasMarker,
+                                                                        const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                                                        const std::shared_ptr<Buffer>& payload)
 {
-    if (packet) {
-        bool configChanged = false;
-        if (auto frame = _depacketizer->FromRtpPacket(packet, &configChanged)) {
-            if (configChanged) {
-                switch (_depacketizer->GetMime().GetType()) {
-                    case RtpCodecMimeType::Type::AUDIO:
-                        _impl->SetConfig(_depacketizer->GetAudioConfig(packet));
-                        break;
-                    case RtpCodecMimeType::Type::VIDEO:
-                        _impl->SetConfig(_depacketizer->GetVideoConfig(packet));
-                        break;
-                }
+    bool configChanged = false;
+    if (auto frame = _depacketizer->FromRtpPacket(ssrc, rtpTimestamp, keyFrame,
+                                                  hasMarker, pdh, payload,
+                                                  &configChanged)) {
+        if (configChanged) {
+            switch (_depacketizer->GetMime().GetType()) {
+                case RtpCodecMimeType::Type::AUDIO:
+                    _impl->SetConfig(_depacketizer->GetAudioConfig(ssrc));
+                    break;
+                case RtpCodecMimeType::Type::VIDEO:
+                    _impl->SetConfig(_depacketizer->GetVideoConfig(ssrc));
+                    break;
             }
-            return frame;
         }
+        return frame;
     }
     return std::nullopt;
 }
