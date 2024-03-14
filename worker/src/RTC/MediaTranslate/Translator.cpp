@@ -19,10 +19,10 @@
 namespace RTC
 {
 
-class Translator::ConsumerTranslatorImpl : public ConsumerTranslator
+class Translator::ConsumerInfo : public ConsumerTranslator
 {
 public:
-    ConsumerTranslatorImpl(uint64_t id, std::string languageId, std::string voiceId);
+    ConsumerInfo(uint64_t id, std::string languageId, std::string voiceId);
     // return true if changed
     bool SetLanguageId(std::string languageId);
     bool SetVoiceId(std::string voiceId);
@@ -38,18 +38,21 @@ private:
 
 Translator::Translator(const Producer* producer,
                        const WebsocketFactory* websocketFactory,
-                       RtpPacketsPlayer* rtpPacketsPlayer,
                        RtpPacketsCollector* output,
+                       const std::shared_ptr<MediaTimer>& packetsPlayerTimer,
                        const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<TranslatorEndPointFactory>(allocator)
     , _producerId(producer->id)
 #ifndef NO_TRANSLATION_SERVICE
     , _websocketFactory(websocketFactory)
 #endif
-    , _rtpPacketsPlayer(rtpPacketsPlayer)
     , _output(output)
+#if defined(SINGLE_TRANSLATION_POINT_CONNECTION) || defined(NO_TRANSLATION_SERVICE)
+    , _stubEndPointsTimer(packetsPlayerTimer)
+#endif
     , _producerPaused(producer->IsPaused())
     , _producerLanguageId(producer->GetLanguageId())
+    , _translatedPacketsPlayer(packetsPlayerTimer, allocator)
 {
 }
 
@@ -62,13 +65,13 @@ Translator::~Translator()
 
 std::unique_ptr<Translator> Translator::Create(const Producer* producer,
                                                const WebsocketFactory* websocketFactory,
-                                               RtpPacketsPlayer* rtpPacketsPlayer,
                                                RtpPacketsCollector* output,
+                                               const std::shared_ptr<MediaTimer>& packetsPlayerTimer,
                                                const std::shared_ptr<BufferAllocator>& allocator)
 {
-    if (producer && rtpPacketsPlayer && output && Media::Kind::AUDIO == producer->GetKind()) {
-        auto translator = new Translator(producer, websocketFactory, rtpPacketsPlayer,
-                                         output, allocator);
+    if (producer && output && Media::Kind::AUDIO == producer->GetKind()) {
+        auto translator = new Translator(producer, websocketFactory, output,
+                                         packetsPlayerTimer, allocator);
         // add streams
         const auto& streams = producer->GetRtpStreams();
         for (auto it = streams.begin(); it != streams.end(); ++it) {
@@ -88,8 +91,8 @@ bool Translator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
             const auto it = _originalSsrcToStreams.find(stream->GetSsrc());
             if (it == _originalSsrcToStreams.end()) {
                 auto source = TranslatorSource::Create(stream, mappedSsrc, this,
-                                                       _rtpPacketsPlayer,  _output,
-                                                       GetId(), GetAllocator());
+                                                       &_translatedPacketsPlayer,
+                                                       _output, GetId(), GetAllocator());
                 if (source) {
                     source->SetInputLanguage(GetProducerLanguageId());
                     source->SetPaused(_producerPaused);
@@ -163,8 +166,8 @@ void Translator::AddConsumer(const Consumer* consumer)
         MS_ASSERT(consumer->producerId == GetId(), "wrong producer ID");
         const auto id = consumer->GetId();
         if (!_consumers.count(id)) {
-            auto translator = std::make_shared<ConsumerTranslatorImpl>(id, consumer->GetLanguageId(),
-                                                                       consumer->GetVoiceId());
+            auto translator = std::make_shared<ConsumerInfo>(id, consumer->GetLanguageId(),
+                                                             consumer->GetVoiceId());
             for (auto it = _originalSsrcToStreams.begin();
                  it != _originalSsrcToStreams.end(); ++it) {
                 it->second->AddConsumer(translator);
@@ -251,9 +254,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
 std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
 {
 
-    auto fileEndPoint = std::make_shared<FileEndPoint>(GetId(),
-                                                       GetAllocator(),
-                                                       _rtpPacketsPlayer->GetTimer());
+    auto fileEndPoint = std::make_shared<FileEndPoint>(GetId(), GetAllocator(), _stubEndPointsTimer);
     if (!fileEndPoint->IsValid()) {
         MS_ERROR_STD("failed open [%s] as mock translation", fileEndPoint->GetName().c_str());
     }
@@ -261,7 +262,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeFileEndPoint() const
         _nonStubEndPointRef = fileEndPoint;
         return fileEndPoint;
     }
-    return std::make_shared<StubEndPoint>(GetId(), GetAllocator(), _rtpPacketsPlayer->GetTimer());
+    return std::make_shared<StubEndPoint>(GetId(), GetAllocator(), _stubEndPointsTimer);
 }
 
 #else
@@ -277,7 +278,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateMaybeStubEndPoint() const
             return socketEndPoint;
         }
     }
-    return std::make_shared<StubEndPoint>(GetId(), GetAllocator(), _rtpPacketsPlayer->GetTimer());
+    return std::make_shared<StubEndPoint>(GetId(), GetAllocator(), _stubEndPointsTimer);
 #else
     return WebsocketEndPoint::Create(_websocketFactory, GetId(), GetAllocator());
 #endif
@@ -293,16 +294,14 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateEndPoint()
 #endif
 }
 
-Translator::ConsumerTranslatorImpl::ConsumerTranslatorImpl(uint64_t id,
-                                                           std::string languageId,
-                                                           std::string voiceId)
+Translator::ConsumerInfo::ConsumerInfo(uint64_t id, std::string languageId, std::string voiceId)
     : _id(id)
     , _languageId(std::move(languageId))
     , _voiceId(std::move(voiceId))
 {
 }
 
-bool Translator::ConsumerTranslatorImpl::SetLanguageId(std::string languageId)
+bool Translator::ConsumerInfo::SetLanguageId(std::string languageId)
 {
     if (_languageId != languageId) {
         _languageId = std::move(languageId);
@@ -311,7 +310,7 @@ bool Translator::ConsumerTranslatorImpl::SetLanguageId(std::string languageId)
     return false;
 }
 
-bool Translator::ConsumerTranslatorImpl::SetVoiceId(std::string voiceId)
+bool Translator::ConsumerInfo::SetVoiceId(std::string voiceId)
 {
     if (_voiceId != voiceId) {
         _voiceId = std::move(voiceId);
