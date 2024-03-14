@@ -14,12 +14,15 @@ class RtpPacket;
 
 class RtpDepacketizer : public BufferAllocations<void>
 {
+    class PayloadBufferView;
 public:
     virtual ~RtpDepacketizer() = default;
-    // [makeDeepCopyOfPayload] it's just a hint
-    virtual std::optional<MediaFrame> AddPacket(const RtpPacket* packet,
-                                                bool makeDeepCopyOfPayload,
-                                                bool* configWasChanged = nullptr) = 0;
+    virtual std::optional<MediaFrame> CreateFrameFromPacket(uint32_t ssrc, uint32_t rtpTimestamp,
+                                                            bool keyFrame,
+                                                            const std::shared_ptr<Buffer>& payload,
+                                                            bool* configWasChanged = nullptr) = 0;
+    std::optional<MediaFrame> CreateFrameFromPacket(const RtpPacket* packet,
+                                                    bool* configWasChanged = nullptr);
     virtual AudioFrameConfig GetAudioConfig(const RtpPacket*) const { return AudioFrameConfig(); }
     virtual VideoFrameConfig GetVideoConfig(const RtpPacket*) const { return VideoFrameConfig(); }
     const RtpCodecMimeType& GetMime() const { return _mime; }
@@ -30,14 +33,10 @@ public:
 protected:
     RtpDepacketizer(const RtpCodecMimeType& mime, uint32_t clockRate,
                     const std::shared_ptr<BufferAllocator>& allocator);
-    MediaFrame CreateMediaFrame() const;
-    // factory method - for single-packet frames
-    std::optional<MediaFrame> CreateMediaFrame(const RtpPacket* packet,
-                                               bool makeDeepCopyOfPayload) const;
-    static bool AddPacket(const RtpPacket* packet, MediaFrame* frame,
-                          bool makeDeepCopyOfPayload = true);
-    static bool AddPacket(const RtpPacket* packet, uint8_t* data, size_t len,
-                          MediaFrame* frame, bool makeDeepCopyOfPayload = true);
+    MediaFrame CreateFrame() const;
+    static bool AddPacketToFrame(uint32_t ssrc, uint32_t rtpTimestamp, bool keyFrame,
+                                 const std::shared_ptr<Buffer>& payload, MediaFrame* frame);
+    bool AddPacketToFrame(const RtpPacket* packet, MediaFrame* frame) const;
     // null_opt if no descriptor for the packet
     static std::optional<size_t> GetPayloadDescriptorSize(const RtpPacket* packet);
 private:

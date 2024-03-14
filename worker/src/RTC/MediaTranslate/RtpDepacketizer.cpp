@@ -7,6 +7,19 @@
 namespace RTC
 {
 
+class RtpDepacketizer::PayloadBufferView : public Buffer
+{
+public:
+    PayloadBufferView(uint8_t* data, size_t len);
+    // impl. of Buffer
+    size_t GetSize() const final { return _len; }
+    uint8_t* GetData() final { return _data; }
+    const uint8_t* GetData() const final { return _data; }
+private:
+    uint8_t* const _data;
+    const size_t _len;
+};
+
 RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& mime, uint32_t clockRate,
                                  const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<void>(allocator)
@@ -14,6 +27,17 @@ RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& mime, uint32_t clockRat
     , _clockRate(clockRate)
 {
     MS_ASSERT(_mime.IsMediaCodec(), "invalid media codec: %s", _mime.ToString().c_str());
+}
+
+std::optional<MediaFrame> RtpDepacketizer::CreateFrameFromPacket(const RtpPacket* packet,
+                                                                 bool* configWasChanged)
+{
+    if (packet) {
+        const auto payload = AllocateBuffer(packet->GetPayloadLength(), packet->GetPayload());
+        return CreateFrameFromPacket(packet->GetSsrc(), packet->GetTimestamp(),
+                                     packet->IsKeyFrame(), payload);
+    }
+    return std::nullopt;
 }
 
 std::unique_ptr<RtpDepacketizer> RtpDepacketizer::Create(const RtpCodecMimeType& mime,
@@ -35,48 +59,37 @@ std::unique_ptr<RtpDepacketizer> RtpDepacketizer::Create(const RtpCodecMimeType&
     return nullptr;
 }
 
-MediaFrame RtpDepacketizer::CreateMediaFrame() const
+MediaFrame RtpDepacketizer::CreateFrame() const
 {
     return MediaFrame(GetMime(), GetClockRate(), GetAllocator());
 }
 
-std::optional<MediaFrame> RtpDepacketizer::CreateMediaFrame(const RtpPacket* packet,
-                                                            bool makeDeepCopyOfPayload) const
+bool RtpDepacketizer::AddPacketToFrame(uint32_t ssrc, uint32_t rtpTimestamp, bool keyFrame,
+                                       const std::shared_ptr<Buffer>& payload, MediaFrame* frame)
 {
-    if (packet) {
-        auto frame = CreateMediaFrame();
-        if (AddPacket(packet, &frame, makeDeepCopyOfPayload)) {
-            return frame;
-        }
-    }
-    return std::nullopt;
-}
-
-bool RtpDepacketizer::AddPacket(const RtpPacket* packet, MediaFrame* frame,
-                                bool makeDeepCopyOfPayload)
-{
-    return packet && frame && AddPacket(packet, packet->GetPayload(),
-                                        packet->GetPayloadLength(),
-                                        frame, makeDeepCopyOfPayload);
-}
-
-bool RtpDepacketizer::AddPacket(const RtpPacket* packet, uint8_t* data, size_t len,
-                                MediaFrame* frame, bool makeDeepCopyOfPayload)
-{
-    if (packet && frame) {
-        frame->AddPayload(data, len, makeDeepCopyOfPayload);
-        if (frame->GetTimestamp().GetRtpTime() > packet->GetTimestamp()) {
-            MS_WARN_TAG(rtp, "time stamp of new packet is less than previous, SSRC = %du", packet->GetSsrc());
+    if (frame) {
+        frame->AddPayload(payload);
+        if (frame->GetTimestamp().GetRtpTime() > rtpTimestamp) {
+            MS_WARN_TAG(rtp, "time stamp of new packet is less than previous, SSRC = %du", ssrc);
         }
         else {
-            frame->SetTimestamp(packet->GetTimestamp());
+            frame->SetTimestamp(rtpTimestamp);
         }
-        if (packet->IsKeyFrame()) {
+        if (keyFrame) {
             frame->SetKeyFrame(true);
         }
         return true;
     }
     return false;
+}
+
+bool RtpDepacketizer::AddPacketToFrame(const RtpPacket* packet, MediaFrame* frame) const
+{
+    if (packet && frame) {
+        const auto payload = AllocateBuffer(packet->GetPayloadLength(), packet->GetPayload());
+        return AddPacketToFrame(packet->GetSsrc(), packet->GetTimestamp(),
+                                packet->IsKeyFrame(), payload, frame);
+    }
 }
 
 std::optional<size_t> RtpDepacketizer::GetPayloadDescriptorSize(const RtpPacket* packet)

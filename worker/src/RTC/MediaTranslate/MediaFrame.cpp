@@ -10,20 +10,6 @@
 namespace RTC
 {
 
-class MediaFrame::PayloadBufferView : public Buffer
-{
-public:
-    PayloadBufferView(uint8_t* data, size_t len);
-    // impl. of Buffer
-    size_t GetSize() const final { return _len; }
-    uint8_t* GetData() final { return _data; }
-    const uint8_t* GetData() const final { return _data; }
-private:
-    uint8_t* const _data;
-    const size_t _len;
-};
-
-
 MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
                        const std::shared_ptr<BufferAllocator>& allocator)
     : _mimeType(mimeType)
@@ -49,18 +35,6 @@ void MediaFrame::AddPayload(const std::shared_ptr<Buffer>& payload)
     _payload->Push(payload);
 }
 
-void MediaFrame::AddPayload(uint8_t* data, size_t len, bool makeDeepCopyOfPayload)
-{
-    if (data && len) {
-        if (makeDeepCopyOfPayload) {
-            AddPayload(_payload->AllocateBuffer(len, data));
-        }
-        else {
-            AddPayload(std::make_shared<PayloadBufferView>(data, len));
-        }
-    }
-}
-
 std::shared_ptr<const Buffer> MediaFrame::GetPayload() const
 {
     return _payload;
@@ -84,12 +58,6 @@ void MediaFrame::SetTimestamp(const webrtc::Timestamp& time)
 void MediaFrame::SetTimestamp(uint32_t rtpTime)
 {
     _timestamp.SetRtpTime(rtpTime);
-}
-
-MediaFrame::PayloadBufferView::PayloadBufferView(uint8_t* data, size_t len)
-    : _data(data)
-    , _len(len)
-{
 }
 
 MediaFrameConfig::~MediaFrameConfig()
