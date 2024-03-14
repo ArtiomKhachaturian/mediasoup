@@ -12,19 +12,25 @@ class MediaFrame;
 class RtpMediaFrameSerializer;
 class RtpPacket;
 
+namespace Codecs {
+class PayloadDescriptorHandler;
+}
+
 class RtpDepacketizer : public BufferAllocations<void>
 {
-    class PayloadBufferView;
 public:
     virtual ~RtpDepacketizer() = default;
-    virtual std::optional<MediaFrame> CreateFrameFromPacket(uint32_t ssrc, uint32_t rtpTimestamp,
-                                                            bool keyFrame,
-                                                            const std::shared_ptr<Buffer>& payload,
-                                                            bool* configWasChanged = nullptr) = 0;
-    std::optional<MediaFrame> CreateFrameFromPacket(const RtpPacket* packet,
-                                                    bool* configWasChanged = nullptr);
-    virtual AudioFrameConfig GetAudioConfig(const RtpPacket*) const { return AudioFrameConfig(); }
-    virtual VideoFrameConfig GetVideoConfig(const RtpPacket*) const { return VideoFrameConfig(); }
+    virtual std::optional<MediaFrame> FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
+                                                    bool keyFrame, bool hasMarker,
+                                                    const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                                    const std::shared_ptr<Buffer>& payload,
+                                                    bool* configWasChanged = nullptr) = 0;
+    std::optional<MediaFrame> FromRtpPacket(const RtpPacket* packet,
+                                            bool* configWasChanged = nullptr);
+    virtual AudioFrameConfig GetAudioConfig(uint32_t /*ssrc*/) const { return AudioFrameConfig(); }
+    virtual VideoFrameConfig GetVideoConfig(uint32_t /*ssrc*/) const { return VideoFrameConfig(); }
+    AudioFrameConfig GetAudioConfig(const RtpPacket* packet) const;
+    VideoFrameConfig GetVideoConfig(const RtpPacket* packet) const;
     const RtpCodecMimeType& GetMime() const { return _mime; }
     uint32_t GetClockRate() const { return _clockRate; }
     static std::unique_ptr<RtpDepacketizer> Create(const RtpCodecMimeType& mime,
@@ -34,11 +40,9 @@ protected:
     RtpDepacketizer(const RtpCodecMimeType& mime, uint32_t clockRate,
                     const std::shared_ptr<BufferAllocator>& allocator);
     MediaFrame CreateFrame() const;
-    static bool AddPacketToFrame(uint32_t ssrc, uint32_t rtpTimestamp, bool keyFrame,
-                                 const std::shared_ptr<Buffer>& payload, MediaFrame* frame);
-    bool AddPacketToFrame(const RtpPacket* packet, MediaFrame* frame) const;
-    // null_opt if no descriptor for the packet
-    static std::optional<size_t> GetPayloadDescriptorSize(const RtpPacket* packet);
+    static void AddPacketToFrame(uint32_t ssrc, uint32_t rtpTimestamp, bool keyFrame,
+                                 const std::shared_ptr<Buffer>& payload, MediaFrame& frame);
+    void AddPacketToFrame(const RtpPacket* packet, MediaFrame& frame) const;
 private:
     const RtpCodecMimeType _mime;
     const uint32_t _clockRate;

@@ -5,9 +5,7 @@
 #include "RTC/Codecs/Opus.hpp"
 #include "RTC/Codecs/Tools.hpp"
 #include "RTC/Buffers/Buffer.hpp"
-#include "RTC/RtpPacket.hpp"
 #include "Logger.hpp"
-#include <absl/container/flat_hash_map.h>
 
 namespace {
 
@@ -30,6 +28,7 @@ public:
     OpusHeadBuffer(uint8_t channelCount, uint32_t sampleRate);
     uint8_t GetChannelCount() const { return _head._channelCount; }
     static uint8_t GetChannelCount(const uint8_t* payload);
+    static uint8_t GetChannelCount(const std::shared_ptr<Buffer>& payload);
     // impl. of Buffer
     size_t GetSize() const final { return sizeof(_head); }
     uint8_t* GetData() final { return reinterpret_cast<uint8_t*>(&_head); }
@@ -49,20 +48,22 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 {
 }
 
-std::optional<MediaFrame> RtpDepacketizerOpus::AddPacket(const RtpPacket* packet,
-                                                         bool makeDeepCopyOfPayload,
-                                                         bool* configWasChanged)
+std::optional<MediaFrame> RtpDepacketizerOpus::FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
+                                                             bool keyFrame, bool /*hasMarker*/,
+                                                             const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& /*pdh*/,
+                                                             const std::shared_ptr<Buffer>& payload,
+                                                             bool* configWasChanged)
 {
-    if (auto frame = CreateMediaFrame(packet, makeDeepCopyOfPayload)) {
-        if (const auto payload = packet->GetPayload()) {
-            const auto channelsCount = OpusHeadBuffer::GetChannelCount(payload);
-            if (!_opusCodecData || channelsCount != _opusCodecData->GetChannelCount()) {
-                _opusCodecData = std::make_shared<OpusHeadBuffer>(channelsCount, GetClockRate());
-                _config.SetChannelCount(channelsCount);
-                _config.SetCodecSpecificData(_opusCodecData);
-                if (configWasChanged) {
-                    *configWasChanged = true;
-                }
+    if (payload) {
+        auto frame = CreateFrame();
+        AddPacketToFrame(ssrc, rtpTimestamp, keyFrame, payload, frame);
+        const auto channelsCount = OpusHeadBuffer::GetChannelCount(payload);
+        if (!_opusCodecData || channelsCount != _opusCodecData->GetChannelCount()) {
+            _opusCodecData = std::make_shared<OpusHeadBuffer>(channelsCount, GetClockRate());
+            _config.SetChannelCount(channelsCount);
+            _config.SetCodecSpecificData(_opusCodecData);
+            if (configWasChanged) {
+                *configWasChanged = true;
             }
         }
         return frame;
@@ -85,6 +86,11 @@ uint8_t RtpDepacketizerOpus::OpusHeadBuffer::GetChannelCount(const uint8_t* payl
     bool stereo = false;
     Codecs::Opus::ParseTOC(payload, nullptr, nullptr, nullptr, &stereo);
     return stereo ? 2U : 1U;
+}
+
+uint8_t RtpDepacketizerOpus::OpusHeadBuffer::GetChannelCount(const std::shared_ptr<Buffer>& payload)
+{
+    return GetChannelCount(payload->GetData());
 }
 
 } // namespace RTC

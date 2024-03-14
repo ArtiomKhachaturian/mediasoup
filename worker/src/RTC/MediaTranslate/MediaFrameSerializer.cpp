@@ -191,7 +191,7 @@ std::optional<MediaFrame> MediaFrameSerializer::SinkWriter::CreateFrame(const Rt
 {
     if (packet) {
         bool configChanged = false;
-        if (auto frame = _depacketizer->AddPacket(packet, _impl->IsAsync(), &configChanged)) {
+        if (auto frame = _depacketizer->FromRtpPacket(packet, &configChanged)) {
             if (configChanged) {
                 switch (_depacketizer->GetMime().GetType()) {
                     case RtpCodecMimeType::Type::AUDIO:

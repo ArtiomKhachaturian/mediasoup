@@ -9,18 +9,25 @@ namespace RTC
 class RtpDepacketizerVpx : public RtpVideoDepacketizer
 {
     class RtpAssembly;
+    class ShiftedPayloadBuffer;
 public:
     RtpDepacketizerVpx(uint32_t clockRate, bool vp8,
                        const std::shared_ptr<BufferAllocator>& allocator);
     ~RtpDepacketizerVpx() final;
     // impl. of RtpDepacketizer
-    std::optional<MediaFrame> AddPacket(const RtpPacket* packet,
-                                        bool makeDeepCopyOfPayload,
-                                        bool* configWasChanged) final;
-    VideoFrameConfig GetVideoConfig(const RtpPacket* packet) const final;
+    std::optional<MediaFrame> FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
+                                            bool keyFrame, bool hasMarker,
+                                            const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                            const std::shared_ptr<Buffer>& payload,
+                                            bool* configWasChanged) final;
+    VideoFrameConfig GetVideoConfig(uint32_t ssrc) const final;
 private:
-    static bool ParseVp8VideoConfig(const RtpPacket* packet, VideoFrameConfig& applyTo);
-    static bool ParseVp9VideoConfig(const RtpPacket* packet, VideoFrameConfig& applyTo);
+    static bool ParseVp8VideoConfig(const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                    const std::shared_ptr<Buffer>& payload,
+                                    VideoFrameConfig& applyTo);
+    static bool ParseVp9VideoConfig(const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                    const std::shared_ptr<Buffer>& payload,
+                                    VideoFrameConfig& applyTo);
 private:
     absl::flat_hash_map<uint32_t, std::unique_ptr<RtpAssembly>> _assemblies;
 };
