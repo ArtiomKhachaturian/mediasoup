@@ -14,6 +14,7 @@
 #include "RTC/PlainTransport.hpp"
 #include "RTC/WebRtcTransport.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTppFactory.hpp"
+#include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 
 namespace RTC
 {
@@ -21,7 +22,7 @@ namespace RTC
 
     Router::Router(RTC::Shared* shared, const std::string& id, Listener* listener)
       : id(id), shared(shared), listener(listener)
-      , translatedPacketsPlayer(shared->GetAllocator())
+      , packetsPlayerTimer(std::make_shared<MediaTimer>("RtpPacketsPlayer"))
     {
         MS_TRACE();
         websocketFactory = WebsocketTppFactory::CreateFactory(shared->GetAllocator());
@@ -543,9 +544,9 @@ namespace RTC
         if (itp != itt->second.end()) {
             MS_THROW_ERROR("Producer translator already present in mapTransportTranslators [producerId:%s]", producer->id.c_str());
         }
-        if (auto translator = Translator::Create(producer, websocketFactory.get(),
-                                                 &translatedPacketsPlayer,
-                                                 transport, this->shared->GetAllocator())) {
+        if (auto translator = Translator::Create(producer, websocketFactory.get(), transport,
+                                                 this->packetsPlayerTimer,
+                                                 this->shared->GetAllocator())) {
             itt->second[producer] = std::move(translator);
         }
 

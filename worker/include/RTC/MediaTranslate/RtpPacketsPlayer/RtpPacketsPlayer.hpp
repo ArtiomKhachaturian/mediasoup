@@ -16,7 +16,8 @@ class RtpPacketsPlayer : public BufferAllocations<void>
 {
     using Streams = std::unordered_map<uint32_t, std::unique_ptr<RtpPacketsPlayerStream>>;
 public:
-    RtpPacketsPlayer(const std::shared_ptr<BufferAllocator>& allocator = nullptr);
+    RtpPacketsPlayer(const std::shared_ptr<MediaTimer>& timer,
+                     const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~RtpPacketsPlayer();
     void AddStream(uint32_t ssrc, uint32_t clockRate, uint8_t payloadType,
                    const RtpCodecMimeType& mime, RtpPacketsPlayerCallback* callback);

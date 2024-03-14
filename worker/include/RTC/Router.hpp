@@ -14,7 +14,6 @@
 #include "RTC/Shared.hpp"
 #include "RTC/Transport.hpp"
 #include "RTC/WebRtcServer.hpp"
-#include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
 #include "RTC/MediaTranslate/Translator.hpp"
 #include "ProtectedObj.hpp"
 #include <absl/container/flat_hash_map.h>
@@ -24,6 +23,7 @@
 
 namespace RTC
 {
+    class MediaTimer;
     class WebsocketFactory;
 
     class Router : public RTC::Transport::Listener,
@@ -140,7 +140,7 @@ namespace RTC
         RTC::Shared* shared{ nullptr };
         Listener* listener{ nullptr };
         // Allocated by this.
-        RtpPacketsPlayer translatedPacketsPlayer;
+        const std::shared_ptr<MediaTimer> packetsPlayerTimer;
         std::unique_ptr<WebsocketFactory> websocketFactory;
         absl::flat_hash_map<std::string, RTC::Transport*> mapTransports;
         absl::flat_hash_map<std::string, RTC::RtpObserver*> mapRtpObservers;

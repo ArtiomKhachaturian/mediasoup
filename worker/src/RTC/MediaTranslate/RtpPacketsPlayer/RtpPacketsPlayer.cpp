@@ -14,10 +14,12 @@
 namespace RTC
 {
 
-RtpPacketsPlayer::RtpPacketsPlayer(const std::shared_ptr<BufferAllocator>& allocator)
+RtpPacketsPlayer::RtpPacketsPlayer(const std::shared_ptr<MediaTimer>& timer,
+                                   const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<void>(allocator)
-    , _timer(std::make_shared<MediaTimer>("RtpPacketsPlayer"))
+    , _timer(timer)
 {
+    MS_ASSERT(_timer, "timer must not be null");
 }
 
 RtpPacketsPlayer::~RtpPacketsPlayer()
