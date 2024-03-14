@@ -1,5 +1,6 @@
 #pragma once
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactory.hpp"
+#include "ProtectedObj.hpp"
 #include <atomic>
 #include <thread>
 
@@ -18,10 +19,11 @@ private:
 	MediaTimerHandleFactoryUV(const std::string& timerName, std::shared_ptr<Impl> impl);
     void Run();
     bool IsCancelled() const { return _cancelled.load(); }
+    void SetCancelled();
 private:
     const std::string _timerName;
     const std::shared_ptr<Impl> _impl;
-    std::thread _thread;
+    ProtectedObj<std::thread, std::mutex> _thread;
     std::atomic_bool _cancelled = false;
 };
 

@@ -5,7 +5,6 @@
 #include "RTC/MediaTranslate/ThreadUtils.hpp"
 #include "UVAsyncHandle.hpp"
 #include "Logger.hpp"
-#include "ProtectedObj.hpp"
 #include <variant>
 #include <queue>
 #include <thread>
@@ -69,6 +68,8 @@ public:
     Data _data;
 };
 
+using CommandsQueue = std::queue<TimerCommand>;
+
 class TimerCommandManager
 {
 public:
@@ -103,7 +104,6 @@ private:
 
 class MediaTimerHandleFactoryUV::Impl : public TimerCommandManager
 {
-    using CommandsQueue = std::queue<TimerCommand>;
     using Timers = std::unordered_map<uint64_t, std::unique_ptr<TimerWrapper>>;
     template <typename T>
     using Protected = ProtectedObj<T, std::mutex>;
@@ -116,10 +116,10 @@ public:
     void Add(TimerCommand command) final;
     bool IsTimerStarted(uint64_t timerId) const final;
 private:
-    static void OnCommand(uv_async_t* handle);
+    static void OnPendingCommand(uv_async_t* handle);
     static void OnStop(uv_async_t* handle);
-    bool HasPendingCommands() const;
-    void OnCommand();
+    void ProcessPendingCommands();
+    void ClearPendingCommands();
     void AddTimer(uint64_t timerId, const std::weak_ptr<MediaTimerCallback>& callbackRef);
     void RemoveTimer(uint64_t timerId);
     void StartTimer(uint64_t timerId, bool singleshot);
@@ -189,17 +189,15 @@ MediaTimerHandleFactoryUV::MediaTimerHandleFactoryUV(const std::string& timerNam
                                                      std::shared_ptr<Impl> impl)
     : _timerName(timerName)
     , _impl(std::move(impl))
-    , _thread(std::bind(&MediaTimerHandleFactoryUV::Run, this))
 {
 }
 
 MediaTimerHandleFactoryUV::~MediaTimerHandleFactoryUV()
 {
-    if (!_cancelled.exchange(true)) {
-        _impl->StopLoop();
-    }
-    if (_thread.joinable()) {
-        _thread.join();
+    SetCancelled();
+    LOCK_WRITE_PROTECTED_OBJ(_thread);
+    if (_thread->joinable()) {
+        _thread->join();
     }
 }
 
@@ -218,6 +216,12 @@ std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactoryUV::
 std::shared_ptr<MediaTimerHandle> MediaTimerHandleFactoryUV::CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback)
 {
     if (!IsCancelled()) {
+        {
+            LOCK_WRITE_PROTECTED_OBJ(_thread);
+            if (!_thread->joinable()) {
+                _thread = std::thread(std::bind(&MediaTimerHandleFactoryUV::Run, this));
+            }
+        }
         return std::make_shared<MediaTimerHandleUV>(callback, _impl);
     }
     return nullptr;
@@ -234,9 +238,16 @@ void MediaTimerHandleFactoryUV::Run()
     }
 }
 
+void MediaTimerHandleFactoryUV::SetCancelled()
+{
+    if (!_cancelled.exchange(true)) {
+        _impl->StopLoop();
+    }
+}
+
 MediaTimerHandleFactoryUV::Impl::Impl(UVLoop loop)
     : _loop(std::move(loop))
-    , _commandEvent(_loop.GetHandle(), OnCommand, this)
+    , _commandEvent(_loop.GetHandle(), OnPendingCommand, this)
     , _stopEvent(_loop.GetHandle(), OnStop, this)
 {
     MS_ASSERT(_loop, "wrong events loop");
@@ -245,17 +256,12 @@ MediaTimerHandleFactoryUV::Impl::Impl(UVLoop loop)
 MediaTimerHandleFactoryUV::Impl::~Impl()
 {
     StopLoop();
-    LOCK_WRITE_PROTECTED_OBJ(_commands);
-    while (!_commands->empty()) {
-        _commands->pop();
-    }
+    ClearPendingCommands();
 }
 
 int MediaTimerHandleFactoryUV::Impl::RunLoop()
 {
-    if (HasPendingCommands()) {
-        OnCommand();
-    }
+    ProcessPendingCommands();
     const auto result = uv_run(_loop.GetHandle(), UV_RUN_DEFAULT);
     LOCK_WRITE_PROTECTED_OBJ(_timers);
     _timers->clear();
@@ -287,16 +293,10 @@ bool MediaTimerHandleFactoryUV::Impl::IsTimerStarted(uint64_t timerId) const
     return false;
 }
 
-bool MediaTimerHandleFactoryUV::Impl::HasPendingCommands() const
-{
-    LOCK_READ_PROTECTED_OBJ(_commands);
-    return !_commands->empty();
-}
-
-void MediaTimerHandleFactoryUV::Impl::OnCommand(uv_async_t* handle)
+void MediaTimerHandleFactoryUV::Impl::OnPendingCommand(uv_async_t* handle)
 {
     if (handle && handle->data) {
-        reinterpret_cast<Impl*>(handle->data)->OnCommand();
+        reinterpret_cast<Impl*>(handle->data)->ProcessPendingCommands();
     }
 }
 
@@ -308,36 +308,49 @@ void MediaTimerHandleFactoryUV::Impl::OnStop(uv_async_t* handle)
     }
 }
 
-void MediaTimerHandleFactoryUV::Impl::OnCommand()
+void MediaTimerHandleFactoryUV::Impl::ProcessPendingCommands()
 {
-    CommandsQueue commands;
-    {
-        LOCK_WRITE_PROTECTED_OBJ(_commands);
-        commands = _commands.Take();
-    }
-    while (!commands.empty()) {
-        const auto& command = commands.front();
-        switch (command.GetType()) {
-            case TimerCommandType::Add:
-                AddTimer(command.GetTimerId(), command.GetCallback());
-                break;
-            case TimerCommandType::Remove:
-                RemoveTimer(command.GetTimerId());
-                break;
-            case TimerCommandType::Start:
-                StartTimer(command.GetTimerId(), command.IsSingleshot());
-                break;
-            case TimerCommandType::Stop:
-                StopTimer(command.GetTimerId());
-                break;
-            case TimerCommandType::SetTimeout:
-                SetTimeout(command.GetTimerId(), command.GetTimeout());
-                break;
-            default:
-                MS_ASSERT(false, "unhandled/unknown UV timer command");
-                break;
+    bool stop = false;
+    while (!stop) {
+        std::optional<TimerCommand> command;
+        {
+            LOCK_WRITE_PROTECTED_OBJ(_commands);
+            if (!_commands->empty()) {
+                command.emplace(std::move(_commands->front()));
+                _commands->pop();
+            }
+            stop = _commands->empty();
         }
-        commands.pop();
+        if (command.has_value()) {
+            switch (command->GetType()) {
+                case TimerCommandType::Add:
+                    AddTimer(command->GetTimerId(), command->GetCallback());
+                    break;
+                case TimerCommandType::Remove:
+                    RemoveTimer(command->GetTimerId());
+                    break;
+                case TimerCommandType::Start:
+                    StartTimer(command->GetTimerId(), command->IsSingleshot());
+                    break;
+                case TimerCommandType::Stop:
+                    StopTimer(command->GetTimerId());
+                    break;
+                case TimerCommandType::SetTimeout:
+                    SetTimeout(command->GetTimerId(), command->GetTimeout());
+                    break;
+                default:
+                    MS_ASSERT(false, "unhandled/unknown UV timer command");
+                    break;
+            }
+        }
+    }
+}
+
+void MediaTimerHandleFactoryUV::Impl::ClearPendingCommands()
+{
+    LOCK_WRITE_PROTECTED_OBJ(_commands);
+    while (!_commands->empty()) {
+        _commands->pop();
     }
 }
 
