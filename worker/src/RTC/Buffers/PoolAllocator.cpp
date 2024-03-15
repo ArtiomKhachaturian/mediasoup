@@ -1,59 +1,15 @@
 #define MS_CLASS "RTC::PoolAllocator"
 #include "RTC/Buffers/PoolAllocator.hpp"
+#include "RTC/Buffers/PoolStackChunk.hpp"
 #include "Logger.hpp"
 #include "handles/TimerHandle.hpp"
 #include "DepLibUV.hpp"
-#include <atomic>
 #include <chrono>
 
 namespace RTC
 {
 
-class PoolAllocator::MemoryChunk
-{
-public:
-    virtual ~MemoryChunk() = default;
-    virtual size_t GetSize() const = 0;
-    virtual uint8_t* GetData() = 0;
-    virtual const uint8_t* GetData() const = 0;
-    bool IsAcquired() const { return _acquired.load(); }
-    bool Acquire();
-    void Release();
-protected:
-    MemoryChunk() = default;
-    virtual void OnAcquired() {}
-    virtual void OnReleased() {}
-private:
-    std::atomic_bool _acquired = false;
-};
-
-template<size_t size>
-class PoolAllocator::StackChunk : public MemoryChunk
-{
-public:
-    StackChunk() = default;
-    // impl. of MemoryChunk
-    size_t GetSize() const final { return size; }
-    uint8_t* GetData() final { return _memory.data(); }
-    const uint8_t* GetData() const final { return _memory.data(); }
-private:
-    alignas(size) std::array<uint8_t, size> _memory;
-};
-
-template<>
-class PoolAllocator::StackChunk<1U> : public MemoryChunk
-{
-public:
-    StackChunk<1U>() = default;
-    // impl. of MemoryChunk
-    size_t GetSize() const final { return 1U; }
-    uint8_t* GetData() final { return &_byte; }
-    const uint8_t* GetData() const final { return &_byte; }
-private:
-    uint8_t _byte;
-};
-
-class PoolAllocator::HeapChunk : public MemoryChunk
+class PoolAllocator::HeapChunk : public PoolMemoryChunk
 {
     using Rep = std::chrono::time_point<std::chrono::system_clock>::duration::rep;
 public:
@@ -100,7 +56,7 @@ private:
 class PoolAllocator::BufferImpl : public Buffer
 {
 public:
-    BufferImpl(std::shared_ptr<MemoryChunk> chunk, size_t size);
+    BufferImpl(std::shared_ptr<PoolMemoryChunk> chunk, size_t size);
     ~BufferImpl() final;
     // impl. of Buffer
     size_t GetSize() const final { return _size.load(); }
@@ -108,7 +64,7 @@ public:
     uint8_t* GetData() final;
     bool Resize(size_t size) final;
 private:
-    const std::shared_ptr<MemoryChunk> _chunk;
+    const std::shared_ptr<PoolMemoryChunk> _chunk;
     std::atomic<size_t> _size;
 };
 
@@ -209,7 +165,7 @@ PoolAllocator::StackChunks<count> PoolAllocator::FillStackChunks()
 {
     StackChunks<count> chunks;
     for (size_t i = 0U; i < count; ++i) {
-        chunks[i] = std::make_shared<StackChunk<size>>();
+        chunks[i] = std::make_shared<PoolStackChunk<size>>();
     }
     return chunks;
 }
@@ -228,7 +184,7 @@ size_t PoolAllocator::GetCachelineSize(size_t alignedSize, size_t cachelineTop)
 }
 
 template<class TSerialChunks>
-std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::GetAcquired(const TSerialChunks& chunks)
+std::shared_ptr<PoolMemoryChunk> PoolAllocator::GetAcquired(const TSerialChunks& chunks)
 {
     for (size_t i = 0U, end = std::size(chunks); i < end; ++i) {
         if (chunks[i]->Acquire()) {
@@ -238,8 +194,7 @@ std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::GetAcquired(const TSe
     return nullptr;
 }
 
-std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::GetAcquired(size_t size,
-                                                                       const HeapChunksMap& chunks)
+std::shared_ptr<PoolMemoryChunk> PoolAllocator::GetAcquired(size_t size, const HeapChunksMap& chunks)
 {
     if (size) {
         const auto exact = chunks.equal_range(size);
@@ -248,7 +203,7 @@ std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::GetAcquired(size_t si
     return nullptr;
 }
 
-std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::
+std::shared_ptr<PoolMemoryChunk> PoolAllocator::
     GetAcquired(HeapChunksMap::const_iterator from, HeapChunksMap::const_iterator to)
 {
     for (auto it = from; it != to; ++it) {
@@ -293,7 +248,7 @@ std::shared_ptr<PoolAllocator::HeapChunk> PoolAllocator::CreateHeapChunk(size_t 
     return chunk;
 }
 
-std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::GetStackChunk(size_t alignedSize) const
+std::shared_ptr<PoolMemoryChunk> PoolAllocator::GetStackChunk(size_t alignedSize) const
 {
     if (alignedSize && alignedSize <= _maxStackChunkSize) {
         // trying exact shooting to cached chunks
@@ -336,9 +291,9 @@ std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::GetStackChunk(size_t 
     return nullptr;
 }
 
-std::shared_ptr<PoolAllocator::MemoryChunk> PoolAllocator::AcquireHeapChunk(size_t alignedSize)
+std::shared_ptr<PoolMemoryChunk> PoolAllocator::AcquireHeapChunk(size_t alignedSize)
 {
-    std::shared_ptr<MemoryChunk> chunk;
+    std::shared_ptr<PoolMemoryChunk> chunk;
     {
         const MutexLock lock(_heapChunksMtx);
         chunk = GetAcquired(alignedSize, _heapChunks);
@@ -366,7 +321,7 @@ void PoolAllocator::OnTimer(TimerHandle* timer)
     }
 }
 
-bool PoolAllocator::MemoryChunk::Acquire()
+bool PoolMemoryChunk::Acquire()
 {
     if (!_acquired.exchange(true)) {
         OnAcquired();
@@ -375,7 +330,7 @@ bool PoolAllocator::MemoryChunk::Acquire()
     return false;
 }
 
-void PoolAllocator::MemoryChunk::Release()
+void PoolMemoryChunk::Release()
 {
     if (_acquired.exchange(false)) {
         OnReleased();
@@ -392,13 +347,13 @@ uint64_t PoolAllocator::HeapChunk::GetAge() const
 
 void PoolAllocator::HeapChunk::OnAcquired()
 {
-    MemoryChunk::OnAcquired();
+    PoolMemoryChunk::OnAcquired();
     _lastReleaseTime = 0;
 }
 
 void PoolAllocator::HeapChunk::OnReleased()
 {
-    MemoryChunk::OnReleased();
+    PoolMemoryChunk::OnReleased();
     _lastReleaseTime = GetNow();
 }
 
@@ -413,7 +368,7 @@ PoolAllocator::RegularHeapChunk::~RegularHeapChunk()
     delete [] _memory;
 }
 
-PoolAllocator::BufferImpl::BufferImpl(std::shared_ptr<MemoryChunk> chunk, size_t size)
+PoolAllocator::BufferImpl::BufferImpl(std::shared_ptr<PoolMemoryChunk> chunk, size_t size)
     : _chunk(chunk)
     , _size(size)
 {
