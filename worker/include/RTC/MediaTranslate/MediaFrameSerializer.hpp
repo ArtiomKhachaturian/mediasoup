@@ -29,6 +29,8 @@ class MediaFrameSerializer : public BufferAllocations<MediaSource>
 {
     class SinkWriter;
     class Queue;
+    template<typename K, typename V>
+    using ProtectedMap = ProtectedObj<std::unordered_map<K, V>, std::mutex>;
 public:
     MediaFrameSerializer(const MediaFrameSerializer&) = delete;
     MediaFrameSerializer(MediaFrameSerializer&&) = delete;
@@ -61,7 +63,7 @@ private:
 private:
     const RtpCodecMimeType _mime;
     const uint32_t _clockRate;
-    ProtectedObj<std::unordered_map<MediaSink*, std::unique_ptr<SinkWriter>>, std::mutex> _writers;
+    ProtectedMap<MediaSink*, std::unique_ptr<SinkWriter>> _writers;
     std::atomic_bool _paused = false;
 };
 
