@@ -3,7 +3,7 @@
 #include "RTC/MediaTranslate/Websocket/WebsocketListener.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketFailure.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTppUtils.hpp"
-#include "RTC/MediaTranslate/ThreadUtils.hpp"
+#include "RTC/MediaTranslate/ThreadExecution.hpp"
 #include "RTC/Buffers/Buffer.hpp"
 #include "Logger.hpp"
 #include <websocketpp/config/asio_client.hpp>
@@ -163,23 +163,27 @@ public:
                 const std::shared_ptr<SocketListeners>& listeners);
 };
 
-class WebsocketTpp::SocketWrapper : public Socket
+class WebsocketTpp::SocketWrapper : public Socket, private ThreadExecution
 {
 public:
-    SocketWrapper(std::shared_ptr<Socket> impl);
+    SocketWrapper(std::string socketName, std::shared_ptr<Socket> impl);
     ~SocketWrapper() final;
-    static std::unique_ptr<Socket> Create(uint64_t id, const std::shared_ptr<const Config>& config,
+    static std::unique_ptr<Socket> Create(uint64_t id,
+                                          const std::shared_ptr<const Config>& config,
                                           const std::shared_ptr<SocketListeners>& listeners);
     // impl. of Socket
     WebsocketState GetState() final;
-    void Run() final;
+    void Run() final { StartExecution(); }
     bool Open() final;
     void Close() final;
     bool WriteBinary(const std::shared_ptr<Buffer>& buffer) final;
     bool WriteText(const std::string& text) final;
+protected:
+    // impl. of ThreadExecution
+    void DoExecuteInThread() final;
+    void DoStopThread() final;
 private:
     std::shared_ptr<Socket> _impl;
-    std::thread _asioThread;
 };
 
 WebsocketTpp::WebsocketTpp(const std::string& uri,
@@ -345,8 +349,6 @@ WebsocketState WebsocketTpp::SocketImpl<TConfig>::GetState()
 template<class TConfig>
 void WebsocketTpp::SocketImpl<TConfig>::Run()
 {
-    SetCurrentThreadName(_config->GetUri()->str());
-    SetCurrentThreadPriority(ThreadPriority::Highest);
     _client.run();
     SetOpened(false);
 }
@@ -640,17 +642,15 @@ WebsocketTpp::SocketNoTls::SocketNoTls(uint64_t id, const std::shared_ptr<const 
 {
 }
 
-WebsocketTpp::SocketWrapper::SocketWrapper(std::shared_ptr<Socket> impl)
-    : _impl(std::move(impl))
+WebsocketTpp::SocketWrapper::SocketWrapper(std::string socketName, std::shared_ptr<Socket> impl)
+    : ThreadExecution(std::move(socketName), ThreadPriority::Highest)
+    ,_impl(std::move(impl))
 {
 }
 
 WebsocketTpp::SocketWrapper::~SocketWrapper()
 {
-    if (auto socket = std::atomic_exchange(&_impl, std::shared_ptr<Socket>())) {
-        socket->Close();
-        _asioThread.detach();
-    }
+    StopExecution();
 }
 
 std::unique_ptr<WebsocketTpp::Socket> WebsocketTpp::SocketWrapper::
@@ -658,7 +658,7 @@ std::unique_ptr<WebsocketTpp::Socket> WebsocketTpp::SocketWrapper::
            const std::shared_ptr<SocketListeners>& listeners)
 {
     if (auto impl = Socket::Create(id, config, listeners)) {
-        return std::make_unique<SocketWrapper>(std::move(impl));
+        return std::make_unique<SocketWrapper>(config->GetUri()->str(), std::move(impl));
     }
     return nullptr;
 }
@@ -669,17 +669,6 @@ WebsocketState WebsocketTpp::SocketWrapper::GetState()
         return impl->GetState();
     }
     return WebsocketState::Disconnected;
-}
-
-void WebsocketTpp::SocketWrapper::Run()
-{
-    if (const auto impl = std::atomic_load(&_impl)) {
-        _asioThread = std::thread([implRef = std::weak_ptr<Socket>(impl)]() {
-            if (const auto impl = implRef.lock()) {
-                impl->Run();
-            }
-        });
-    }
 }
 
 bool WebsocketTpp::SocketWrapper::Open()
@@ -713,6 +702,20 @@ bool WebsocketTpp::SocketWrapper::WriteText(const std::string& text)
         return impl->WriteText(text);
     }
     return false;
+}
+
+void WebsocketTpp::SocketWrapper::DoExecuteInThread()
+{
+    if (const auto impl = std::atomic_load(&_impl)) {
+        impl->Run();
+    }
+}
+
+void WebsocketTpp::SocketWrapper::DoStopThread()
+{
+    if (auto socket = std::atomic_exchange(&_impl, std::shared_ptr<Socket>())) {
+        socket->Close();
+    }
 }
 
 } // namespace RTC

@@ -2,7 +2,6 @@
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandleFactoryUV.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerHandle.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
-#include "RTC/MediaTranslate/ThreadUtils.hpp"
 #include "UVAsyncHandle.hpp"
 #include "Logger.hpp"
 #include <variant>
@@ -187,18 +186,14 @@ void MediaTimerHandleUV::SetTimeout(uint32_t timeoutMs)
 
 MediaTimerHandleFactoryUV::MediaTimerHandleFactoryUV(const std::string& timerName,
                                                      std::shared_ptr<Impl> impl)
-    : _timerName(timerName)
+    : ThreadExecution(timerName)
     , _impl(std::move(impl))
 {
 }
 
 MediaTimerHandleFactoryUV::~MediaTimerHandleFactoryUV()
 {
-    SetCancelled();
-    LOCK_WRITE_PROTECTED_OBJ(_thread);
-    if (_thread->joinable()) {
-        _thread->join();
-    }
+    StopExecution();
 }
 
 std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactoryUV::
@@ -216,33 +211,28 @@ std::unique_ptr<MediaTimerHandleFactory> MediaTimerHandleFactoryUV::
 std::shared_ptr<MediaTimerHandle> MediaTimerHandleFactoryUV::CreateHandle(const std::shared_ptr<MediaTimerCallback>& callback)
 {
     if (!IsCancelled()) {
-        {
-            LOCK_WRITE_PROTECTED_OBJ(_thread);
-            if (!_thread->joinable()) {
-                _thread = std::thread(std::bind(&MediaTimerHandleFactoryUV::Run, this));
-            }
-        }
+        StartExecution(); // start timer's thread
         return std::make_shared<MediaTimerHandleUV>(callback, _impl);
     }
     return nullptr;
 }
 
-void MediaTimerHandleFactoryUV::Run()
+void MediaTimerHandleFactoryUV::DoExecuteInThread()
 {
-    if (!IsCancelled()) {
-        if (!SetCurrentThreadPriority(ThreadPriority::High)) {
-            MS_WARN_DEV("failed to set high prioriry for '%s' timer", _timerName.c_str());
-        }
-        SetCurrentThreadName(_timerName);
-        _impl->RunLoop();
-    }
+    _impl->RunLoop();
 }
 
-void MediaTimerHandleFactoryUV::SetCancelled()
+void MediaTimerHandleFactoryUV::DoStopThread()
 {
-    if (!_cancelled.exchange(true)) {
-        _impl->StopLoop();
-    }
+    ThreadExecution::DoStopThread();
+    _impl->StopLoop();
+}
+
+void MediaTimerHandleFactoryUV::OnSetThreadPriorityError()
+{
+    ThreadExecution::OnSetThreadPriorityError();
+    MS_WARN_DEV("failed to set %s prioriry for '%s' timer", ToString(GetPriority()),
+                GetThreadName().c_str());
 }
 
 MediaTimerHandleFactoryUV::Impl::Impl(UVLoop loop)

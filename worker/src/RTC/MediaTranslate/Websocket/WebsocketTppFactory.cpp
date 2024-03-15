@@ -7,6 +7,7 @@
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "RTC/MediaTranslate/Websocket/WebsocketTppUtils.hpp"
+#include "RTC/MediaTranslate/ThreadExecution.hpp"
 #include "RTC/Buffers/BufferAllocations.hpp"
 #include "Logger.hpp"
 #include "ProtectedObj.hpp"
@@ -14,7 +15,6 @@
 #include <websocketpp/server.hpp>
 #include <atomic>
 #include <map>
-#include <thread>
 #endif
 
 #ifdef LOCAL_WEBSOCKET_TEST_SERVER
@@ -145,7 +145,7 @@ using lib::placeholders::_1;
 using lib::placeholders::_2;
 using lib::bind;
 
-class WebsocketTppTestFactory::MockServer : private BufferAllocations<void>
+class WebsocketTppTestFactory::MockServer : private BufferAllocations<ThreadExecution>
 {
     using IncomingConnection = std::pair<volatile uint64_t, std::shared_ptr<Client>>;
     using IncomingConnections = std::map<connection_hdl, IncomingConnection, std::owner_less<connection_hdl>>;
@@ -155,9 +155,12 @@ public:
     MockServer(const std::string& uri, WebsocketOptions options,
                const std::shared_ptr<BufferAllocator>& allocator);
     ~MockServer();
-    bool IsValid() const { return _fileIsAccessible && _thread.joinable(); }
+    bool IsValid() const { return _fileIsAccessible && IsActive(); }
+protected:
+    // impl. of ThreadExecution
+    void DoExecuteInThread() final;
+    void DoStopThread() final;
 private:
-    void Run();
     void OnMessage(connection_hdl hdl, MessagePtr message);
     void OnOpen(connection_hdl hdl);
     void OnClose(connection_hdl hdl);
@@ -167,7 +170,6 @@ private:
     std::shared_ptr<Server> _server;
     std::shared_ptr<MediaTimer> _timer;
     WebsocketTls _tls;
-    std::thread _thread;
     ProtectedObj<IncomingConnections> _connections;
 };
 
@@ -192,7 +194,7 @@ std::string WebsocketTppTestFactory::GetUri() const
 
 WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri, WebsocketTls tls,
                                                 const std::shared_ptr<BufferAllocator>& allocator)
-    : BufferAllocations<void>(allocator)
+    : BufferAllocations<ThreadExecution>(allocator, MOCK_WEBM_INPUT_FILE, ThreadPriority::Auto)
     , _fileIsAccessible(FileReader::IsValidForRead(MOCK_WEBM_INPUT_FILE))
     , _tls(std::move(tls))
 {
@@ -212,11 +214,7 @@ WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri, Websocke
         _server->set_open_handler(bind(&MockServer::OnOpen, this, _1));
         _server->set_close_handler(bind(&MockServer::OnClose, this, _1));
         // Listen on port
-        _thread = std::thread(std::bind(&MockServer::Run, this));
-        // wait
-        while (!_thread.joinable()) {
-            std::this_thread::yield();
-        }
+        StartExecution(true);
     }
     else {
         MS_ERROR_STD("unable to read %s", MOCK_WEBM_INPUT_FILE);
@@ -233,10 +231,7 @@ WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri,
 WebsocketTppTestFactory::MockServer::~MockServer()
 {
     if (_fileIsAccessible) {
-        _server->stop();
-        if (_thread.joinable()) {
-            _thread.join();
-        }
+        StopExecution();
         _server->set_message_handler(nullptr);
         _server->set_tls_init_handler(nullptr);
         _server->set_open_handler(nullptr);
@@ -249,7 +244,7 @@ WebsocketTppTestFactory::MockServer::~MockServer()
     }
 }
 
-void WebsocketTppTestFactory::MockServer::Run()
+void WebsocketTppTestFactory::MockServer::DoExecuteInThread()
 {
     try {
         _server->listen(WebsocketTppTestFactory::_port);
@@ -262,9 +257,14 @@ void WebsocketTppTestFactory::MockServer::Run()
     }
 }
 
+void WebsocketTppTestFactory::MockServer::DoStopThread()
+{
+    _server->stop();
+}
+
 void WebsocketTppTestFactory::MockServer::OnMessage(connection_hdl hdl, MessagePtr message)
 {
-    if (message && _fileIsAccessible) {
+    if (message) {
         LOCK_READ_PROTECTED_OBJ(_connections);
         const auto it = _connections->find(hdl);
         if (it != _connections->end()) {
@@ -292,24 +292,22 @@ void WebsocketTppTestFactory::MockServer::OnMessage(connection_hdl hdl, MessageP
 
 void WebsocketTppTestFactory::MockServer::OnOpen(connection_hdl hdl)
 {
-    if (_fileIsAccessible) {
-        LOCK_WRITE_PROTECTED_OBJ(_connections);
-        if (!_connections->count(hdl)) {
-            auto client = std::make_shared<Client>(hdl, _server, GetAllocator());
-            _connections->insert(std::make_pair(hdl, std::make_pair(0U, std::move(client))));
+    LOCK_WRITE_PROTECTED_OBJ(_connections);
+    if (!_connections->count(hdl)) {
+        auto client = std::make_shared<Client>(hdl, _server, GetAllocator());
+        _connections->insert(std::make_pair(hdl, std::make_pair(0U, std::move(client))));
 #ifdef MOCK_DISCONNECT_AFTER_MS
-            _timer->Singleshot(uint32_t(MOCK_DISCONNECT_AFTER_MS), [this, hdl]() {
-                OnClose(hdl);
-                lib::error_code ec;
-                const auto message = "interruption after " +
-                    std::to_string(unsigned(MOCK_DISCONNECT_AFTER_MS)) + " milliseconds";
-                _server->close(hdl, close::status::going_away, message, ec);
-                if (ec) {
-                    MS_WARN_DEV_STD("unable to normal close of mock server client: %s", ec.message());
-                }
-            });
+        _timer->Singleshot(uint32_t(MOCK_DISCONNECT_AFTER_MS), [this, hdl]() {
+            OnClose(hdl);
+            lib::error_code ec;
+            const auto message = "interruption after " +
+                std::to_string(unsigned(MOCK_DISCONNECT_AFTER_MS)) + " milliseconds";
+            _server->close(hdl, close::status::going_away, message, ec);
+            if (ec) {
+                MS_WARN_DEV_STD("unable to normal close of mock server client: %s", ec.message());
+            }
+        });
 #endif
-        }
     }
 }
 

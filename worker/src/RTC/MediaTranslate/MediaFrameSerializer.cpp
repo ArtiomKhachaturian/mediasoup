@@ -5,7 +5,7 @@
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/MediaSink.hpp"
-#include "RTC/MediaTranslate/ThreadUtils.hpp"
+#include "RTC/MediaTranslate/ThreadExecution.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacket.hpp"
 #include "api/units/time_delta.h"
@@ -13,7 +13,6 @@
 #include "Logger.hpp"
 #include <condition_variable>
 #include <optional>
-#include <thread>
 #include <queue>
 
 namespace {
@@ -66,19 +65,22 @@ private:
     webrtc::TimeDelta _offset = webrtc::TimeDelta::Zero();
 };
 
-class MediaFrameSerializer::Queue
+class MediaFrameSerializer::Queue : public ThreadExecution
 {
     using PacketsQueue = std::queue<PacketInfo>;
 public:
-    Queue() = default;
+    Queue();
     ~Queue();
     void RegisterSerializer(MediaFrameSerializer* serializer);
-    void UnregisterSerializer(MediaFrameSerializer* serializer);
+    void UnregisterSerializer(const MediaFrameSerializer* serializer);
     void Write(const ObjectId* serializer, const RtpPacket* packet,
                const std::shared_ptr<BufferAllocator>& allocator = nullptr);
+protected:
+    // impl. of ThreadExecution
+    void DoExecuteInThread() final;
+    void DoStopThread() final;
 private:
-    void Stop();
-    void Run();
+    void DropPendingPackets();
     void WritePacket(const PacketInfo& packetInfo) const;
 private:
     // key is serializer ID
@@ -86,8 +88,6 @@ private:
     std::mutex _packetsMutex;
     std::condition_variable _packetsCondition;
     PacketsQueue _packets;
-    std::atomic_bool _cancelled = false;
-    ProtectedObj<std::thread, std::mutex> _thread;
 };
 
 MediaFrameSerializer::MediaFrameSerializer(const RtpCodecMimeType& mime,
@@ -161,6 +161,7 @@ void MediaFrameSerializer::RemoveAllSinks()
         LOCK_WRITE_PROTECTED_OBJ(_writers);
         if (!_writers->empty()) {
             _writers->clear();
+            removed = true;
         }
     }
     if (removed) {
@@ -292,15 +293,15 @@ bool MediaFrameSerializer::SinkWriter::IsAccepted(const Timestamp& timestamp) co
     return !_lastTimestamp.has_value() || timestamp >= _lastTimestamp.value();
 }
 
+MediaFrameSerializer::Queue::Queue()
+    : ThreadExecution("MediaFrameSerializerQueue")
+{
+}
+
 MediaFrameSerializer::Queue::~Queue()
 {
-    Stop();
-    {
-        const std::lock_guard guard(_packetsMutex);
-        while (!_packets.empty()) {
-            _packets.pop();
-        }
-    }
+    DropPendingPackets();
+    StopExecution();
     LOCK_WRITE_PROTECTED_OBJ(_serializers);
     _serializers->clear();
 }
@@ -317,14 +318,13 @@ void MediaFrameSerializer::Queue::RegisterSerializer(MediaFrameSerializer* seria
                 firstSerializer = 1U == _serializers->size();
             }
         }
-        if (firstSerializer && !_cancelled.exchange(false)) {
-            LOCK_WRITE_PROTECTED_OBJ(_thread);
-            _thread = std::thread(std::bind(&Queue::Run, this));
+        if (firstSerializer) {
+            StartExecution();
         }
     }
 }
 
-void MediaFrameSerializer::Queue::UnregisterSerializer(MediaFrameSerializer* serializer)
+void MediaFrameSerializer::Queue::UnregisterSerializer(const MediaFrameSerializer* serializer)
 {
     if (serializer) {
         bool lastSerializer = false;
@@ -335,7 +335,7 @@ void MediaFrameSerializer::Queue::UnregisterSerializer(MediaFrameSerializer* ser
             }
         }
         if (lastSerializer) {
-            Stop();
+            StopExecution();
         }
     }
 }
@@ -354,32 +354,29 @@ void MediaFrameSerializer::Queue::Write(const ObjectId* serializer,
     }
 }
 
-void MediaFrameSerializer::Queue::Stop()
+void MediaFrameSerializer::Queue::DoExecuteInThread()
 {
-    if (!_cancelled.exchange(true)) {
-        LOCK_WRITE_PROTECTED_OBJ(_thread);
-        if (_thread->joinable()) {
-            _thread->join();
+    while (!IsCancelled()) {
+        std::unique_lock lock(_packetsMutex);
+        _packetsCondition.wait(lock);
+        while (!_packets.empty()) {
+            WritePacket(_packets.front());
+            _packets.pop();
         }
-        _thread = std::thread();
     }
 }
 
-void MediaFrameSerializer::Queue::Run()
+void MediaFrameSerializer::Queue::DoStopThread()
 {
-    if (!_cancelled.load()) {
-        SetCurrentThreadPriority(ThreadPriority::High);
-        //SetCurrentThreadName(_timerName);
-        while (!_cancelled.load()) {
-            std::unique_lock lock(_packetsMutex);
-            _packetsCondition.wait(lock, [this]() {
-                return _cancelled.load() || !_packets.empty();
-            });
-            while (!_packets.empty()) {
-                WritePacket(_packets.front());
-                _packets.pop();
-            }
-        }
+    ThreadExecution::DoStopThread();
+    _packetsCondition.notify_one();
+}
+
+void MediaFrameSerializer::Queue::DropPendingPackets()
+{
+    const std::lock_guard guard(_packetsMutex);
+    while (!_packets.empty()) {
+        _packets.pop();
     }
 }
 
