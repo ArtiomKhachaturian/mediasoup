@@ -190,6 +190,7 @@ media_translate_sources = [
   'src/RTC/MediaTranslate/MediaFrameDeserializer.cpp',
   'src/RTC/MediaTranslate/MediaFrameSerializer.cpp',
   'src/RTC/MediaTranslate/MediaSourceImpl.cpp',
+  'src/RTC/MediaTranslate/MediaSinkWriter.cpp',
   'src/RTC/MediaTranslate/RtpDepacketizer.cpp',
   'src/RTC/MediaTranslate/RtpDepacketizerOpus.cpp',
   'src/RTC/MediaTranslate/RtpDepacketizerVpx.cpp',

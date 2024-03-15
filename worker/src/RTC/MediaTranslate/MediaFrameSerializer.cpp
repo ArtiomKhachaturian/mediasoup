@@ -1,18 +1,14 @@
 #define MS_CLASS "RTC::MediaFrameSerializer"
 #include "RTC/MediaTranslate/MediaFrameSerializer.hpp"
-#include "RTC/MediaTranslate/MediaFrame.hpp"
+#include "RTC/MediaTranslate/MediaSinkWriter.hpp"
 #include "RTC/MediaTranslate/MediaFrameWriter.hpp"
-#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
-#include "RTC/MediaTranslate/MediaSink.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/MediaTranslate/ThreadExecution.hpp"
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/RtpPacket.hpp"
-#include "api/units/time_delta.h"
-#include "api/units/timestamp.h"
 #include "Logger.hpp"
 #include <condition_variable>
-#include <optional>
 #include <queue>
 
 namespace {
@@ -39,31 +35,6 @@ struct PacketInfo
 
 namespace RTC
 {
-
-class MediaFrameSerializer::SinkWriter
-{
-public:
-    SinkWriter(std::unique_ptr<RtpDepacketizer> depacketizer,
-               std::unique_ptr<MediaFrameWriter> impl);
-    ~SinkWriter();
-    bool Write(uint32_t ssrc, uint32_t rtpTimestamp,
-               bool keyFrame, bool hasMarker,
-               const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-               const std::shared_ptr<Buffer>& payload);
-private:
-    bool Write(const MediaFrame& mediaFrame);
-    std::optional<MediaFrame> CreateFrame(uint32_t ssrc, uint32_t rtpTimestamp,
-                                          bool keyFrame, bool hasMarker,
-                                          const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                          const std::shared_ptr<Buffer>& payload);
-    const webrtc::TimeDelta& Update(const Timestamp& timestamp);
-    bool IsAccepted(const Timestamp& timestamp) const;
-private:
-    const std::unique_ptr<RtpDepacketizer> _depacketizer;
-    const std::unique_ptr<MediaFrameWriter> _impl;
-    std::optional<Timestamp> _lastTimestamp;
-    webrtc::TimeDelta _offset = webrtc::TimeDelta::Zero();
-};
 
 class MediaFrameSerializer::Queue : public ThreadExecution
 {
@@ -180,16 +151,15 @@ std::string_view MediaFrameSerializer::GetFileExtension() const
     return MimeSubTypeToString(GetMime().GetSubtype());
 }
 
-std::unique_ptr<MediaFrameSerializer::SinkWriter> MediaFrameSerializer::
-    CreateSinkWriter(MediaSink* sink)
+std::unique_ptr<MediaSinkWriter> MediaFrameSerializer::CreateSinkWriter(MediaSink* sink)
 {
-    std::unique_ptr<SinkWriter> writer;
+    std::unique_ptr<MediaSinkWriter> writer;
     if (auto impl = CreateWriter(GetId(), sink)) {
         if (auto depacketizer = RtpDepacketizer::Create(GetMime(),
                                                         GetClockRate(),
                                                         GetAllocator())) {
-            writer = std::make_unique<SinkWriter>(std::move(depacketizer),
-                                                  std::move(impl));
+            writer = std::make_unique<MediaSinkWriter>(std::move(depacketizer),
+                                                       std::move(impl));
         }
         else {
             MS_ERROR("failed create of RTP depacketizer [%s], clock rate %u Hz",
@@ -219,78 +189,6 @@ MediaFrameSerializer::Queue& MediaFrameSerializer::GetQueue()
 {
     static Queue queue;
     return queue;
-}
-
-MediaFrameSerializer::SinkWriter::SinkWriter(std::unique_ptr<RtpDepacketizer> depacketizer,
-                                             std::unique_ptr<MediaFrameWriter> impl)
-    : _depacketizer(std::move(depacketizer))
-    , _impl(std::move(impl))
-{
-}
-
-MediaFrameSerializer::SinkWriter::~SinkWriter()
-{
-}
-
-bool MediaFrameSerializer::SinkWriter::Write(uint32_t ssrc, uint32_t rtpTimestamp,
-                                             bool keyFrame, bool hasMarker,
-                                             const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                             const std::shared_ptr<Buffer>& payload)
-{
-    if (auto frame = CreateFrame(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
-        return Write(frame.value());
-    }
-    return false;
-}
-
-bool MediaFrameSerializer::SinkWriter::Write(const MediaFrame& mediaFrame)
-{
-    const auto& timestamp = mediaFrame.GetTimestamp();
-    if (IsAccepted(timestamp)) {
-        return _impl->Write(mediaFrame, Update(timestamp));
-    }
-    return false;
-}
-
-std::optional<MediaFrame> MediaFrameSerializer::SinkWriter::CreateFrame(uint32_t ssrc, uint32_t rtpTimestamp,
-                                                                        bool keyFrame, bool hasMarker,
-                                                                        const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                                                        const std::shared_ptr<Buffer>& payload)
-{
-    bool configChanged = false;
-    if (auto frame = _depacketizer->FromRtpPacket(ssrc, rtpTimestamp, keyFrame,
-                                                  hasMarker, pdh, payload,
-                                                  &configChanged)) {
-        if (configChanged) {
-            switch (_depacketizer->GetMime().GetType()) {
-                case RtpCodecMimeType::Type::AUDIO:
-                    _impl->SetConfig(_depacketizer->GetAudioConfig(ssrc));
-                    break;
-                case RtpCodecMimeType::Type::VIDEO:
-                    _impl->SetConfig(_depacketizer->GetVideoConfig(ssrc));
-                    break;
-            }
-        }
-        return frame;
-    }
-    return std::nullopt;
-}
-
-const webrtc::TimeDelta& MediaFrameSerializer::SinkWriter::Update(const Timestamp& timestamp)
-{
-    if (!_lastTimestamp) {
-        _lastTimestamp = timestamp;
-    }
-    else if (timestamp > _lastTimestamp.value()) {
-        _offset += timestamp - _lastTimestamp.value();
-        _lastTimestamp = timestamp;
-    }
-    return _offset;
-}
-
-bool MediaFrameSerializer::SinkWriter::IsAccepted(const Timestamp& timestamp) const
-{
-    return !_lastTimestamp.has_value() || timestamp >= _lastTimestamp.value();
 }
 
 MediaFrameSerializer::Queue::Queue()

@@ -19,6 +19,7 @@ class AudioFrameConfig;
 class VideoFrameConfig;
 class MediaFrame;
 class MediaFrameWriter;
+class MediaSinkWriter;
 class RtpPacket;
 
 namespace Codecs {
@@ -27,7 +28,6 @@ class PayloadDescriptorHandler;
 
 class MediaFrameSerializer : public BufferAllocations<MediaSource>
 {
-    class SinkWriter;
     class Queue;
     template<typename K, typename V>
     using ProtectedMap = ProtectedObj<std::unordered_map<K, V>, std::mutex>;
@@ -53,7 +53,7 @@ protected:
     virtual std::unique_ptr<MediaFrameWriter> CreateWriter(uint64_t senderId,
                                                            MediaSink* sink) = 0;
 private:
-    std::unique_ptr<SinkWriter> CreateSinkWriter(MediaSink* sink);
+    std::unique_ptr<MediaSinkWriter> CreateSinkWriter(MediaSink* sink);
     void WriteToSinks(uint32_t ssrc, uint32_t rtpTimestamp,
                       bool keyFrame, bool hasMarker,
                       const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
@@ -63,7 +63,7 @@ private:
 private:
     const RtpCodecMimeType _mime;
     const uint32_t _clockRate;
-    ProtectedMap<MediaSink*, std::unique_ptr<SinkWriter>> _writers;
+    ProtectedMap<MediaSink*, std::unique_ptr<MediaSinkWriter>> _writers;
     std::atomic_bool _paused = false;
 };
 
