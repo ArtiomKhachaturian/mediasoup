@@ -36,7 +36,7 @@ TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc,
                         mappedSsrc, clockRate, _serializer->GetMime())
 {
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-    if (_fileWriter && !_serializer->AddTestSink(_fileWriter.get())) {
+    if (_fileWriter && !_serializer->AddSink(_fileWriter.get())) {
         // TODO: log error
         _fileWriter->DeleteFromStorage();
         _fileWriter.reset();
@@ -50,11 +50,6 @@ TranslatorSource::~TranslatorSource()
 {
     _rtpPacketsPlayer->RemoveStream(GetOriginalSsrc());
     _serializer->RemoveAllSinks();
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-    if (_fileWriter) {
-        _serializer->RemoveTestSink();
-    }
-#endif
 }
 
 std::unique_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeType& mime,

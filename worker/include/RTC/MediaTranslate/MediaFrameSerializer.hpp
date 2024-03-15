@@ -28,16 +28,14 @@ class PayloadDescriptorHandler;
 class MediaFrameSerializer : public BufferAllocations<MediaSource>
 {
     class SinkWriter;
+    class Queue;
 public:
     MediaFrameSerializer(const MediaFrameSerializer&) = delete;
     MediaFrameSerializer(MediaFrameSerializer&&) = delete;
     ~MediaFrameSerializer() override;
     void Write(const RtpPacket* packet);
     void SetPaused(bool paused) { _paused = paused; }
-    bool AddTestSink(MediaSink* sink);
-    void RemoveTestSink();
-    bool HasTestSink() const;
-    bool IsReadyToWrite() const { return !IsPaused() && (HasTestSink() || HasSinks()); }
+    bool IsReadyToWrite() const { return !IsPaused() && HasSinks(); }
     const RtpCodecMimeType& GetMime() const { return _mime; }
     uint32_t GetClockRate() const { return _clockRate; }
     // impl. of MediaSource
@@ -54,16 +52,16 @@ protected:
                                                            MediaSink* sink) = 0;
 private:
     std::unique_ptr<SinkWriter> CreateSinkWriter(MediaSink* sink);
-    void WriteToTestSink(uint32_t ssrc, uint32_t rtpTimestamp,
-                         bool keyFrame, bool hasMarker,
-                         const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                         const std::shared_ptr<Buffer>& payload) const;
+    void WriteToSinks(uint32_t ssrc, uint32_t rtpTimestamp,
+                      bool keyFrame, bool hasMarker,
+                      const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                      const std::shared_ptr<Buffer>& payload) const;
     std::string GetMimeText() const { return GetMime().ToString(); }
+    static Queue& GetQueue();
 private:
     const RtpCodecMimeType _mime;
     const uint32_t _clockRate;
     ProtectedObj<std::unordered_map<MediaSink*, std::unique_ptr<SinkWriter>>, std::mutex> _writers;
-    ProtectedUniquePtr<SinkWriter, std::mutex> _testWriter;
     std::atomic_bool _paused = false;
 };
 

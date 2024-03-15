@@ -11,6 +11,28 @@
 #include "api/units/timestamp.h"
 #include "Logger.hpp"
 #include <optional>
+#include <queue>
+
+namespace {
+
+struct PacketInfo
+{
+    PacketInfo() = default;
+    PacketInfo(uint32_t ssrc, uint32_t rtpTimestamp,
+               bool keyFrame, bool hasMarker,
+               std::shared_ptr<const RTC::Codecs::PayloadDescriptorHandler> pdh,
+               std::shared_ptr<RTC::Buffer> payload);
+    static PacketInfo FromRtpPacket(const RTC::RtpPacket* packet,
+                                    const std::shared_ptr<RTC::BufferAllocator>& allocator = nullptr);
+    uint32_t _ssrc = 0U;
+    uint32_t _rtpTimestamp = 0U;
+    bool _keyFrame = false;
+    bool _hasMarker = false;
+    std::shared_ptr<const RTC::Codecs::PayloadDescriptorHandler> _pdh;
+    std::shared_ptr<RTC::Buffer> _payload;
+};
+
+}
 
 namespace RTC
 {
@@ -40,6 +62,17 @@ private:
     webrtc::TimeDelta _offset = webrtc::TimeDelta::Zero();
 };
 
+class MediaFrameSerializer::Queue
+{
+public:
+    void RegisterSerializer(MediaFrameSerializer* serializer);
+    void UnregisterSerializer(MediaFrameSerializer* serializer);
+    void Write(MediaFrameSerializer* serializer, const RtpPacket* packet,
+               const std::shared_ptr<BufferAllocator>& allocator = nullptr);
+private:
+    
+};
+
 MediaFrameSerializer::MediaFrameSerializer(const RtpCodecMimeType& mime,
                                            uint32_t clockRate,
                                            const std::shared_ptr<BufferAllocator>& allocator)
@@ -58,57 +91,28 @@ MediaFrameSerializer::~MediaFrameSerializer()
 void MediaFrameSerializer::Write(const RtpPacket* packet)
 {
     if (packet && !IsPaused()) {
-        const auto ssrc = packet->GetSsrc();
-        const auto rtpTimestamp = packet->GetTimestamp();
-        const auto keyFrame = packet->IsKeyFrame();
-        const auto hasMarker = packet->HasMarker();
-        const auto pdh = packet->GetPayloadDescriptorHandler();
-        const auto payload = AllocateBuffer(packet->GetPayloadLength(), packet->GetPayload());
-        WriteToTestSink(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload);
-        LOCK_READ_PROTECTED_OBJ(_writers);
-        for (auto it = _writers->begin(); it != _writers->end(); ++it) {
-            if (!it->second->Write(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
-                MS_ERROR("unable to write media frame [%s]", GetMimeText().c_str());
-            }
-        }
+        GetQueue().Write(this, packet);
     }
-}
-
-bool MediaFrameSerializer::AddTestSink(MediaSink* sink)
-{
-    if (sink) {
-        if (auto writer = CreateSinkWriter(sink)) {
-            LOCK_WRITE_PROTECTED_OBJ(_testWriter);
-            _testWriter = std::move(writer);
-            return true;
-        }
-    }
-    return false;
-}
-
-void MediaFrameSerializer::RemoveTestSink()
-{
-    LOCK_WRITE_PROTECTED_OBJ(_testWriter);
-    _testWriter->reset();
-}
-
-bool MediaFrameSerializer::HasTestSink() const
-{
-    LOCK_READ_PROTECTED_OBJ(_testWriter);
-    return nullptr != _testWriter->get();
 }
 
 bool MediaFrameSerializer::AddSink(MediaSink* sink)
 {
     bool added = false;
     if (sink) {
-        LOCK_WRITE_PROTECTED_OBJ(_writers);
-        added = _writers->count(sink) > 0U;
-        if (!added) {
-            if (auto writer = CreateSinkWriter(sink)) {
-                _writers->insert(std::make_pair(sink, std::move(writer)));
-                added = true;
+        bool firstSink = false;
+        {
+            LOCK_WRITE_PROTECTED_OBJ(_writers);
+            added = _writers->count(sink) > 0U;
+            if (!added) {
+                if (auto writer = CreateSinkWriter(sink)) {
+                    _writers->insert(std::make_pair(sink, std::move(writer)));
+                    added = true;
+                    firstSink = 1U == _writers->size();
+                }
             }
+        }
+        if (added && firstSink) {
+            GetQueue().RegisterSerializer(this);
         }
     }
     return added;
@@ -116,17 +120,35 @@ bool MediaFrameSerializer::AddSink(MediaSink* sink)
 
 bool MediaFrameSerializer::RemoveSink(MediaSink* sink)
 {
+    bool removed = false;
     if (sink) {
-        LOCK_WRITE_PROTECTED_OBJ(_writers);
-        return _writers->erase(sink) > 0U;
+        bool lastSink = false;
+        {
+            LOCK_WRITE_PROTECTED_OBJ(_writers);
+            removed = _writers->erase(sink) > 0U;
+            if (removed) {
+                lastSink = _writers->empty();
+            }
+        }
+        if (removed && lastSink) {
+            GetQueue().UnregisterSerializer(this);
+        }
     }
-    return false;
+    return removed;
 }
 
 void MediaFrameSerializer::RemoveAllSinks()
 {
-    LOCK_WRITE_PROTECTED_OBJ(_writers);
-    _writers->clear();
+    bool removed = false;
+    {
+        LOCK_WRITE_PROTECTED_OBJ(_writers);
+        if (!_writers->empty()) {
+            _writers->clear();
+        }
+    }
+    if (removed) {
+        GetQueue().UnregisterSerializer(this);
+    }
 }
 
 bool MediaFrameSerializer::HasSinks() const
@@ -162,17 +184,23 @@ std::unique_ptr<MediaFrameSerializer::SinkWriter> MediaFrameSerializer::
     return writer;
 }
 
-void MediaFrameSerializer::WriteToTestSink(uint32_t ssrc, uint32_t rtpTimestamp,
-                                           bool keyFrame, bool hasMarker,
-                                           const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                           const std::shared_ptr<Buffer>& payload) const
+void MediaFrameSerializer::WriteToSinks(uint32_t ssrc, uint32_t rtpTimestamp,
+                                        bool keyFrame, bool hasMarker,
+                                        const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                        const std::shared_ptr<Buffer>& payload) const
 {
-    LOCK_READ_PROTECTED_OBJ(_testWriter);
-    if (const auto& testWriter = _testWriter.ConstRef()) {
-        if (!testWriter->Write(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
-            MS_ERROR("unable write media frame [%s] to test sink", GetMimeText().c_str());
+    LOCK_READ_PROTECTED_OBJ(_writers);
+    for (auto it = _writers->begin(); it != _writers->end(); ++it) {
+        if (!it->second->Write(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
+            MS_ERROR("unable to write media frame [%s]", GetMimeText().c_str());
         }
     }
+}
+
+MediaFrameSerializer::Queue& MediaFrameSerializer::GetQueue()
+{
+    static Queue queue;
+    return queue;
 }
 
 MediaFrameSerializer::SinkWriter::SinkWriter(std::unique_ptr<RtpDepacketizer> depacketizer,
@@ -247,4 +275,59 @@ bool MediaFrameSerializer::SinkWriter::IsAccepted(const Timestamp& timestamp) co
     return !_lastTimestamp.has_value() || timestamp >= _lastTimestamp.value();
 }
 
+void MediaFrameSerializer::Queue::RegisterSerializer(MediaFrameSerializer* serializer)
+{
+    
+}
+
+void MediaFrameSerializer::Queue::UnregisterSerializer(MediaFrameSerializer* serializer)
+{
+    
+}
+
+void MediaFrameSerializer::Queue::Write(MediaFrameSerializer* serializer,
+                                        const RtpPacket* packet,
+                                        const std::shared_ptr<BufferAllocator>& allocator)
+{
+    if (serializer && packet) {
+        const auto ssrc = packet->GetSsrc();
+        const auto rtpTimestamp = packet->GetTimestamp();
+        const auto keyFrame = packet->IsKeyFrame();
+        const auto hasMarker = packet->HasMarker();
+        const auto pdh = packet->GetPayloadDescriptorHandler();
+        const auto payload = RTC::AllocateBuffer(packet->GetPayloadLength(),
+                                                 packet->GetPayload(), allocator);
+    }
+}
+
 } // namespace RTC
+
+namespace {
+
+PacketInfo::PacketInfo(uint32_t ssrc, uint32_t rtpTimestamp,
+                       bool keyFrame, bool hasMarker,
+                       std::shared_ptr<const RTC::Codecs::PayloadDescriptorHandler> pdh,
+                       std::shared_ptr<RTC::Buffer> payload)
+    : _ssrc(ssrc)
+    , _rtpTimestamp(rtpTimestamp)
+    , _keyFrame(keyFrame)
+    , _hasMarker(hasMarker)
+    , _pdh(std::move(pdh))
+    , _payload(std::move(payload))
+{
+}
+
+PacketInfo PacketInfo::FromRtpPacket(const RTC::RtpPacket* packet,
+                                     const std::shared_ptr<RTC::BufferAllocator>& allocator)
+{
+    const auto ssrc = packet->GetSsrc();
+    const auto rtpTimestamp = packet->GetTimestamp();
+    const auto keyFrame = packet->IsKeyFrame();
+    const auto hasMarker = packet->HasMarker();
+    return PacketInfo(ssrc, rtpTimestamp, keyFrame, hasMarker,
+                      packet->GetPayloadDescriptorHandler(),
+                      RTC::AllocateBuffer(packet->GetPayloadLength(),
+                                          packet->GetPayload(), allocator));
+}
+
+}
