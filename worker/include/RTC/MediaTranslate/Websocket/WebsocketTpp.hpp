@@ -13,13 +13,11 @@ enum class WebsocketState;
 class WebsocketTpp : public Websocket
 {
     class Config;
-    class Socket;
-    template<class TConfig> class SocketImpl;
-    template <class TConfig> struct SocketConfig;
-    class SocketTls;
-    class SocketNoTls;
-    class SocketWrapper;
-    using SocketListeners = Listeners<WebsocketListener*>;
+    class Api;
+    template<class TConfig> class Impl;
+    class TlsOn;
+    class TlsOff;
+    class Wrapper;
 public:
     WebsocketTpp(const std::string& uri, WebsocketOptions options = WebsocketOptions());
     ~WebsocketTpp() final;
@@ -32,7 +30,7 @@ public:
     bool WriteBinary(const std::shared_ptr<Buffer>& buffer) final;
 private:
     const std::shared_ptr<const Config> _config;
-    ProtectedUniquePtr<Socket> _socket;
+    ProtectedUniquePtr<Api> _api;
 };
 
 } // namespace RTC

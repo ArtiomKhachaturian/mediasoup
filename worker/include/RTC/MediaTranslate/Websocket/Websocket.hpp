@@ -26,12 +26,12 @@ public:
     virtual bool WriteBinary(const std::shared_ptr<Buffer>& buffer) = 0;
     void AddListener(WebsocketListener* listener);
     void RemoveListener(WebsocketListener* listener);
+    // increase read buffer size to optimize for huge audio messages:
+    // 64 Kb instead of 16 by default
+    static constexpr size_t GetConnectionReadBufferSize() { return 1 << 16; }
 protected:
     Websocket();
 protected:
-    // increase read buffer size to optimize for huge audio messages:
-    // 64 Kb instead of 16 by default
-    static inline constexpr size_t _connectionReadBufferSize = 1 << 16;
     const std::shared_ptr<SocketListeners> _listeners;
 };
 

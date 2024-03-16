@@ -359,13 +359,16 @@ void Client::OnEvent(uint64_t /*timerId*/)
 {
     if (!_hdl.expired()) {
         if (const auto server = _serverRef.lock()) {
-            const auto content = FileReader::ReadAll(MOCK_WEBM_INPUT_FILE, GetAllocator());
-            if (content && !content->IsEmpty()) {
-                websocketpp::lib::error_code ec;
-                server->send(_hdl, content->GetData(), content->GetSize(),
-                             websocketpp::frame::opcode::binary, ec);
-                if (ec) {
-                    MS_ERROR_STD("broadcast audio failed: %s", ec.message().c_str());
+            FileReader reader(GetAllocator());
+            if (reader.Open(MOCK_WEBM_INPUT_FILE)) {
+                const auto content = reader.ReadAll();
+                if (content && !content->IsEmpty()) {
+                    websocketpp::lib::error_code ec;
+                    server->send(_hdl, content->GetData(), content->GetSize(),
+                                 websocketpp::frame::opcode::binary, ec);
+                    if (ec) {
+                        MS_ERROR_STD("broadcast audio failed: %s", ec.message().c_str());
+                    }
                 }
             }
         }
