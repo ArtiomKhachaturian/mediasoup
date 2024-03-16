@@ -245,7 +245,6 @@ MkvReadResult WebMDeserializer::TrackInfo::AdvanceToNextBlockEntry()
             long res = _cluster->GetEntry(_blockEntryIndex, _currentBlockEntry);
             MS_DEBUG_DEV("Cluster::GetEntry returned: %s", MkvReadResultToString(res));
             if (1L == res) {
-                res = 0L;
                 goto block_exit;
             }
             long long pos;

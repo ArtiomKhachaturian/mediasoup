@@ -116,6 +116,10 @@ void Worker::Close()
 		delete webRtcServer;
 	}
 	this->mapWebRtcServers.clear();
+    
+    if (const auto allocator = this->shared->GetAllocator()) {
+        allocator->StopGarbageCollector();
+    }
 
 	// Delete the RTC::Shared singleton.
 	delete this->shared;
@@ -127,10 +131,6 @@ void Worker::Close()
 	// Stop polling CQEs, which will close the uv_pool_t handle.
 	DepLibUring::StopPollingCQEs();
 #endif
-
-    if (const auto allocator = this->shared->GetAllocator()) {
-        allocator->StopGarbageCollector();
-    }
     
 	// Close the Channel.
 	this->channel->Close();
