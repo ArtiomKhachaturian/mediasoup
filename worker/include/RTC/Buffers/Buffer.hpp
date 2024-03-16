@@ -19,6 +19,8 @@ public:
     bool IsEqual(const Buffer& other) const;
     bool IsEqual(const std::shared_ptr<const Buffer>& other) const;
     bool IsEmpty() const { return 0U == GetSize(); }
+protected:
+    Buffer() = default;
 };
 
 } // namespace RTC
