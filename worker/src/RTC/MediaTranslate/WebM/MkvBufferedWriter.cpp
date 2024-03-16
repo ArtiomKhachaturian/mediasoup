@@ -317,12 +317,20 @@ mkvmuxer::VideoTrack* MkvBufferedWriter::GetVideoTrack(uint64_t trackNumber) con
     return nullptr;
 }
 
+std::shared_ptr<Buffer> MkvBufferedWriter::TakeBuffer()
+{
+    std::shared_ptr<Buffer> buffer;
+    if (_buffer) {
+        buffer = std::make_shared<MkvBufferView>(std::move(_buffer), _bufferOffset);
+        _bufferOffset = 0U;
+    }
+    return buffer;
+}
+
 void MkvBufferedWriter::WriteMediaPayloadToSink()
 {
-    if (_buffer) {
-        const auto buffer = std::make_shared<MkvBufferView>(std::move(_buffer), _bufferOffset);
+    if (const auto buffer = TakeBuffer()) {
         _sink->WriteMediaPayload(_senderId, buffer);
-        _bufferOffset = 0U;
     }
 }
 
@@ -330,15 +338,12 @@ mkvmuxer::int32 MkvBufferedWriter::Write(const void* buf, mkvmuxer::uint32 len)
 {
     if (buf && len) {
         if (!_buffer) {
-            const auto allocSize = std::max<size_t>(len, _bufferInitialCapacity);
+            const auto allocSize = std::max<size_t>(len, _bufferCapacity);
             _buffer = AllocateBuffer(allocSize, buf, len);
         }
         else {
-            if (_bufferOffset + len > _buffer->GetSize() &&
-                !_buffer->Resize(_bufferOffset + len)) {
-                _buffer = AllocateBuffer(_bufferOffset + len, _buffer->GetData(),
-                                         _buffer->GetSize());
-            }
+            // buffer grows permanently until [MkvBufferedWriter::TakeBuffer] is not called
+            _buffer = ReallocateBuffer(_bufferOffset + len, std::move(_buffer));
             if (_buffer) {
                 std::memcpy(_buffer->GetData() + _bufferOffset, buf, len);
             }

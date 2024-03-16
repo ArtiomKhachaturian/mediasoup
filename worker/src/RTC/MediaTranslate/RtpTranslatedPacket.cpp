@@ -17,12 +17,10 @@ RtpTranslatedPacket::RtpTranslatedPacket(Timestamp timestampOffset,
     MS_ASSERT(buffer->GetSize() >= sizeof(RtpPacketHeader), "buffer size is too small");
     MS_ASSERT(payloadOffset >= sizeof(RtpPacketHeader), "payload offset is too small");
     const auto data = buffer->GetData();
-    // workaround for fix issue with memory corruption in direct usage of RtpMemoryBufferPacket
-    // TODO: solve this problem for production, maybe problem inside of RtpPacket::SetExtensions
-    // because synthetic packet has no extensions and preallocated memory for that
-    RtpPacket packet(RtpPacketHeader::Init(data), nullptr, data + payloadOffset,
-                     payloadLength, 0U, payloadOffset + payloadLength, allocator);
-    _impl.reset(packet.Clone());
+    _impl = std::make_unique<RtpPacket>(RtpPacketHeader::Init(data), nullptr,
+                                        data + payloadOffset, payloadLength, 0U,
+                                        payloadOffset + payloadLength,
+                                        std::move(buffer), allocator);
 }
 
 RtpTranslatedPacket::RtpTranslatedPacket(RtpTranslatedPacket&& tmp)

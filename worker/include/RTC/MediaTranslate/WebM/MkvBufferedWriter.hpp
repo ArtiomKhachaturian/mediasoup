@@ -45,6 +45,7 @@ private:
     bool WriteFrames(uint64_t mkvTimestamp);
     mkvmuxer::AudioTrack* GetAudioTrack(uint64_t trackNumber) const;
     mkvmuxer::VideoTrack* GetVideoTrack(uint64_t trackNumber) const;
+    std::shared_ptr<Buffer> TakeBuffer();
     void WriteMediaPayloadToSink();
     // impl. of mkvmuxer::IMkvWriter
     mkvmuxer::int32 Write(const void* buf, mkvmuxer::uint32 len) final;
@@ -53,7 +54,7 @@ private:
     bool Seekable() const final { return false; }
     void ElementStartNotify(mkvmuxer::uint64 /*elementId*/, mkvmuxer::int64 /*position*/) final {}
 private:
-    static inline constexpr size_t _bufferInitialCapacity = 1024U; // 1kb chunk reserved
+    static inline constexpr size_t _bufferCapacity = 1024U; // 1kb chunk reserved
     const uint64_t _senderId;
     MediaSink* const _sink;
     mkvmuxer::Segment _segment;

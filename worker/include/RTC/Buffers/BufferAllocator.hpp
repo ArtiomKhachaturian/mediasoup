@@ -28,7 +28,7 @@ std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data,
                                        const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data, size_t dataSize,
                                        const std::shared_ptr<BufferAllocator>& allocator = nullptr);
-std::shared_ptr<Buffer> ReallocateBuffer(size_t size, const std::shared_ptr<Buffer>& buffer,
+std::shared_ptr<Buffer> ReallocateBuffer(size_t size, std::shared_ptr<Buffer> buffer,
                                          const std::shared_ptr<BufferAllocator>& allocator = nullptr);
 
 } // namespace RTC

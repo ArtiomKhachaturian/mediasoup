@@ -404,6 +404,25 @@ namespace Utils
         }
         return seed;
     }
+
+    template<typename THiWordInt, typename TLoWordInt = THiWordInt>
+    inline constexpr uint64_t ClueToUint64(THiWordInt i32hw, TLoWordInt i32lw) {
+        static_assert(sizeof(THiWordInt) <= 4U && sizeof(TLoWordInt) <= 4U);
+        return (uint64_t(i32hw) << 32) | i32lw;
+    }
+    
+    template<typename THiWordInt>
+    inline constexpr THiWordInt ExtractHiWord(uint64_t i64) {
+        static_assert(sizeof(THiWordInt) <= 4U);
+        return THiWordInt(i64 >> 32);
+    }
+    
+    template<typename TLoWordInt>
+    inline constexpr int32_t ExtractLoWord(uint64_t i64) {
+        static_assert(sizeof(TLoWordInt) <= 4U);
+        return TLoWordInt(i64 & 0xffffffffUL);
+    }
+
 } // namespace Utils
 
 #endif
