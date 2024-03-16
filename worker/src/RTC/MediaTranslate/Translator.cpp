@@ -245,7 +245,7 @@ std::shared_ptr<TranslatorEndPoint> Translator::CreateStubEndPoint() const
     if (0U == FileEndPoint::GetInstancesCount()) {
         return CreateMaybeFileEndPoint();
     }
-    return std::make_shared<StubEndPoint>(GetId(), GetAllocator(), _rtpPacketsPlayer->GetTimer());
+    return std::make_shared<StubEndPoint>(GetId(), GetAllocator(), _stubEndPointsTimer);
 #else
     return CreateMaybeFileEndPoint();
 #endif

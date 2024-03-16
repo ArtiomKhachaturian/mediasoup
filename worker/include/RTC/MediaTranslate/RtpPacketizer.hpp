@@ -21,6 +21,7 @@ public:
                                                    size_t payloadLength,
                                                    MediaFrame&& frame) = 0;
     virtual size_t GetPayloadOffset() const;
+    virtual size_t GetPayloadExtraSize() const;
 protected:
     RtpPacketizer(const RtpCodecMimeType& mime,
                   const std::shared_ptr<BufferAllocator>& allocator = nullptr);

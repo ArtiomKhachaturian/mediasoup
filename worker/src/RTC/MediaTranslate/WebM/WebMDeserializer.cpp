@@ -31,7 +31,8 @@ public:
     void Reset();
     StreamState GetState() const;
     // impl. of MediaFrameDeserializedTrack
-    std::optional<MediaFrame> NextFrame(size_t payloadOffset, bool skipPayload) final;
+    std::optional<MediaFrame> NextFrame(size_t payloadOffset, bool skipPayload,
+                                        size_t payloadExtraSize) final;
 private:
     TrackInfo(RtpCodecMimeType::Type type,
               RtpCodecMimeType::Subtype subType,
@@ -139,7 +140,8 @@ void WebMDeserializer::TrackInfo::Reset()
 }
 
 std::optional<MediaFrame> WebMDeserializer::TrackInfo::NextFrame(size_t payloadOffset,
-                                                                 bool skipPayload)
+                                                                 bool skipPayload,
+                                                                 size_t payloadExtraSize)
 {
     std::optional<MediaFrame> mediaFrame;
     MkvReadResult mkvResult = MkvReadResult::Success;
@@ -154,7 +156,7 @@ std::optional<MediaFrame> WebMDeserializer::TrackInfo::NextFrame(size_t payloadO
             const auto block = _currentBlockEntry->GetBlock();
             const auto& frame = block->GetFrame(_currentBlockFrameIndex++);
             const size_t frameLen = skipPayload ? 0U : static_cast<size_t>(frame.len);
-            const auto buffer = AllocateBuffer(payloadOffset + frameLen);
+            const auto buffer = AllocateBuffer(payloadOffset + frameLen + payloadExtraSize);
             if (!skipPayload) { // read frame content
                 if (buffer) {
                     const auto payloadAddr = buffer->GetData() + payloadOffset;
