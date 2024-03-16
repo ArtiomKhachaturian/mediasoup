@@ -118,7 +118,7 @@ bool MediaFrameConfig::IsCodecSpecificDataEqual(const MediaFrameConfig& config) 
     if (!equal && GetCodecSpecificData()) {
         equal = GetCodecSpecificData()->IsEqual(config.GetCodecSpecificData());
     }
-    return false;
+    return equal;
 }
 
 void AudioFrameConfig::SetChannelCount(uint8_t channelCount)

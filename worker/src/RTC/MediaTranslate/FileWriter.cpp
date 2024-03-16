@@ -83,10 +83,7 @@ void FileWriter::StartMediaWriting(uint64_t senderId)
         auto result = ::ftruncate(fileno(handle.get()), 0);
 #endif
         if (0 != result) {
-#ifndef _WIN32
-            result = errno;
-#endif
-            MS_WARN_DEV_STD("failed truncated file, error code %d", int(result));
+            MS_ERROR_STD("failed truncated file, error code %d", int(result));
         }
     }
 }
