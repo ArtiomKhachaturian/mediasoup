@@ -1,10 +1,6 @@
 #define MS_CLASS "RTC::MediaFrame"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
-#include "RTC/MediaTranslate/AudioFrameConfig.hpp"
-#include "RTC/MediaTranslate/VideoFrameConfig.hpp"
-#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #include "RTC/Buffers/SegmentsBuffer.hpp"
-#include "RTC/Buffers/BufferAllocator.hpp"
 #include "Logger.hpp"
 
 namespace RTC
@@ -58,111 +54,6 @@ void MediaFrame::SetTimestamp(const webrtc::Timestamp& time)
 void MediaFrame::SetTimestamp(uint32_t rtpTime)
 {
     _timestamp.SetRtpTime(rtpTime);
-}
-
-MediaFrameConfig::~MediaFrameConfig()
-{
-}
-
-const std::shared_ptr<const Buffer>& MediaFrameConfig::GetCodecSpecificData() const
-{
-    return _codecSpecificData;
-}
-
-void MediaFrameConfig::SetCodecSpecificData(const std::shared_ptr<const Buffer>& data)
-{
-    _codecSpecificData = data;
-}
-
-void MediaFrameConfig::SetCodecSpecificData(const uint8_t* data, size_t len,
-                                            const std::shared_ptr<BufferAllocator>& allocator)
-{
-    SetCodecSpecificData(AllocateBuffer(len, data, allocator));
-}
-
-bool MediaFrameConfig::IsCodecSpecificDataEqual(const MediaFrameConfig& config) const
-{
-    bool equal = this == &config;
-    if (!equal && GetCodecSpecificData()) {
-        equal = GetCodecSpecificData()->IsEqual(config.GetCodecSpecificData());
-    }
-    return equal;
-}
-
-void AudioFrameConfig::SetChannelCount(uint8_t channelCount)
-{
-    MS_ASSERT(channelCount, "channels count must be greater than zero");
-    _channelCount = channelCount;
-}
-
-void AudioFrameConfig::SetBitsPerSample(uint8_t bitsPerSample)
-{
-    MS_ASSERT(bitsPerSample, "bits per sample must be greater than zero");
-    MS_ASSERT(0U == bitsPerSample % 8, "bits per sample must be a multiple of 8");
-    _bitsPerSample = bitsPerSample;
-}
-
-bool AudioFrameConfig::operator == (const AudioFrameConfig& other) const
-{
-    return &other == this || (GetChannelCount() == other.GetChannelCount() &&
-                              GetBitsPerSample() == other.GetBitsPerSample() &&
-                              IsCodecSpecificDataEqual(other));
-}
-
-bool AudioFrameConfig::operator != (const AudioFrameConfig& other) const
-{
-    if (&other != this) {
-        return GetChannelCount() != other.GetChannelCount() ||
-               GetBitsPerSample() != other.GetBitsPerSample() ||
-               !IsCodecSpecificDataEqual(other);
-    }
-    return false;
-}
-
-std::string AudioFrameConfig::ToString() const
-{
-    return std::to_string(GetChannelCount()) + " channels, " +
-           std::to_string(GetBitsPerSample()) + " bits";
-}
-
-void VideoFrameConfig::SetWidth(int32_t width)
-{
-    _width = width;
-}
-
-void VideoFrameConfig::SetHeight(int32_t height)
-{
-    _height = height;
-}
-
-void VideoFrameConfig::SetFrameRate(double frameRate)
-{
-    _frameRate = frameRate;
-}
-
-bool VideoFrameConfig::operator == (const VideoFrameConfig& other) const
-{
-    return &other == this || (GetWidth() == other.GetWidth() &&
-                              GetHeight() == other.GetHeight() &&
-                              IsFloatsEqual(GetFrameRate(), other.GetFrameRate()) &&
-                              IsCodecSpecificDataEqual(other));
-}
-
-bool VideoFrameConfig::operator != (const VideoFrameConfig& other) const
-{
-    if (&other != this) {
-        return GetWidth() != other.GetWidth() ||
-               GetHeight() != other.GetHeight() ||
-               !IsFloatsEqual(GetFrameRate(), other.GetFrameRate()) ||
-               !IsCodecSpecificDataEqual(other);
-    }
-    return false;
-}
-
-std::string VideoFrameConfig::ToString() const
-{
-    return std::to_string(GetWidth()) + "x" + std::to_string(GetHeight()) +
-           " px, " + std::to_string(GetFrameRate()) + " fps";
 }
 
 } // namespace RTC
