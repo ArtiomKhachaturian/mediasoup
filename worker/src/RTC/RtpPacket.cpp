@@ -536,9 +536,11 @@ namespace RTC
 		}
 		else if (!this->headerExtension)
 		{
-            if (this->buffer) {
-                // reallocate if needed
-                this->buffer = RTC::ReallocateBuffer(this->size + shift, this->buffer);
+            // reallocate data storage if needed
+            if (this->buffer && !this->buffer->Resize(this->size + shift)) {
+                this->buffer = RTC::ReallocateBuffer(this->size + shift,
+                                                     std::move(this->buffer),
+                                                     this->allocator);
                 MS_ASSERT(this->buffer, "failed of RTP data buffer re-allocation");
                 this->header = reinterpret_cast<RtpPacketHeader*>(this->buffer->GetData());
                 if (this->header->GetCsrcCount()) {
