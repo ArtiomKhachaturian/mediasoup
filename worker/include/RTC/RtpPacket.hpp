@@ -30,15 +30,6 @@ namespace RTC
 
 	class RtpPacket
 	{
-	protected:
-		/* Struct for RTP header extension. */
-		struct HeaderExtension
-		{
-			uint16_t id;
-			uint16_t length; // Size of value in multiples of 4 bytes.
-			uint8_t value[1];
-		};
-
 	private:
 		/* Struct for One-Byte extension. */
 		struct OneByteExtension
@@ -63,6 +54,13 @@ namespace RTC
 		};
 
 	public:
+        /* Struct for RTP header extension. */
+        struct HeaderExtension
+        {
+            uint16_t id;
+            uint16_t length; // Size of value in multiples of 4 bytes.
+            uint8_t value[1];
+        };
 		/* Struct for replacing and setting header extensions. */
 		struct GenericExtension
 		{
@@ -113,6 +111,7 @@ namespace RTC
           size_t payloadLength,
           uint8_t payloadPadding,
           size_t size,
+          std::shared_ptr<Buffer> buffer = nullptr,
           const std::shared_ptr<BufferAllocator>& allocator = nullptr);
         ~RtpPacket();
 

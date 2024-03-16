@@ -12,7 +12,8 @@ class MediaFrameDeserializedTrack
 {
 public:
 	virtual ~MediaFrameDeserializedTrack() = default;
-	virtual std::optional<MediaFrame> NextFrame(size_t payloadOffset, bool skipPayload) = 0;
+	virtual std::optional<MediaFrame> NextFrame(size_t payloadOffset, bool skipPayload,
+                                                size_t payloadExtraSize = 0U) = 0;
     void SetClockRate(uint32_t clockRate);
 	uint32_t GetClockRate() const { return _clockRate; }
 	MediaFrameDeserializeResult GetLastResult() const { return _lastResult; }

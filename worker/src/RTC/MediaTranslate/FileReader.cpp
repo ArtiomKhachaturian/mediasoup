@@ -54,8 +54,9 @@ std::shared_ptr<Buffer> FileReader::ReadAll(const std::string_view& fileNameUtf8
         auto size = GetFileSize(handle);
         if (size > 0) {
             try {
-                if (const auto buffer = RTC::AllocateBuffer(size, allocator)) {
-                    return RTC::ReallocateBuffer(FileRead(handle, buffer), buffer, allocator);
+                if (auto buffer = RTC::AllocateBuffer(size, allocator)) {
+                    const auto size = FileRead(handle, buffer);
+                    return RTC::ReallocateBuffer(size, std::move(buffer), allocator);
                 }
             }
             catch (const std::bad_alloc& e) {

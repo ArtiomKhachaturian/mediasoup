@@ -152,7 +152,7 @@ namespace RTC
 		  "packet's computed size does not match received size");
 
 		return new RtpPacket(header, headerExtension, payload, payloadLength,
-                             payloadPadding, len, allocator);
+                             payloadPadding, len, nullptr, allocator);
 	}
 
 	/* Instance methods. */
@@ -163,11 +163,11 @@ namespace RTC
 	  const uint8_t* payload,
 	  size_t payloadLength,
 	  uint8_t payloadPadding,
-	  size_t size,
+	  size_t size, std::shared_ptr<Buffer> buffer,
       const std::shared_ptr<BufferAllocator>& allocator)
-	  : header(header), headerExtension(headerExtension), payload(const_cast<uint8_t*>(payload)),
-	    payloadLength(payloadLength), payloadPadding(payloadPadding), size(size),
-        allocator(allocator)
+	  : buffer(std::move(buffer)), header(header), headerExtension(headerExtension),
+        payload(const_cast<uint8_t*>(payload)), payloadLength(payloadLength),
+        payloadPadding(payloadPadding), size(size), allocator(allocator)
 	{
 		MS_TRACE();
 
@@ -536,6 +536,21 @@ namespace RTC
 		}
 		else if (!this->headerExtension)
 		{
+            // reallocate data storage if needed
+            if (this->buffer && !this->buffer->Resize(this->size + shift)) {
+                this->buffer = RTC::ReallocateBuffer(this->size + shift,
+                                                     std::move(this->buffer),
+                                                     this->allocator);
+                MS_ASSERT(this->buffer, "failed of RTP data buffer re-allocation");
+                this->header = reinterpret_cast<RtpPacketHeader*>(this->buffer->GetData());
+                if (this->header->GetCsrcCount()) {
+                    this->csrcList = reinterpret_cast<uint8_t*>(this->header) + sizeof(RtpPacketHeader);
+                    this->payload = reinterpret_cast<uint8_t*>(this->csrcList) + this->header->GetCsrcListSize();
+                }
+                else {
+                    this->payload = reinterpret_cast<uint8_t*>(this->header) + sizeof(RtpPacketHeader);
+                }
+            }
 			// Set the header extension bit.
 			this->header->SetExtension(true);
 
@@ -795,7 +810,7 @@ namespace RTC
 		// Create the new RtpPacket instance and return it.
 		auto* packet = new RtpPacket(
 		  newHeader, newHeaderExtension, newPayload, this->payloadLength, this->payloadPadding,
-          this->size, this->allocator);
+          this->size, std::move(buffer), this->allocator);
 
 		// Keep already set extension ids.
 		packet->midExtensionId               = this->midExtensionId;
@@ -809,8 +824,6 @@ namespace RTC
 		packet->videoOrientationExtensionId  = this->videoOrientationExtensionId;
 		// Assign the payload descriptor handler.
 		packet->payloadDescriptorHandler = this->payloadDescriptorHandler;
-		// Store allocated buffer.
-		packet->buffer = std::move(buffer);        
         packet->rejectedConsumerIds = this->rejectedConsumerIds;
 
 		return packet;

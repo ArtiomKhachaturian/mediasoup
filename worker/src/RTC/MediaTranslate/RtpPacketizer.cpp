@@ -38,4 +38,11 @@ size_t RtpPacketizer::GetPayloadOffset() const
     return sizeof(RtpPacketHeader);
 }
 
+size_t RtpPacketizer::GetPayloadExtraSize() const
+{
+    // minimal size of 1byte header extension with value of RTC::MidMaxLength,
+    // see also Producer::MangleRtpPacket & RtpPacket::SetExtensions
+    return 16U;
+}
+
 } // namespace RTC

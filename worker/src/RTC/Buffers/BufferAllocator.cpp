@@ -99,16 +99,14 @@ std::shared_ptr<Buffer> AllocateBuffer(size_t size, const void* data, size_t dat
     return Copy(AllocateSimple(size, GetAlignedBufferSize(size)), data, dataSize);
 }
 
-std::shared_ptr<Buffer> ReallocateBuffer(size_t size, const std::shared_ptr<Buffer>& buffer,
+std::shared_ptr<Buffer> ReallocateBuffer(size_t size, std::shared_ptr<Buffer> buffer,
                                          const std::shared_ptr<BufferAllocator>& allocator)
 {
     if (buffer) {
         const auto bufferSize = buffer->GetSize();
-        if (bufferSize != size) {
-            if (!buffer->Resize(size)) {
-                const auto dataSize = std::min(size, bufferSize);
-                return AllocateBuffer(size, buffer->GetData(), dataSize, allocator);
-            }
+        if (bufferSize != size && !buffer->Resize(size)) {
+            const auto dataSize = std::min(size, bufferSize);
+            return AllocateBuffer(size, buffer->GetData(), dataSize, allocator);
         }
     }
     return buffer;
