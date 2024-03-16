@@ -68,7 +68,7 @@ MediaFrameSerializer::MediaFrameSerializer(const RtpCodecMimeType& mime,
     , _mime(mime)
     , _clockRate(clockRate)
 {
-    _writers->reserve(1U);
+    _writers->reserve(2U); // test + end-point
 }
 
 MediaFrameSerializer::~MediaFrameSerializer()
@@ -78,8 +78,8 @@ MediaFrameSerializer::~MediaFrameSerializer()
 
 void MediaFrameSerializer::Write(const RtpPacket* packet)
 {
-    if (packet && !IsPaused()) {
-        GetQueue().Write(this, packet);
+    if (packet && IsReadyToWrite()) {
+        GetQueue().Write(this, packet, GetAllocator());
     }
 }
 
@@ -94,8 +94,10 @@ bool MediaFrameSerializer::AddSink(MediaSink* sink)
             if (!added) {
                 if (auto writer = CreateSinkWriter(sink)) {
                     _writers->insert(std::make_pair(sink, std::move(writer)));
+                    const auto size = _writers->size();
                     added = true;
-                    firstSink = 1U == _writers->size();
+                    _writersCount = size;
+                    firstSink = 1U == size;
                 }
             }
         }
@@ -115,6 +117,7 @@ bool MediaFrameSerializer::RemoveSink(MediaSink* sink)
             LOCK_WRITE_PROTECTED_OBJ(_writers);
             removed = _writers->erase(sink) > 0U;
             if (removed) {
+                _writersCount = _writers->size();
                 lastSink = _writers->empty();
             }
         }
@@ -133,6 +136,7 @@ void MediaFrameSerializer::RemoveAllSinks()
         if (!_writers->empty()) {
             _writers->clear();
             removed = true;
+            _writersCount = 0U;
         }
     }
     if (removed) {
@@ -142,8 +146,7 @@ void MediaFrameSerializer::RemoveAllSinks()
 
 bool MediaFrameSerializer::HasSinks() const
 {
-    LOCK_READ_PROTECTED_OBJ(_writers);
-    return !_writers->empty();
+    return _writersCount.load() > 0U;
 }
 
 std::string_view MediaFrameSerializer::GetFileExtension() const

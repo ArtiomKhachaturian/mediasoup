@@ -37,7 +37,6 @@ public:
     ~MediaFrameSerializer() override;
     void Write(const RtpPacket* packet);
     void SetPaused(bool paused) { _paused = paused; }
-    bool IsReadyToWrite() const { return !IsPaused() && HasSinks(); }
     const RtpCodecMimeType& GetMime() const { return _mime; }
     uint32_t GetClockRate() const { return _clockRate; }
     // impl. of MediaSource
@@ -53,6 +52,7 @@ protected:
     virtual std::unique_ptr<MediaFrameWriter> CreateWriter(uint64_t senderId,
                                                            MediaSink* sink) = 0;
 private:
+    bool IsReadyToWrite() const { return !IsPaused() && HasSinks(); }
     std::unique_ptr<MediaSinkWriter> CreateSinkWriter(MediaSink* sink);
     void WriteToSinks(uint32_t ssrc, uint32_t rtpTimestamp,
                       bool keyFrame, bool hasMarker,
@@ -64,6 +64,7 @@ private:
     const RtpCodecMimeType _mime;
     const uint32_t _clockRate;
     ProtectedMap<MediaSink*, std::unique_ptr<MediaSinkWriter>> _writers;
+    std::atomic<size_t> _writersCount = 0U; // for quick access without mutex locking
     std::atomic_bool _paused = false;
 };
 

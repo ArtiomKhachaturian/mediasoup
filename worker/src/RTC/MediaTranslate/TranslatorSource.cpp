@@ -113,9 +113,7 @@ void TranslatorSource::AddOriginalRtpPacketForTranslation(RtpPacket* packet)
 {
     if (packet) {
         _consumersManager.DispatchOriginalPacket(packet, _output);
-        if (_serializer->IsReadyToWrite()) {
-            _serializer->Write(packet);
-        }
+        _serializer->Write(packet);
     }
 }
 
