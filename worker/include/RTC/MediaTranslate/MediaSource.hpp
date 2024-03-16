@@ -1,12 +1,11 @@
 #pragma once
-#include "RTC/ObjectId.hpp"
 
 namespace RTC
 {
 
 class MediaSink;
 
-class MediaSource : public ObjectId
+class MediaSource
 {
 public:
     virtual ~MediaSource() = default;

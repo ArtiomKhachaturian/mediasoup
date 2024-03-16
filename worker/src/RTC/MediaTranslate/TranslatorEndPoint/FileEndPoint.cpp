@@ -168,7 +168,11 @@ bool FileEndPoint::TimerCallback::SetStrongState(WebsocketState actual, Websocke
 
 std::shared_ptr<Buffer> FileEndPoint::TimerCallback::ReadMediaFromFile() const
 {
-    return FileReader::ReadAll(_owner->GetName(), GetAllocator());
+    FileReader reader(GetAllocator());
+    if (reader.Open(_owner->GetName())) {
+        return reader.ReadAll();
+    }
+    return nullptr;
 }
 
 void FileEndPoint::TimerCallback::NotifyAboutReceivedMedia(const std::shared_ptr<Buffer>& media)

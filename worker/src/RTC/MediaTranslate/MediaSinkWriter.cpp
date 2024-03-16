@@ -17,10 +17,10 @@ MediaSinkWriter::~MediaSinkWriter()
 {
 }
 
-bool MediaSinkWriter::Write(uint32_t ssrc, uint32_t rtpTimestamp,
-                            bool keyFrame, bool hasMarker,
-                            const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                            const std::shared_ptr<Buffer>& payload)
+bool MediaSinkWriter::WriteRtpMedia(uint32_t ssrc, uint32_t rtpTimestamp,
+                                    bool keyFrame, bool hasMarker,
+                                    const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                    const std::shared_ptr<Buffer>& payload)
 {
     if (auto frame = CreateFrame(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
         return Write(frame.value());

@@ -317,14 +317,11 @@ bool TranslatorEndPoint::SendTranslationChanges()
 
 bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
 {
-    bool ok = false;
-    if (IsConnected()) {
-        const auto text = nlohmann::to_string(data);
-        ok = SendText(text);
-        if (!ok) {
-            MS_ERROR("failed write JSON '%s' into translation service %s",
-                     text.c_str(), GetDescription().c_str());
-        }
+    const auto text = nlohmann::to_string(data);
+    const auto ok = SendText(text);
+    if (!ok) {
+        MS_ERROR("failed write JSON '%s' into translation service %s",
+                 text.c_str(), GetDescription().c_str());
     }
     return ok;
 }
@@ -332,7 +329,7 @@ bool TranslatorEndPoint::WriteJson(const nlohmann::json& data) const
 bool TranslatorEndPoint::WriteBinary(const std::shared_ptr<Buffer>& buffer) const
 {
     bool ok = false;
-    if (buffer && IsConnected()) {
+    if (buffer) {
         ok = SendBinary(buffer);
         if (!ok) {
             MS_ERROR("failed write binary (%zu bytes)' into translation service %s",
@@ -358,7 +355,7 @@ void TranslatorEndPoint::StartMediaWriting(uint64_t senderId)
 
 void TranslatorEndPoint::WriteMediaPayload(uint64_t, const std::shared_ptr<Buffer>& buffer)
 {
-    if (buffer && !buffer->IsEmpty() && IsConnected()) {
+    if (buffer && !buffer->IsEmpty()) {
         if (_inputSlice) {
             if (const auto outputBuffer = _inputSlice->Add(buffer)) {
                 WriteBinary(outputBuffer);

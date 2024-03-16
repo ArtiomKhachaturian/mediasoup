@@ -1,4 +1,5 @@
 #pragma once
+#include "RTC/MediaTranslate/RtpMediaWriter.hpp"
 #include "RTC/Timestamp.hpp"
 #include "api/units/time_delta.h"
 #include <memory>
@@ -7,25 +8,21 @@
 namespace RTC
 {
 
-namespace Codecs {
-class PayloadDescriptorHandler;
-}
-
-class Buffer;
 class MediaFrame;
 class MediaFrameWriter;
 class RtpDepacketizer;
 
-class MediaSinkWriter
+class MediaSinkWriter : public RtpMediaWriter
 {
 public:
     MediaSinkWriter(std::unique_ptr<RtpDepacketizer> depacketizer,
                     std::unique_ptr<MediaFrameWriter> frameWriter);
-    ~MediaSinkWriter();
-    bool Write(uint32_t ssrc, uint32_t rtpTimestamp,
-               bool keyFrame, bool hasMarker,
-               const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-               const std::shared_ptr<Buffer>& payload);
+    ~MediaSinkWriter() final;
+    // impl. of RtpMediaWriter
+    bool WriteRtpMedia(uint32_t ssrc, uint32_t rtpTimestamp,
+                       bool keyFrame, bool hasMarker,
+                       const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                       const std::shared_ptr<Buffer>& payload) final;
 private:
     bool Write(const MediaFrame& mediaFrame);
     std::optional<MediaFrame> CreateFrame(uint32_t ssrc, uint32_t rtpTimestamp,

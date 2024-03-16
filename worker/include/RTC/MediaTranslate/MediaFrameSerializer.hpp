@@ -1,16 +1,13 @@
 #pragma once
 #include "RTC/RtpDictionaries.hpp"
 #include "RTC/MediaTranslate/MediaSource.hpp"
+#include "RTC/MediaTranslate/RtpMediaWriter.hpp"
 #include "RTC/Buffers/BufferAllocations.hpp"
 #include "ProtectedObj.hpp"
 #include <atomic>
 #include <memory>
 #include <string>
 #include <unordered_map>
-
-namespace webrtc {
-class TimeDelta;
-}
 
 namespace RTC
 {
@@ -20,17 +17,13 @@ class VideoFrameConfig;
 class MediaFrame;
 class MediaFrameWriter;
 class MediaSinkWriter;
+class RtpMediaWritersQueue;
 class RtpPacket;
 
-namespace Codecs {
-class PayloadDescriptorHandler;
-}
-
-class MediaFrameSerializer : public BufferAllocations<MediaSource>
+class MediaFrameSerializer : public BufferAllocations<MediaSource>,
+                             private RtpMediaWriter
 {
-    class Queue;
-    template<typename K, typename V>
-    using ProtectedMap = ProtectedObj<std::unordered_map<K, V>, std::mutex>;
+    using MediaSinkWriterMap = std::unordered_map<MediaSink*, std::unique_ptr<MediaSinkWriter>>;
 public:
     MediaFrameSerializer(const MediaFrameSerializer&) = delete;
     MediaFrameSerializer(MediaFrameSerializer&&) = delete;
@@ -52,18 +45,18 @@ protected:
     virtual std::unique_ptr<MediaFrameWriter> CreateWriter(uint64_t senderId,
                                                            MediaSink* sink) = 0;
 private:
+    static RtpMediaWritersQueue& GetQueue();
+    std::string GetMimeText() const { return GetMime().ToString(); }
     bool IsReadyToWrite() const { return !IsPaused() && HasSinks(); }
     std::unique_ptr<MediaSinkWriter> CreateSinkWriter(MediaSink* sink);
-    void WriteToSinks(uint32_t ssrc, uint32_t rtpTimestamp,
-                      bool keyFrame, bool hasMarker,
-                      const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                      const std::shared_ptr<Buffer>& payload) const;
-    std::string GetMimeText() const { return GetMime().ToString(); }
-    static Queue& GetQueue();
+    // impl. of RtpMediaWriter
+    bool WriteRtpMedia(uint32_t ssrc, uint32_t rtpTimestamp, bool keyFrame, bool hasMarker,
+                       const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                       const std::shared_ptr<Buffer>& payload) final;
 private:
     const RtpCodecMimeType _mime;
     const uint32_t _clockRate;
-    ProtectedMap<MediaSink*, std::unique_ptr<MediaSinkWriter>> _writers;
+    ProtectedObj<MediaSinkWriterMap, std::mutex> _writers;
     std::atomic<size_t> _writersCount = 0U; // for quick access without mutex locking
     std::atomic_bool _paused = false;
 };
