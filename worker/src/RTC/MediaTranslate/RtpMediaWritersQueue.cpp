@@ -97,7 +97,7 @@ void RtpMediaWritersQueue::Write(const ObjectId* writer, const RtpPacket* packet
                                  const std::shared_ptr<BufferAllocator>& allocator)
 {
     if (writer && packet) {
-        Write(writer->GetId(), packet);
+        Write(writer->GetId(), packet, allocator);
     }
 }
 

@@ -1,7 +1,7 @@
 #pragma once
 #include "RTC/Buffers/BufferAllocations.hpp"
-#include <absl/container/flat_hash_map.h>
 #include <mkvmuxer/mkvmuxer.h>
+#include <unordered_map>
 
 namespace RTC
 {
@@ -62,8 +62,8 @@ private:
     bool _hadWroteMedia = false;
     bool _startMediaSinkWriting = false;
     int32_t _nextNumber = 0;
-    absl::flat_hash_map<uint64_t,  mkvmuxer::AudioTrack*> _audioTracks;
-    absl::flat_hash_map<uint64_t,  mkvmuxer::VideoTrack*> _videoTracks;
+    std::unordered_map<uint64_t,  mkvmuxer::AudioTrack*> _audioTracks;
+    std::unordered_map<uint64_t,  mkvmuxer::VideoTrack*> _videoTracks;
     uint64_t _mkvVideoLastTimestamp = 0ULL;
     uint64_t _mkvAudioLastTimestamp = 0ULL;
     std::vector<mkvmuxer::Frame> _mkvFrames;

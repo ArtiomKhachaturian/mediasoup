@@ -66,6 +66,8 @@ MkvBufferedWriter::MkvBufferedWriter(uint64_t senderId, MediaSink* sink, const c
             segmentInfo->set_writing_app(app);
             segmentInfo->set_muxing_app(app);
         }
+        _audioTracks.reserve(1U);
+        _videoTracks.reserve(1U);
     }
 }
 
