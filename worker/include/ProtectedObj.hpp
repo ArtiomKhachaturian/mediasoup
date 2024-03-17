@@ -19,9 +19,6 @@
 // std::recursive_mutex - LOCK_READ_PROTECTED_OBJ 32-33 ms, LOCK_WRITE_PROTECTED_OBJ 32-33 ms
 // std::shared_mutex    - LOCK_READ_PROTECTED_OBJ 41 ms,    LOCK_WRITE_PROTECTED_OBJ 43 ms
 
-namespace RTC
-{
-
 template<class TMutexType> struct MutextTraits {
     using MutexWriteGuard = std::lock_guard<TMutexType>;
     using MutexReadGuard = MutexWriteGuard;
@@ -117,5 +114,3 @@ ProtectedObj<T, TMutexType>& ProtectedObj<T, TMutexType>::operator=(U src)
     _obj = std::move(src);
     return *this;
 }
-
-} // RTC
