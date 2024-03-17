@@ -9,6 +9,9 @@ public:
     SharedLockGuard(TSharedMutex& mutex, std::adopt_lock_t);
     ~SharedLockGuard() { _mutex.unlock_shared(); }
 private:
+    SharedLockGuard(const SharedLockGuard&) = delete;
+    SharedLockGuard& operator = (const SharedLockGuard&) = delete;
+private:
     TSharedMutex& _mutex;
 };
 
