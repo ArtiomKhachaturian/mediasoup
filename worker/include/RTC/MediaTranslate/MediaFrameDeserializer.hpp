@@ -20,7 +20,7 @@ class MediaFrameDeserializer : public BufferAllocations<void>
     using TrackInfo = std::pair<std::unique_ptr<RtpPacketizer>, std::unique_ptr<MediaFrameDeserializedTrack>>;
 public:
     virtual ~MediaFrameDeserializer();
-    MediaFrameDeserializeResult Add(const std::shared_ptr<Buffer>& buffer);
+    MediaFrameDeserializeResult Add(std::shared_ptr<Buffer> buffer);
     virtual void Clear();
     // count of all tracks, including subtitles
     size_t GetTracksCount() const { return _tracks.size(); }
@@ -32,7 +32,7 @@ public:
 protected:
     MediaFrameDeserializer(const std::shared_ptr<BufferAllocator>& allocator);
     void AddTrack(const RtpCodecMimeType& type, std::unique_ptr<MediaFrameDeserializedTrack> track);
-    virtual MediaFrameDeserializeResult AddBuffer(const std::shared_ptr<Buffer>& buffer) = 0;
+    virtual MediaFrameDeserializeResult AddBuffer(std::shared_ptr<Buffer> buffer) = 0;
     virtual void ParseTracksInfo() = 0;
 private:
     MediaFrameDeserializer(const MediaFrameDeserializer&) = delete;

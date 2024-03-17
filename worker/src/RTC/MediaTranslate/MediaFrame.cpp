@@ -26,9 +26,9 @@ MediaFrame::~MediaFrame()
 {
 }
 
-void MediaFrame::AddPayload(const std::shared_ptr<Buffer>& payload)
+void MediaFrame::AddPayload(std::shared_ptr<Buffer> payload)
 {
-    _payload->Push(payload);
+    _payload->Push(std::move(payload));
 }
 
 std::shared_ptr<const Buffer> MediaFrame::GetPayload() const
