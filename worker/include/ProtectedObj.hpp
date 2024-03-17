@@ -1,4 +1,5 @@
 #pragma once
+#include "SharedLockGuard.hpp"
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -28,7 +29,7 @@ template<class TMutexType> struct MutextTraits {
 
 template<> struct MutextTraits<std::shared_mutex> {
     using MutexWriteGuard = std::lock_guard<std::shared_mutex>;
-    using MutexReadGuard = std::shared_lock<std::shared_mutex>;
+    using MutexReadGuard = SharedLockGuard<std::shared_mutex>;
 };
 
 template <typename T, class TMutexType = std::mutex>
