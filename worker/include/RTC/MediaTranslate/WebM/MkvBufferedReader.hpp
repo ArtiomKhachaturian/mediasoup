@@ -20,7 +20,6 @@ public:
     const mkvparser::Segment* GetSegment() const { return _segment.get(); }
     mkvparser::Segment* GetSegment() { return _segment.get(); }
     const mkvparser::Tracks* GetTracks() const;
-    static bool IsLive() { return false; }
 private:
     MkvReadResult ParseEBMLHeader();
     MkvReadResult ParseSegment();
