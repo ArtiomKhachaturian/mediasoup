@@ -11,6 +11,13 @@
 #define LOCK_READ_PROTECTED_OBJ(object) const auto PROTECTED_OBJ_NAME(rl)(object.GetReadGuard())
 #define LOCK_WRITE_PROTECTED_OBJ(object) const auto PROTECTED_OBJ_NAME(wl)(object.GetWriteGuard())
 
+// Performance tests for different kind of mutexes:
+//
+// 1 million iterations, release type build, single thread
+// std::mutex           - LOCK_READ_PROTECTED_OBJ 19-21 ms  LOCK_WRITE_PROTECTED_OBJ 19-21 ms
+// std::recursive_mutex - LOCK_READ_PROTECTED_OBJ 32-33 ms, LOCK_WRITE_PROTECTED_OBJ 32-33 ms
+// std::shared_mutex    - LOCK_READ_PROTECTED_OBJ 41 ms,    LOCK_WRITE_PROTECTED_OBJ 43 ms
+
 template<class TMutexType> struct MutextTraits {
     using MutexWriteGuard = std::lock_guard<TMutexType>;
     using MutexReadGuard = MutexWriteGuard;
