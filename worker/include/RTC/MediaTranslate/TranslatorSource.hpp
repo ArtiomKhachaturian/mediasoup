@@ -10,9 +10,6 @@ namespace RTC
 {
 
 class ConsumerTranslator;
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-class FileWriter;
-#endif
 class BufferAllocator;
 class MediaFrameSerializer;
 class RtpPacket;
@@ -21,7 +18,6 @@ class RtpStream;
 class RtpPacketsPlayer;
 class RtpPacketsCollector;
 class TranslatorEndPointFactory;
-class RtpPacketsTimeline2;
 
 class TranslatorSource : private RtpPacketsPlayerCallback, // receiver of translated audio (RTP) packets
                          private TranslatorEndPointSink // receiver of translated audio frames from end-point
@@ -63,13 +59,10 @@ private:
 	                 RtpPacketsPlayer* rtpPacketsPlayer,
                  	 RtpPacketsCollector* output,
                  	 const std::string& producerId);
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-    static std::unique_ptr<FileWriter> CreateFileWriter(uint32_t ssrc, const std::string& producerId,
-                                                        const std::string_view& fileExtension);
-    static std::unique_ptr<FileWriter> CreateFileWriter(uint32_t ssrc, const std::string& producerId,
-                                                        const MediaFrameSerializer* serializer);
-#endif
     TranslatorEndPointSink* GetMediaReceiver() { return this; }
+#ifdef WRITE_PRODUCER_RECV_TO_FILE
+    std::unique_ptr<MediaSink> CreateSerializerFileWriter(const std::string& producerId) const;
+#endif
     // impl. of RtpPacketsPlayerCallback
     void OnPlayStarted(uint64_t mediaId, uint64_t mediaSourceId, uint32_t ssrc) final;
     void OnPlay(uint64_t mediaId, uint64_t mediaSourceId, RtpTranslatedPacket packet) final;
@@ -85,7 +78,7 @@ private:
     RtpPacketsPlayer* const _rtpPacketsPlayer;
     RtpPacketsCollector* const _output;
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-    std::unique_ptr<FileWriter> _fileWriter;
+    const std::unique_ptr<MediaSink> _serializerFileWriter;
 #endif
     ConsumersManager _consumersManager;
 };

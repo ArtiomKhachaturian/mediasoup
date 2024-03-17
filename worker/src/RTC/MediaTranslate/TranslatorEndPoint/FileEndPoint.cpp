@@ -52,7 +52,7 @@ FileEndPoint::FileEndPoint(std::string ownerId,
                            const std::shared_ptr<BufferAllocator>& allocator,
                            const std::shared_ptr<MediaTimer>& timer)
     : TranslatorEndPoint(std::move(ownerId), MOCK_WEBM_INPUT_FILE, allocator)
-    , _fileIsValid(FileReader::IsValidForRead(GetName()))
+    , _fileIsValid(FileReader::IsReadable(GetName()))
     , _callback(_fileIsValid ? std::make_shared<TimerCallback>(this, allocator) : nullptr)
     , _timer(_fileIsValid ? (timer ? timer : std::make_shared<MediaTimer>(GetName())) : nullptr)
     , _timerId(_timer ? _timer->Register(_callback) : 0UL)
@@ -169,6 +169,7 @@ bool FileEndPoint::TimerCallback::SetStrongState(WebsocketState actual, Websocke
 std::shared_ptr<Buffer> FileEndPoint::TimerCallback::ReadMediaFromFile() const
 {
     FileReader reader(GetAllocator());
+    // TODO: add log with error code from [FileReader::GetError]
     if (reader.Open(_owner->GetName())) {
         return reader.ReadAll();
     }

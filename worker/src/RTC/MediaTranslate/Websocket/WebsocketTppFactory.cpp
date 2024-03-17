@@ -195,7 +195,7 @@ std::string WebsocketTppTestFactory::GetUri() const
 WebsocketTppTestFactory::MockServer::MockServer(const std::string& uri, WebsocketTls tls,
                                                 const std::shared_ptr<BufferAllocator>& allocator)
     : BufferAllocations<ThreadExecution>(allocator, MOCK_WEBM_INPUT_FILE, ThreadPriority::Auto)
-    , _fileIsAccessible(FileReader::IsValidForRead(MOCK_WEBM_INPUT_FILE))
+    , _fileIsAccessible(FileReader::IsReadable(MOCK_WEBM_INPUT_FILE))
     , _tls(std::move(tls))
 {
     if (_fileIsAccessible) {
@@ -370,6 +370,9 @@ void Client::OnEvent(uint64_t /*timerId*/)
                         MS_ERROR_STD("broadcast audio failed: %s", ec.message().c_str());
                     }
                 }
+            }
+            else {
+                // TODO: add log with error code from [FileReader::GetError]
             }
         }
     }

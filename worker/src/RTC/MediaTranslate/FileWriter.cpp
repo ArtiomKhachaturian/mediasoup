@@ -1,7 +1,5 @@
-#define MS_CLASS "RTC::FileWriter"
 #include "RTC/MediaTranslate/FileWriter.hpp"
 #include "RTC/Buffers/Buffer.hpp"
-#include "Logger.hpp"
 #include <stdio.h>
 #ifdef _WIN32
 #include <io.h>
@@ -11,8 +9,6 @@
 #include <sys/types.h>
 #if __has_include (<sys/syslimits.h>)
 #include <sys/syslimits.h>
-#elif !defined F_GETPATH
-#define F_GETPATH 50
 #endif
 #endif
 
@@ -24,97 +20,81 @@ FileWriter::~FileWriter()
     Flush();
 }
 
-bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const std::shared_ptr<Buffer>& buffer)
+bool FileWriter::Truncate()
 {
-    return buffer && WriteAll(fileNameUtf8, buffer->GetData(), buffer->GetSize());
-}
-
-bool FileWriter::WriteAll(const std::string_view& fileNameUtf8, const uint8_t* data, size_t len)
-{
-    bool ok = false;
-    if (data && len) {
-        if (const auto handle = Base::OpenFile(fileNameUtf8, false)) {
-            ok = Write(handle, data, len) == len;
-        }
-    }
-    return ok;
-}
-
-bool FileWriter::DeleteFromStorage()
-{
-    bool ok = false;
     if (const auto handle = GetHandle()) {
 #ifdef _WIN32
-        char filePath[MAX_PATH] = { 0 };
-        const auto fileHandle = reinterpret_cast<HANDLE>(_get_osfhandle(_fileno(handle.get())));
-        if (INVALID_HANDLE_VALUE != fileHandle) {
-            // TODO: get file name from WinAPI handle
-        }
+        const int result = ::_chsize_s(_fileno(handle), 0LL);
 #else
-        char filePath[PATH_MAX] = { 0 };
-        ok = -1 != fcntl(fileno(handle.get()), F_GETPATH, filePath);
-#endif
-        if (ok) {
-            Close();
-            ok = 0 == ::remove(filePath);
+        int result = ::ftruncate(fileno(handle), 0);
+        if (-1 == result) {
+            result = errno;
         }
+#endif
+        return 0 == SetError(result);
     }
-    return ok;
+    return false;
 }
 
-bool FileWriter::Open(const std::string_view& fileNameUtf8, int* error)
+bool FileWriter::Open(const std::string_view& fileNameUtf8)
 {
-    return Base::Open(fileNameUtf8, false, error);
+    return FileDevice::Open(fileNameUtf8, false);
 }
 
 bool FileWriter::Flush()
 {
-    const auto handle = GetHandle();
-    return handle && 0 == ::fflush(handle.get());
-}
-
-void FileWriter::StartMediaWriting(uint64_t senderId)
-{
-    MediaSink::StartMediaWriting(senderId);
-    if (const auto handle = GetHandle()) { // truncate file
-#ifdef _WIN32
-        const auto result = ::_chsize_s(_fileno(handle.get()), 0LL);
-#else
-        auto result = ::ftruncate(fileno(handle.get()), 0);
-#endif
-        if (0 != result) {
-            MS_ERROR_STD("failed truncated file, error code %d", int(result));
-        }
-    }
-}
-
-void FileWriter::WriteMediaPayload(uint64_t, const std::shared_ptr<Buffer>& buffer)
-{
     if (const auto handle = GetHandle()) {
-        if (buffer && !buffer->IsEmpty()) {
-            const auto expected = buffer->GetSize();
-            const auto actual = Write(handle, buffer->GetData(), expected);
-            if (expected != actual) {
-                MS_ERROR_STD("file write error, expected %zu but "
-                             "written only %zu bytes, error code: %d",
-                             expected, actual, errno);
-            }
+        return 0 == SetError(::fflush(handle));
+    }
+    return false;
+}
+
+size_t FileWriter::Write(const uint8_t* data, size_t len)
+{
+    size_t res = 0;
+    if (data && len) {
+        if (const auto handle = GetHandle()) {
+            res = ::fwrite(data, 1U, len, handle);
+            SetError(errno);
         }
     }
+    return res;
 }
 
-void FileWriter::EndMediaWriting(uint64_t senderId)
+size_t FileWriter::Write(const std::shared_ptr<Buffer>& buffer)
 {
-    MediaSink::EndMediaWriting(senderId);
-    Flush();
-}
-
-size_t FileWriter::Write(const std::shared_ptr<FILE>& handle, const uint8_t* data, size_t len)
-{
-    if (handle && data && len) {
-        return ::fwrite(data, 1U, len, handle.get());
+    if (buffer && IsOpen()) {
+        return Write(buffer->GetData(), buffer->GetSize());
     }
     return 0UL;
+}
+
+size_t FileWriter::Write(const std::string_view& fileNameUtf8, const std::shared_ptr<Buffer>& buffer)
+{
+    if (buffer) {
+        return Write(fileNameUtf8, buffer->GetData(), buffer->GetSize());
+    }
+    return 0UL;
+}
+
+size_t FileWriter::Write(const std::string_view& fileNameUtf8, const uint8_t* data, size_t len)
+{
+    if (data && len) {
+        FileWriter writer;
+        if (writer.Open(fileNameUtf8)) {
+            return writer.Write(data, len);
+        }
+    }
+    return 0UL;
+}
+
+std::error_code FileWriter::DeleteFromStorage(const std::string_view& fileNameUtf8)
+{
+    int result = EBADF;
+    if (!fileNameUtf8.empty()) {
+        result = ::remove(fileNameUtf8.data());
+    }
+    return ToGenericError(result);
 }
 
 } // namespace RTC

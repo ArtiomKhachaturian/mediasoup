@@ -11,93 +11,106 @@ FileReader::FileReader(const std::shared_ptr<BufferAllocator>& allocator)
 {
 }
 
+FileReader::FileReader(FileReader&& tmp)
+    : Base(tmp.GetAllocator(), std::move(tmp))
+{
+}
+
 FileReader::~FileReader()
 {
 }
 
-bool FileReader::Open(const std::string_view& fileNameUtf8, int* error)
+bool FileReader::Open(const std::string_view& fileNameUtf8)
 {
-    return Base::Open(fileNameUtf8, true, error);
+    return Base::Open(fileNameUtf8, true);
 }
 
-std::shared_ptr<Buffer> FileReader::ReadAll() const
+bool FileReader::IsEOF() const
 {
     if (const auto handle = GetHandle()) {
-        auto size = GetFileSize(handle);
-        if (size > 0) {
+        return 0 != ::feof(handle);
+    }
+    return false;
+}
+
+std::shared_ptr<Buffer> FileReader::ReadAll()
+{
+    return Read(GetFileSize(GetHandle()));
+}
+
+std::shared_ptr<Buffer> FileReader::Read(size_t size)
+{
+    if (size) {
+        if (const auto handle = GetHandle()) {
             try {
                 if (auto buffer = AllocateBuffer(size)) {
-                    size = FileRead(handle, buffer);
+                    size = Read(handle, buffer);
                     return ReallocateBuffer(size, std::move(buffer));
                 }
             }
             catch (const std::bad_alloc& e) {
-                MS_ERROR_STD("unable to allocate %" PRId64 " bytes for file data", size);
+                MS_ERROR_STD("unable to allocate %zu bytes for file data", size);
             }
-        }
-        else {
-            MS_WARN_DEV_STD("no data for read because file %s is empty", fileNameUtf8.c_str());
         }
     }
     return nullptr;
 }
 
-bool FileReader::IsValidForRead(const std::string_view& fileNameUtf8)
+bool FileReader::IsReadable(const std::string_view& fileNameUtf8)
 {
-    bool valid = false;
-    if (const auto handle = Base::OpenFile(fileNameUtf8, true)) {
-        auto size = GetFileSize(handle);
-        valid = size > 0;
-    }
-    return valid;
+    FileReader reader;
+    return reader.Open(fileNameUtf8);
 }
 
-int64_t FileReader::FileTell(const std::shared_ptr<FILE>& handle)
+size_t FileReader::Read(FILE* handle, const std::shared_ptr<Buffer>& to)
+{
+    size_t res = 0;
+    if (handle && to && !to->IsEmpty()) {
+        res = ::fread(to->GetData(), 1UL, to->GetSize(), handle);
+        SetError(errno);
+    }
+    return res;
+}
+
+bool FileReader::Seek(FILE* handle, int command, long offset)
 {
     if (handle) {
 #ifdef _MSC_VER
-        return ::_ftelli64(handle.get());
+        return 0 == SetError(::_fseeki64(handle, offset, command));
 #else
-        return ::ftell(handle.get());
-#endif
-    }
-    return -1;
-}
-
-bool FileReader::FileSeek(const std::shared_ptr<FILE>& handle, int command, long offset)
-{
-    if (handle && offset >= 0L) {
-#ifdef _MSC_VER
-        return 0 == ::_fseeki64(handle.get(), offset, command);
-#else
-        ::fseek(handle.get(), offset, command);
-        return true;
+        return 0 == SetError(::fseek(handle, offset, command));
 #endif
     }
     return false;
 }
 
-int64_t FileReader::GetFileSize(const std::shared_ptr<FILE>& handle)
+int64_t FileReader::Tell(FILE* handle)
+{
+    if (handle) {
+#ifdef _MSC_VER
+        const auto res = ::_ftelli64(handle);
+#else
+        const auto res = ::ftell(handle);
+#endif
+        SetError(errno);
+        return res;
+    }
+    return -1;
+}
+
+int64_t FileReader::GetFileSize(FILE* handle)
 {
     int64_t len = 0LL;
-    if (handle && FileSeek(handle, SEEK_END)) {
-        len = FileTell(handle);
+    if (handle && Seek(handle, SEEK_END)) {
+        len = Tell(handle);
         if (len < 0LL) {
             len = 0LL;
         }
-        if (!FileSeek(handle, SEEK_SET)) {
+        if (!Seek(handle, SEEK_SET)) {
             len = 0LL;
         }
     }
     return len;
-}
-
-size_t FileReader::FileRead(const std::shared_ptr<FILE>& handle, const std::shared_ptr<Buffer>& to)
-{
-    if (handle && to && !to->IsEmpty()) {
-        return ::fread(to->GetData(), 1UL, to->GetSize(), handle.get());
-    }
-    return 0UL;
 }
 
 } // namespace RTC

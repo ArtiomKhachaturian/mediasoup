@@ -5,7 +5,7 @@
 #include "RTC/MediaTranslate/MediaSource.hpp"
 #include "RTC/MediaTranslate/WebM/WebMSerializer.hpp"
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-#include "RTC/MediaTranslate/FileWriter.hpp"
+#include "RTC/MediaTranslate/FileSinkWriter.hpp"
 #endif
 #include "RTC/MediaTranslate/RtpPacketsPlayer/RtpPacketsPlayer.hpp"
 #include "RTC/Timestamp.hpp"
@@ -30,18 +30,11 @@ TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc,
     , _rtpPacketsPlayer(rtpPacketsPlayer)
     , _output(output)
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-    , _fileWriter(CreateFileWriter(GetOriginalSsrc(), producerId, _serializer.get()))
+    , _serializerFileWriter(CreateSerializerFileWriter(producerId))
 #endif
     , _consumersManager(endPointsFactory, _serializer.get(), GetMediaReceiver(),
                         mappedSsrc, clockRate, _serializer->GetMime())
 {
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-    if (_fileWriter && !_serializer->AddSink(_fileWriter.get())) {
-        // TODO: log error
-        _fileWriter->DeleteFromStorage();
-        _fileWriter.reset();
-    }
-#endif
     _rtpPacketsPlayer->AddStream(GetOriginalSsrc(), GetClockRate(),
                                  GetPayloadType(), GetMime(), this);
 }
@@ -138,32 +131,23 @@ bool TranslatorSource::RemoveConsumer(const std::shared_ptr<ConsumerTranslator>&
 }
 
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-std::unique_ptr<FileWriter> TranslatorSource::CreateFileWriter(uint32_t ssrc,
-                                                               const std::string& producerId,
-                                                               const std::string_view& fileExtension)
+std::unique_ptr<MediaSink> TranslatorSource::CreateSerializerFileWriter(const std::string& producerId) const
 {
+    const auto fileExtension = _serializer->GetFileExtension();
     if (!fileExtension.empty()) {
         const auto depacketizerPath = std::getenv("MEDIASOUP_DEPACKETIZER_PATH");
         if (depacketizerPath && std::strlen(depacketizerPath)) {
-            std::string fileName = producerId + "_" + std::to_string(ssrc) + "." + std::string(fileExtension);
+            std::string fileName = producerId + "_" + std::to_string(GetOriginalSsrc()) +
+                "." + std::string(fileExtension);
             fileName = std::string(depacketizerPath) + "/" + fileName;
-            auto fileWriter = std::make_unique<FileWriter>();
-            if (!fileWriter->Open(fileName)) {
-                fileWriter.reset();
-                MS_WARN_DEV_STD("Failed to open producer file output %s", fileName.c_str());
+            if (auto writer = FileSinkWriter::Create(std::move(fileName))) {
+                if (!_serializer->AddSink(writer.get())) {
+                    writer->DeleteFromStorage();
+                    writer.reset();
+                }
+                return writer;
             }
-            return fileWriter;
         }
-    }
-    return nullptr;
-}
-
-std::unique_ptr<FileWriter> TranslatorSource::CreateFileWriter(uint32_t ssrc,
-                                                               const std::string& producerId,
-                                                               const MediaFrameSerializer* serializer)
-{
-    if (serializer) {
-        return CreateFileWriter(ssrc, producerId, serializer->GetFileExtension());
     }
     return nullptr;
 }

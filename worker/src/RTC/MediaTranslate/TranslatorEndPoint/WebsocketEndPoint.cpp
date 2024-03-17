@@ -117,7 +117,7 @@ void WebsocketEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<B
             std::string fileName = std::string(depacketizerPath) + "/"
                 + "received_translation_" + std::to_string(num)
                 + "_" + std::to_string(DepLibUV::GetTimeMs()) + ".webm";
-            FileWriter::WriteAll(fileName, message);
+            FileWriter::Write(fileName, message);
         }
 #else
         NotifyThatTranslationReceived(message);
