@@ -24,7 +24,7 @@ public:
     ~MediaFrame();
     MediaFrame& operator = (const MediaFrame&) = default;
     MediaFrame& operator = (MediaFrame&&) = default;
-    void AddPayload(const std::shared_ptr<Buffer>& payload);
+    void AddPayload(std::shared_ptr<Buffer> payload);
     void AddPayload(uint8_t* data, size_t len, bool makeDeepCopyOfPayload = true);
     std::shared_ptr<const Buffer> GetPayload() const;
     std::shared_ptr<Buffer> TakePayload();

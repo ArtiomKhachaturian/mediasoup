@@ -4,6 +4,8 @@
 namespace RTC
 {
 
+enum class MediaFrameDeserializeResult;
+
 enum class MkvReadResult {
     UnknownError        = mkvparser::E_PARSE_FAILED - 300,
     InvalidInputArg     = mkvparser::E_PARSE_FAILED - 200,
@@ -35,8 +37,8 @@ inline MkvReadResult ToMkvReadResult(T result) {
     return MkvReadResult::UnknownError;
 }
 
-inline bool IsOk(MkvReadResult result) { 
-    return MkvReadResult::Success == result; 
+inline bool IsOk(MkvReadResult result) {
+    return MkvReadResult::Success == result;
 }
 
 inline bool MaybeOk(MkvReadResult result) {
@@ -51,10 +53,11 @@ inline bool MaybeOk(MkvReadResult result) {
 }
 
 const char* MkvReadResultToString(MkvReadResult result);
+MediaFrameDeserializeResult FromMkvReadResult(MkvReadResult result);
 
 template<typename T>
 inline const char* MkvReadResultToString(T result) {
     return ToString(ToMkvReadResult(result));
 }
 
-}
+} // namespace RTC

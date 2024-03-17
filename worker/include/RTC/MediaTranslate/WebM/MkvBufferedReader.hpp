@@ -15,7 +15,7 @@ class MkvBufferedReader : private mkvparser::IMkvReader
 public:
     MkvBufferedReader(const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~MkvBufferedReader() final = default;
-    MkvReadResult AddBuffer(const std::shared_ptr<Buffer>& buffer);
+    MkvReadResult AddBuffer(std::shared_ptr<Buffer> buffer);
     void ClearBuffers();
     const mkvparser::Segment* GetSegment() const { return _segment.get(); }
     mkvparser::Segment* GetSegment() { return _segment.get(); }

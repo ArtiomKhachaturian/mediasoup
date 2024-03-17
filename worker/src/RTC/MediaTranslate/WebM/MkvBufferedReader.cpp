@@ -10,7 +10,7 @@ MkvBufferedReader::MkvBufferedReader(const std::shared_ptr<BufferAllocator>& all
 {
 }
 
-MkvReadResult MkvBufferedReader::AddBuffer(const std::shared_ptr<Buffer>& buffer)
+MkvReadResult MkvBufferedReader::AddBuffer(std::shared_ptr<Buffer> buffer)
 {
     auto result = MkvReadResult::InvalidInputArg;
     if (buffer && !buffer->IsEmpty()) {
@@ -20,7 +20,7 @@ MkvReadResult MkvBufferedReader::AddBuffer(const std::shared_ptr<Buffer>& buffer
                          "for WebM decoding, remaining capacity is %zu bytes",
                          buffer->GetSize(), _buffers.GetCapacity() - _buffers.GetSize());
         }
-        else if (SegmentsBuffer::Failed != _buffers.Push(buffer)) {
+        else if (SegmentsBuffer::Failed != _buffers.Push(std::move(buffer))) {
             result = ParseEBMLHeader();
             if (IsOk(result)) {
                 result = ParseSegment();
@@ -106,29 +106,6 @@ int MkvBufferedReader::Length(long long* total, long long* available)
         *available = _buffers.GetSize();
     }
     return 0;
-}
-
-const char* MkvReadResultToString(MkvReadResult result)
-{
-    switch (result) {
-        case MkvReadResult::InvalidInputArg:
-            return "invalid input argument";
-        case MkvReadResult::OutOfMemory:
-            return "out of memory";
-        case MkvReadResult::ParseFailed:
-            return "parse failed";
-        case MkvReadResult::FileFormatInvalid:
-            return "invalid file format";
-        case MkvReadResult::BufferNotFull:
-            return "buffer not full";
-        case MkvReadResult::Success:
-            return "ok";
-        case MkvReadResult::NoMoreClusters:
-            return "no more clusters";
-        default:
-            break;
-    }
-    return "unknown error";
 }
 
 } // namespace RTC

@@ -18,9 +18,9 @@ MediaFrameDeserializer::~MediaFrameDeserializer()
 {
 }
 
-MediaFrameDeserializeResult MediaFrameDeserializer::Add(const std::shared_ptr<Buffer>& buffer)
+MediaFrameDeserializeResult MediaFrameDeserializer::Add(std::shared_ptr<Buffer> buffer)
 {
-    const auto result = AddBuffer(buffer);
+    const auto result = AddBuffer(std::move(buffer));
     if (MaybeOk(result) && _tracks.empty()) {
         ParseTracksInfo();
     }

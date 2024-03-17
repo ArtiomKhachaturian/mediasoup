@@ -39,7 +39,7 @@ SegmentsBuffer::SegmentsBuffer(SegmentsBuffer&& tmp)
     tmp._size = 0U;
 }
 
-SegmentsBuffer::Result SegmentsBuffer::Push(const std::shared_ptr<Buffer>& buffer)
+SegmentsBuffer::Result SegmentsBuffer::Push(std::shared_ptr<Buffer> buffer)
 {
     Result result = Result::Failed;
     if (buffer && !buffer->IsEmpty()) {
@@ -51,11 +51,11 @@ SegmentsBuffer::Result SegmentsBuffer::Push(const std::shared_ptr<Buffer>& buffe
                     _size -= _buffers.front()->GetSize();
                     _buffers.pop_front();
                 }
-                _buffers.push_front(buffer);
+                _buffers.push_front(std::move(buffer));
                 result = Result::Front;
             }
             else {
-                _buffers.push_back(buffer);
+                _buffers.push_back(std::move(buffer));
                 result = Result::Back;
             }
             _size += bufferSize;
