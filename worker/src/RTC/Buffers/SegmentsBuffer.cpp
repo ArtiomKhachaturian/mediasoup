@@ -111,9 +111,11 @@ size_t SegmentsBuffer::CopyTo(size_t offset, size_t len, uint8_t* output) const
         if (it != _buffers.end()) {
             for (; it != _buffers.end() && actual < len; ++it) {
                 const auto size = std::min<size_t>(len - actual, it->get()->GetSize() - offset);
-                std::memcpy(output, it->get()->GetData() + offset, size);
-                actual += size;
-                output += size;
+                if (size) {
+                    std::memcpy(output, it->get()->GetData() + offset, size);
+                    actual += size;
+                    output += size;
+                }
                 offset = 0ULL;
             }
         }
