@@ -24,7 +24,7 @@ public:
     std::shared_ptr<const Buffer> GetPayload() const;
     std::shared_ptr<Buffer> TakePayload();
     // common properties
-    explicit operator bool() const { return IsValid(); }
+    constexpr explicit operator bool() const { return IsValid(); }
     bool IsValid() const { return _timestamp.IsValid(); }
     void SetKeyFrame(bool keyFrame);
     bool IsKeyFrame() const { return _keyFrame; }

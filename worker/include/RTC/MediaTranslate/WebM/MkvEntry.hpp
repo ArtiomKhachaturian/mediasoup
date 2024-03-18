@@ -23,7 +23,7 @@ public:
     MkvReadResult ReadNext(const mkvparser::Track* track);
     // return current frame block and advance to the next
     mkvparser::Block::Frame NextFrame();
-    explicit operator bool () const { return IsValid(); }
+    constexpr explicit operator bool () const { return IsValid(); }
     MkvEntry& operator = (const mkvparser::BlockEntry* entry);
     MkvEntry& operator = (const MkvEntry&) = default;
     MkvEntry& operator = (MkvEntry&&) = default;

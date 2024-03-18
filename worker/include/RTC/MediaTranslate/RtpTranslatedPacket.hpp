@@ -30,7 +30,7 @@ public:
     void SetMarker(bool set);
     void SetSsrc(uint32_t ssrc);
     void SetPayloadType(uint8_t type);
-    explicit operator bool () const { return nullptr != _impl.get(); }
+    constexpr explicit operator bool () const { return nullptr != _impl.get(); }
 private:
     Timestamp _timestampOffset;
     std::unique_ptr<RtpPacket> _impl;
