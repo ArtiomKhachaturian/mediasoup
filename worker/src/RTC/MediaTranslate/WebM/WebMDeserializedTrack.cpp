@@ -53,7 +53,7 @@ std::optional<MediaFrame> WebMDeserializedTrack::NextFrame(size_t payloadOffset,
             }
         }
         if (MaybeOk(mkvResult)) {
-            mediaFrame = std::make_optional<MediaFrame>(_mime, GetClockRate(), GetAllocator());
+            mediaFrame = std::make_optional<MediaFrame>(GetClockRate(), GetAllocator());
             mediaFrame->SetKeyFrame(_currentEntry.IsKey());
             mediaFrame->AddPayload(std::move(buffer));
             mediaFrame->SetTimestamp(_currentEntry.GetTime());

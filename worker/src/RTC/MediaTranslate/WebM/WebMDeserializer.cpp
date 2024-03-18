@@ -31,7 +31,7 @@ void WebMDeserializer::ParseTracksInfo()
     if (const auto tracks = _reader.GetTracks()) {
         for (unsigned long i = 0UL, end = tracks->GetTracksCount(); i < end; ++i) {
             if (auto track = WebMDeserializedTrack::Create(tracks, i, GetAllocator())) {
-                const auto type = track->GetMime();
+                const auto& type = track->GetMime();
                 AddTrack(type, std::move(track));
             }
         }

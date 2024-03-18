@@ -1,23 +1,17 @@
-#define MS_CLASS "RTC::MediaFrame"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/Buffers/SegmentsBuffer.hpp"
-#include "Logger.hpp"
 
 namespace RTC
 {
 
-MediaFrame::MediaFrame(const RtpCodecMimeType& mimeType, uint32_t clockRate,
-                       const std::shared_ptr<BufferAllocator>& allocator)
-    : _mimeType(mimeType)
-    , _payload(std::make_shared<SegmentsBuffer>(allocator))
+MediaFrame::MediaFrame(uint32_t clockRate, const std::shared_ptr<BufferAllocator>& allocator)
+    : _payload(std::make_shared<SegmentsBuffer>(allocator))
     , _timestamp(clockRate)
 {
-    MS_ASSERT(_mimeType.IsMediaCodec(), "invalid media codec");
 }
 
 MediaFrame::MediaFrame(const MediaFrame& other)
-    : _mimeType(other.GetMimeType())
-    , _payload(std::make_shared<SegmentsBuffer>(*other._payload))
+    : _payload(std::make_shared<SegmentsBuffer>(*other._payload))
     , _timestamp(other._timestamp)
 {
 }

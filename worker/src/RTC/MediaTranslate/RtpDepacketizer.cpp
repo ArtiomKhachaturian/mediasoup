@@ -66,7 +66,7 @@ std::unique_ptr<RtpDepacketizer> RtpDepacketizer::Create(const RtpCodecMimeType&
 
 MediaFrame RtpDepacketizer::CreateFrame() const
 {
-    return MediaFrame(GetMime(), GetClockRate(), GetAllocator());
+    return MediaFrame(GetClockRate(), GetAllocator());
 }
 
 void RtpDepacketizer::AddPacketToFrame(uint32_t ssrc, uint32_t rtpTimestamp, bool keyFrame,

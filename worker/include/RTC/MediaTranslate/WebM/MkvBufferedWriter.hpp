@@ -40,11 +40,13 @@ private:
     bool SetAudioSampleRate(uint64_t trackNumber, uint32_t sampleRate);
     bool HadWroteMedia() const { return _hadWroteMedia; }
     bool IsValidForTracksAdding() const;
-    EnqueueResult EnqueueFrame(const MediaFrame& mediaFrame,
-                               uint64_t mkvTimestamp, uint64_t trackNumber);
+    EnqueueResult EnqueueFrame(const MediaFrame& mediaFrame, uint64_t mkvTimestamp,
+                               uint64_t trackNumber, bool audio);
     bool WriteFrames(uint64_t mkvTimestamp);
     mkvmuxer::AudioTrack* GetAudioTrack(uint64_t trackNumber) const;
     mkvmuxer::VideoTrack* GetVideoTrack(uint64_t trackNumber) const;
+    bool IsAudioTrack(uint64_t trackNumber) const;
+    bool IsVideoTrack(uint64_t trackNumber) const;
     std::shared_ptr<Buffer> TakeBuffer();
     void WriteMediaPayloadToSink();
     // impl. of mkvmuxer::IMkvWriter
