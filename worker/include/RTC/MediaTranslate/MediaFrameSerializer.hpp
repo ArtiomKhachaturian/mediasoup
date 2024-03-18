@@ -31,6 +31,7 @@ public:
     void Write(const RtpPacket* packet);
     void SetPaused(bool paused) { _paused = paused; }
     const RtpCodecMimeType& GetMime() const { return _mime; }
+    uint32_t GetSsrc() const { return _ssrc; }
     uint32_t GetClockRate() const { return _clockRate; }
     // impl. of MediaSource
     bool IsPaused() const final { return _paused.load(); }
@@ -40,7 +41,7 @@ public:
     bool HasSinks() const final;
     virtual std::string_view GetFileExtension() const;
 protected:
-    MediaFrameSerializer(const RtpCodecMimeType& mime, uint32_t clockRate,
+    MediaFrameSerializer(const RtpCodecMimeType& mime, uint32_t ssrc, uint32_t clockRate,
                          const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     virtual std::unique_ptr<MediaFrameWriter> CreateWriter(uint64_t senderId,
                                                            MediaSink* sink) = 0;
@@ -50,11 +51,12 @@ private:
     bool IsReadyToWrite() const { return !IsPaused() && HasSinks(); }
     std::unique_ptr<MediaSinkWriter> CreateSinkWriter(MediaSink* sink);
     // impl. of RtpMediaWriter
-    bool WriteRtpMedia(uint32_t ssrc, uint32_t rtpTimestamp, bool keyFrame, bool hasMarker,
+    bool WriteRtpMedia(uint32_t rtpTimestamp, bool keyFrame, bool hasMarker,
                        const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
                        const std::shared_ptr<Buffer>& payload) final;
 private:
     const RtpCodecMimeType _mime;
+    const uint32_t _ssrc;
     const uint32_t _clockRate;
     ProtectedObj<MediaSinkWriterMap, std::mutex> _writers;
     std::atomic<size_t> _writersCount = 0U; // for quick access without mutex locking

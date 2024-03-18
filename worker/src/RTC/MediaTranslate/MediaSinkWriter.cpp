@@ -16,12 +16,11 @@ MediaSinkWriter::~MediaSinkWriter()
 {
 }
 
-bool MediaSinkWriter::WriteRtpMedia(uint32_t ssrc, uint32_t rtpTimestamp,
-                                    bool keyFrame, bool hasMarker,
+bool MediaSinkWriter::WriteRtpMedia(uint32_t rtpTimestamp, bool keyFrame, bool hasMarker,
                                     const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
                                     const std::shared_ptr<Buffer>& payload)
 {
-    return Write(CreateFrame(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload));
+    return Write(CreateFrame(rtpTimestamp, keyFrame, hasMarker, pdh, payload));
 }
 
 bool MediaSinkWriter::Write(const MediaFrame& mediaFrame)
@@ -35,22 +34,20 @@ bool MediaSinkWriter::Write(const MediaFrame& mediaFrame)
     return false;
 }
 
-MediaFrame MediaSinkWriter::CreateFrame(uint32_t ssrc, uint32_t rtpTimestamp,
+MediaFrame MediaSinkWriter::CreateFrame(uint32_t rtpTimestamp,
                                         bool keyFrame, bool hasMarker,
                                         const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
                                         const std::shared_ptr<Buffer>& payload)
 {
     bool configChanged = false;
-    auto frame = _depacketizer->FromRtpPacket(ssrc, rtpTimestamp, keyFrame, hasMarker,
+    auto frame = _depacketizer->AddPacketInfo(rtpTimestamp, keyFrame, hasMarker,
                                               pdh, payload, &configChanged);
     if (configChanged) {
-        switch (_depacketizer->GetMime().GetType()) {
-            case RtpCodecMimeType::Type::AUDIO:
-                _frameWriter->SetConfig(_depacketizer->GetAudioConfig(ssrc));
-                break;
-            case RtpCodecMimeType::Type::VIDEO:
-                _frameWriter->SetConfig(_depacketizer->GetVideoConfig(ssrc));
-                break;
+        if (_depacketizer->IsAudio()) {
+            _frameWriter->SetConfig(_depacketizer->GetAudioConfig());
+        }
+        else {
+            _frameWriter->SetConfig(_depacketizer->GetVideoConfig());
         }
     }
     return frame;

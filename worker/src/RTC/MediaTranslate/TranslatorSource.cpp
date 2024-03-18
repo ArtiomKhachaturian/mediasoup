@@ -18,17 +18,12 @@ TranslatorSource::TranslatorSource(uint32_t clockRate, uint32_t originalSsrc,
                                    std::unique_ptr<MediaFrameSerializer> serializer,
                                    TranslatorEndPointFactory* endPointsFactory,
                                    RtpPacketsPlayer* rtpPacketsPlayer,
-                                   RtpPacketsCollector* output,
-                                   const std::string& producerId)
-    : _originalSsrc(originalSsrc)
-    , _mappedSsrc(mappedSsrc)
+                                   RtpPacketsCollector* output)
+    : _mappedSsrc(mappedSsrc)
     , _payloadType(payloadType)
     , _serializer(std::move(serializer))
     , _rtpPacketsPlayer(rtpPacketsPlayer)
     , _output(output)
-#ifdef WRITE_PRODUCER_RECV_TO_FILE
-    , _serializerFileWriter(CreateSerializerFileWriter(producerId))
-#endif
     , _consumersManager(endPointsFactory, _serializer.get(), GetMediaReceiver(),
                         mappedSsrc, clockRate, _serializer->GetMime())
 {
@@ -50,7 +45,6 @@ std::unique_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeTyp
                                                            TranslatorEndPointFactory* endPointsFactory,
                                                            RtpPacketsPlayer* rtpPacketsPlayer,
                                                            RtpPacketsCollector* output,
-                                                           const std::string& producerId,
                                                            const std::shared_ptr<BufferAllocator>& allocator)
 {
     std::unique_ptr<TranslatorSource> source;
@@ -59,11 +53,10 @@ std::unique_ptr<TranslatorSource> TranslatorSource::Create(const RtpCodecMimeTyp
         MS_ASSERT(originalSsrc, "original SSRC must be greater than zero");
         MS_ASSERT(mappedSsrc, "mapped SSRC must be greater than zero");
         MS_ASSERT(payloadType, "payload type must be greater than zero");
-        auto serializer = std::make_unique<WebMSerializer>(mime, clockRate, allocator);
+        auto serializer = std::make_unique<WebMSerializer>(mime, originalSsrc, clockRate, allocator);
         source.reset(new TranslatorSource(clockRate, originalSsrc, mappedSsrc,
                                           payloadType, std::move(serializer),
-                                          endPointsFactory, rtpPacketsPlayer,
-                                          output, producerId));
+                                          endPointsFactory, rtpPacketsPlayer, output));
     }
     return source;
 }
@@ -72,13 +65,12 @@ std::unique_ptr<TranslatorSource> TranslatorSource::Create(const RtpStream* stre
                                                            TranslatorEndPointFactory* endPointsFactory,
                                                            RtpPacketsPlayer* rtpPacketsPlayer,
                                                            RtpPacketsCollector* output,
-                                                           const std::string& producerId,
                                                            const std::shared_ptr<BufferAllocator>& allocator)
 {
     if (stream && endPointsFactory && rtpPacketsPlayer && output) {
         return Create(stream->GetMimeType(), stream->GetClockRate(),
                       stream->GetSsrc(), mappedSsrc, stream->GetPayloadType(),
-                      endPointsFactory, rtpPacketsPlayer, output, producerId, allocator);
+                      endPointsFactory, rtpPacketsPlayer, output, allocator);
     }
     return nullptr;
 }
@@ -91,6 +83,11 @@ const RtpCodecMimeType& TranslatorSource::GetMime() const
 uint32_t TranslatorSource::GetClockRate() const
 {
     return _serializer->GetClockRate();
+}
+
+uint32_t TranslatorSource::GetOriginalSsrc() const
+{
+    return _serializer->GetSsrc();
 }
 
 void TranslatorSource::SetPaused(bool paused)
@@ -128,7 +125,7 @@ bool TranslatorSource::RemoveConsumer(const std::shared_ptr<ConsumerTranslator>&
 }
 
 #ifdef WRITE_PRODUCER_RECV_TO_FILE
-std::unique_ptr<MediaSink> TranslatorSource::CreateSerializerFileWriter(const std::string& producerId) const
+void TranslatorSource::AddProducerInputFileWriter(const std::string& producerId)
 {
     const auto fileExtension = _serializer->GetFileExtension();
     if (!fileExtension.empty()) {
@@ -142,11 +139,13 @@ std::unique_ptr<MediaSink> TranslatorSource::CreateSerializerFileWriter(const st
                     writer->DeleteFromStorage();
                     writer.reset();
                 }
-                return writer;
+                if (_producerInputFileWriter != writer) {
+                    _serializer->RemoveSink(_producerInputFileWriter.get());
+                    _producerInputFileWriter = std::move(writer);
+                }
             }
         }
     }
-    return nullptr;
 }
 #endif
 

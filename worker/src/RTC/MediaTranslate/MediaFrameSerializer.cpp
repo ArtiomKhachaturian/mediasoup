@@ -10,10 +10,12 @@
 namespace RTC
 {
 
-MediaFrameSerializer::MediaFrameSerializer(const RtpCodecMimeType& mime, uint32_t clockRate,
+MediaFrameSerializer::MediaFrameSerializer(const RtpCodecMimeType& mime, 
+                                           uint32_t ssrc, uint32_t clockRate,
                                            const std::shared_ptr<BufferAllocator>& allocator)
     :  BufferAllocations<MediaSource>(allocator)
     , _mime(mime)
+    , _ssrc(ssrc)
     , _clockRate(clockRate)
 {
     _writers->reserve(2U); // test + end-point
@@ -112,9 +114,8 @@ std::unique_ptr<MediaSinkWriter> MediaFrameSerializer::CreateSinkWriter(MediaSin
 {
     std::unique_ptr<MediaSinkWriter> writer;
     if (auto impl = CreateWriter(GetId(), sink)) {
-        if (auto depacketizer = RtpDepacketizer::Create(GetMime(),
-                                                        GetClockRate(),
-                                                        GetAllocator())) {
+        if (auto depacketizer = RtpDepacketizer::Create(GetMime(), GetSsrc(), 
+                                                        GetClockRate(), GetAllocator())) {
             writer = std::make_unique<MediaSinkWriter>(std::move(depacketizer),
                                                        std::move(impl));
         }
@@ -129,14 +130,14 @@ std::unique_ptr<MediaSinkWriter> MediaFrameSerializer::CreateSinkWriter(MediaSin
     return writer;
 }
 
-bool MediaFrameSerializer::WriteRtpMedia(uint32_t ssrc, uint32_t rtpTimestamp,
+bool MediaFrameSerializer::WriteRtpMedia(uint32_t rtpTimestamp,
                                          bool keyFrame, bool hasMarker,
                                          const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
                                          const std::shared_ptr<Buffer>& payload)
 {
     LOCK_READ_PROTECTED_OBJ(_writers);
     for (auto it = _writers->begin(); it != _writers->end(); ++it) {
-        if (!it->second->WriteRtpMedia(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
+        if (!it->second->WriteRtpMedia(rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
             MS_ERROR("unable to write media frame [%s]", GetMimeText().c_str());
         }
     }

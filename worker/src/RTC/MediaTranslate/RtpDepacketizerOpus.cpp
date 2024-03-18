@@ -7,16 +7,6 @@
 #include "RTC/Buffers/Buffer.hpp"
 #include "Logger.hpp"
 
-namespace {
-
-using namespace RTC;
-
-inline RtpCodecMimeType::Subtype GetType(bool multiopus) {
-    return multiopus ? RtpCodecMimeType::Subtype::MULTIOPUS : RtpCodecMimeType::Subtype::OPUS;
-}
-
-}
-
 namespace RTC
 {
 
@@ -37,9 +27,9 @@ private:
     Codecs::Opus::OpusHead _head;
 };
 
-RtpDepacketizerOpus::RtpDepacketizerOpus(uint32_t clockRate, bool multiopus,
+RtpDepacketizerOpus::RtpDepacketizerOpus(uint32_t ssrc, uint32_t clockRate,
                                          const std::shared_ptr<BufferAllocator>& allocator)
-    : RtpAudioDepacketizer(GetType(multiopus), clockRate, allocator)
+    : RtpAudioDepacketizer(ssrc, clockRate, allocator)
 {
     _config.SetBitsPerSample(_bitsPerSample);
 }
@@ -48,7 +38,7 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 {
 }
 
-MediaFrame RtpDepacketizerOpus::FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
+MediaFrame RtpDepacketizerOpus::AddPacketInfo(uint32_t rtpTimestamp,
                                               bool keyFrame, bool /*hasMarker*/,
                                               const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& /*pdh*/,
                                               const std::shared_ptr<Buffer>& payload,
@@ -56,17 +46,18 @@ MediaFrame RtpDepacketizerOpus::FromRtpPacket(uint32_t ssrc, uint32_t rtpTimesta
 {
     if (payload) {
         auto frame = CreateFrame();
-        AddPacketToFrame(ssrc, rtpTimestamp, keyFrame, payload, frame);
-        const auto channelsCount = OpusHeadBuffer::GetChannelCount(payload);
-        if (!_opusCodecData || channelsCount != _opusCodecData->GetChannelCount()) {
-            _opusCodecData = std::make_shared<OpusHeadBuffer>(channelsCount, GetClockRate());
-            _config.SetChannelCount(channelsCount);
-            _config.SetCodecSpecificData(_opusCodecData);
-            if (configWasChanged) {
-                *configWasChanged = true;
+        if (AddPacketInfoToFrame(rtpTimestamp, keyFrame, payload, frame)) {
+            const auto channelsCount = OpusHeadBuffer::GetChannelCount(payload);
+            if (!_opusCodecData || channelsCount != _opusCodecData->GetChannelCount()) {
+                _opusCodecData = std::make_shared<OpusHeadBuffer>(channelsCount, GetClockRate());
+                _config.SetChannelCount(channelsCount);
+                _config.SetCodecSpecificData(_opusCodecData);
+                if (configWasChanged) {
+                    *configWasChanged = true;
+                }
             }
+            return frame;
         }
-        return frame;
     }
     return MediaFrame();
 }

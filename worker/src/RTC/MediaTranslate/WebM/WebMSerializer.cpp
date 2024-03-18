@@ -25,9 +25,10 @@ private:
     uint64_t _trackNumber = 0U;
 };
 
-WebMSerializer::WebMSerializer(const RtpCodecMimeType& mime, uint32_t clockRate,
+WebMSerializer::WebMSerializer(const RtpCodecMimeType& mime,
+                               uint32_t ssrc, uint32_t clockRate,
                                const std::shared_ptr<BufferAllocator>& allocator)
-    : MediaFrameSerializer(mime, clockRate, allocator)
+    : MediaFrameSerializer(mime, ssrc, clockRate, allocator)
 {
     MS_ASSERT(WebMCodecs::IsSupported(mime), "WebM not available for this MIME %s", mime.ToString().c_str());
 }

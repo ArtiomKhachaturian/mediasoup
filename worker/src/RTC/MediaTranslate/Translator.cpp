@@ -92,8 +92,11 @@ bool Translator::AddStream(const RtpStream* stream, uint32_t mappedSsrc)
             if (it == _originalSsrcToStreams.end()) {
                 auto source = TranslatorSource::Create(stream, mappedSsrc, this,
                                                        &_translatedPacketsPlayer,
-                                                       _output, GetId(), GetAllocator());
+                                                       _output, GetAllocator());
                 if (source) {
+#ifdef WRITE_PRODUCER_RECV_TO_FILE
+                    source->AddProducerInputFileWriter(GetId());
+#endif
                     source->SetInputLanguage(GetProducerLanguageId());
                     source->SetPaused(_producerPaused);
                     AddConsumersToSource(source.get());

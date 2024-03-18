@@ -1,54 +1,19 @@
 #define MS_CLASS "RTC::RtpDepacketizerVpx"
 #include "RTC/MediaTranslate/RtpDepacketizerVpx.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
+#include "RTC/RtpDictionaries.hpp"
 #include "RTC/Codecs/VP8.hpp"
 #include "RTC/Codecs/VP9.hpp"
 #include "Logger.hpp"
 
-namespace {
-
-using namespace RTC;
-
-inline RtpCodecMimeType::Subtype GetType(bool vp8) {
-    return vp8 ? RtpCodecMimeType::Subtype::VP8 : RtpCodecMimeType::Subtype::VP9;
-}
-
-}
-
 namespace RTC
 {
 
-class RtpDepacketizerVpx::RtpAssembly
-{
-public:
-    RtpAssembly(uint32_t ssrc, const RtpDepacketizerVpx* depacketizer);
-    MediaFrame AddPacket(uint32_t rtpTimestamp,
-                         bool keyFrame, bool hasMarker,
-                         const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                         const std::shared_ptr<Buffer>& payload,
-                         bool* configWasChanged);
-    const VideoFrameConfig& GetConfig() const { return _config; }
-private:
-    bool AddPayload(uint32_t rtpTimestamp, bool keyFrame,
-                    const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                    const std::shared_ptr<Buffer>& payload);
-    bool ParseVideoConfig(const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                          const std::shared_ptr<Buffer>& payload,
-                          bool keyFrame, bool* configWasChanged);
-    MediaFrame ResetFrame();
-    void SetLastTimeStamp(uint32_t lastTimeStamp);
-private:
-    const uint32_t _ssrc;
-    const RtpDepacketizerVpx* const _depacketizer;
-    uint32_t _lastTimeStamp = 0U;
-    MediaFrame _frame;
-    VideoFrameConfig _config;
-};
 
-class RtpDepacketizerVpx::ShiftedPayloadBuffer : public Buffer
+class RtpDepacketizerVpx::ShiftedPayload : public Buffer
 {
 public:
-    ShiftedPayloadBuffer(const std::shared_ptr<Buffer>& payload, size_t offset);
+    ShiftedPayload(const std::shared_ptr<Buffer>& payload, size_t offset);
     // impl. of Buffer
     size_t GetSize() const final { return _payload->GetSize() - _offset; }
     uint8_t* GetData() final { return _payload->GetData() + _offset; }
@@ -58,9 +23,10 @@ private:
     const size_t _offset;
 };
 
-RtpDepacketizerVpx::RtpDepacketizerVpx(uint32_t clockRate, bool vp8,
+RtpDepacketizerVpx::RtpDepacketizerVpx(uint32_t ssrc, uint32_t clockRate, bool vp8,
                                        const std::shared_ptr<BufferAllocator>& allocator)
-    : RtpVideoDepacketizer(GetType(vp8), clockRate, allocator)
+    : RtpVideoDepacketizer(ssrc, clockRate, allocator)
+    , _vp8(vp8)
 {
 }
 
@@ -68,31 +34,13 @@ RtpDepacketizerVpx::~RtpDepacketizerVpx()
 {
 }
 
-MediaFrame RtpDepacketizerVpx::FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
+MediaFrame RtpDepacketizerVpx::AddPacketInfo(uint32_t rtpTimestamp,
                                              bool keyFrame, bool hasMarker,
                                              const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
                                              const std::shared_ptr<Buffer>& payload,
                                              bool* configWasChanged)
 {
-    if (payload) {
-        auto it = _assemblies.find(ssrc);
-        if (it == _assemblies.end()) {
-            auto assembly = std::make_unique<RtpAssembly>(ssrc, this);
-            it = _assemblies.insert({ssrc, std::move(assembly)}).first;
-        }
-        return it->second->AddPacket(rtpTimestamp, keyFrame, hasMarker, pdh,
-                                     payload, configWasChanged);
-    }
-    return MediaFrame();
-}
-
-VideoFrameConfig RtpDepacketizerVpx::GetVideoConfig(uint32_t ssrc) const
-{
-    const auto it = _assemblies.find(ssrc);
-    if (it != _assemblies.end()) {
-        return it->second->GetConfig();
-    }
-    return RtpDepacketizer::GetVideoConfig(ssrc);
+    return MergePacketInfo(rtpTimestamp, keyFrame, hasMarker, pdh, payload, configWasChanged);
 }
 
 bool RtpDepacketizerVpx::ParseVp8VideoConfig(const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
@@ -140,17 +88,17 @@ bool RtpDepacketizerVpx::ParseVp9VideoConfig(const std::shared_ptr<const Codecs:
     return false;
 }
 
-RtpDepacketizerVpx::RtpAssembly::RtpAssembly(uint32_t ssrc, const RtpDepacketizerVpx* depacketizer)
-    : _ssrc(ssrc)
-    , _depacketizer(depacketizer)
+std::string RtpDepacketizerVpx::GetDescription() const
 {
+    const auto subtype = _vp8 ? RtpCodecMimeType::Subtype::VP8 : RtpCodecMimeType::Subtype::VP9;
+    const RtpCodecMimeType mime(RtpCodecMimeType::Type::VIDEO, subtype);
+    return GetStreamInfoString(mime, GetSsrc());
 }
 
-MediaFrame RtpDepacketizerVpx::RtpAssembly::AddPacket(uint32_t rtpTimestamp,
-                                                      bool keyFrame, bool hasMarker,
-                                                      const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                                      const std::shared_ptr<Buffer>& payload,
-                                                      bool* configWasChanged)
+MediaFrame RtpDepacketizerVpx::MergePacketInfo(uint32_t rtpTimestamp, bool keyFrame, bool hasMarker,
+                                               const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                               const std::shared_ptr<Buffer>& payload,
+                                               bool* configWasChanged)
 {
     if (payload) {
         SetLastTimeStamp(rtpTimestamp);
@@ -162,21 +110,19 @@ MediaFrame RtpDepacketizerVpx::RtpAssembly::AddPacket(uint32_t rtpTimestamp,
                 }
             }
             else {
-                const auto error = GetStreamInfoString(_depacketizer->GetMime(), _ssrc);
-                MS_ERROR("failed to parse video config for stream [%s]", error.c_str());
+                MS_ERROR("failed to parse video config for stream [%s]", GetDescription().c_str());
             }
         }
         else {
-            const auto error = GetStreamInfoString(_depacketizer->GetMime(), _ssrc);
-            MS_ERROR("failed to add payload for stream [%s]", error.c_str());
+            MS_ERROR("failed to add payload for stream [%s]", GetDescription().c_str());
         }
     }
     return MediaFrame();
 }
 
-bool RtpDepacketizerVpx::RtpAssembly::AddPayload(uint32_t rtpTimestamp, bool keyFrame,
-                                                 const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                                 const std::shared_ptr<Buffer>& payload)
+bool RtpDepacketizerVpx::AddPayload(uint32_t rtpTimestamp, bool keyFrame,
+                                    const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                    const std::shared_ptr<Buffer>& payload)
 {
     if (_frame && payload && (!keyFrame || pdh)) {
         const size_t offset = pdh ? pdh->GetPayloadDescriptorSize() : 0U;
@@ -184,31 +130,26 @@ bool RtpDepacketizerVpx::RtpAssembly::AddPayload(uint32_t rtpTimestamp, bool key
         if (len > offset) {
             auto buffer = payload;
             if (offset) {
-                buffer = std::make_shared<ShiftedPayloadBuffer>(payload, offset);
+                buffer = std::make_shared<ShiftedPayload>(payload, offset);
             }
-            RtpDepacketizer::AddPacketToFrame(_ssrc, rtpTimestamp, keyFrame, buffer, _frame);
-            return true;
+            return AddPacketInfoToFrame(rtpTimestamp, keyFrame, buffer, _frame);
         }
     }
     return false;
 }
 
-bool RtpDepacketizerVpx::RtpAssembly::ParseVideoConfig(const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                                       const std::shared_ptr<Buffer>& payload,
-                                                       bool keyFrame, bool* configWasChanged)
+bool RtpDepacketizerVpx::ParseVideoConfig(const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                          const std::shared_ptr<Buffer>& payload,
+                                          bool keyFrame, bool* configWasChanged)
 {
     bool ok = false;
     if (keyFrame) {
         VideoFrameConfig config;
-        switch (_depacketizer->GetMime().GetSubtype()) {
-            case RtpCodecMimeType::Subtype::VP8:
-                ok = RtpDepacketizerVpx::ParseVp8VideoConfig(pdh, payload, config);
-                break;
-            case RtpCodecMimeType::Subtype::VP9:
-                ok = RtpDepacketizerVpx::ParseVp9VideoConfig(pdh, payload, config);
-                break;
-            default:
-                break;
+        if (_vp8) {
+            ok = RtpDepacketizerVpx::ParseVp8VideoConfig(pdh, payload, config);
+        }
+        else {
+            ok = RtpDepacketizerVpx::ParseVp9VideoConfig(pdh, payload, config);
         }
         if (ok && config != _config) {
             _config = std::move(config);
@@ -223,23 +164,23 @@ bool RtpDepacketizerVpx::RtpAssembly::ParseVideoConfig(const std::shared_ptr<con
     return ok;
 }
 
-MediaFrame RtpDepacketizerVpx::RtpAssembly::ResetFrame()
+MediaFrame RtpDepacketizerVpx::ResetFrame()
 {
     MediaFrame frame(std::move(_frame));
-    _frame = _depacketizer->CreateFrame();
+    _frame = CreateFrame();
     return frame;
 }
 
-void RtpDepacketizerVpx::RtpAssembly::SetLastTimeStamp(uint32_t lastTimeStamp)
+void RtpDepacketizerVpx::SetLastTimeStamp(uint32_t lastTimeStamp)
 {
     if (_lastTimeStamp != lastTimeStamp) {
         _lastTimeStamp = lastTimeStamp;
-        _frame = _depacketizer->CreateFrame();
+        _frame = CreateFrame();
     }
 }
 
-RtpDepacketizerVpx::ShiftedPayloadBuffer::ShiftedPayloadBuffer(const std::shared_ptr<Buffer>& payload,
-                                                               size_t offset)
+RtpDepacketizerVpx::ShiftedPayload::ShiftedPayload(const std::shared_ptr<Buffer>& payload,
+                                                   size_t offset)
     : _payload(payload)
     , _offset(offset)
 {

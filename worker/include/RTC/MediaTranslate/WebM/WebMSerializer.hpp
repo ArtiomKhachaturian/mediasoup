@@ -8,7 +8,7 @@ class WebMSerializer : public MediaFrameSerializer
 {
     class Writer;
 public:
-    WebMSerializer(const RtpCodecMimeType& mime, uint32_t clockRate,
+    WebMSerializer(const RtpCodecMimeType& mime, uint32_t ssrc, uint32_t clockRate,
                    const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     ~WebMSerializer() final = default;
 protected:

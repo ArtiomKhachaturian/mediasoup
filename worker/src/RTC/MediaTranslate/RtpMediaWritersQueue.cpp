@@ -9,12 +9,10 @@ namespace RTC
 
 struct RtpMediaWritersQueue::Packet
 {
-    Packet(uint64_t writerId, uint32_t ssrc, uint32_t rtpTimestamp,
-           bool keyFrame, bool hasMarker,
+    Packet(uint64_t writerId, uint32_t rtpTimestamp, bool keyFrame, bool hasMarker,
            std::shared_ptr<const Codecs::PayloadDescriptorHandler> pdh,
            std::shared_ptr<Buffer> payload);
     const uint64_t _writerId;
-    const uint32_t _ssrc;
     const uint32_t _rtpTimestamp;
     const bool _keyFrame;
     const bool _hasMarker;
@@ -84,9 +82,8 @@ void RtpMediaWritersQueue::Write(uint64_t writerId, const RtpPacket* packet,
                                            allocator);
         {
             const std::lock_guard guard(_packetsMutex);
-            _packets->emplace(writerId, packet->GetSsrc(), packet->GetTimestamp(),
-                              packet->IsKeyFrame(), packet->HasMarker(),
-                              packet->GetPayloadDescriptorHandler(),
+            _packets->emplace(writerId, packet->GetTimestamp(), packet->IsKeyFrame(),
+                              packet->HasMarker(), packet->GetPayloadDescriptorHandler(),
                               std::move(payload));
         }
         _packetsCondition.notify_one();
@@ -132,19 +129,16 @@ void RtpMediaWritersQueue::WritePacket(const Packet& packet) const
     LOCK_READ_PROTECTED_OBJ(_writers);
     const auto it = _writers->find(packet._writerId);
     if (it != _writers->end()) {
-        it->second->WriteRtpMedia(packet._ssrc, packet._rtpTimestamp,
-                                  packet._keyFrame, packet._hasMarker,
-                                  packet._pdh, packet._payload);
+        it->second->WriteRtpMedia(packet._rtpTimestamp, packet._keyFrame,
+                                  packet._hasMarker, packet._pdh, packet._payload);
     }
 }
 
-RtpMediaWritersQueue::Packet::Packet(uint64_t writerId, uint32_t ssrc,
-                                     uint32_t rtpTimestamp,
+RtpMediaWritersQueue::Packet::Packet(uint64_t writerId, uint32_t rtpTimestamp,
                                      bool keyFrame, bool hasMarker,
                                      std::shared_ptr<const Codecs::PayloadDescriptorHandler> pdh,
                                      std::shared_ptr<Buffer> payload)
     : _writerId(writerId)
-    , _ssrc(ssrc)
     , _rtpTimestamp(rtpTimestamp)
     , _keyFrame(keyFrame)
     , _hasMarker(hasMarker)
