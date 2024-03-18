@@ -38,7 +38,10 @@ Timestamp::Timestamp(uint32_t clockRate, const webrtc::Timestamp& time)
 
 webrtc::Timestamp Timestamp::GetTime() const
 {
-    return webrtc::Timestamp::us(ValueToMicro(GetRtpTime()) / GetClockRate());
+    if (const auto clockRate = GetClockRate()) {
+        return webrtc::Timestamp::us(ValueToMicro(GetRtpTime()) / clockRate);
+    }
+    return webrtc::Timestamp::Zero();
 }
 
 void Timestamp::SetTime(const webrtc::Timestamp& time)

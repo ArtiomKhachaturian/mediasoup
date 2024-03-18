@@ -13,7 +13,7 @@ class SegmentsBuffer;
 class MediaFrame final
 {
 public:
-    MediaFrame() = delete;
+    MediaFrame() = default;
     MediaFrame(uint32_t clockRate, const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     MediaFrame(const MediaFrame& other);
     MediaFrame(MediaFrame&&) = default;
@@ -24,6 +24,8 @@ public:
     std::shared_ptr<const Buffer> GetPayload() const;
     std::shared_ptr<Buffer> TakePayload();
     // common properties
+    explicit operator bool() const { return IsValid(); }
+    bool IsValid() const { return _timestamp.IsValid(); }
     void SetKeyFrame(bool keyFrame);
     bool IsKeyFrame() const { return _keyFrame; }
     uint32_t GetClockRate() const { return GetTimestamp().GetClockRate(); }

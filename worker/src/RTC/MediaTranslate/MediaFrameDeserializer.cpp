@@ -32,8 +32,7 @@ void MediaFrameDeserializer::Clear()
     _tracks.clear();
 }
 
-std::optional<RtpTranslatedPacket> MediaFrameDeserializer::NextPacket(size_t trackIndex,
-                                                                      bool skipPayload)
+RtpTranslatedPacket MediaFrameDeserializer::NextPacket(size_t trackIndex, bool skipPayload)
 {
     if (trackIndex < _tracks.size()) {
         auto& ti = _tracks.at(trackIndex);
@@ -41,10 +40,10 @@ std::optional<RtpTranslatedPacket> MediaFrameDeserializer::NextPacket(size_t tra
         const auto payloadExtraSize = ti.first->GetPayloadExtraSize();
         if (auto frame = ti.second->NextFrame(payloadOffset, skipPayload, payloadExtraSize)) {
             const auto payloadSize = ti.second->GetLastPayloadSize();
-            return ti.first->Add(payloadOffset, payloadSize, std::move(frame.value()));
+            return ti.first->Add(payloadOffset, payloadSize, std::move(frame));
         }
     }
-    return std::nullopt;
+    return RtpTranslatedPacket();
 }
 
 std::optional<RtpCodecMimeType> MediaFrameDeserializer::GetTrackType(size_t trackIndex) const

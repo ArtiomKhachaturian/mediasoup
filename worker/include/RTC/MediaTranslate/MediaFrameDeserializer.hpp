@@ -24,7 +24,7 @@ public:
     virtual void Clear();
     // count of all tracks, including subtitles
     size_t GetTracksCount() const { return _tracks.size(); }
-    std::optional<RtpTranslatedPacket> NextPacket(size_t trackIndex, bool skipPayload);
+    RtpTranslatedPacket NextPacket(size_t trackIndex, bool skipPayload);
     // tracks info maybe actual after 1st calling of 'Add'
     std::optional<RtpCodecMimeType> GetTrackType(size_t trackIndex) const;
     MediaFrameDeserializeResult GetTrackLastResult(size_t trackIndex) const;

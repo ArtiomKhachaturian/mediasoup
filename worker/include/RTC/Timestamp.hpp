@@ -9,7 +9,7 @@ namespace RTC
 class Timestamp final
 {
 public:
-    Timestamp() = delete;
+    Timestamp() = default;
     Timestamp(uint32_t clockRate);
     Timestamp(uint32_t clockRate, uint32_t rtpTime);
     Timestamp(uint32_t clockRate, const webrtc::Timestamp& time);
@@ -21,7 +21,9 @@ public:
     webrtc::Timestamp GetTime() const;
     void SetTime(const webrtc::Timestamp& time);
     bool IsZero() const { return 0U == GetRtpTime(); }
+    bool IsValid() const { return 0U != GetClockRate(); }
     // operators
+    explicit operator bool() const { return IsValid(); }
     bool operator == (const Timestamp& other) const;
     bool operator == (const webrtc::Timestamp& other) const;
     bool operator != (const Timestamp& other) const;
@@ -41,7 +43,7 @@ public:
     Timestamp& operator = (const Timestamp&) = default;
     Timestamp& operator = (Timestamp&&) = default;
 private:
-    uint32_t _clockRate;
+    uint32_t _clockRate = 0U;
     uint32_t _rtpTime = 0U;
 };
 

@@ -1,14 +1,13 @@
 #pragma once
 #include "RTC/MediaTranslate/RtpMediaWriter.hpp"
+#include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "RTC/Timestamp.hpp"
 #include "api/units/time_delta.h"
 #include <memory>
-#include <optional>
 
 namespace RTC
 {
 
-class MediaFrame;
 class MediaFrameWriter;
 class RtpDepacketizer;
 
@@ -25,16 +24,16 @@ public:
                        const std::shared_ptr<Buffer>& payload) final;
 private:
     bool Write(const MediaFrame& mediaFrame);
-    std::optional<MediaFrame> CreateFrame(uint32_t ssrc, uint32_t rtpTimestamp,
-                                          bool keyFrame, bool hasMarker,
-                                          const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                          const std::shared_ptr<Buffer>& payload);
+    MediaFrame CreateFrame(uint32_t ssrc, uint32_t rtpTimestamp,
+                           bool keyFrame, bool hasMarker,
+                           const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                           const std::shared_ptr<Buffer>& payload);
     const webrtc::TimeDelta& Update(const Timestamp& timestamp);
     bool IsAccepted(const Timestamp& timestamp) const;
 private:
     const std::unique_ptr<RtpDepacketizer> _depacketizer;
     const std::unique_ptr<MediaFrameWriter> _frameWriter;
-    std::optional<Timestamp> _lastTimestamp;
+    Timestamp _lastTimestamp;
     webrtc::TimeDelta _offset = webrtc::TimeDelta::Zero();
 };
 

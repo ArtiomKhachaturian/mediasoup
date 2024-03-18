@@ -1,7 +1,6 @@
 #include "RTC/MediaTranslate/MediaSinkWriter.hpp"
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
 #include "RTC/MediaTranslate/MediaFrameWriter.hpp"
-#include "RTC/MediaTranslate/MediaFrame.hpp"
 
 namespace RTC
 {
@@ -22,43 +21,39 @@ bool MediaSinkWriter::WriteRtpMedia(uint32_t ssrc, uint32_t rtpTimestamp,
                                     const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
                                     const std::shared_ptr<Buffer>& payload)
 {
-    if (auto frame = CreateFrame(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
-        return Write(frame.value());
-    }
-    return false;
+    return Write(CreateFrame(ssrc, rtpTimestamp, keyFrame, hasMarker, pdh, payload));
 }
 
 bool MediaSinkWriter::Write(const MediaFrame& mediaFrame)
 {
-    const auto& timestamp = mediaFrame.GetTimestamp();
-    if (IsAccepted(timestamp)) {
-        return _frameWriter->Write(mediaFrame, Update(timestamp));
+    if (mediaFrame) {
+        const auto& timestamp = mediaFrame.GetTimestamp();
+        if (IsAccepted(timestamp)) {
+            return _frameWriter->Write(mediaFrame, Update(timestamp));
+        }
     }
     return false;
 }
 
-std::optional<MediaFrame> MediaSinkWriter::CreateFrame(uint32_t ssrc, uint32_t rtpTimestamp,
-                                                       bool keyFrame, bool hasMarker,
-                                                       const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                                       const std::shared_ptr<Buffer>& payload)
+MediaFrame MediaSinkWriter::CreateFrame(uint32_t ssrc, uint32_t rtpTimestamp,
+                                        bool keyFrame, bool hasMarker,
+                                        const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                        const std::shared_ptr<Buffer>& payload)
 {
     bool configChanged = false;
-    if (auto frame = _depacketizer->FromRtpPacket(ssrc, rtpTimestamp, keyFrame,
-                                                  hasMarker, pdh, payload,
-                                                  &configChanged)) {
-        if (configChanged) {
-            switch (_depacketizer->GetMime().GetType()) {
-                case RtpCodecMimeType::Type::AUDIO:
-                    _frameWriter->SetConfig(_depacketizer->GetAudioConfig(ssrc));
-                    break;
-                case RtpCodecMimeType::Type::VIDEO:
-                    _frameWriter->SetConfig(_depacketizer->GetVideoConfig(ssrc));
-                    break;
-            }
+    auto frame = _depacketizer->FromRtpPacket(ssrc, rtpTimestamp, keyFrame, hasMarker,
+                                              pdh, payload, &configChanged);
+    if (configChanged) {
+        switch (_depacketizer->GetMime().GetType()) {
+            case RtpCodecMimeType::Type::AUDIO:
+                _frameWriter->SetConfig(_depacketizer->GetAudioConfig(ssrc));
+                break;
+            case RtpCodecMimeType::Type::VIDEO:
+                _frameWriter->SetConfig(_depacketizer->GetVideoConfig(ssrc));
+                break;
         }
-        return frame;
     }
-    return std::nullopt;
+    return frame;
 }
 
 const webrtc::TimeDelta& MediaSinkWriter::Update(const Timestamp& timestamp)
@@ -66,8 +61,8 @@ const webrtc::TimeDelta& MediaSinkWriter::Update(const Timestamp& timestamp)
     if (!_lastTimestamp) {
         _lastTimestamp = timestamp;
     }
-    else if (timestamp > _lastTimestamp.value()) {
-        _offset += timestamp - _lastTimestamp.value();
+    else if (timestamp > _lastTimestamp) {
+        _offset += timestamp - _lastTimestamp;
         _lastTimestamp = timestamp;
     }
     return _offset;
@@ -75,7 +70,7 @@ const webrtc::TimeDelta& MediaSinkWriter::Update(const Timestamp& timestamp)
 
 bool MediaSinkWriter::IsAccepted(const Timestamp& timestamp) const
 {
-    return !_lastTimestamp.has_value() || timestamp >= _lastTimestamp.value();
+    return !_lastTimestamp || timestamp >= _lastTimestamp;
 }
 
 } // namespace RTC

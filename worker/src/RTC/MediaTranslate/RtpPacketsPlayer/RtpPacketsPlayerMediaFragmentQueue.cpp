@@ -24,7 +24,7 @@ class RtpPacketsPlayerMediaFragmentQueue::Task
 public:
     virtual ~Task() = default;
     TaskType GetType() const { return _type; }
-    virtual std::optional<RtpTranslatedPacket> TakePacket() { return std::nullopt; }
+    virtual RtpTranslatedPacket TakePacket() { return RtpTranslatedPacket(); }
 protected:
     Task(TaskType type);
 private:
@@ -54,14 +54,14 @@ private:
     std::atomic_bool _started = false;
 };
 
-class RtpPacketsPlayerMediaFragmentQueue::MediaFrameTask : public Task
+class RtpPacketsPlayerMediaFragmentQueue::PacketTask : public Task
 {
 public:
-    MediaFrameTask(std::optional<RtpTranslatedPacket> packet);
+    PacketTask(RtpTranslatedPacket packet);
     // override of Task
-    std::optional<RtpTranslatedPacket> TakePacket() final { return std::move(_packet); }
+    RtpTranslatedPacket TakePacket() final { return std::move(_packet); }
 private:
-    std::optional<RtpTranslatedPacket> _packet;
+    RtpTranslatedPacket _packet;
 };
 
 RtpPacketsPlayerMediaFragmentQueue::
@@ -237,12 +237,11 @@ void RtpPacketsPlayerMediaFragmentQueue::Process(std::unique_ptr<Task> task)
     }
 }
 
-void RtpPacketsPlayerMediaFragmentQueue::Process(StartTask* startTask,
-                                                 std::optional<RtpTranslatedPacket> packet)
+void RtpPacketsPlayerMediaFragmentQueue::Process(StartTask* startTask, RtpTranslatedPacket packet)
 {
     if (startTask && packet) {
-        Timestamp timestamp = packet->GetTimestampOffset();
-        startTask->NotifyAboutPacket(std::move(packet.value()));
+        Timestamp timestamp = packet.GetTimestampOffset();
+        startTask->NotifyAboutPacket(std::move(packet));
         std::optional<uint32_t> timeout;
         if (!startTask->GeTimestamp().IsZero()) {
             const auto diff = timestamp - startTask->GeTimestamp();
@@ -275,7 +274,7 @@ bool RtpPacketsPlayerMediaFragmentQueue::ReadNextFrame(StartTask* startTask, boo
         LOCK_WRITE_PROTECTED_OBJ(_deserializer);
         if (auto packet = _deserializer->get()->NextPacket(trackIndex, _skipPayload.load())) {
             if (enque) {
-                Enque(std::make_unique<MediaFrameTask>(std::move(packet)));
+                Enque(std::make_unique<PacketTask>(std::move(packet)));
             }
             else {
                 Process(startTask, std::move(packet));
@@ -345,8 +344,7 @@ void RtpPacketsPlayerMediaFragmentQueue::StartTask::NotifyAboutPacket(RtpTransla
     }
 }
 
-RtpPacketsPlayerMediaFragmentQueue::MediaFrameTask::
-    MediaFrameTask(std::optional<RtpTranslatedPacket> packet)
+RtpPacketsPlayerMediaFragmentQueue::PacketTask::PacketTask(RtpTranslatedPacket packet)
     : Task(TaskType::Frame)
     , _packet(std::move(packet))
 {

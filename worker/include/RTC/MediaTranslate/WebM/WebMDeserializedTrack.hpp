@@ -15,8 +15,7 @@ public:
                                                          const std::shared_ptr<BufferAllocator>& allocator = nullptr);
     const RtpCodecMimeType& GetMime() const { return _mime; }
     // impl. of MediaFrameDeserializedTrack
-    std::optional<MediaFrame> NextFrame(size_t payloadOffset, bool skipPayload,
-                                        size_t payloadExtraSize) final;
+    MediaFrame NextFrame(size_t payloadOffset, bool skipPayload, size_t payloadExtraSize) final;
 private:
     WebMDeserializedTrack(const RtpCodecMimeType& mime, const mkvparser::Track* track,
                           const std::shared_ptr<BufferAllocator>& allocator);

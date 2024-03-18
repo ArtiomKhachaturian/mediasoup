@@ -16,8 +16,7 @@ RtpDepacketizer::RtpDepacketizer(const RtpCodecMimeType& mime, uint32_t clockRat
     MS_ASSERT(_mime.IsMediaCodec(), "invalid media codec: %s", _mime.ToString().c_str());
 }
 
-std::optional<MediaFrame> RtpDepacketizer::FromRtpPacket(const RtpPacket* packet,
-                                                         bool* configWasChanged)
+MediaFrame RtpDepacketizer::FromRtpPacket(const RtpPacket* packet, bool* configWasChanged)
 {
     if (packet) {
         const auto payload = AllocateBuffer(packet->GetPayloadLength(), packet->GetPayload());
@@ -26,7 +25,7 @@ std::optional<MediaFrame> RtpDepacketizer::FromRtpPacket(const RtpPacket* packet
                              packet->GetPayloadDescriptorHandler(),
                              payload);
     }
-    return std::nullopt;
+    return MediaFrame();
 }
 
 AudioFrameConfig RtpDepacketizer::GetAudioConfig(const RtpPacket* packet) const

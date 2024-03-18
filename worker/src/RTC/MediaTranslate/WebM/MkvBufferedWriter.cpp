@@ -240,7 +240,7 @@ MkvBufferedWriter::EnqueueResult MkvBufferedWriter::EnqueueFrame(const MediaFram
                                                                  bool audio)
 {
     EnqueueResult result = EnqueueResult::Failure;
-    if (IsInitialized()) {
+    if (IsInitialized() && mediaFrame) {
         auto& mkvLastTimestamp = audio ? _mkvAudioLastTimestamp : _mkvVideoLastTimestamp;
         if (mkvTimestamp >= mkvLastTimestamp) {
             if (!audio || SetAudioSampleRate(trackNumber, mediaFrame.GetClockRate())) {

@@ -18,19 +18,16 @@ RtpPacketizer::RtpPacketizer(RtpCodecMimeType::Type type,
 {
 }
 
-std::optional<RtpTranslatedPacket> RtpPacketizer::Create(Timestamp timestampOffset,
-                                                         std::shared_ptr<Buffer> buffer,
-                                                         size_t payloadOffset,
-                                                         size_t payloadLength) const
+RtpTranslatedPacket RtpPacketizer::Create(Timestamp timestampOffset,
+                                          std::shared_ptr<Buffer> buffer,
+                                          size_t payloadOffset,
+                                          size_t payloadLength) const
 {
     if (buffer) {
-        return std::make_optional<RtpTranslatedPacket>(std::move(timestampOffset),
-                                                       std::move(buffer),
-                                                       payloadOffset,
-                                                       payloadLength,
-                                                       GetAllocator());
+        return RtpTranslatedPacket(std::move(timestampOffset), std::move(buffer),
+                                   payloadOffset, payloadLength, GetAllocator());
     }
-    return std::nullopt;
+    return RtpTranslatedPacket();
 }
 
 size_t RtpPacketizer::GetPayloadOffset() const

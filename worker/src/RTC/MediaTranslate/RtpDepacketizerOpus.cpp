@@ -48,11 +48,11 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 {
 }
 
-std::optional<MediaFrame> RtpDepacketizerOpus::FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
-                                                             bool keyFrame, bool /*hasMarker*/,
-                                                             const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& /*pdh*/,
-                                                             const std::shared_ptr<Buffer>& payload,
-                                                             bool* configWasChanged)
+MediaFrame RtpDepacketizerOpus::FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
+                                              bool keyFrame, bool /*hasMarker*/,
+                                              const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& /*pdh*/,
+                                              const std::shared_ptr<Buffer>& payload,
+                                              bool* configWasChanged)
 {
     if (payload) {
         auto frame = CreateFrame();
@@ -68,7 +68,7 @@ std::optional<MediaFrame> RtpDepacketizerOpus::FromRtpPacket(uint32_t ssrc, uint
         }
         return frame;
     }
-    return std::nullopt;
+    return MediaFrame();
 }
 
 RtpDepacketizerOpus::OpusHeadBuffer::OpusHeadBuffer(uint32_t sampleRate)

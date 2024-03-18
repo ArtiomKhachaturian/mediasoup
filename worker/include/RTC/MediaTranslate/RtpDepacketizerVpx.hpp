@@ -1,7 +1,6 @@
 #pragma once
-
 #include "RTC/MediaTranslate/RtpDepacketizer.hpp"
-#include <absl/container/flat_hash_map.h>
+#include <unordered_map>
 
 namespace RTC
 {
@@ -15,11 +14,11 @@ public:
                        const std::shared_ptr<BufferAllocator>& allocator);
     ~RtpDepacketizerVpx() final;
     // impl. of RtpDepacketizer
-    std::optional<MediaFrame> FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
-                                            bool keyFrame, bool hasMarker,
-                                            const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                            const std::shared_ptr<Buffer>& payload,
-                                            bool* configWasChanged) final;
+    MediaFrame FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
+                             bool keyFrame, bool hasMarker,
+                             const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                             const std::shared_ptr<Buffer>& payload,
+                             bool* configWasChanged) final;
     VideoFrameConfig GetVideoConfig(uint32_t ssrc) const final;
 private:
     static bool ParseVp8VideoConfig(const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
@@ -29,7 +28,7 @@ private:
                                     const std::shared_ptr<Buffer>& payload,
                                     VideoFrameConfig& applyTo);
 private:
-    absl::flat_hash_map<uint32_t, std::unique_ptr<RtpAssembly>> _assemblies;
+    std::unordered_map<uint32_t, std::unique_ptr<RtpAssembly>> _assemblies;
 };
 
 } // namespace RTC

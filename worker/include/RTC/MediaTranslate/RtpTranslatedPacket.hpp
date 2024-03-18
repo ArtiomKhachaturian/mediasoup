@@ -13,9 +13,6 @@ class RtpCodecMimeType;
 class RtpTranslatedPacket
 {
 public:
-    RtpTranslatedPacket() = delete;
-    RtpTranslatedPacket(const RtpTranslatedPacket&) = delete;
-    RtpTranslatedPacket(RtpTranslatedPacket&& tmp);
     // [timestampOffset] from beginning of media stream, zero for 1st frame
     // [buffer] included RTP header + data
     RtpTranslatedPacket(Timestamp timestampOffset,
@@ -23,6 +20,9 @@ public:
                         size_t payloadOffset,
                         size_t payloadLength,
                         const std::shared_ptr<BufferAllocator>& allocator = nullptr);
+    RtpTranslatedPacket() = default;
+    RtpTranslatedPacket(const RtpTranslatedPacket&) = delete;
+    RtpTranslatedPacket(RtpTranslatedPacket&& tmp);
     ~RtpTranslatedPacket();
     RtpTranslatedPacket& operator = (const RtpTranslatedPacket&) = delete;
     RtpTranslatedPacket& operator = (RtpTranslatedPacket&& tmp);

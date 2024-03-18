@@ -9,17 +9,16 @@ RtpPacketizerOpus::RtpPacketizerOpus(const std::shared_ptr<BufferAllocator>& all
 {
 }
 
-std::optional<RtpTranslatedPacket> RtpPacketizerOpus::Add(size_t payloadOffset,
-                                                          size_t payloadLength,
-                                                          MediaFrame&& frame)
+RtpTranslatedPacket RtpPacketizerOpus::Add(size_t payloadOffset, size_t payloadLength,
+                                           MediaFrame&& frame)
 {
-    if (auto packet = Create(frame.GetTimestamp(), frame.TakePayload(),
-                             payloadOffset, payloadLength)) {
-        packet->SetMarker(_firstFrame);
+    auto packet = Create(frame.GetTimestamp(), frame.TakePayload(),
+                         payloadOffset, payloadLength);
+    if (packet) {
+        packet.SetMarker(_firstFrame);
         _firstFrame = false;
-        return packet;
     }
-    return std::nullopt;
+    return packet;
 }
 
 } // namespace RTC

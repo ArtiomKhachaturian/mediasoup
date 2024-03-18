@@ -22,11 +22,11 @@ class RtpDepacketizerVpx::RtpAssembly
 {
 public:
     RtpAssembly(uint32_t ssrc, const RtpDepacketizerVpx* depacketizer);
-    std::optional<MediaFrame> AddPacket(uint32_t rtpTimestamp,
-                                        bool keyFrame, bool hasMarker,
-                                        const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                        const std::shared_ptr<Buffer>& payload,
-                                        bool* configWasChanged);
+    MediaFrame AddPacket(uint32_t rtpTimestamp,
+                         bool keyFrame, bool hasMarker,
+                         const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                         const std::shared_ptr<Buffer>& payload,
+                         bool* configWasChanged);
     const VideoFrameConfig& GetConfig() const { return _config; }
 private:
     bool AddPayload(uint32_t rtpTimestamp, bool keyFrame,
@@ -35,13 +35,13 @@ private:
     bool ParseVideoConfig(const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
                           const std::shared_ptr<Buffer>& payload,
                           bool keyFrame, bool* configWasChanged);
-    std::optional<MediaFrame> ResetFrame();
+    MediaFrame ResetFrame();
     void SetLastTimeStamp(uint32_t lastTimeStamp);
 private:
     const uint32_t _ssrc;
     const RtpDepacketizerVpx* const _depacketizer;
     uint32_t _lastTimeStamp = 0U;
-    std::optional<MediaFrame> _frame;
+    MediaFrame _frame;
     VideoFrameConfig _config;
 };
 
@@ -68,11 +68,11 @@ RtpDepacketizerVpx::~RtpDepacketizerVpx()
 {
 }
 
-std::optional<MediaFrame> RtpDepacketizerVpx::FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
-                                                            bool keyFrame, bool hasMarker,
-                                                            const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                                            const std::shared_ptr<Buffer>& payload,
-                                                            bool* configWasChanged)
+MediaFrame RtpDepacketizerVpx::FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
+                                             bool keyFrame, bool hasMarker,
+                                             const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                             const std::shared_ptr<Buffer>& payload,
+                                             bool* configWasChanged)
 {
     if (payload) {
         auto it = _assemblies.find(ssrc);
@@ -83,7 +83,7 @@ std::optional<MediaFrame> RtpDepacketizerVpx::FromRtpPacket(uint32_t ssrc, uint3
         return it->second->AddPacket(rtpTimestamp, keyFrame, hasMarker, pdh,
                                      payload, configWasChanged);
     }
-    return std::nullopt;
+    return MediaFrame();
 }
 
 VideoFrameConfig RtpDepacketizerVpx::GetVideoConfig(uint32_t ssrc) const
@@ -146,11 +146,11 @@ RtpDepacketizerVpx::RtpAssembly::RtpAssembly(uint32_t ssrc, const RtpDepacketize
 {
 }
 
-std::optional<MediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(uint32_t rtpTimestamp,
-                                                                     bool keyFrame, bool hasMarker,
-                                                                     const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                                                     const std::shared_ptr<Buffer>& payload,
-                                                                     bool* configWasChanged)
+MediaFrame RtpDepacketizerVpx::RtpAssembly::AddPacket(uint32_t rtpTimestamp,
+                                                      bool keyFrame, bool hasMarker,
+                                                      const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                                      const std::shared_ptr<Buffer>& payload,
+                                                      bool* configWasChanged)
 {
     if (payload) {
         SetLastTimeStamp(rtpTimestamp);
@@ -171,7 +171,7 @@ std::optional<MediaFrame> RtpDepacketizerVpx::RtpAssembly::AddPacket(uint32_t rt
             MS_ERROR("failed to add payload for stream [%s]", error.c_str());
         }
     }
-    return std::nullopt;
+    return MediaFrame();
 }
 
 bool RtpDepacketizerVpx::RtpAssembly::AddPayload(uint32_t rtpTimestamp, bool keyFrame,
@@ -186,7 +186,7 @@ bool RtpDepacketizerVpx::RtpAssembly::AddPayload(uint32_t rtpTimestamp, bool key
             if (offset) {
                 buffer = std::make_shared<ShiftedPayloadBuffer>(payload, offset);
             }
-            RtpDepacketizer::AddPacketToFrame(_ssrc, rtpTimestamp, keyFrame, buffer, _frame.value());
+            RtpDepacketizer::AddPacketToFrame(_ssrc, rtpTimestamp, keyFrame, buffer, _frame);
             return true;
         }
     }
@@ -223,9 +223,9 @@ bool RtpDepacketizerVpx::RtpAssembly::ParseVideoConfig(const std::shared_ptr<con
     return ok;
 }
 
-std::optional<MediaFrame> RtpDepacketizerVpx::RtpAssembly::ResetFrame()
+MediaFrame RtpDepacketizerVpx::RtpAssembly::ResetFrame()
 {
-    std::optional<MediaFrame> frame(std::move(_frame));
+    MediaFrame frame(std::move(_frame));
     _frame = _depacketizer->CreateFrame();
     return frame;
 }

@@ -20,13 +20,12 @@ class RtpDepacketizer : public BufferAllocations<void>
 {
 public:
     virtual ~RtpDepacketizer() = default;
-    virtual std::optional<MediaFrame> FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
-                                                    bool keyFrame, bool hasMarker,
-                                                    const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                                    const std::shared_ptr<Buffer>& payload,
-                                                    bool* configWasChanged = nullptr) = 0;
-    std::optional<MediaFrame> FromRtpPacket(const RtpPacket* packet,
-                                            bool* configWasChanged = nullptr);
+    virtual MediaFrame FromRtpPacket(uint32_t ssrc, uint32_t rtpTimestamp,
+                                     bool keyFrame, bool hasMarker,
+                                     const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
+                                     const std::shared_ptr<Buffer>& payload,
+                                     bool* configWasChanged = nullptr) = 0;
+    MediaFrame FromRtpPacket(const RtpPacket* packet, bool* configWasChanged = nullptr);
     virtual AudioFrameConfig GetAudioConfig(uint32_t /*ssrc*/) const { return AudioFrameConfig(); }
     virtual VideoFrameConfig GetVideoConfig(uint32_t /*ssrc*/) const { return VideoFrameConfig(); }
     AudioFrameConfig GetAudioConfig(const RtpPacket* packet) const;

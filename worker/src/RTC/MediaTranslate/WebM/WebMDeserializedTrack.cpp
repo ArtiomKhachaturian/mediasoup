@@ -2,7 +2,6 @@
 #include "RTC/MediaTranslate/WebM/WebMDeserializedTrack.hpp"
 #include "RTC/MediaTranslate/WebM/MkvReadResult.hpp"
 #include "RTC/MediaTranslate/WebM/WebMCodecs.hpp"
-#include "RTC/MediaTranslate/MediaFrame.hpp"
 #include "Logger.hpp"
 
 namespace RTC
@@ -21,11 +20,10 @@ WebMDeserializedTrack::WebMDeserializedTrack(const RtpCodecMimeType& mime,
     }
 }
 
-std::optional<MediaFrame> WebMDeserializedTrack::NextFrame(size_t payloadOffset,
-                                                           bool skipPayload,
-                                                           size_t payloadExtraSize)
+MediaFrame WebMDeserializedTrack::NextFrame(size_t payloadOffset,
+                                            bool skipPayload, size_t payloadExtraSize)
 {
-    std::optional<MediaFrame> mediaFrame;
+    MediaFrame mediaFrame;
     MkvReadResult mkvResult = MkvReadResult::Success;
     if (_currentEntry) {
         if (_currentEntry.IsEndOfStream()) {
@@ -53,10 +51,10 @@ std::optional<MediaFrame> WebMDeserializedTrack::NextFrame(size_t payloadOffset,
             }
         }
         if (MaybeOk(mkvResult)) {
-            mediaFrame = std::make_optional<MediaFrame>(GetClockRate(), GetAllocator());
-            mediaFrame->SetKeyFrame(_currentEntry.IsKey());
-            mediaFrame->AddPayload(std::move(buffer));
-            mediaFrame->SetTimestamp(_currentEntry.GetTime());
+            mediaFrame = MediaFrame(GetClockRate(), GetAllocator());
+            mediaFrame.SetKeyFrame(_currentEntry.IsKey());
+            mediaFrame.AddPayload(std::move(buffer));
+            mediaFrame.SetTimestamp(_currentEntry.GetTime());
             SetLastPayloadSize(frameLen);
         }
     }

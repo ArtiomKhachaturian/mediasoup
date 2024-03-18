@@ -19,7 +19,7 @@ class RtpPacketsPlayerMediaFragmentQueue : public MediaTimerCallback
 {
     class Task;
     class StartTask;
-    class MediaFrameTask;
+    class PacketTask;
     template <typename T>
     using Protected = ProtectedObj<T, std::mutex>;
 public:
@@ -46,7 +46,7 @@ private:
     void SetClockRate(size_t trackIndex, uint32_t clockRate);
     void Enque(std::unique_ptr<Task> task);
     void Process(std::unique_ptr<Task> task);
-    void Process(StartTask* startTask, std::optional<RtpTranslatedPacket> packet);
+    void Process(StartTask* startTask, RtpTranslatedPacket packet);
     bool ReadNextFrame(StartTask* startTask, bool enque);
     bool ClearTasks();
 private:
