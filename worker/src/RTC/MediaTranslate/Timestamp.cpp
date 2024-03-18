@@ -1,5 +1,5 @@
 #define MS_CLASS "RTC::Timestamp"
-#include "RTC/Timestamp.hpp"
+#include "RTC/MediaTranslate/Timestamp.hpp"
 #include "Logger.hpp"
 
 namespace {

@@ -1,9 +1,8 @@
 #pragma once
 #include "RTC/MediaTranslate/RtpMediaWriter.hpp"
 #include "RTC/MediaTranslate/MediaFrame.hpp"
-#include "RTC/Timestamp.hpp"
+#include "RTC/MediaTranslate/Timestamp.hpp"
 #include "api/units/time_delta.h"
-#include <memory>
 
 namespace RTC
 {

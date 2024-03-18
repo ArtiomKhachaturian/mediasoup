@@ -1,8 +1,7 @@
 #define MS_CLASS "RTC::RtpPacketsTimeline"
 #include "RTC/MediaTranslate/RtpPacketsTimeline.hpp"
-#include "RTC/Timestamp.hpp"
+#include "RTC/MediaTranslate/Timestamp.hpp"
 #include "RTC/RtpDictionaries.hpp"
-#include "RTC/Timestamp.hpp"
 #include "Logger.hpp"
 
 namespace RTC
