@@ -1,7 +1,7 @@
 #define MS_CLASS "RTC::RtpDepacketizerOpus"
 #include "RTC/MediaTranslate/RtpDepacketizerOpus.hpp"
 #include "RTC/MediaTranslate/TranslatorUtils.hpp"
-#include "RTC/MediaTranslate/AudioFrameConfig.hpp"
+#include "RTC/MediaTranslate/RtpPacketInfo.hpp"
 #include "RTC/Codecs/Opus.hpp"
 #include "RTC/Codecs/Tools.hpp"
 #include "RTC/Buffers/Buffer.hpp"
@@ -38,15 +38,12 @@ RtpDepacketizerOpus::~RtpDepacketizerOpus()
 {
 }
 
-MediaFrame RtpDepacketizerOpus::AddPacketInfo(uint32_t rtpTimestamp,
-                                              bool keyFrame, bool /*hasMarker*/,
-                                              const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& /*pdh*/,
-                                              const std::shared_ptr<Buffer>& payload,
+MediaFrame RtpDepacketizerOpus::AddPacketInfo(const RtpPacketInfo& rtpMedia,
                                               bool* configWasChanged)
 {
-    if (payload) {
+    if (const auto& payload = rtpMedia._payload) {
         auto frame = CreateFrame();
-        if (AddPacketInfoToFrame(rtpTimestamp, keyFrame, payload, frame)) {
+        if (AddPacketInfoToFrame(rtpMedia, frame)) {
             const auto channelsCount = OpusHeadBuffer::GetChannelCount(payload);
             if (!_opusCodecData || channelsCount != _opusCodecData->GetChannelCount()) {
                 _opusCodecData = std::make_shared<OpusHeadBuffer>(channelsCount, GetClockRate());

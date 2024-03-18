@@ -11,6 +11,7 @@ class MediaFrame;
 class RtpMediaFrameSerializer;
 class RtpCodecMimeType;
 class RtpPacket;
+struct RtpPacketInfo;
 
 namespace Codecs {
 class PayloadDescriptorHandler;
@@ -21,10 +22,7 @@ class RtpDepacketizer : public BufferAllocations<void>
 {
 public:
     virtual ~RtpDepacketizer() = default;
-    virtual MediaFrame AddPacketInfo(uint32_t rtpTimestamp,
-                                     bool keyFrame, bool hasMarker,
-                                     const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                     const std::shared_ptr<Buffer>& payload,
+    virtual MediaFrame AddPacketInfo(const RtpPacketInfo& rtpMedia,
                                      bool* configWasChanged = nullptr) = 0;
     MediaFrame AddPacketInfo(const RtpPacket* packet, bool* configWasChanged = nullptr);
     virtual AudioFrameConfig GetAudioConfig() const { return AudioFrameConfig(); }
@@ -40,9 +38,7 @@ protected:
                     const std::shared_ptr<BufferAllocator>& allocator);
     MediaFrame CreateFrame() const;
     // return true if in/out frame is valid
-    bool AddPacketInfoToFrame(uint32_t rtpTimestamp, bool keyFrame,
-                              const std::shared_ptr<Buffer>& payload, MediaFrame& frame) const;
-    bool AddPacketInfoToFrame(const RtpPacket* packet, MediaFrame& frame) const;
+    bool AddPacketInfoToFrame(const RtpPacketInfo& rtpMedia, MediaFrame& frame) const;
 private:
     const bool _audio;
     const uint32_t _ssrc;

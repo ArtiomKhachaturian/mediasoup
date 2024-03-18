@@ -130,14 +130,11 @@ std::unique_ptr<MediaSinkWriter> MediaFrameSerializer::CreateSinkWriter(MediaSin
     return writer;
 }
 
-bool MediaFrameSerializer::WriteRtpMedia(uint32_t rtpTimestamp,
-                                         bool keyFrame, bool hasMarker,
-                                         const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                         const std::shared_ptr<Buffer>& payload)
+bool MediaFrameSerializer::WriteRtpMedia(const RtpPacketInfo& rtpMedia)
 {
     LOCK_READ_PROTECTED_OBJ(_writers);
     for (auto it = _writers->begin(); it != _writers->end(); ++it) {
-        if (!it->second->WriteRtpMedia(rtpTimestamp, keyFrame, hasMarker, pdh, payload)) {
+        if (!it->second->WriteRtpMedia(rtpMedia)) {
             MS_ERROR("unable to write media frame [%s]", GetMimeText().c_str());
         }
     }

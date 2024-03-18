@@ -12,31 +12,15 @@ public:
                        const std::shared_ptr<BufferAllocator>& allocator);
     ~RtpDepacketizerVpx() final;
     // impl. of RtpDepacketizer
-    MediaFrame AddPacketInfo(uint32_t rtpTimestamp,
-                             bool keyFrame, bool hasMarker,
-                             const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                             const std::shared_ptr<Buffer>& payload,
-                             bool* configWasChanged) final;
+    MediaFrame AddPacketInfo(const RtpPacketInfo& rtpMedia, bool* configWasChanged) final;
     VideoFrameConfig GetVideoConfig() const final { return _config; }
 private:
-    static bool ParseVp8VideoConfig(const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                    const std::shared_ptr<Buffer>& payload,
-                                    VideoFrameConfig& applyTo);
-    static bool ParseVp9VideoConfig(const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                    const std::shared_ptr<Buffer>& payload,
-                                    VideoFrameConfig& applyTo);
+    static bool ParseVp8VideoConfig(const RtpPacketInfo& rtpMedia, VideoFrameConfig& applyTo);
+    static bool ParseVp9VideoConfig(const RtpPacketInfo& rtpMedia, VideoFrameConfig& applyTo);
     std::string GetDescription() const;
-    MediaFrame MergePacketInfo(uint32_t rtpTimestamp,
-                               bool keyFrame, bool hasMarker,
-                               const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                               const std::shared_ptr<Buffer>& payload,
-                               bool* configWasChanged);
-    bool AddPayload(uint32_t rtpTimestamp, bool keyFrame,
-                    const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                    const std::shared_ptr<Buffer>& payload);
-    bool ParseVideoConfig(const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                          const std::shared_ptr<Buffer>& payload,
-                          bool keyFrame, bool* configWasChanged);
+    MediaFrame MergePacketInfo(const RtpPacketInfo& rtpMedia, bool* configWasChanged);
+    bool AddPayload(const RtpPacketInfo& rtpMedia);
+    bool ParseVideoConfig(const RtpPacketInfo& rtpMedia, bool* configWasChanged);
     MediaFrame ResetFrame();
     void SetLastTimeStamp(uint32_t lastTimeStamp);
 private:

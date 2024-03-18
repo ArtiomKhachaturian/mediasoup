@@ -51,9 +51,7 @@ private:
     bool IsReadyToWrite() const { return !IsPaused() && HasSinks(); }
     std::unique_ptr<MediaSinkWriter> CreateSinkWriter(MediaSink* sink);
     // impl. of RtpMediaWriter
-    bool WriteRtpMedia(uint32_t rtpTimestamp, bool keyFrame, bool hasMarker,
-                       const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                       const std::shared_ptr<Buffer>& payload) final;
+    bool WriteRtpMedia(const RtpPacketInfo& rtpMedia) final;
 private:
     const RtpCodecMimeType _mime;
     const uint32_t _ssrc;

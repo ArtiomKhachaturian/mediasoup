@@ -1,5 +1,6 @@
 #include "RTC/MediaTranslate/RtpMediaWritersQueue.hpp"
 #include "RTC/MediaTranslate/RtpMediaWriter.hpp"
+#include "RTC/MediaTranslate/RtpPacketInfo.hpp"
 #include "RTC/Buffers/BufferAllocator.hpp"
 #include "RTC/RtpPacket.hpp"
 #include <array>
@@ -9,15 +10,9 @@ namespace RTC
 
 struct RtpMediaWritersQueue::Packet
 {
-    Packet(uint64_t writerId, uint32_t rtpTimestamp, bool keyFrame, bool hasMarker,
-           std::shared_ptr<const Codecs::PayloadDescriptorHandler> pdh,
-           std::shared_ptr<Buffer> payload);
+    Packet(uint64_t writerId, RtpPacketInfo packetInfo);
     const uint64_t _writerId;
-    const uint32_t _rtpTimestamp;
-    const bool _keyFrame;
-    const bool _hasMarker;
-    const std::shared_ptr<const Codecs::PayloadDescriptorHandler> _pdh;
-    const std::shared_ptr<Buffer> _payload;
+    const RtpPacketInfo _packetInfo;
 };
 
 RtpMediaWritersQueue::RtpMediaWritersQueue()
@@ -77,14 +72,10 @@ void RtpMediaWritersQueue::Write(uint64_t writerId, const RtpPacket* packet,
                                  const std::shared_ptr<BufferAllocator>& allocator)
 {
     if (packet) {
-        auto payload = RTC::AllocateBuffer(packet->GetPayloadLength(),
-                                           packet->GetPayload(),
-                                           allocator);
+        auto packeInfo = RtpPacketInfo::FromRtpPacket(packet, allocator);
         {
             const std::lock_guard guard(_packetsMutex);
-            _packets->emplace(writerId, packet->GetTimestamp(), packet->IsKeyFrame(),
-                              packet->HasMarker(), packet->GetPayloadDescriptorHandler(),
-                              std::move(payload));
+            _packets->emplace(writerId, std::move(packeInfo));
         }
         _packetsCondition.notify_one();
     }
@@ -129,22 +120,28 @@ void RtpMediaWritersQueue::WritePacket(const Packet& packet) const
     LOCK_READ_PROTECTED_OBJ(_writers);
     const auto it = _writers->find(packet._writerId);
     if (it != _writers->end()) {
-        it->second->WriteRtpMedia(packet._rtpTimestamp, packet._keyFrame,
-                                  packet._hasMarker, packet._pdh, packet._payload);
+        it->second->WriteRtpMedia(packet._packetInfo);
     }
 }
 
-RtpMediaWritersQueue::Packet::Packet(uint64_t writerId, uint32_t rtpTimestamp,
-                                     bool keyFrame, bool hasMarker,
-                                     std::shared_ptr<const Codecs::PayloadDescriptorHandler> pdh,
-                                     std::shared_ptr<Buffer> payload)
+RtpMediaWritersQueue::Packet::Packet(uint64_t writerId, RtpPacketInfo packetInfo)
     : _writerId(writerId)
-    , _rtpTimestamp(rtpTimestamp)
-    , _keyFrame(keyFrame)
-    , _hasMarker(hasMarker)
-    , _pdh(std::move(pdh))
-    , _payload(std::move(payload))
+    , _packetInfo(std::move(packetInfo))
 {
+}
+
+RtpPacketInfo RtpPacketInfo::FromRtpPacket(const RtpPacket* packet,
+                                           const std::shared_ptr<BufferAllocator>& allocator)
+{
+    if (packet) {
+        auto payload = RTC::AllocateBuffer(packet->GetPayloadLength(),
+                                           packet->GetPayload(),
+                                           allocator);
+        return RtpPacketInfo(packet->GetTimestamp(), packet->IsKeyFrame(),
+                             packet->HasMarker(), packet->GetPayloadDescriptorHandler(),
+                             std::move(payload));
+    }
+    return RtpPacketInfo();
 }
 
 } // namespace RTC

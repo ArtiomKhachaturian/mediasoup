@@ -17,15 +17,10 @@ public:
                     std::unique_ptr<MediaFrameWriter> frameWriter);
     ~MediaSinkWriter() final;
     // impl. of RtpMediaWriter
-    bool WriteRtpMedia(uint32_t rtpTimestamp,
-                       bool keyFrame, bool hasMarker,
-                       const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                       const std::shared_ptr<Buffer>& payload) final;
+    bool WriteRtpMedia(const RtpPacketInfo& rtpMedia) final;
 private:
     bool Write(const MediaFrame& mediaFrame);
-    MediaFrame CreateFrame(uint32_t rtpTimestamp, bool keyFrame, bool hasMarker,
-                           const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                           const std::shared_ptr<Buffer>& payload);
+    MediaFrame CreateFrame(const RtpPacketInfo& rtpMedia);
     const webrtc::TimeDelta& Update(const Timestamp& timestamp);
     bool IsAccepted(const Timestamp& timestamp) const;
 private:

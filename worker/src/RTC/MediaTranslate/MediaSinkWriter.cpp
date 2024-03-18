@@ -16,11 +16,9 @@ MediaSinkWriter::~MediaSinkWriter()
 {
 }
 
-bool MediaSinkWriter::WriteRtpMedia(uint32_t rtpTimestamp, bool keyFrame, bool hasMarker,
-                                    const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                    const std::shared_ptr<Buffer>& payload)
+bool MediaSinkWriter::WriteRtpMedia(const RtpPacketInfo& rtpMedia)
 {
-    return Write(CreateFrame(rtpTimestamp, keyFrame, hasMarker, pdh, payload));
+    return Write(CreateFrame(rtpMedia));
 }
 
 bool MediaSinkWriter::Write(const MediaFrame& mediaFrame)
@@ -34,14 +32,10 @@ bool MediaSinkWriter::Write(const MediaFrame& mediaFrame)
     return false;
 }
 
-MediaFrame MediaSinkWriter::CreateFrame(uint32_t rtpTimestamp,
-                                        bool keyFrame, bool hasMarker,
-                                        const std::shared_ptr<const Codecs::PayloadDescriptorHandler>& pdh,
-                                        const std::shared_ptr<Buffer>& payload)
+MediaFrame MediaSinkWriter::CreateFrame(const RtpPacketInfo& rtpMedia)
 {
     bool configChanged = false;
-    auto frame = _depacketizer->AddPacketInfo(rtpTimestamp, keyFrame, hasMarker,
-                                              pdh, payload, &configChanged);
+    auto frame = _depacketizer->AddPacketInfo(rtpMedia, &configChanged);
     if (configChanged) {
         if (_depacketizer->IsAudio()) {
             _frameWriter->SetConfig(_depacketizer->GetAudioConfig());
