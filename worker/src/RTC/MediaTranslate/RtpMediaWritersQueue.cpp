@@ -23,7 +23,6 @@ RtpMediaWritersQueue::RtpMediaWritersQueue()
 
 RtpMediaWritersQueue::~RtpMediaWritersQueue()
 {
-    DropPendingPackets();
     StopExecution();
     LOCK_WRITE_PROTECTED_OBJ(_writers);
     _writers->clear();
@@ -71,7 +70,7 @@ void RtpMediaWritersQueue::UnregisterWriter(const ObjectId* writer)
 void RtpMediaWritersQueue::Write(uint64_t writerId, const RtpPacket* packet,
                                  const std::shared_ptr<BufferAllocator>& allocator)
 {
-    if (packet) {
+    if (packet && !IsCancelled()) {
         auto packeInfo = RtpPacketInfo::FromRtpPacket(packet, allocator);
         {
             const std::lock_guard guard(_packetsMutex);
@@ -104,15 +103,13 @@ void RtpMediaWritersQueue::DoExecuteInThread()
 void RtpMediaWritersQueue::DoStopThread()
 {
     ThreadExecution::DoStopThread();
-    _packetsCondition.notify_one();
-}
-
-void RtpMediaWritersQueue::DropPendingPackets()
-{
-    const std::lock_guard guard(_packetsMutex);
-    while (!_packets->empty()) {
-        _packets->pop();
+    {
+        const std::lock_guard guard(_packetsMutex);
+        while (!_packets->empty()) {
+            _packets->pop();
+        }
     }
+    _packetsCondition.notify_one();
 }
 
 void RtpMediaWritersQueue::WritePacket(const Packet& packet) const

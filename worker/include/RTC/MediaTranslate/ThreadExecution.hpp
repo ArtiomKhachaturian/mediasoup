@@ -17,6 +17,7 @@ public:
     ThreadPriority GetPriority() const { return _priority; }
     // returns true if state was changed
     bool StartExecution(bool waitingUntilNotStarted = false);
+    // don't forget to call this method before destroy of derived class instance
     bool StopExecution();
     bool IsActive() const;
 protected:

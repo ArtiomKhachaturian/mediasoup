@@ -34,7 +34,6 @@ protected:
     void DoExecuteInThread() final;
     void DoStopThread() final;
 private:
-    void DropPendingPackets();
     void WritePacket(const Packet& packet) const;
 private:
     const std::unique_ptr<PacketsQueue> _packets;
