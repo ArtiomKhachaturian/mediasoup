@@ -1,12 +1,13 @@
 [wrap-file]
-directory = asio-1.24.0
-source_url = https://sourceforge.net/projects/asio/files/asio/1.24.0%20%28Stable%29/asio-1.24.0.tar.gz/download
-source_filename = asio-1.24.0.tar.gz
-source_hash = 2f23ef6eada06ecc1472af5df6365ed4f15452ccd07dc0a6851fa20d571dba94
-patch_filename = asio_1.24.0-1_patch.zip
-patch_url = https://wrapdb.mesonbuild.com/v2/asio_1.24.0-1/get_patch
-patch_hash = 613abe3efaf4cb4cc279611860d1b7c20ce540a0ee07364012e86f34a7ba1a53
-wrapdb_version = 1.24.0-1
+directory = asio-1.28.1
+source_url = https://sourceforge.net/projects/asio/files/asio/1.28.1%20%28Stable%29/asio-1.28.1.tar.gz/download
+source_filename = asio-1.28.1.tar.gz
+source_hash = eef0eddce419827876f4929c6d7523e010528031e5289ec57914e89fb9ab9d8d
+patch_filename = asio_1.28.1-1_patch.zip
+patch_url = https://wrapdb.mesonbuild.com/v2/asio_1.28.1-1/get_patch
+patch_hash = 9a8f47f1e9e60c4250142b7fe5b1ada3a2e3c73dd057d4c6d4198147fc5d25a9
+source_fallback_url = https://github.com/mesonbuild/wrapdb/releases/download/asio_1.28.1-1/asio-1.28.1.tar.gz
+wrapdb_version = 1.28.1-1
 
 [provide]
 asio = asio_dep
