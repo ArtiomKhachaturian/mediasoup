@@ -6,7 +6,7 @@
 #include "RTC/Buffers/SimpleBuffer.hpp"
 #ifdef WRITE_TRANSLATION_TO_FILE
 #include "RTC/MediaTranslate/FileWriter.hpp"
-#include "DepLibUV.hpp"
+#include "RTC/MediaTranslate/TranslatorUtils.hpp"
 #endif
 #include "Logger.hpp"
 
@@ -116,7 +116,7 @@ void WebsocketEndPoint::OnBinaryMessageReceved(uint64_t, const std::shared_ptr<B
         if (depacketizerPath && std::strlen(depacketizerPath)) {
             std::string fileName = std::string(depacketizerPath) + "/"
                 + "received_translation_" + std::to_string(num)
-                + "_" + std::to_string(DepLibUV::GetTimeMs()) + ".webm";
+                + "_" + GetCurrentTime() + ".webm";
             FileWriter::Write(fileName, message);
         }
 #else
