@@ -23,7 +23,7 @@ public:
     bool IsZero() const { return 0U == GetRtpTime(); }
     bool IsValid() const { return 0U != GetClockRate(); }
     // operators
-    constexpr explicit operator bool() const { return IsValid(); }
+    explicit operator bool() const { return IsValid(); }
     bool operator == (const Timestamp& other) const;
     bool operator == (const webrtc::Timestamp& other) const;
     bool operator != (const Timestamp& other) const;

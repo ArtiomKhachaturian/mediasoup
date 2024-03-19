@@ -1,6 +1,7 @@
 #pragma once
 #include "RTC/Buffers/BufferAllocations.hpp"
 #include <mkvmuxer/mkvmuxer.h>
+#include <vector>
 #include <unordered_map>
 
 namespace RTC

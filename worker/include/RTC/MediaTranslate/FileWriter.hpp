@@ -1,5 +1,6 @@
 #pragma once
 #include "RTC/MediaTranslate/FileDevice.hpp"
+#include <memory>
 
 namespace RTC
 {
