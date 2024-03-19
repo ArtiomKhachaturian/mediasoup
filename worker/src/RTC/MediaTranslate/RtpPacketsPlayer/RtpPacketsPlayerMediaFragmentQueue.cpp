@@ -5,6 +5,7 @@
 #include "RTC/MediaTranslate/MediaFrameDeserializer.hpp"
 #include "RTC/MediaTranslate/MediaTimer/MediaTimer.hpp"
 #include "RTC/RtpDictionaries.hpp"
+#include "DepLibUV.hpp"
 #include "Logger.hpp"
 
 namespace {
@@ -240,9 +241,11 @@ void RtpPacketsPlayerMediaFragmentQueue::Process(std::unique_ptr<Task> task)
 void RtpPacketsPlayerMediaFragmentQueue::Process(StartTask* startTask, RtpTranslatedPacket packet)
 {
     if (startTask && packet) {
+        // consider of full time which spend to processing
+        const auto start = DepLibUV::GetTimeMs();
         Timestamp timestamp = packet.GetTimestampOffset();
         startTask->NotifyAboutPacket(std::move(packet));
-        std::optional<uint32_t> timeout;
+        uint32_t timeout = _noTimeout;
         if (!startTask->GeTimestamp().IsZero()) {
             const auto diff = timestamp - startTask->GeTimestamp();
             timeout = diff.ms<uint32_t>();
@@ -256,12 +259,18 @@ void RtpPacketsPlayerMediaFragmentQueue::Process(StartTask* startTask, RtpTransl
                     break;
             }
         }
-        if (timeout.has_value() && timeout.value() != _framesTimeout.exchange(timeout.value())) {
-            if (const auto timer = _timerRef.lock()) {
-                timer->SetTimeout(GetTimerId(), timeout.value());
+        startTask->SetTimestamp(std::move(timestamp));
+        if (timeout != _noTimeout) {
+            if (const auto elapsed = static_cast<uint32_t>(DepLibUV::GetTimeMs() - start)) {
+                // and apply delta if needed
+                timeout -= elapsed;
+            }
+            if (timeout != _framesTimeout.exchange(timeout)) {
+                if (const auto timer = _timerRef.lock()) {
+                    timer->SetTimeout(GetTimerId(), timeout);
+                }
             }
         }
-        startTask->SetTimestamp(std::move(timestamp));
     }
 }
 

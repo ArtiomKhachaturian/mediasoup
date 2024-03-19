@@ -2,6 +2,7 @@
 #include "RTC/MediaTranslate/MediaTimer/MediaTimerCallback.hpp"
 #include "ProtectedObj.hpp"
 #include <atomic>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <queue>
@@ -50,6 +51,7 @@ private:
     bool ReadNextFrame(StartTask* startTask, bool enque);
     bool ClearTasks();
 private:
+    static constexpr inline uint32_t _noTimeout = std::numeric_limits<uint32_t>::max();
     const uint64_t _mediaId;
     const uint64_t _mediaSourceId;
     const std::weak_ptr<MediaTimer> _timerRef;

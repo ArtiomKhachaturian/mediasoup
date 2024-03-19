@@ -72,10 +72,8 @@ void RtpMediaWritersQueue::Write(uint64_t writerId, const RtpPacket* packet,
 {
     if (packet && !IsCancelled()) {
         auto packeInfo = RtpPacketInfo::FromRtpPacket(packet, allocator);
-        {
-            const std::lock_guard guard(_packetsMutex);
-            _packets->emplace(writerId, std::move(packeInfo));
-        }
+        const std::lock_guard guard(_packetsMutex);
+        _packets->emplace(writerId, std::move(packeInfo));
         _packetsCondition.notify_one();
     }
 }
@@ -103,11 +101,9 @@ void RtpMediaWritersQueue::DoExecuteInThread()
 void RtpMediaWritersQueue::DoStopThread()
 {
     ThreadExecution::DoStopThread();
-    {
-        const std::lock_guard guard(_packetsMutex);
-        while (!_packets->empty()) {
-            _packets->pop();
-        }
+    const std::lock_guard guard(_packetsMutex);
+    while (!_packets->empty()) {
+        _packets->pop();
     }
     _packetsCondition.notify_one();
 }
